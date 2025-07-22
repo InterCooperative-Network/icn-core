@@ -39,11 +39,7 @@ impl Default for DidResolutionConfig {
             max_cache_size: 10000,
             web_timeout_seconds: 30,
             enable_fallback: true,
-            method_preference: vec![
-                "key".to_string(),
-                "peer".to_string(), 
-                "web".to_string(),
-            ],
+            method_preference: vec!["key".to_string(), "peer".to_string(), "web".to_string()],
         }
     }
 }
@@ -53,12 +49,12 @@ pub struct EnhancedDidResolver {
     config: DidResolutionConfig,
     cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
     time_provider: Arc<dyn TimeProvider>,
-    
+
     // Method-specific resolvers
     key_resolver: KeyDidResolver,
     peer_resolver: PeerDidResolver,
     web_resolver: Arc<RwLock<WebDidResolver>>,
-    
+
     // Statistics
     stats: Arc<RwLock<ResolutionStats>>,
 }
@@ -82,10 +78,7 @@ pub struct MethodStats {
 
 impl EnhancedDidResolver {
     /// Create a new enhanced DID resolver
-    pub fn new(
-        config: DidResolutionConfig,
-        time_provider: Arc<dyn TimeProvider>,
-    ) -> Self {
+    pub fn new(config: DidResolutionConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             config,
             cache: Arc::new(RwLock::new(HashMap::new())),
@@ -122,7 +115,10 @@ impl EnhancedDidResolver {
     }
 
     /// Resolve DID with caching and fallback
-    pub fn resolve_with_caching(&self, did: &Did) -> Result<ed25519_dalek::VerifyingKey, CommonError> {
+    pub fn resolve_with_caching(
+        &self,
+        did: &Did,
+    ) -> Result<ed25519_dalek::VerifyingKey, CommonError> {
         let start_time = self.time_provider.unix_seconds();
         let did_string = did.to_string();
 
@@ -146,7 +142,7 @@ impl EnhancedDidResolver {
 
         // Attempt resolution with configured method preference
         let result = self.resolve_with_methods(did);
-        
+
         // Record timing and results
         let end_time = self.time_provider.unix_seconds();
         let duration_ms = (end_time - start_time) as f64 * 1000.0;
@@ -155,7 +151,7 @@ impl EnhancedDidResolver {
             Ok(key) => {
                 // Cache successful resolution
                 self.cache_result(&did_string, *key, &did.method);
-                
+
                 // Update method stats
                 self.update_method_stats(&did.method, true, duration_ms);
             }
@@ -192,12 +188,17 @@ impl EnhancedDidResolver {
         }
 
         Err(CommonError::IdentityError(format!(
-            "Failed to resolve DID {} with any available method", did
+            "Failed to resolve DID {} with any available method",
+            did
         )))
     }
 
     /// Resolve using a specific method
-    fn resolve_by_method(&self, did: &Did, method: &str) -> Result<ed25519_dalek::VerifyingKey, CommonError> {
+    fn resolve_by_method(
+        &self,
+        did: &Did,
+        method: &str,
+    ) -> Result<ed25519_dalek::VerifyingKey, CommonError> {
         match method {
             "key" => self.key_resolver.resolve(did),
             "peer" => self.peer_resolver.resolve(did),
@@ -205,12 +206,15 @@ impl EnhancedDidResolver {
                 if let Ok(resolver) = self.web_resolver.read() {
                     resolver.resolve(did)
                 } else {
-                    Err(CommonError::IdentityError("Web resolver unavailable".to_string()))
+                    Err(CommonError::IdentityError(
+                        "Web resolver unavailable".to_string(),
+                    ))
                 }
             }
             _ => Err(CommonError::IdentityError(format!(
-                "Unsupported DID method: {}", method
-            )))
+                "Unsupported DID method: {}",
+                method
+            ))),
         }
     }
 
@@ -218,7 +222,7 @@ impl EnhancedDidResolver {
     fn get_from_cache(&self, did_string: &str) -> Option<CacheEntry> {
         let cache = self.cache.read().ok()?;
         let entry = cache.get(did_string)?.clone();
-        
+
         // Check if expired
         let now = self.time_provider.unix_seconds();
         if now >= entry.expires_at {
@@ -229,7 +233,7 @@ impl EnhancedDidResolver {
             }
             return None;
         }
-        
+
         Some(entry)
     }
 
@@ -242,11 +246,14 @@ impl EnhancedDidResolver {
             }
 
             let expires_at = self.time_provider.unix_seconds() + self.config.cache_ttl_seconds;
-            cache.insert(did_string.to_string(), CacheEntry {
-                verifying_key: key,
-                expires_at,
-                method_used: method.to_string(),
-            });
+            cache.insert(
+                did_string.to_string(),
+                CacheEntry {
+                    verifying_key: key,
+                    expires_at,
+                    method_used: method.to_string(),
+                },
+            );
         }
     }
 
@@ -271,7 +278,7 @@ impl EnhancedDidResolver {
     fn update_method_stats(&self, method: &str, success: bool, duration_ms: f64) {
         if let Ok(mut stats) = self.stats.write() {
             let method_stats = stats.method_stats.entry(method.to_string()).or_default();
-            
+
             if success {
                 method_stats.successes += 1;
             } else {
@@ -280,8 +287,9 @@ impl EnhancedDidResolver {
 
             // Update average time (simple moving average)
             let total_operations = method_stats.successes + method_stats.failures;
-            method_stats.average_time_ms = 
-                (method_stats.average_time_ms * (total_operations - 1) as f64 + duration_ms) / total_operations as f64;
+            method_stats.average_time_ms =
+                (method_stats.average_time_ms * (total_operations - 1) as f64 + duration_ms)
+                    / total_operations as f64;
         }
     }
 
@@ -290,17 +298,20 @@ impl EnhancedDidResolver {
         if let Ok(mut stats) = self.stats.write() {
             let error_type = match error {
                 CommonError::IdentityError(_) => "identity_error",
-                CommonError::NetworkError(_) => "network_error", 
+                CommonError::NetworkError(_) => "network_error",
                 CommonError::TimeoutError(_) => "timeout_error",
                 _ => "other_error",
             };
-            
+
             *stats.errors.entry(error_type.to_string()).or_insert(0) += 1;
         }
     }
 
     /// Batch resolve multiple DIDs efficiently
-    pub fn batch_resolve(&self, dids: &[Did]) -> Vec<Result<ed25519_dalek::VerifyingKey, CommonError>> {
+    pub fn batch_resolve(
+        &self,
+        dids: &[Did],
+    ) -> Vec<Result<ed25519_dalek::VerifyingKey, CommonError>> {
         dids.iter()
             .map(|did| self.resolve_with_caching(did))
             .collect()
@@ -366,12 +377,12 @@ impl EnhancedDidResolverBuilder {
 
     pub fn build(self, time_provider: Arc<dyn TimeProvider>) -> EnhancedDidResolver {
         let resolver = EnhancedDidResolver::new(self.config, time_provider);
-        
+
         // Add web keys
         for (did, key) in self.web_keys {
             resolver.add_web_did_key(did, key);
         }
-        
+
         resolver
     }
 }
@@ -380,4 +391,4 @@ impl Default for EnhancedDidResolverBuilder {
     fn default() -> Self {
         Self::new()
     }
-} 
+}

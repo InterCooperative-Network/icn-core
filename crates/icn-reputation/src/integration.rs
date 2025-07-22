@@ -15,10 +15,10 @@ use icn_core_traits::{NetworkService, PeerId};
 pub trait ManaLedger: Send + Sync {
     /// Get the current mana balance for a DID
     fn get_balance(&self, did: &Did) -> Result<u64, CommonError>;
-    
+
     /// Credit mana to an account
     fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
-    
+
     /// Debit mana from an account
     fn debit(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
 }
@@ -369,18 +369,18 @@ pub struct ReputationIntegrationEngine {
     mana_ledger: Arc<dyn ManaLedger>,
     did_resolver: Arc<dyn DidResolver>,
     time_provider: Arc<dyn TimeProvider>,
-    
+
     // Integration state
     reputation_cache: Arc<RwLock<HashMap<Did, CachedReputationInfo>>>,
     executor_rankings: Arc<RwLock<Vec<ExecutorRanking>>>,
     routing_preferences: Arc<RwLock<HashMap<PeerId, RoutingPreference>>>,
     governance_weights: Arc<RwLock<HashMap<Did, GovernanceWeight>>>,
     recent_events: Arc<RwLock<VecDeque<ReputationEvent>>>,
-    
+
     // Event handling
     event_tx: mpsc::UnboundedSender<ReputationEvent>,
     event_rx: Option<mpsc::UnboundedReceiver<ReputationEvent>>,
-    
+
     // Background tasks
     integration_handles: Arc<RwLock<Vec<tokio::task::JoinHandle<()>>>>,
 }
@@ -495,7 +495,7 @@ impl ReputationIntegrationEngine {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         Self {
             config,
             reputation_store,
@@ -516,37 +516,37 @@ impl ReputationIntegrationEngine {
             integration_handles: Arc::new(RwLock::new(Vec::new())),
         }
     }
-    
+
     /// Start the reputation integration engine
     pub async fn start(&mut self) -> Result<(), CommonError> {
         log::info!("Starting reputation integration engine");
-        
+
         // Start reputation cache maintenance
         let cache_handle = self.start_cache_maintenance().await?;
-        
+
         // Start executor ranking updates
         let ranking_handle = self.start_executor_ranking_updates().await?;
-        
+
         // Start routing preference updates
         let routing_handle = self.start_routing_preference_updates().await?;
-        
+
         // Start governance weight calculations
         let governance_handle = self.start_governance_weight_calculations().await?;
-        
+
         // Start real-time event processing if enabled
         let event_handle = if self.config.enable_realtime_updates {
             Some(self.start_realtime_event_processing().await?)
         } else {
             None
         };
-        
+
         // Start mana bonus calculations if enabled
         let mana_handle = if self.config.enable_mana_bonuses {
             Some(self.start_mana_bonus_calculations().await?)
         } else {
             None
         };
-        
+
         // Store handles
         let mut handles = self.integration_handles.write().unwrap();
         handles.extend(vec![
@@ -561,29 +561,29 @@ impl ReputationIntegrationEngine {
         if let Some(handle) = mana_handle {
             handles.push(handle);
         }
-        
+
         log::info!("Reputation integration engine started successfully");
         Ok(())
     }
-    
+
     /// Stop the reputation integration engine
     pub async fn stop(&self) -> Result<(), CommonError> {
         log::info!("Stopping reputation integration engine");
-        
+
         let handles = self.integration_handles.write().unwrap();
         for handle in handles.iter() {
             handle.abort();
         }
-        
+
         log::info!("Reputation integration engine stopped");
         Ok(())
     }
-    
+
     /// Get event receiver for reputation events
     pub fn take_event_receiver(&mut self) -> Option<mpsc::UnboundedReceiver<ReputationEvent>> {
         self.event_rx.take()
     }
-    
+
     /// Select best executor for a job based on reputation and other factors
     pub async fn select_executor_with_reputation(
         &self,
@@ -592,37 +592,41 @@ impl ReputationIntegrationEngine {
         bids: &HashMap<Did, JobBid>,
     ) -> Result<ReputationBasedExecutorSelection, CommonError> {
         let mut scored_executors = Vec::new();
-        
+
         for executor in available_executors {
             if let Some(bid) = bids.get(executor) {
                 let reputation_score = self.get_cached_reputation(executor).await?;
-                let capability_score = self.calculate_capability_score(job, &bid.capabilities).await?;
+                let capability_score = self
+                    .calculate_capability_score(job, &bid.capabilities)
+                    .await?;
                 let cost_score = self.calculate_cost_score(&bid.cost_bid, job).await?;
                 let availability_score = self.calculate_availability_score(executor).await?;
-                
+
                 // Weighted combination of factors
-                let total_score = 
-                    self.config.executor_selection_weight * reputation_score +
-                    0.3 * capability_score +
-                    0.2 * cost_score +
-                    0.1 * availability_score;
-                
+                let total_score = self.config.executor_selection_weight * reputation_score
+                    + 0.3 * capability_score
+                    + 0.2 * cost_score
+                    + 0.1 * availability_score;
+
                 scored_executors.push((executor.clone(), total_score, reputation_score));
             }
         }
-        
+
         // Sort by score (highest first)
         scored_executors.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         if let Some((best_executor, best_score, reputation_component)) = scored_executors.first() {
-            let alternatives = scored_executors.iter().skip(1).take(3)
+            let alternatives = scored_executors
+                .iter()
+                .skip(1)
+                .take(3)
                 .map(|(executor, score, _)| ExecutorAlternative {
                     executor: executor.clone(),
                     score: *score,
                     rejection_reason: format!("Lower score: {:.3}", score),
                 })
                 .collect();
-            
+
             Ok(ReputationBasedExecutorSelection {
                 executor: best_executor.clone(),
                 selection_score: *best_score,
@@ -632,10 +636,12 @@ impl ReputationIntegrationEngine {
                 alternatives,
             })
         } else {
-            Err(CommonError::InternalError("No suitable executor found".to_string()))
+            Err(CommonError::InternalError(
+                "No suitable executor found".to_string(),
+            ))
         }
     }
-    
+
     /// Select best network route based on reputation and performance
     pub async fn select_route_with_reputation(
         &self,
@@ -643,35 +649,37 @@ impl ReputationIntegrationEngine {
         available_routes: &[Vec<PeerId>],
     ) -> Result<ReputationBasedRoutingDecision, CommonError> {
         let mut scored_routes = Vec::new();
-        
+
         for route in available_routes {
             let trust_score = self.calculate_route_trust_score(route).await?;
             let performance_score = self.calculate_route_performance_score(route).await?;
             let reliability_score = self.calculate_route_reliability_score(route).await?;
-            
+
             // Weighted combination of factors
-            let total_score = 
-                self.config.routing_weight * trust_score +
-                0.4 * performance_score +
-                0.4 * reliability_score;
-            
+            let total_score = self.config.routing_weight * trust_score
+                + 0.4 * performance_score
+                + 0.4 * reliability_score;
+
             scored_routes.push((route.clone(), total_score, trust_score));
         }
-        
+
         // Sort by score (highest first)
         scored_routes.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         if let Some((best_route, best_score, trust_component)) = scored_routes.first() {
-            let alternatives = scored_routes.iter().skip(1).take(3)
+            let alternatives = scored_routes
+                .iter()
+                .skip(1)
+                .take(3)
                 .map(|(route, score, _)| RouteAlternative {
                     route: route.clone(),
                     score: *score,
                     rejection_reason: format!("Lower score: {:.3}", score),
                 })
                 .collect();
-            
+
             let expected_performance = self.estimate_route_performance(best_route).await?;
-            
+
             Ok(ReputationBasedRoutingDecision {
                 route: best_route.clone(),
                 quality_score: *best_score,
@@ -680,10 +688,12 @@ impl ReputationIntegrationEngine {
                 alternatives,
             })
         } else {
-            Err(CommonError::InternalError("No suitable route found".to_string()))
+            Err(CommonError::InternalError(
+                "No suitable route found".to_string(),
+            ))
         }
     }
-    
+
     /// Calculate governance voting weight based on reputation
     pub async fn calculate_governance_weight(
         &self,
@@ -691,16 +701,22 @@ impl ReputationIntegrationEngine {
         proposal: &Proposal,
     ) -> Result<GovernanceWeight, CommonError> {
         let reputation_score = self.get_cached_reputation(participant).await?;
-        let expertise_score = self.calculate_governance_expertise(participant, proposal).await?;
-        let participation_history = self.get_governance_participation_history(participant).await?;
-        
+        let expertise_score = self
+            .calculate_governance_expertise(participant, proposal)
+            .await?;
+        let participation_history = self
+            .get_governance_participation_history(participant)
+            .await?;
+
         let base_weight = 1.0;
-        let reputation_multiplier = 1.0 + (reputation_score / 100.0) * self.config.governance_weight;
+        let reputation_multiplier =
+            1.0 + (reputation_score / 100.0) * self.config.governance_weight;
         let expertise_multiplier = 1.0 + (expertise_score * 0.2);
         let participation_multiplier = 1.0 + (participation_history * 0.1);
-        
-        let effective_weight = base_weight * reputation_multiplier * expertise_multiplier * participation_multiplier;
-        
+
+        let effective_weight =
+            base_weight * reputation_multiplier * expertise_multiplier * participation_multiplier;
+
         Ok(GovernanceWeight {
             participant: participant.clone(),
             base_weight,
@@ -710,182 +726,228 @@ impl ReputationIntegrationEngine {
             last_calculated: Instant::now(),
         })
     }
-    
+
     /// Record a reputation event
     pub async fn record_reputation_event(&self, event: ReputationEvent) -> Result<(), CommonError> {
         // Add to recent events queue
         {
             let mut recent_events = self.recent_events.write().unwrap();
             recent_events.push_back(event.clone());
-            
+
             // Keep only recent events (last 1000)
             while recent_events.len() > 1000 {
                 recent_events.pop_front();
             }
         }
-        
+
         // Process the event immediately if real-time updates are enabled
         if self.config.enable_realtime_updates {
             self.process_reputation_event(&event).await?;
         }
-        
+
         // Emit the event
         let _ = self.event_tx.send(event);
-        
+
         Ok(())
     }
-    
+
     // Implementation of background task methods and helper methods...
     // For brevity, I'll include just the method signatures
-    
+
     async fn start_cache_maintenance(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let reputation_cache = self.reputation_cache.clone();
         let reputation_store = self.reputation_store.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(config.background_update_interval);
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::update_reputation_cache(&reputation_cache, &reputation_store).await {
+
+                if let Err(e) =
+                    Self::update_reputation_cache(&reputation_cache, &reputation_store).await
+                {
                     log::error!("Error updating reputation cache: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
-    async fn start_executor_ranking_updates(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
+
+    async fn start_executor_ranking_updates(
+        &self,
+    ) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let executor_rankings = self.executor_rankings.clone();
         let reputation_store = self.reputation_store.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1800)); // 30 minutes
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::update_executor_rankings(&executor_rankings, &reputation_store, &config).await {
+
+                if let Err(e) =
+                    Self::update_executor_rankings(&executor_rankings, &reputation_store, &config)
+                        .await
+                {
                     log::error!("Error updating executor rankings: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
-    async fn start_routing_preference_updates(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
+
+    async fn start_routing_preference_updates(
+        &self,
+    ) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let routing_preferences = self.routing_preferences.clone();
         let network_service = self.network_service.clone();
         let reputation_store = self.reputation_store.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(900)); // 15 minutes
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::update_routing_preferences(&routing_preferences, &network_service, &reputation_store).await {
+
+                if let Err(e) = Self::update_routing_preferences(
+                    &routing_preferences,
+                    &network_service,
+                    &reputation_store,
+                )
+                .await
+                {
                     log::error!("Error updating routing preferences: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
-    async fn start_governance_weight_calculations(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
+
+    async fn start_governance_weight_calculations(
+        &self,
+    ) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let governance_weights = self.governance_weights.clone();
         let governance_module = self.governance_module.clone();
         let reputation_store = self.reputation_store.clone();
         let config = self.config.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(3600)); // 1 hour
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::update_governance_weights(&governance_weights, &governance_module, &reputation_store, &config).await {
+
+                if let Err(e) = Self::update_governance_weights(
+                    &governance_weights,
+                    &governance_module,
+                    &reputation_store,
+                    &config,
+                )
+                .await
+                {
                     log::error!("Error updating governance weights: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
-    async fn start_realtime_event_processing(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
+
+    async fn start_realtime_event_processing(
+        &self,
+    ) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         // Implementation would process events in real-time
         let handle = tokio::spawn(async move {
             // Event processing loop
         });
-        
+
         Ok(handle)
     }
-    
-    async fn start_mana_bonus_calculations(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
+
+    async fn start_mana_bonus_calculations(
+        &self,
+    ) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         // Implementation would calculate mana bonuses based on reputation
         let handle = tokio::spawn(async move {
             // Mana bonus calculation loop
         });
-        
+
         Ok(handle)
     }
-    
+
     // Helper methods with basic implementations
     async fn get_cached_reputation(&self, did: &Did) -> Result<f64, CommonError> {
         let cache = self.reputation_cache.read().unwrap();
         if let Some(cached) = cache.get(did) {
-            if cached.last_updated.elapsed() < Duration::from_secs(300) { // 5 minutes
+            if cached.last_updated.elapsed() < Duration::from_secs(300) {
+                // 5 minutes
                 return Ok(cached.score);
             }
         }
-        
+
         // Fallback to direct reputation store query
         Ok(self.reputation_store.get_reputation(did) as f64)
     }
-    
-    async fn calculate_capability_score(&self, _job: &MeshJob, _capabilities: &ExecutorCapabilities) -> Result<f64, CommonError> {
+
+    async fn calculate_capability_score(
+        &self,
+        _job: &MeshJob,
+        _capabilities: &ExecutorCapabilities,
+    ) -> Result<f64, CommonError> {
         // TODO: Implement capability matching score
         Ok(0.8) // Placeholder
     }
-    
-    async fn calculate_cost_score(&self, _cost_bid: &u64, _job: &MeshJob) -> Result<f64, CommonError> {
+
+    async fn calculate_cost_score(
+        &self,
+        _cost_bid: &u64,
+        _job: &MeshJob,
+    ) -> Result<f64, CommonError> {
         // TODO: Implement cost competitiveness score
         Ok(0.7) // Placeholder
     }
-    
+
     async fn calculate_availability_score(&self, _executor: &Did) -> Result<f64, CommonError> {
         // TODO: Implement availability score based on historical data
         Ok(0.9) // Placeholder
     }
-    
+
     async fn calculate_confidence_level(&self, _score: f64) -> Result<f64, CommonError> {
         // TODO: Implement confidence calculation based on data quality
         Ok(0.85) // Placeholder
     }
-    
+
     async fn calculate_route_trust_score(&self, _route: &[PeerId]) -> Result<f64, CommonError> {
         // TODO: Implement route trust calculation
         Ok(0.8) // Placeholder
     }
-    
-    async fn calculate_route_performance_score(&self, _route: &[PeerId]) -> Result<f64, CommonError> {
+
+    async fn calculate_route_performance_score(
+        &self,
+        _route: &[PeerId],
+    ) -> Result<f64, CommonError> {
         // TODO: Implement route performance calculation
         Ok(0.85) // Placeholder
     }
-    
-    async fn calculate_route_reliability_score(&self, _route: &[PeerId]) -> Result<f64, CommonError> {
+
+    async fn calculate_route_reliability_score(
+        &self,
+        _route: &[PeerId],
+    ) -> Result<f64, CommonError> {
         // TODO: Implement route reliability calculation
         Ok(0.9) // Placeholder
     }
-    
-    async fn estimate_route_performance(&self, _route: &[PeerId]) -> Result<RoutingPerformanceMetrics, CommonError> {
+
+    async fn estimate_route_performance(
+        &self,
+        _route: &[PeerId],
+    ) -> Result<RoutingPerformanceMetrics, CommonError> {
         // TODO: Implement performance estimation
         Ok(RoutingPerformanceMetrics {
             avg_latency: Duration::from_millis(100),
@@ -896,22 +958,29 @@ impl ReputationIntegrationEngine {
             failed_routes: 50,
         })
     }
-    
-    async fn calculate_governance_expertise(&self, _participant: &Did, _proposal: &Proposal) -> Result<f64, CommonError> {
+
+    async fn calculate_governance_expertise(
+        &self,
+        _participant: &Did,
+        _proposal: &Proposal,
+    ) -> Result<f64, CommonError> {
         // TODO: Implement governance expertise calculation
         Ok(0.7) // Placeholder
     }
-    
-    async fn get_governance_participation_history(&self, _participant: &Did) -> Result<f64, CommonError> {
+
+    async fn get_governance_participation_history(
+        &self,
+        _participant: &Did,
+    ) -> Result<f64, CommonError> {
         // TODO: Implement participation history retrieval
         Ok(0.6) // Placeholder
     }
-    
+
     async fn process_reputation_event(&self, _event: &ReputationEvent) -> Result<(), CommonError> {
         // TODO: Implement event processing logic
         Ok(())
     }
-    
+
     // Static methods for background tasks
     async fn update_reputation_cache(
         _cache: &Arc<RwLock<HashMap<Did, CachedReputationInfo>>>,
@@ -920,7 +989,7 @@ impl ReputationIntegrationEngine {
         // TODO: Implement cache update logic
         Ok(())
     }
-    
+
     async fn update_executor_rankings(
         _rankings: &Arc<RwLock<Vec<ExecutorRanking>>>,
         _store: &Arc<dyn ReputationStore>,
@@ -929,7 +998,7 @@ impl ReputationIntegrationEngine {
         // TODO: Implement ranking update logic
         Ok(())
     }
-    
+
     async fn update_routing_preferences(
         _preferences: &Arc<RwLock<HashMap<PeerId, RoutingPreference>>>,
         _network: &Arc<dyn NetworkService>,
@@ -938,7 +1007,7 @@ impl ReputationIntegrationEngine {
         // TODO: Implement routing preference update logic
         Ok(())
     }
-    
+
     async fn update_governance_weights(
         _weights: &Arc<RwLock<HashMap<Did, GovernanceWeight>>>,
         _governance: &Arc<TokioMutex<dyn GovernanceModule>>,
@@ -948,7 +1017,7 @@ impl ReputationIntegrationEngine {
         // TODO: Implement governance weight update logic
         Ok(())
     }
-    
+
     /// Get reputation integration statistics
     pub fn get_integration_stats(&self) -> ReputationIntegrationStats {
         let cache = self.reputation_cache.read().unwrap();
@@ -956,14 +1025,16 @@ impl ReputationIntegrationEngine {
         let preferences = self.routing_preferences.read().unwrap();
         let weights = self.governance_weights.read().unwrap();
         let events = self.recent_events.read().unwrap();
-        
+
         ReputationIntegrationStats {
             cached_reputations: cache.len(),
             executor_rankings: rankings.len(),
             routing_preferences: preferences.len(),
             governance_weights: weights.len(),
             recent_events: events.len(),
-            avg_reputation_score: if cache.is_empty() { 0.0 } else {
+            avg_reputation_score: if cache.is_empty() {
+                0.0
+            } else {
                 cache.values().map(|c| c.score).sum::<f64>() / cache.len() as f64
             },
         }
@@ -991,7 +1062,7 @@ pub struct ReputationIntegrationStats {
 mod tests {
     use super::*;
     use icn_common::SystemTimeProvider;
-    
+
     #[test]
     fn test_reputation_integration_config() {
         let config = ReputationIntegrationConfig::default();
@@ -999,7 +1070,7 @@ mod tests {
         assert!(config.min_executor_reputation > 0.0);
         assert!(config.enable_realtime_updates);
     }
-    
+
     #[test]
     fn test_execution_quality_metrics() {
         let quality = ExecutionQuality {
@@ -1009,11 +1080,11 @@ mod tests {
             compliance_score: 1.0,
             overall_score: 0.925,
         };
-        
+
         assert!(quality.overall_score > 0.9);
         assert_eq!(quality.compliance_score, 1.0);
     }
-    
+
     #[test]
     fn test_trust_level_hierarchy() {
         let levels = vec![
@@ -1023,7 +1094,7 @@ mod tests {
             TrustLevel::High,
             TrustLevel::Maximum,
         ];
-        
+
         assert_eq!(levels.len(), 5);
     }
-} 
+}

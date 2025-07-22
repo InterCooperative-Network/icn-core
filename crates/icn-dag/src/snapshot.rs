@@ -7,7 +7,6 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 
-
 /// DAG snapshot metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SnapshotMetadata {

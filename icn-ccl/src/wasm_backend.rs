@@ -1,7 +1,7 @@
 // icn-ccl/src/wasm_backend.rs
 use crate::ast::{
-    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, PatternNode,
-    StatementNode, TypeAnnotationNode, UnaryOperator, LiteralNode,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, LiteralNode, PatternNode,
+    PolicyStatementNode, StatementNode, TypeAnnotationNode, UnaryOperator,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -3729,15 +3729,25 @@ impl WasmBackend {
                 let result_ty = self.emit_expression(&arms[0].body, &mut tmp, locals, indices)?;
                 tmp.clear();
 
-                instrs.push(Instruction::Block(wasm_encoder::BlockType::Result(result_ty)));
+                instrs.push(Instruction::Block(wasm_encoder::BlockType::Result(
+                    result_ty,
+                )));
 
                 for (i, arm) in arms.iter().enumerate() {
                     if i < arms.len() - 1 {
-                        self.emit_pattern_condition(&arm.pattern, match_local, match_ty, instrs, locals)?;
+                        self.emit_pattern_condition(
+                            &arm.pattern,
+                            match_local,
+                            match_ty,
+                            instrs,
+                            locals,
+                        )?;
                         if let Some(guard) = &arm.guard {
                             let guard_ty = self.emit_expression(guard, instrs, locals, indices)?;
                             if guard_ty != ValType::I32 {
-                                return Err(CclError::WasmGenerationError("Match guard must be boolean".to_string()));
+                                return Err(CclError::WasmGenerationError(
+                                    "Match guard must be boolean".to_string(),
+                                ));
                             }
                             instrs.push(Instruction::I32Eqz);
                             instrs.push(Instruction::BrIf(0));

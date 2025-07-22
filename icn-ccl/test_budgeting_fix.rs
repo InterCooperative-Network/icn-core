@@ -4,9 +4,9 @@ use std::path::PathBuf;
 fn main() {
     println!("🔧 Testing Budgeting Contract After Infinite Loop Fix");
     println!("====================================================");
-    
+
     let budgeting_path = PathBuf::from("ccl-lib/budgeting.ccl");
-    
+
     match compile_ccl_file_to_wasm(&budgeting_path) {
         Ok((wasm, metadata)) => {
             println!("✅ SUCCESS: Budgeting contract compiled successfully!");
@@ -23,10 +23,10 @@ fn main() {
             println!("   • Token/mana API integration");
             println!("   • DID array helper functions");
             println!("   • Budget request lifecycle management");
-        },
+        }
         Err(e) => {
             println!("❌ FAILED: Budgeting contract compilation error:");
             println!("   {}", e);
         }
     }
-} 
+}

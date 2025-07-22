@@ -10,8 +10,8 @@ use std::str::FromStr;
 // Temporarily simplified to avoid circular dependencies
 // use icn_governance::{GovernanceModule, Proposal};
 // use icn_mesh::{MeshJob, JobBid};
-use icn_dag::StorageService;
 use icn_common::DagBlock;
+use icn_dag::StorageService;
 
 // Simplified types to avoid circular dependencies
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,7 +39,7 @@ pub trait GovernanceModule: Send + Sync {
     fn get_proposal(&self, id: &str) -> Result<Option<Proposal>, CommonError>;
 }
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque, BTreeMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -419,7 +419,7 @@ pub struct EconomicAutomationEngine {
     governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
     dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
     time_provider: Arc<dyn TimeProvider>,
-    
+
     // Economic state
     mana_accounts: Arc<RwLock<HashMap<Did, ManaAccountState>>>,
     pricing_models: Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
@@ -427,11 +427,11 @@ pub struct EconomicAutomationEngine {
     economic_policies: Arc<RwLock<HashMap<String, EconomicPolicy>>>,
     health_metrics: Arc<RwLock<EconomicHealthMetrics>>,
     market_making_state: Arc<RwLock<MarketMakingState>>,
-    
+
     // Event handling
     event_tx: mpsc::UnboundedSender<EconomicEvent>,
     event_rx: Option<mpsc::UnboundedReceiver<EconomicEvent>>,
-    
+
     // Background tasks
     automation_handles: Arc<RwLock<Vec<tokio::task::JoinHandle<()>>>>,
 }
@@ -574,7 +574,7 @@ impl EconomicAutomationEngine {
         time_provider: Arc<dyn TimeProvider>,
     ) -> Self {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
-        
+
         Self {
             config,
             mana_ledger,
@@ -607,56 +607,56 @@ impl EconomicAutomationEngine {
             automation_handles: Arc::new(RwLock::new(Vec::new())),
         }
     }
-    
+
     /// Start the economic automation engine
     pub async fn start(&mut self) -> Result<(), CommonError> {
         log::info!("Starting economic automation engine");
-        
+
         // Start mana regeneration if enabled
         let mana_handle = if self.config.enable_mana_regeneration {
             Some(self.start_mana_regeneration().await?)
         } else {
             None
         };
-        
+
         // Start dynamic pricing if enabled
         let pricing_handle = if self.config.enable_dynamic_pricing {
             Some(self.start_dynamic_pricing().await?)
         } else {
             None
         };
-        
+
         // Start resource allocation if enabled
         let allocation_handle = if self.config.enable_resource_allocation {
             Some(self.start_resource_allocation().await?)
         } else {
             None
         };
-        
+
         // Start policy enforcement if enabled
         let policy_handle = if self.config.enable_policy_enforcement {
             Some(self.start_policy_enforcement().await?)
         } else {
             None
         };
-        
+
         // Start economic health monitoring
         let health_handle = self.start_health_monitoring().await?;
-        
+
         // Start market making if enabled
         let market_handle = if self.config.enable_market_making {
             Some(self.start_market_making().await?)
         } else {
             None
         };
-        
+
         // Start predictive modeling if enabled
         let modeling_handle = if self.config.enable_predictive_modeling {
             Some(self.start_predictive_modeling().await?)
         } else {
             None
         };
-        
+
         // Store handles
         let mut handles = self.automation_handles.write().unwrap();
         if let Some(handle) = mana_handle {
@@ -678,70 +678,74 @@ impl EconomicAutomationEngine {
         if let Some(handle) = modeling_handle {
             handles.push(handle);
         }
-        
+
         log::info!("Economic automation engine started successfully");
         Ok(())
     }
-    
+
     /// Stop the economic automation engine
     pub async fn stop(&self) -> Result<(), CommonError> {
         log::info!("Stopping economic automation engine");
-        
+
         let handles = self.automation_handles.write().unwrap();
         for handle in handles.iter() {
             handle.abort();
         }
-        
+
         log::info!("Economic automation engine stopped");
         Ok(())
     }
-    
+
     /// Get event receiver for economic events
     pub fn take_event_receiver(&mut self) -> Option<mpsc::UnboundedReceiver<EconomicEvent>> {
         self.event_rx.take()
     }
-    
+
     /// Calculate optimal mana price for a job
     pub async fn calculate_optimal_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
         // Get current pricing model
         let pricing_models = self.pricing_models.read().unwrap();
-        let job_type = job.job_type.clone().unwrap_or_else(|| "default".to_string());
-        
+        let job_type = job
+            .job_type
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+
         if let Some(model) = pricing_models.get(&job_type) {
             // Calculate price based on demand, quality, and market conditions
             let base_price = model.base_price;
             let demand_multiplier = self.calculate_demand_multiplier(&job_type).await?;
             let quality_multiplier = model.quality_factor;
             let competition_multiplier = model.competition_factor;
-            
-            let optimal_price = base_price * demand_multiplier * quality_multiplier * competition_multiplier;
+
+            let optimal_price =
+                base_price * demand_multiplier * quality_multiplier * competition_multiplier;
             Ok(optimal_price as u64)
         } else {
             // Fallback to basic calculation
             self.calculate_basic_mana_price(job).await
         }
     }
-    
+
     /// Execute resource allocation plan
     pub async fn execute_allocation_plan(
         &self,
         plan_id: &str,
     ) -> Result<AllocationExecutionResult, CommonError> {
         let mut allocation_plans = self.allocation_plans.write().unwrap();
-        
+
         if let Some(plan) = allocation_plans.get_mut(plan_id) {
             plan.status = AllocationStatus::Executing;
-            
+
             let mut successful_allocations = 0;
             let mut failed_allocations = 0;
             let mut total_allocated = 0;
-            
+
             for (did, allocation) in &plan.allocations {
                 match self.execute_individual_allocation(did, allocation).await {
                     Ok(amount) => {
                         successful_allocations += 1;
                         total_allocated += amount;
-                        
+
                         // Emit allocation event
                         let _ = self.event_tx.send(EconomicEvent::ResourceAllocated {
                             allocation_id: plan.allocation_id.clone(),
@@ -758,18 +762,18 @@ impl EconomicAutomationEngine {
                     }
                 }
             }
-            
+
             // Update plan status
             plan.status = if failed_allocations == 0 {
                 AllocationStatus::Completed
             } else if successful_allocations > 0 {
                 AllocationStatus::Completed // Partial success
             } else {
-                AllocationStatus::Failed { 
-                    reason: "All allocations failed".to_string() 
+                AllocationStatus::Failed {
+                    reason: "All allocations failed".to_string(),
                 }
             };
-            
+
             Ok(AllocationExecutionResult {
                 plan_id: plan_id.to_string(),
                 successful_allocations,
@@ -778,10 +782,13 @@ impl EconomicAutomationEngine {
                 execution_time: Instant::now().duration_since(plan.created_at),
             })
         } else {
-            Err(CommonError::InternalError(format!("Allocation plan {} not found", plan_id)))
+            Err(CommonError::InternalError(format!(
+                "Allocation plan {} not found",
+                plan_id
+            )))
         }
     }
-    
+
     /// Apply economic penalty for policy violation
     pub async fn apply_economic_penalty(
         &self,
@@ -811,13 +818,16 @@ impl EconomicAutomationEngine {
                 log::warn!("Economic warning issued to {}", violator);
             }
             _ => {
-                log::warn!("Penalty type {:?} not fully implemented", penalty.penalty_type);
+                log::warn!(
+                    "Penalty type {:?} not fully implemented",
+                    penalty.penalty_type
+                );
             }
         }
-        
+
         Ok(())
     }
-    
+
     // Background task starter methods
     async fn start_mana_regeneration(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let mana_accounts = self.mana_accounts.clone();
@@ -826,13 +836,13 @@ impl EconomicAutomationEngine {
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
         let time_provider = self.time_provider.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1)); // Every second
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::process_mana_regeneration(
                     &mana_accounts,
                     &mana_ledger,
@@ -840,97 +850,105 @@ impl EconomicAutomationEngine {
                     &config,
                     &event_tx,
                     &time_provider,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in mana regeneration: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_dynamic_pricing(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let pricing_models = self.pricing_models.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
         let time_provider = self.time_provider.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30)); // Every 30 seconds
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::update_dynamic_pricing(
                     &pricing_models,
                     &config,
                     &event_tx,
                     &time_provider,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in dynamic pricing: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_resource_allocation(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let allocation_plans = self.allocation_plans.clone();
         let resource_ledger = self.resource_ledger.clone();
         let reputation_store = self.reputation_store.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(config.allocation_optimization_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::optimize_resource_allocation(
                     &allocation_plans,
                     &resource_ledger,
                     &reputation_store,
                     &config,
                     &event_tx,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in resource allocation: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_policy_enforcement(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let economic_policies = self.economic_policies.clone();
         let mana_ledger = self.mana_ledger.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
         let time_provider = self.time_provider.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(120)); // Every 2 minutes
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::enforce_economic_policies(
                     &economic_policies,
                     &mana_ledger,
                     &config,
                     &event_tx,
                     &time_provider,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in policy enforcement: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_health_monitoring(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let health_metrics = self.health_metrics.clone();
         let mana_ledger = self.mana_ledger.clone();
@@ -938,13 +956,13 @@ impl EconomicAutomationEngine {
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
         let time_provider = self.time_provider.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(config.health_check_interval);
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::monitor_economic_health(
                     &health_metrics,
                     &mana_ledger,
@@ -952,65 +970,68 @@ impl EconomicAutomationEngine {
                     &config,
                     &event_tx,
                     &time_provider,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in health monitoring: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_market_making(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let market_making_state = self.market_making_state.clone();
         let pricing_models = self.pricing_models.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(10)); // Every 10 seconds
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::execute_market_making(
                     &market_making_state,
                     &pricing_models,
                     &config,
                     &event_tx,
-                ).await {
+                )
+                .await
+                {
                     log::error!("Error in market making: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     async fn start_predictive_modeling(&self) -> Result<tokio::task::JoinHandle<()>, CommonError> {
         let health_metrics = self.health_metrics.clone();
         let pricing_models = self.pricing_models.clone();
         let mana_accounts = self.mana_accounts.clone();
-        
+
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Every 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::run_predictive_models(
-                    &health_metrics,
-                    &pricing_models,
-                    &mana_accounts,
-                ).await {
+
+                if let Err(e) =
+                    Self::run_predictive_models(&health_metrics, &pricing_models, &mana_accounts)
+                        .await
+                {
                     log::error!("Error in predictive modeling: {}", e);
                 }
             }
         });
-        
+
         Ok(handle)
     }
-    
+
     // Implementation of background task methods (simplified for brevity)
     async fn process_mana_regeneration(
         _mana_accounts: &Arc<RwLock<HashMap<Did, ManaAccountState>>>,
@@ -1022,36 +1043,40 @@ impl EconomicAutomationEngine {
     ) -> Result<(), CommonError> {
         // Implement mana regeneration logic
         log::info!("Running mana regeneration");
-        
+
         // Get all active accounts - in production this would query the actual member registry
         let mock_accounts = vec![
             "did:icn:alice".to_string(),
-            "did:icn:bob".to_string(), 
+            "did:icn:bob".to_string(),
             "did:icn:charlie".to_string(),
             "did:icn:diana".to_string(),
             "did:icn:eve".to_string(),
         ];
-        
+
         for account_id in mock_accounts {
             if let Ok(did) = Did::from_str(&account_id) {
                 // Calculate regeneration amount based on reputation and base rate
                 let reputation = _reputation_store.get_reputation(&did);
                 let base_regeneration = 10; // Base mana per regeneration cycle
-                
+
                 // Higher reputation accounts get more regeneration
                 let reputation_bonus = (reputation as f64 / 100.0) * 5.0; // Up to 5 bonus mana
                 let total_regeneration = base_regeneration + reputation_bonus as u64;
-                
+
                 // Apply regeneration
                 if let Err(e) = _mana_ledger.credit(&did, total_regeneration) {
                     log::error!("Failed to regenerate mana for {}: {}", did, e);
                 } else {
-                    log::debug!("Regenerated {} mana for {} (rep: {})", 
-                               total_regeneration, did, reputation);
-                    
+                    log::debug!(
+                        "Regenerated {} mana for {} (rep: {})",
+                        total_regeneration,
+                        did,
+                        reputation
+                    );
+
                     // Get updated balance
                     let updated_balance = _mana_ledger.get_balance(&did);
-                    
+
                     // Emit regeneration event
                     let _ = _event_tx.send(EconomicEvent::ManaRegenerated {
                         account: did,
@@ -1063,11 +1088,11 @@ impl EconomicAutomationEngine {
                 }
             }
         }
-        
+
         log::info!("Mana regeneration completed");
         Ok(())
     }
-    
+
     async fn update_dynamic_pricing(
         _pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
         _config: &EconomicAutomationConfig,
@@ -1076,13 +1101,13 @@ impl EconomicAutomationEngine {
     ) -> Result<(), CommonError> {
         // Implement dynamic pricing logic
         log::debug!("Running dynamic pricing update");
-        
+
         // For now, use mock system utilization - in production this would query actual metrics
         let system_utilization = 0.7; // Mock 70% utilization
-        
+
         // Update pricing for different resource types
         let resource_types = vec!["cpu", "memory", "storage", "network"];
-        
+
         for resource_type in resource_types {
             let base_price = match resource_type {
                 "cpu" => 10,
@@ -1091,19 +1116,24 @@ impl EconomicAutomationEngine {
                 "network" => 3,
                 _ => 1,
             };
-            
+
             // Adjust price based on system utilization
             let demand_multiplier = 1.0 + (system_utilization * 0.5); // Up to 50% price increase
             let adjusted_price = (base_price as f64 * demand_multiplier) as u64;
-            
-            log::debug!("Updated {} pricing: {} -> {} (demand: {:.2})", 
-                       resource_type, base_price, adjusted_price, demand_multiplier);
+
+            log::debug!(
+                "Updated {} pricing: {} -> {} (demand: {:.2})",
+                resource_type,
+                base_price,
+                adjusted_price,
+                demand_multiplier
+            );
         }
-        
+
         log::debug!("Dynamic pricing update completed");
         Ok(())
     }
-    
+
     async fn optimize_resource_allocation(
         _allocation_plans: &Arc<RwLock<HashMap<String, ResourceAllocationPlan>>>,
         _resource_ledger: &Arc<dyn ResourceLedger>,
@@ -1113,23 +1143,29 @@ impl EconomicAutomationEngine {
     ) -> Result<(), CommonError> {
         // Implement resource allocation optimization
         log::debug!("Running resource allocation optimization");
-        
+
         // Get current resource allocation data - mock data for now
         let mut allocation_metrics = HashMap::new();
-        allocation_metrics.insert("cpu".to_string(), AllocationMetrics {
-            allocated_amount: 100,
-            utilization_rate: 0.6,
-            efficiency_score: 0.8,
-        });
-        allocation_metrics.insert("memory".to_string(), AllocationMetrics {
-            allocated_amount: 200,
-            utilization_rate: 0.4, // Low utilization
-            efficiency_score: 0.6,
-        });
-        
+        allocation_metrics.insert(
+            "cpu".to_string(),
+            AllocationMetrics {
+                allocated_amount: 100,
+                utilization_rate: 0.6,
+                efficiency_score: 0.8,
+            },
+        );
+        allocation_metrics.insert(
+            "memory".to_string(),
+            AllocationMetrics {
+                allocated_amount: 200,
+                utilization_rate: 0.4, // Low utilization
+                efficiency_score: 0.6,
+            },
+        );
+
         // Find inefficient allocations and suggest optimizations
         let mut optimization_suggestions = Vec::new();
-        
+
         for (resource_type, metrics) in allocation_metrics {
             if metrics.utilization_rate < 0.5 {
                 // Low utilization - suggest reducing allocation
@@ -1151,11 +1187,11 @@ impl EconomicAutomationEngine {
                 });
             }
         }
-        
+
         // Apply optimizations
         for optimization in &optimization_suggestions {
             log::info!("Applying resource optimization: {:?}", optimization);
-            
+
             // Emit optimization event
             let _ = _event_tx.send(EconomicEvent::ResourceAllocated {
                 allocation_id: format!("opt_{}", optimization.resource_type),
@@ -1169,11 +1205,11 @@ impl EconomicAutomationEngine {
                     .as_millis() as u64,
             });
         }
-        
+
         log::debug!("Resource allocation optimization completed");
         Ok(())
     }
-    
+
     pub async fn enforce_economic_policies(
         economic_policies: &Arc<RwLock<HashMap<String, EconomicPolicy>>>,
         mana_ledger: &Arc<dyn ManaLedger>,
@@ -1191,11 +1227,8 @@ impl EconomicAutomationEngine {
 
             match policy.policy_type {
                 PolicyType::ManaRegeneration => {
-                    let min_balance = policy
-                        .parameters
-                        .get("min_balance")
-                        .cloned()
-                        .unwrap_or(0.0) as u64;
+                    let min_balance =
+                        policy.parameters.get("min_balance").cloned().unwrap_or(0.0) as u64;
                     for did in &accounts {
                         let bal = mana_ledger.get_balance(did);
                         if bal < min_balance {
@@ -1248,7 +1281,7 @@ impl EconomicAutomationEngine {
 
         Ok(())
     }
-    
+
     pub async fn monitor_economic_health(
         health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
         mana_ledger: &Arc<dyn ManaLedger>,
@@ -1258,7 +1291,10 @@ impl EconomicAutomationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         let accounts = mana_ledger.all_accounts();
-        let mut balances: Vec<u64> = accounts.iter().map(|d| mana_ledger.get_balance(d)).collect();
+        let mut balances: Vec<u64> = accounts
+            .iter()
+            .map(|d| mana_ledger.get_balance(d))
+            .collect();
         balances.sort_unstable();
         let total: u64 = balances.iter().sum();
         let n = balances.len() as f64;
@@ -1290,7 +1326,7 @@ impl EconomicAutomationEngine {
 
         Ok(())
     }
-    
+
     pub async fn execute_market_making(
         market_making_state: &Arc<RwLock<MarketMakingState>>,
         pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
@@ -1340,7 +1376,7 @@ impl EconomicAutomationEngine {
 
         Ok(())
     }
-    
+
     pub async fn run_predictive_models(
         health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
         pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
@@ -1366,18 +1402,18 @@ impl EconomicAutomationEngine {
         metrics.activity_level = (account_count as f64 / 100.0).min(1.0);
         Ok(())
     }
-    
+
     // Helper methods
     async fn calculate_demand_multiplier(&self, _resource_type: &str) -> Result<f64, CommonError> {
         // TODO: Implement demand calculation
         Ok(1.2) // Placeholder
     }
-    
+
     async fn calculate_basic_mana_price(&self, _job: &MeshJob) -> Result<u64, CommonError> {
         // TODO: Implement basic price calculation
         Ok(100) // Placeholder
     }
-    
+
     async fn execute_individual_allocation(
         &self,
         _recipient: &Did,
@@ -1386,7 +1422,7 @@ impl EconomicAutomationEngine {
         // TODO: Implement individual allocation logic
         Ok(allocation.amount)
     }
-    
+
     /// Get economic automation statistics
     pub fn get_automation_stats(&self) -> EconomicAutomationStats {
         let mana_accounts = self.mana_accounts.read().unwrap();
@@ -1394,54 +1430,73 @@ impl EconomicAutomationEngine {
         let allocation_plans = self.allocation_plans.read().unwrap();
         let policies = self.economic_policies.read().unwrap();
         let health_metrics = self.health_metrics.read().unwrap();
-        
+
         EconomicAutomationStats {
             managed_accounts: mana_accounts.len(),
             active_pricing_models: pricing_models.len(),
-            pending_allocations: allocation_plans.values()
-                .filter(|p| matches!(p.status, AllocationStatus::Ready | AllocationStatus::Planning))
+            pending_allocations: allocation_plans
+                .values()
+                .filter(|p| {
+                    matches!(
+                        p.status,
+                        AllocationStatus::Ready | AllocationStatus::Planning
+                    )
+                })
                 .count(),
-            active_policies: policies.values()
+            active_policies: policies
+                .values()
                 .filter(|p| matches!(p.status, PolicyStatus::Active))
                 .count(),
             economic_health_score: health_metrics.overall_health,
             total_mana_managed: mana_accounts.values().map(|a| a.balance).sum::<u64>(),
         }
     }
-    
+
     /// Calculate system utilization for pricing adjustments
-    async fn calculate_system_utilization(&self, _mana_ledger: &Arc<dyn ManaLedger>) -> Result<f64, CommonError> {
+    async fn calculate_system_utilization(
+        &self,
+        _mana_ledger: &Arc<dyn ManaLedger>,
+    ) -> Result<f64, CommonError> {
         // Calculate system-wide utilization metrics
         // This would normally examine resource usage, transaction volumes, etc.
-        
+
         // Mock calculation based on current state
         let utilization = 0.7; // 70% utilization
         Ok(utilization)
     }
-    
+
     /// Get allocation metrics for optimization
     async fn get_allocation_metrics(&self) -> HashMap<String, AllocationMetrics> {
         let mut metrics = HashMap::new();
-        
+
         // Mock metrics for different resource types
-        metrics.insert("cpu".to_string(), AllocationMetrics {
-            allocated_amount: 1000,
-            utilization_rate: 0.4, // Low utilization
-            efficiency_score: 0.6,
-        });
-        
-        metrics.insert("memory".to_string(), AllocationMetrics {
-            allocated_amount: 2000,
-            utilization_rate: 0.95, // High utilization
-            efficiency_score: 0.8,
-        });
-        
-        metrics.insert("storage".to_string(), AllocationMetrics {
-            allocated_amount: 5000,
-            utilization_rate: 0.75, // Good utilization
-            efficiency_score: 0.9,
-        });
-        
+        metrics.insert(
+            "cpu".to_string(),
+            AllocationMetrics {
+                allocated_amount: 1000,
+                utilization_rate: 0.4, // Low utilization
+                efficiency_score: 0.6,
+            },
+        );
+
+        metrics.insert(
+            "memory".to_string(),
+            AllocationMetrics {
+                allocated_amount: 2000,
+                utilization_rate: 0.95, // High utilization
+                efficiency_score: 0.8,
+            },
+        );
+
+        metrics.insert(
+            "storage".to_string(),
+            AllocationMetrics {
+                allocated_amount: 5000,
+                utilization_rate: 0.75, // Good utilization
+                efficiency_score: 0.9,
+            },
+        );
+
         metrics
     }
 }
@@ -1482,7 +1537,7 @@ pub struct EconomicAutomationStats {
 mod tests {
     use super::*;
     use icn_common::SystemTimeProvider;
-    
+
     #[test]
     fn test_economic_automation_config() {
         let config = EconomicAutomationConfig::default();
@@ -1490,7 +1545,7 @@ mod tests {
         assert!(config.base_regeneration_rate > 0.0);
         assert!(config.enable_dynamic_pricing);
     }
-    
+
     #[test]
     fn test_economic_penalty() {
         let penalty = EconomicPenalty {
@@ -1500,16 +1555,18 @@ mod tests {
             amount: Some(100),
             restrictions: vec!["market_participation".to_string()],
         };
-        
+
         assert!(matches!(penalty.penalty_type, PenaltyType::ManaPenalty));
         assert_eq!(penalty.severity, 0.5);
         assert_eq!(penalty.amount, Some(100));
     }
-    
+
     #[test]
     fn test_allocation_strategy() {
-        let strategy = AllocationStrategy::MeritBased { reputation_weight: 0.7 };
-        
+        let strategy = AllocationStrategy::MeritBased {
+            reputation_weight: 0.7,
+        };
+
         match strategy {
             AllocationStrategy::MeritBased { reputation_weight } => {
                 assert_eq!(reputation_weight, 0.7);
@@ -1517,4 +1574,4 @@ mod tests {
             _ => panic!("Unexpected allocation strategy"),
         }
     }
-} 
+}

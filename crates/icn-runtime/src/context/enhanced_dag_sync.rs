@@ -1,18 +1,16 @@
 //! Enhanced DAG Synchronization with Network-Aware Propagation
-//! 
+//!
 //! This module provides intelligent DAG synchronization that leverages network
 //! conditions, peer reputation, and adaptive strategies for optimal performance.
 
-use super::{
-    DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
-};
+use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
 use icn_common::{Cid, Did, TimeProvider};
 // Note: GovernanceModule may be needed for future governance-driven sync policies
 use icn_reputation::ReputationStore;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 
 /// Enhanced DAG synchronization manager with network-aware capabilities
 pub struct EnhancedDagSync {
@@ -81,7 +79,9 @@ pub struct PropagationTask {
 }
 
 /// Priority levels for DAG block propagation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
 pub enum PropagationPriority {
     /// Low priority - eventual consistency
     Low,
@@ -227,10 +227,10 @@ pub struct QualityThresholds {
 impl Default for QualityThresholds {
     fn default() -> Self {
         Self {
-            max_latency_ms: 5000.0,  // 5 seconds
-            max_packet_loss: 0.1,    // 10%
-            min_reliability: 0.8,    // 80%
-            min_reputation: 50,      // Minimum reputation score
+            max_latency_ms: 5000.0, // 5 seconds
+            max_packet_loss: 0.1,   // 10%
+            min_reliability: 0.8,   // 80%
+            min_reputation: 50,     // Minimum reputation score
         }
     }
 }
@@ -355,16 +355,15 @@ impl EnhancedDagSync {
             let sync_state = sync_state.clone();
             let network_service = self.network_service.clone();
             let dag_store = self.dag_store.clone();
-            
+
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_millis(100));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = Self::process_propagation_queue(
-                        &sync_state,
-                        &network_service,
-                        &dag_store,
-                    ).await {
+                    if let Err(e) =
+                        Self::process_propagation_queue(&sync_state, &network_service, &dag_store)
+                            .await
+                    {
                         tracing::error!("Error processing propagation queue: {}", e);
                     }
                 }
@@ -375,15 +374,14 @@ impl EnhancedDagSync {
         let peer_monitoring_task = {
             let peer_manager = peer_manager.clone();
             let reputation_store = self.reputation_store.clone();
-            
+
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(30));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = Self::monitor_peer_quality(
-                        &peer_manager,
-                        &reputation_store,
-                    ).await {
+                    if let Err(e) =
+                        Self::monitor_peer_quality(&peer_manager, &reputation_store).await
+                    {
                         tracing::error!("Error monitoring peer quality: {}", e);
                     }
                 }
@@ -394,15 +392,12 @@ impl EnhancedDagSync {
         let strategy_optimization_task = {
             let strategy_selector = strategy_selector.clone();
             let metrics = metrics.clone();
-            
+
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(60));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = Self::optimize_strategies(
-                        &strategy_selector,
-                        &metrics,
-                    ).await {
+                    if let Err(e) = Self::optimize_strategies(&strategy_selector, &metrics).await {
                         tracing::error!("Error optimizing strategies: {}", e);
                     }
                 }
@@ -413,15 +408,14 @@ impl EnhancedDagSync {
         let partition_detection_task = {
             let sync_state = sync_state.clone();
             let peer_manager = peer_manager.clone();
-            
+
             tokio::spawn(async move {
                 let mut interval = tokio::time::interval(Duration::from_secs(10));
                 loop {
                     interval.tick().await;
-                    if let Err(e) = Self::detect_network_partitions(
-                        &sync_state,
-                        &peer_manager,
-                    ).await {
+                    if let Err(e) =
+                        Self::detect_network_partitions(&sync_state, &peer_manager).await
+                    {
                         tracing::error!("Error detecting network partitions: {}", e);
                     }
                 }
@@ -431,8 +425,13 @@ impl EnhancedDagSync {
         tracing::info!("Enhanced DAG synchronization service started");
 
         // Keep tasks running (in a real implementation, you'd store these handles)
-        let _ = (propagation_task, peer_monitoring_task, strategy_optimization_task, partition_detection_task);
-        
+        let _ = (
+            propagation_task,
+            peer_monitoring_task,
+            strategy_optimization_task,
+            partition_detection_task,
+        );
+
         Ok(())
     }
 
@@ -460,33 +459,37 @@ impl EnhancedDagSync {
         // Add to propagation queue
         let mut sync_state = self.sync_state.write().await;
         sync_state.pending_propagation.push_back(task);
-        
+
         // Sort by priority (highest first)
         let mut tasks: Vec<_> = sync_state.pending_propagation.drain(..).collect();
         tasks.sort_by(|a, b| b.priority.cmp(&a.priority));
         sync_state.pending_propagation.extend(tasks);
 
-        tracing::debug!("Queued block {} for propagation with priority {:?}", block_cid, priority);
+        tracing::debug!(
+            "Queued block {} for propagation with priority {:?}",
+            block_cid,
+            priority
+        );
         Ok(())
     }
 
     /// Synchronize DAG state with network peers
     pub async fn sync_with_network(&self) -> Result<SyncResult, HostAbiError> {
         let start_time = Instant::now();
-        
+
         // Select optimal peers for synchronization
         let selected_peers = self.select_sync_peers().await?;
-        
+
         // Determine synchronization strategy
         let strategy = self.determine_sync_strategy(&selected_peers).await?;
-        
+
         // Execute synchronization
         let sync_stats = self.execute_sync_strategy(strategy, selected_peers).await?;
-        
+
         // Update metrics
         let duration = start_time.elapsed();
         self.update_sync_metrics(duration, &sync_stats).await?;
-        
+
         Ok(SyncResult {
             blocks_received: sync_stats.blocks_received,
             blocks_sent: sync_stats.blocks_sent,
@@ -509,43 +512,56 @@ impl EnhancedDagSync {
 
         // Sort by score (highest first) and take top peers
         scored_peers.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-        
+
         let max_peers = std::cmp::min(scored_peers.len(), 10); // Max 10 peers for sync
-        Ok(scored_peers.into_iter().take(max_peers).map(|(peer_id, _)| peer_id).collect())
+        Ok(scored_peers
+            .into_iter()
+            .take(max_peers)
+            .map(|(peer_id, _)| peer_id)
+            .collect())
     }
 
     /// Calculate a comprehensive score for peer selection
-    async fn calculate_peer_score(&self, connection: &PeerConnection, reputation: u64) -> Result<f64, HostAbiError> {
+    async fn calculate_peer_score(
+        &self,
+        connection: &PeerConnection,
+        reputation: u64,
+    ) -> Result<f64, HostAbiError> {
         let weights = SelectionWeights::default();
-        
+
         // Normalize metrics to 0.0 - 1.0 range
         let latency_score = 1.0 - (connection.quality.latency_ms / 10000.0).min(1.0);
         let reputation_score = (reputation as f64) / 1000.0;
         let reliability_score = connection.quality.reliability;
         let bandwidth_score = 1.0 - connection.quality.bandwidth_utilization;
-        
+
         // Calculate weighted score
         let score = weights.latency * latency_score
             + weights.reputation * reputation_score
             + weights.reliability * reliability_score
             + weights.bandwidth * bandwidth_score;
-            
+
         Ok(score.clamp(0.0, 1.0))
     }
 
     /// Determine the best synchronization strategy for current conditions
-    async fn determine_sync_strategy(&self, _peers: &[Did]) -> Result<PropagationStrategy, HostAbiError> {
+    async fn determine_sync_strategy(
+        &self,
+        _peers: &[Did],
+    ) -> Result<PropagationStrategy, HostAbiError> {
         let strategy_selector = self.strategy_selector.lock().await;
         let conditions = &strategy_selector.network_conditions;
-        
+
         // Select strategy based on network conditions
         let strategy = match conditions.peer_count {
             0..=5 => PropagationStrategy::Broadcast,
             6..=20 => PropagationStrategy::Epidemic { fanout: 3 },
-            21..=100 => PropagationStrategy::Tree { branching_factor: 4 },
+            21..=100 => PropagationStrategy::Tree {
+                branching_factor: 4,
+            },
             _ => PropagationStrategy::Hypercube,
         };
-        
+
         Ok(strategy)
     }
 
@@ -557,8 +573,12 @@ impl EnhancedDagSync {
     ) -> Result<SyncStats, HostAbiError> {
         match strategy {
             PropagationStrategy::Broadcast => self.execute_broadcast_sync(peers).await,
-            PropagationStrategy::Epidemic { fanout } => self.execute_epidemic_sync(peers, fanout).await,
-            PropagationStrategy::Tree { branching_factor } => self.execute_tree_sync(peers, branching_factor).await,
+            PropagationStrategy::Epidemic { fanout } => {
+                self.execute_epidemic_sync(peers, fanout).await
+            }
+            PropagationStrategy::Tree { branching_factor } => {
+                self.execute_tree_sync(peers, branching_factor).await
+            }
             _ => {
                 // Fallback to broadcast for unimplemented strategies
                 self.execute_broadcast_sync(peers).await
@@ -580,13 +600,17 @@ impl EnhancedDagSync {
         // 2. Identify missing blocks
         // 3. Download missing blocks
         // 4. Update local DAG store
-        
+
         tracing::info!("Executed broadcast sync with {} peers", peers.len());
         Ok(stats)
     }
 
     /// Execute epidemic (gossip) synchronization strategy
-    async fn execute_epidemic_sync(&self, peers: Vec<Did>, fanout: usize) -> Result<SyncStats, HostAbiError> {
+    async fn execute_epidemic_sync(
+        &self,
+        peers: Vec<Did>,
+        fanout: usize,
+    ) -> Result<SyncStats, HostAbiError> {
         let mut stats = SyncStats {
             blocks_received: 0,
             blocks_sent: 0,
@@ -595,12 +619,20 @@ impl EnhancedDagSync {
         };
 
         // Implementation placeholder
-        tracing::info!("Executed epidemic sync with fanout {} on {} peers", fanout, peers.len());
+        tracing::info!(
+            "Executed epidemic sync with fanout {} on {} peers",
+            fanout,
+            peers.len()
+        );
         Ok(stats)
     }
 
     /// Execute tree-based synchronization strategy
-    async fn execute_tree_sync(&self, peers: Vec<Did>, branching_factor: usize) -> Result<SyncStats, HostAbiError> {
+    async fn execute_tree_sync(
+        &self,
+        peers: Vec<Did>,
+        branching_factor: usize,
+    ) -> Result<SyncStats, HostAbiError> {
         let mut stats = SyncStats {
             blocks_received: 0,
             blocks_sent: 0,
@@ -609,23 +641,34 @@ impl EnhancedDagSync {
         };
 
         // Implementation placeholder
-        tracing::info!("Executed tree sync with branching factor {} on {} peers", branching_factor, peers.len());
+        tracing::info!(
+            "Executed tree sync with branching factor {} on {} peers",
+            branching_factor,
+            peers.len()
+        );
         Ok(stats)
     }
 
     /// Update synchronization metrics
-    async fn update_sync_metrics(&self, duration: Duration, stats: &SyncStats) -> Result<(), HostAbiError> {
+    async fn update_sync_metrics(
+        &self,
+        duration: Duration,
+        stats: &SyncStats,
+    ) -> Result<(), HostAbiError> {
         let mut metrics = self.metrics.lock().await;
-        
+
         metrics.blocks_synced += stats.blocks_received;
         metrics.blocks_propagated += stats.blocks_sent;
-        
+
         // Update average latency with exponential moving average
         let new_latency = duration.as_millis() as f64;
         metrics.avg_sync_latency_ms = 0.9 * metrics.avg_sync_latency_ms + 0.1 * new_latency;
-        
-        tracing::debug!("Updated sync metrics: {} blocks synced, {:.2}ms avg latency", 
-                       metrics.blocks_synced, metrics.avg_sync_latency_ms);
+
+        tracing::debug!(
+            "Updated sync metrics: {} blocks synced, {:.2}ms avg latency",
+            metrics.blocks_synced,
+            metrics.avg_sync_latency_ms
+        );
         Ok(())
     }
 
@@ -638,24 +681,27 @@ impl EnhancedDagSync {
         _dag_store: &Arc<DagStoreMutexType<DagStorageService>>,
     ) -> Result<(), HostAbiError> {
         let mut state = sync_state.write().await;
-        
+
         // Process high-priority items first
         while let Some(mut task) = state.pending_propagation.pop_front() {
             task.attempts += 1;
-            
+
             // Implementation placeholder - would actually propagate the block
-            tracing::trace!("Processing propagation task for block {} (attempt {})", 
-                           task.block_cid, task.attempts);
-            
+            tracing::trace!(
+                "Processing propagation task for block {} (attempt {})",
+                task.block_cid,
+                task.attempts
+            );
+
             // Simulate success/failure and re-queue if needed
             let success = true; // Placeholder
             if !success && task.attempts < task.max_attempts {
                 state.pending_propagation.push_back(task);
             }
-            
+
             break; // Process one item per iteration to avoid blocking
         }
-        
+
         Ok(())
     }
 
@@ -669,7 +715,7 @@ impl EnhancedDagSync {
         // 2. Check connection reliability
         // 3. Update peer quality metrics
         // 4. Remove poor-quality peers
-        
+
         tracing::trace!("Monitoring peer quality");
         Ok(())
     }
@@ -683,7 +729,7 @@ impl EnhancedDagSync {
         // 1. Analyze strategy performance metrics
         // 2. Adjust strategy selection criteria
         // 3. Update network condition thresholds
-        
+
         tracing::trace!("Optimizing propagation strategies");
         Ok(())
     }
@@ -697,7 +743,7 @@ impl EnhancedDagSync {
         // 1. Analyze peer connectivity patterns
         // 2. Identify disconnected groups
         // 3. Update partition information
-        
+
         tracing::trace!("Detecting network partitions");
         Ok(())
     }
@@ -735,9 +781,9 @@ impl PeerManager {
     pub fn new() -> Self {
         Self {
             connected_peers: HashMap::new(),
-            selection_strategies: vec![
-                PeerSelectionStrategy::Weighted { weights: SelectionWeights::default() }
-            ],
+            selection_strategies: vec![PeerSelectionStrategy::Weighted {
+                weights: SelectionWeights::default(),
+            }],
             quality_thresholds: QualityThresholds::default(),
         }
     }
@@ -749,7 +795,9 @@ impl StrategySelector {
             strategies: vec![
                 PropagationStrategy::Broadcast,
                 PropagationStrategy::Epidemic { fanout: 3 },
-                PropagationStrategy::Tree { branching_factor: 4 },
+                PropagationStrategy::Tree {
+                    branching_factor: 4,
+                },
             ],
             network_conditions: NetworkConditions {
                 peer_count: 0,
@@ -774,4 +822,4 @@ impl SyncMetrics {
             peer_performance: HashMap::new(),
         }
     }
-} 
+}

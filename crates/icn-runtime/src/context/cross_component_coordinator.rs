@@ -7,12 +7,10 @@
 //! - Health monitoring and auto-recovery
 //! - Performance optimization across components
 
-use super::{
-    DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType,
-};
 use super::enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult};
-use super::smart_p2p_routing::{SmartP2pRouter, MessagePriority, RoutingStrategy, RoutePath};
 use super::realtime_ccl_integration::{CclIntegrationCoordinator, GovernanceEventType};
+use super::smart_p2p_routing::{MessagePriority, RoutePath, RoutingStrategy, SmartP2pRouter};
+use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
 use icn_common::{Cid, Did, TimeProvider};
 use icn_governance::GovernanceModule;
 use icn_reputation::ReputationStore;
@@ -125,21 +123,33 @@ impl CrossComponentCoordinator {
         // Health check before operation
         let health_status = self.health_monitor.check_component_health().await;
         if !health_status.is_healthy() {
-            warn!("System health issues detected before DAG operation: {:?}", health_status);
-            return Err(HostAbiError::InternalError(format!("System health check failed: {:?}", health_status)));
+            warn!(
+                "System health issues detected before DAG operation: {:?}",
+                health_status
+            );
+            return Err(HostAbiError::InternalError(format!(
+                "System health check failed: {:?}",
+                health_status
+            )));
         }
 
         // Economics-driven optimization
         let optimization = self.economics_engine.optimize_operation(&operation).await?;
-        
+
         // Execute with network-DAG coordination
-        let result = self.network_dag_manager.execute_coordinated_operation(operation, optimization).await?;
+        let result = self
+            .network_dag_manager
+            .execute_coordinated_operation(operation, optimization)
+            .await?;
 
         // Performance optimization learning
-        self.performance_optimizer.learn_from_operation(&result, start_time.elapsed()).await;
+        self.performance_optimizer
+            .learn_from_operation(&result, start_time.elapsed())
+            .await;
 
         // Record metrics
-        self.metrics.record_operation_completion(&result, start_time.elapsed());
+        self.metrics
+            .record_operation_completion(&result, start_time.elapsed());
 
         Ok(result)
     }
@@ -217,42 +227,52 @@ impl CrossComponentCoordinator {
         priority: PropagationPriority,
         target_peers: Option<Vec<Did>>,
     ) -> Result<(), HostAbiError> {
-        info!("Propagating block {} with priority {:?}", block_cid, priority);
-        
+        info!(
+            "Propagating block {} with priority {:?}",
+            block_cid, priority
+        );
+
         // Use enhanced DAG sync for intelligent propagation
-        self.dag_sync.propagate_block(block_cid.clone(), priority, target_peers).await?;
-        
+        self.dag_sync
+            .propagate_block(block_cid.clone(), priority, target_peers)
+            .await?;
+
         // Record metrics
         self.metrics.record_block_propagation(&block_cid, &priority);
-        
+
         Ok(())
     }
 
     /// Perform intelligent network-wide DAG synchronization
     pub async fn sync_dag_intelligently(&self) -> Result<SyncResult, HostAbiError> {
         info!("Starting intelligent DAG synchronization");
-        
+
         // Check system health before sync
         let health_status = self.health_monitor.check_component_health().await;
         if !health_status.is_healthy() {
-            warn!("System health issues detected before DAG sync: {:?}", health_status);
+            warn!(
+                "System health issues detected before DAG sync: {:?}",
+                health_status
+            );
         }
-        
+
         // Perform enhanced synchronization
         let sync_result = self.dag_sync.sync_with_network().await?;
-        
+
         // Learn from sync performance
         let sync_duration = sync_result.duration;
         if sync_duration > Duration::from_secs(30) {
             warn!("DAG sync took longer than expected: {:?}", sync_duration);
         }
-        
+
         // Record metrics
         self.metrics.record_dag_sync(&sync_result);
-        
-        info!("DAG synchronization completed: {} blocks received, {} blocks sent", 
-              sync_result.blocks_received, sync_result.blocks_sent);
-        
+
+        info!(
+            "DAG synchronization completed: {} blocks received, {} blocks sent",
+            sync_result.blocks_received, sync_result.blocks_sent
+        );
+
         Ok(sync_result)
     }
 
@@ -264,61 +284,93 @@ impl CrossComponentCoordinator {
         priority: MessagePriority,
         routing_strategy: Option<RoutingStrategy>,
     ) -> Result<String, HostAbiError> {
-        info!("Routing message to {} with priority {:?} using intelligent selection", 
-              target_peer, priority);
-        
+        info!(
+            "Routing message to {} with priority {:?} using intelligent selection",
+            target_peer, priority
+        );
+
         // Use the smart P2P router for intelligent routing
-        let message_id = self.smart_p2p_router.route_message(
-            target_peer.clone(), 
-            payload, 
-            priority, 
-            None // No deadline for now
-        ).await?;
-        
+        let message_id = self
+            .smart_p2p_router
+            .route_message(
+                target_peer.clone(),
+                payload,
+                priority,
+                None, // No deadline for now
+            )
+            .await?;
+
         // Record routing metrics
-        self.metrics.record_intelligent_routing(&target_peer, &priority, &routing_strategy);
-        
-        info!("Message {} queued for intelligent routing to {}", message_id, target_peer);
+        self.metrics
+            .record_intelligent_routing(&target_peer, &priority, &routing_strategy);
+
+        info!(
+            "Message {} queued for intelligent routing to {}",
+            message_id, target_peer
+        );
         Ok(message_id)
     }
 
     /// Get optimal routing path for a target peer using reputation and network analysis
-    pub async fn get_optimal_routing_path(&self, target_peer: &Did) -> Result<Option<RoutePath>, HostAbiError> {
+    pub async fn get_optimal_routing_path(
+        &self,
+        target_peer: &Did,
+    ) -> Result<Option<RoutePath>, HostAbiError> {
         info!("Finding optimal routing path to peer: {}", target_peer);
-        
+
         // First check health status to ensure system is ready
         let health_status = self.health_monitor.check_component_health().await;
         if !health_status.is_healthy() {
-            warn!("System health issues detected before routing path calculation: {:?}", health_status);
+            warn!(
+                "System health issues detected before routing path calculation: {:?}",
+                health_status
+            );
         }
-        
+
         // Use smart P2P router to find best route
         let route = self.smart_p2p_router.get_best_route(target_peer).await?;
-        
+
         if let Some(ref path) = route {
-            info!("Found optimal route to {} via {} hops with quality score {:.2}", 
-                  target_peer, path.path_peers.len(), path.path_quality);
+            info!(
+                "Found optimal route to {} via {} hops with quality score {:.2}",
+                target_peer,
+                path.path_peers.len(),
+                path.path_quality
+            );
         } else {
             warn!("No routing path found to peer: {}", target_peer);
         }
-        
+
         Ok(route)
     }
 
     /// Update peer reputation and trigger routing recalculation
-    pub async fn update_peer_reputation_and_routes(&self, peer_id: &Did, new_reputation: u64) -> Result<(), HostAbiError> {
-        info!("Updating reputation for peer {} to {} and recalculating routes", peer_id, new_reputation);
-        
+    pub async fn update_peer_reputation_and_routes(
+        &self,
+        peer_id: &Did,
+        new_reputation: u64,
+    ) -> Result<(), HostAbiError> {
+        info!(
+            "Updating reputation for peer {} to {} and recalculating routes",
+            peer_id, new_reputation
+        );
+
         // Update reputation in the smart router
-        self.smart_p2p_router.update_peer_reputation(peer_id, new_reputation).await?;
-        
+        self.smart_p2p_router
+            .update_peer_reputation(peer_id, new_reputation)
+            .await?;
+
         // Trigger network topology rediscovery if reputation changed significantly
         self.smart_p2p_router.discover_network_topology().await?;
-        
+
         // Record the reputation update in metrics
-        self.metrics.record_reputation_update(peer_id, new_reputation);
-        
-        info!("Reputation update and route recalculation completed for peer: {}", peer_id);
+        self.metrics
+            .record_reputation_update(peer_id, new_reputation);
+
+        info!(
+            "Reputation update and route recalculation completed for peer: {}",
+            peer_id
+        );
         Ok(())
     }
 
@@ -330,18 +382,21 @@ impl CrossComponentCoordinator {
         target_nodes: Option<Vec<Did>>,
     ) -> Result<String, HostAbiError> {
         info!("Submitting governance proposal with real-time coordination");
-        
+
         // Use CCL integration for real-time proposal submission
-        let proposal_id = self.ccl_integration.submit_proposal_realtime(
-            proposal_data,
-            priority,
-            target_nodes,
-        ).await?;
-        
+        let proposal_id = self
+            .ccl_integration
+            .submit_proposal_realtime(proposal_data, priority, target_nodes)
+            .await?;
+
         // Record the proposal submission in metrics
-        self.metrics.record_governance_proposal_submission(&proposal_id, &priority);
-        
-        info!("Governance proposal {:?} submitted with real-time integration", proposal_id);
+        self.metrics
+            .record_governance_proposal_submission(&proposal_id, &priority);
+
+        info!(
+            "Governance proposal {:?} submitted with real-time integration",
+            proposal_id
+        );
         Ok(proposal_id.0)
     }
 
@@ -353,20 +408,19 @@ impl CrossComponentCoordinator {
         priority: PropagationPriority,
     ) -> Result<(), HostAbiError> {
         info!("Casting governance vote with real-time coordination");
-        
+
         // Parse proposal ID
         let parsed_proposal_id = icn_governance::ProposalId(proposal_id.clone());
-        
+
         // Use CCL integration for real-time vote casting
-        self.ccl_integration.cast_vote_realtime(
-            parsed_proposal_id.clone(),
-            vote_option.clone(),
-            priority,
-        ).await?;
-        
+        self.ccl_integration
+            .cast_vote_realtime(parsed_proposal_id.clone(), vote_option.clone(), priority)
+            .await?;
+
         // Record the vote in metrics
-        self.metrics.record_governance_vote_cast(&parsed_proposal_id, &vote_option, &priority);
-        
+        self.metrics
+            .record_governance_vote_cast(&parsed_proposal_id, &vote_option, &priority);
+
         info!("Governance vote cast with real-time integration");
         Ok(())
     }
@@ -377,16 +431,19 @@ impl CrossComponentCoordinator {
         proposal_id: String,
     ) -> Result<(), HostAbiError> {
         info!("Executing governance proposal with real-time coordination");
-        
+
         // Parse proposal ID
         let parsed_proposal_id = icn_governance::ProposalId(proposal_id.clone());
-        
+
         // Use CCL integration for real-time execution
-        self.ccl_integration.execute_proposal_realtime(parsed_proposal_id.clone()).await?;
-        
+        self.ccl_integration
+            .execute_proposal_realtime(parsed_proposal_id.clone())
+            .await?;
+
         // Record the execution in metrics
-        self.metrics.record_governance_proposal_execution(&parsed_proposal_id);
-        
+        self.metrics
+            .record_governance_proposal_execution(&parsed_proposal_id);
+
         info!("Governance proposal executed with real-time integration");
         Ok(())
     }
@@ -477,7 +534,8 @@ impl NetworkDagManager {
         }
 
         // Intelligent network propagation based on priority and optimization
-        self.propagate_based_on_priority(&cid, priority, &optimization).await?;
+        self.propagate_based_on_priority(&cid, priority, &optimization)
+            .await?;
 
         // Track propagation
         self.track_propagation(&cid, priority).await;
@@ -497,8 +555,8 @@ impl NetworkDagManager {
             let store = self.dag_store.lock().await;
             if let Some(block) = store.get(&cid).await.ok() {
                 debug!("Found block locally: {}", cid);
-                return Ok(DagOperationResult::Retrieve { 
-                    cid, 
+                return Ok(DagOperationResult::Retrieve {
+                    cid,
                     data: block.unwrap().data,
                     source: RetrievalSource::Local,
                 });
@@ -506,7 +564,8 @@ impl NetworkDagManager {
         }
 
         // Network retrieval with optimization
-        self.network_retrieve_with_optimization(&cid, timeout, &optimization).await
+        self.network_retrieve_with_optimization(&cid, timeout, &optimization)
+            .await
     }
 
     /// Network retrieval with intelligent peer selection
@@ -520,7 +579,7 @@ impl NetworkDagManager {
 
         // Use optimization hints for peer selection
         let preferred_peers = optimization.preferred_peers.clone();
-        
+
         // This would integrate with the enhanced P2P messaging
         // For now, we'll simulate the network request
         tokio::time::sleep(Duration::from_millis(100)).await;
@@ -532,7 +591,8 @@ impl NetworkDagManager {
         // 4. Fall back to alternative peers on failure
 
         Err(HostAbiError::DagOperationFailed(format!(
-            "Network retrieval not yet implemented for CID: {}", cid
+            "Network retrieval not yet implemented for CID: {}",
+            cid
         )))
     }
 
@@ -550,7 +610,8 @@ impl NetworkDagManager {
             }
             Priority::High => {
                 // Propagation to high-reputation peers first
-                self.propagate_to_prioritized_peers(cid, &optimization.preferred_peers).await
+                self.propagate_to_prioritized_peers(cid, &optimization.preferred_peers)
+                    .await
             }
             Priority::Normal => {
                 // Standard propagation with rate limiting
@@ -564,13 +625,24 @@ impl NetworkDagManager {
     }
 
     async fn broadcast_to_all_peers(&self, cid: &Cid) -> Result<(), HostAbiError> {
-        debug!("Broadcasting block {} to all peers with critical priority", cid);
+        debug!(
+            "Broadcasting block {} to all peers with critical priority",
+            cid
+        );
         // Implementation would use the mesh network service
         Ok(())
     }
 
-    async fn propagate_to_prioritized_peers(&self, cid: &Cid, preferred_peers: &[Did]) -> Result<(), HostAbiError> {
-        debug!("Propagating block {} to {} prioritized peers", cid, preferred_peers.len());
+    async fn propagate_to_prioritized_peers(
+        &self,
+        cid: &Cid,
+        preferred_peers: &[Did],
+    ) -> Result<(), HostAbiError> {
+        debug!(
+            "Propagating block {} to {} prioritized peers",
+            cid,
+            preferred_peers.len()
+        );
         // Implementation would select peers based on reputation and send targeted messages
         Ok(())
     }
@@ -610,13 +682,17 @@ impl NetworkDagManager {
         targets: Vec<Did>,
         optimization: OperationOptimization,
     ) -> Result<DagOperationResult, HostAbiError> {
-        debug!("Coordinated propagation of {} to {} targets", cid, targets.len());
-        
+        debug!(
+            "Coordinated propagation of {} to {} targets",
+            cid,
+            targets.len()
+        );
+
         // Implementation would send targeted propagation messages
         // and track confirmation responses
-        
-        Ok(DagOperationResult::Propagate { 
-            cid, 
+
+        Ok(DagOperationResult::Propagate {
+            cid,
             propagated_to: targets.len(),
             confirmations: 0, // Would be updated as confirmations arrive
         })
@@ -624,10 +700,10 @@ impl NetworkDagManager {
 
     pub async fn run_sync_maintenance(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(30));
-        
+
         loop {
             interval.tick().await;
-            
+
             // Clean up completed propagations
             {
                 let mut pending = self.pending_propagations.lock().await;
@@ -643,7 +719,7 @@ impl NetworkDagManager {
                     }
                 });
             }
-            
+
             // Update sync state
             self.update_sync_state().await;
         }
@@ -658,9 +734,13 @@ impl NetworkDagManager {
     pub async fn get_sync_status(&self) -> NetworkDagStatus {
         let state = self.sync_state.read().await;
         let pending = self.pending_propagations.lock().await;
-        
+
         NetworkDagStatus {
-            sync_health: if state.is_healthy() { "healthy".to_string() } else { "degraded".to_string() },
+            sync_health: if state.is_healthy() {
+                "healthy".to_string()
+            } else {
+                "degraded".to_string()
+            },
             pending_propagations: pending.len(),
             last_maintenance: state.last_maintenance,
         }
@@ -690,9 +770,12 @@ impl EconomicsDecisionEngine {
     }
 
     /// Optimize operation based on economics and reputation
-    pub async fn optimize_operation(&self, operation: &DagOperation) -> Result<OperationOptimization, HostAbiError> {
+    pub async fn optimize_operation(
+        &self,
+        operation: &DagOperation,
+    ) -> Result<OperationOptimization, HostAbiError> {
         let cache_key = self.get_cache_key(operation);
-        
+
         // Check cache first
         {
             let cache = self.decision_cache.read().await;
@@ -706,47 +789,61 @@ impl EconomicsDecisionEngine {
 
         // Compute fresh optimization
         let optimization = self.compute_optimization(operation).await?;
-        
+
         // Cache the result
         {
             let mut cache = self.decision_cache.write().await;
-            cache.insert(cache_key, CachedDecision {
-                optimization: optimization.clone(),
-                created_at: Instant::now(),
-                ttl: Duration::from_secs(300), // 5 minute cache
-            });
+            cache.insert(
+                cache_key,
+                CachedDecision {
+                    optimization: optimization.clone(),
+                    created_at: Instant::now(),
+                    ttl: Duration::from_secs(300), // 5 minute cache
+                },
+            );
         }
 
         Ok(optimization)
     }
 
-    async fn compute_optimization(&self, operation: &DagOperation) -> Result<OperationOptimization, HostAbiError> {
+    async fn compute_optimization(
+        &self,
+        operation: &DagOperation,
+    ) -> Result<OperationOptimization, HostAbiError> {
         // Get current reputation (convert u64 to f64)
-        let current_reputation = self.reputation_store.get_reputation(&self.current_identity) as f64;
-        
+        let current_reputation =
+            self.reputation_store.get_reputation(&self.current_identity) as f64;
+
         // Get governance policies (simplified for now)
         let governance_policies = self.get_relevant_policies().await?;
-        
+
         // Compute preferred peers based on reputation and policies
-        let preferred_peers = self.select_optimal_peers(current_reputation, &governance_policies).await?;
-        
+        let preferred_peers = self
+            .select_optimal_peers(current_reputation, &governance_policies)
+            .await?;
+
         // Determine operation parameters
         let parameters = match operation {
             DagOperation::Store { priority, .. } => {
-                self.optimize_store_parameters(*priority, current_reputation).await?
+                self.optimize_store_parameters(*priority, current_reputation)
+                    .await?
             }
             DagOperation::Retrieve { timeout, .. } => {
-                self.optimize_retrieve_parameters(*timeout, current_reputation).await?
+                self.optimize_retrieve_parameters(*timeout, current_reputation)
+                    .await?
             }
             DagOperation::Propagate { targets, .. } => {
-                self.optimize_propagate_parameters(targets, current_reputation).await?
+                self.optimize_propagate_parameters(targets, current_reputation)
+                    .await?
             }
         };
 
         Ok(OperationOptimization {
             preferred_peers,
             parameters,
-            estimated_cost: self.estimate_mana_cost(operation, current_reputation).await?,
+            estimated_cost: self
+                .estimate_mana_cost(operation, current_reputation)
+                .await?,
             priority_boost: self.calculate_priority_boost(current_reputation),
         })
     }
@@ -757,18 +854,26 @@ impl EconomicsDecisionEngine {
         Ok(vec!["default_storage_policy".to_string()])
     }
 
-    async fn select_optimal_peers(&self, reputation: f64, _policies: &[String]) -> Result<Vec<Did>, HostAbiError> {
+    async fn select_optimal_peers(
+        &self,
+        reputation: f64,
+        _policies: &[String],
+    ) -> Result<Vec<Did>, HostAbiError> {
         // Simplified peer selection based on reputation
         // In a real implementation, this would:
         // 1. Query the network for available peers
         // 2. Get reputation scores for each peer
         // 3. Apply governance policies for peer selection
         // 4. Return optimal peers sorted by preference
-        
+
         Ok(vec![]) // Placeholder
     }
 
-    async fn optimize_store_parameters(&self, priority: Priority, reputation: f64) -> Result<OperationParameters, HostAbiError> {
+    async fn optimize_store_parameters(
+        &self,
+        priority: Priority,
+        reputation: f64,
+    ) -> Result<OperationParameters, HostAbiError> {
         let redundancy = match priority {
             Priority::Critical => 5,
             Priority::High => 3,
@@ -786,9 +891,17 @@ impl EconomicsDecisionEngine {
         })
     }
 
-    async fn optimize_retrieve_parameters(&self, timeout: Duration, reputation: f64) -> Result<OperationParameters, HostAbiError> {
+    async fn optimize_retrieve_parameters(
+        &self,
+        timeout: Duration,
+        reputation: f64,
+    ) -> Result<OperationParameters, HostAbiError> {
         let timeout_multiplier = if reputation > 0.8 { 0.9 } else { 1.1 };
-        let retry_attempts = if timeout > Duration::from_secs(10) { 5 } else { 3 };
+        let retry_attempts = if timeout > Duration::from_secs(10) {
+            5
+        } else {
+            3
+        };
 
         Ok(OperationParameters {
             redundancy: 1, // Not applicable for retrieval
@@ -798,7 +911,11 @@ impl EconomicsDecisionEngine {
         })
     }
 
-    async fn optimize_propagate_parameters(&self, targets: &[Did], reputation: f64) -> Result<OperationParameters, HostAbiError> {
+    async fn optimize_propagate_parameters(
+        &self,
+        targets: &[Did],
+        reputation: f64,
+    ) -> Result<OperationParameters, HostAbiError> {
         let redundancy = if targets.len() > 10 { 3 } else { 2 };
         let timeout_multiplier = if reputation > 0.8 { 0.8 } else { 1.0 };
 
@@ -810,7 +927,11 @@ impl EconomicsDecisionEngine {
         })
     }
 
-    async fn estimate_mana_cost(&self, operation: &DagOperation, reputation: f64) -> Result<u64, HostAbiError> {
+    async fn estimate_mana_cost(
+        &self,
+        operation: &DagOperation,
+        reputation: f64,
+    ) -> Result<u64, HostAbiError> {
         let base_cost = match operation {
             DagOperation::Store { data, priority } => {
                 let size_cost = data.len() as u64 / 1024; // 1 mana per KB
@@ -827,8 +948,14 @@ impl EconomicsDecisionEngine {
         };
 
         // Apply reputation-based discount
-        let reputation_discount = if reputation > 0.8 { 0.8 } else if reputation > 0.5 { 0.9 } else { 1.0 };
-        
+        let reputation_discount = if reputation > 0.8 {
+            0.8
+        } else if reputation > 0.5 {
+            0.9
+        } else {
+            1.0
+        };
+
         Ok((base_cost as f64 * reputation_discount) as u64)
     }
 
@@ -878,15 +1005,18 @@ impl HealthMonitor {
 
         // Check network health
         components.insert("network".to_string(), self.check_network_health().await);
-        
+
         // Check DAG health
         components.insert("dag".to_string(), self.check_dag_health().await);
-        
+
         // Check reputation system health
-        components.insert("reputation".to_string(), self.check_reputation_health().await);
+        components.insert(
+            "reputation".to_string(),
+            self.check_reputation_health().await,
+        );
 
         let overall_health = self.compute_overall_health(&components);
-        
+
         let health_status = HealthStatus {
             overall: overall_health,
             components,
@@ -933,7 +1063,7 @@ impl HealthMonitor {
     async fn check_dag_health(&self) -> ComponentHealth {
         // Try a simple DAG operation to check health
         let test_cid = Cid::new_v1_sha256(0x00, b"health_check");
-        
+
         match {
             let store = self.dag_store.lock().await;
             store.get(&test_cid).await
@@ -961,7 +1091,7 @@ impl HealthMonitor {
         // Check reputation system responsiveness
         let test_did = Did::new("test", "health_check");
         let reputation = self.reputation_store.get_reputation(&test_did);
-        
+
         ComponentHealth {
             status: HealthLevel::Healthy,
             metrics: vec![
@@ -996,12 +1126,12 @@ impl HealthMonitor {
 
     pub async fn run_continuous_monitoring(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(60)); // Check every minute
-        
+
         loop {
             interval.tick().await;
-            
+
             let health_status = self.check_component_health().await;
-            
+
             match health_status.overall {
                 HealthLevel::Critical => {
                     error!("CRITICAL: System health is critical: {:?}", health_status);
@@ -1020,7 +1150,7 @@ impl HealthMonitor {
 
     async fn trigger_recovery_actions(&self, health_status: &HealthStatus) {
         info!("Triggering recovery actions for critical health status");
-        
+
         for (component, health) in &health_status.components {
             if health.status == HealthLevel::Critical {
                 match component.as_str() {
@@ -1035,7 +1165,7 @@ impl HealthMonitor {
 
     async fn trigger_optimization_actions(&self, health_status: &HealthStatus) {
         debug!("Triggering optimization actions for degraded health status");
-        
+
         for (component, health) in &health_status.components {
             if health.status == HealthLevel::Degraded {
                 info!("Optimizing component: {}", component);
@@ -1097,17 +1227,19 @@ impl PerformanceOptimizer {
         }
 
         // Update metrics
-        self.update_current_metrics(duration, result.was_successful()).await;
+        self.update_current_metrics(duration, result.was_successful())
+            .await;
 
         // Learn optimization strategies
-        self.adapt_strategies(&result.operation_type(), duration, result.was_successful()).await;
+        self.adapt_strategies(&result.operation_type(), duration, result.was_successful())
+            .await;
     }
 
     async fn update_current_metrics(&self, duration: Duration, success: bool) {
         let mut metrics = self.current_metrics.write().await;
         metrics.total_operations += 1;
         metrics.total_duration += duration;
-        
+
         if success {
             metrics.successful_operations += 1;
         } else {
@@ -1115,15 +1247,16 @@ impl PerformanceOptimizer {
         }
 
         metrics.average_duration = metrics.total_duration / metrics.total_operations as u32;
-        metrics.success_rate = metrics.successful_operations as f64 / metrics.total_operations as f64;
+        metrics.success_rate =
+            metrics.successful_operations as f64 / metrics.total_operations as f64;
     }
 
     async fn adapt_strategies(&self, operation_type: &str, duration: Duration, success: bool) {
         let mut strategies = self.optimization_strategies.write().await;
-        
-        let strategy = strategies.entry(operation_type.to_string()).or_insert_with(|| {
-            OptimizationStrategy::default()
-        });
+
+        let strategy = strategies
+            .entry(operation_type.to_string())
+            .or_insert_with(|| OptimizationStrategy::default());
 
         // Simple adaptive learning
         if success {
@@ -1142,26 +1275,32 @@ impl PerformanceOptimizer {
 
     pub async fn run_optimization_loop(&self) {
         let mut interval = tokio::time::interval(Duration::from_secs(300)); // Every 5 minutes
-        
+
         loop {
             interval.tick().await;
-            
+
             self.analyze_and_optimize().await;
         }
     }
 
     async fn analyze_and_optimize(&self) {
         debug!("Running performance analysis and optimization");
-        
+
         let metrics = self.current_metrics.read().await;
-        
+
         if metrics.success_rate < 0.8 {
-            warn!("Low success rate detected: {:.2}%, triggering optimization", metrics.success_rate * 100.0);
+            warn!(
+                "Low success rate detected: {:.2}%, triggering optimization",
+                metrics.success_rate * 100.0
+            );
             self.apply_reliability_optimizations().await;
         }
 
         if metrics.average_duration > Duration::from_secs(5) {
-            warn!("High average operation duration: {:?}, triggering performance optimization", metrics.average_duration);
+            warn!(
+                "High average operation duration: {:?}, triggering performance optimization",
+                metrics.average_duration
+            );
             self.apply_performance_optimizations().await;
         }
     }
@@ -1199,7 +1338,7 @@ impl IntegrationMetrics {
 
     pub fn record_operation_start(&self, operation: &DagOperation) {
         let operation_type = operation.operation_type();
-        
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1211,12 +1350,14 @@ impl IntegrationMetrics {
 
     pub fn record_operation_completion(&self, result: &DagOperationResult, duration: Duration) {
         let operation_type = result.operation_type();
-        
+
         tokio::spawn({
             let latency_stats = self.latency_stats.clone();
             async move {
                 let mut stats = latency_stats.write().await;
-                let latency_stat = stats.entry(operation_type).or_insert_with(LatencyStats::default);
+                let latency_stat = stats
+                    .entry(operation_type)
+                    .or_insert_with(LatencyStats::default);
                 latency_stat.add_sample(duration);
             }
         });
@@ -1248,7 +1389,7 @@ impl IntegrationMetrics {
     /// Record a block propagation event
     pub fn record_block_propagation(&self, block_cid: &Cid, priority: &PropagationPriority) {
         let operation_type = format!("block_propagation_{:?}", priority).to_lowercase();
-        
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1256,14 +1397,17 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
-        debug!("Recorded block propagation for {} with priority {:?}", block_cid, priority);
+
+        debug!(
+            "Recorded block propagation for {} with priority {:?}",
+            block_cid, priority
+        );
     }
 
     /// Record a DAG synchronization event
     pub fn record_dag_sync(&self, sync_result: &SyncResult) {
         let operation_type = "dag_sync".to_string();
-        
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             let latency_stats = self.latency_stats.clone();
@@ -1274,22 +1418,31 @@ impl IntegrationMetrics {
                     let mut counts = operation_counts.write().await;
                     *counts.entry(operation_type.clone()).or_insert(0) += 1;
                 }
-                
+
                 // Record latency
                 {
                     let mut stats = latency_stats.write().await;
-                    let latency_stat = stats.entry(operation_type).or_insert_with(LatencyStats::default);
+                    let latency_stat = stats
+                        .entry(operation_type)
+                        .or_insert_with(LatencyStats::default);
                     latency_stat.add_sample(duration);
                 }
             }
         });
-        
-        debug!("Recorded DAG sync: {} blocks received, {} blocks sent, duration: {:?}", 
-               sync_result.blocks_received, sync_result.blocks_sent, sync_result.duration);
+
+        debug!(
+            "Recorded DAG sync: {} blocks received, {} blocks sent, duration: {:?}",
+            sync_result.blocks_received, sync_result.blocks_sent, sync_result.duration
+        );
     }
 
     /// Record an intelligent routing event
-    pub fn record_intelligent_routing(&self, target_peer: &Did, priority: &MessagePriority, strategy: &Option<RoutingStrategy>) {
+    pub fn record_intelligent_routing(
+        &self,
+        target_peer: &Did,
+        priority: &MessagePriority,
+        strategy: &Option<RoutingStrategy>,
+    ) {
         let routing_type = match strategy {
             Some(RoutingStrategy::Direct) => "direct",
             Some(RoutingStrategy::ReputationBased { .. }) => "reputation_based",
@@ -1301,9 +1454,13 @@ impl IntegrationMetrics {
             Some(RoutingStrategy::LoadBalanced) => "load_balanced",
             None => "auto_select",
         };
-        
-        let operation_type = format!("intelligent_routing_{}_priority_{}", routing_type, format!("{:?}", priority).to_lowercase());
-        
+
+        let operation_type = format!(
+            "intelligent_routing_{}_priority_{}",
+            routing_type,
+            format!("{:?}", priority).to_lowercase()
+        );
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1311,15 +1468,20 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
-        debug!("Recorded intelligent routing for {} with priority {:?} and strategy {:?}", 
-               target_peer, priority, strategy);
+
+        debug!(
+            "Recorded intelligent routing for {} with priority {:?} and strategy {:?}",
+            target_peer, priority, strategy
+        );
     }
 
     /// Record a reputation update event
     pub fn record_reputation_update(&self, peer_id: &Did, new_reputation: u64) {
-        let operation_type = format!("reputation_update_{}", if new_reputation > 500 { "high" } else { "low" });
-        
+        let operation_type = format!(
+            "reputation_update_{}",
+            if new_reputation > 500 { "high" } else { "low" }
+        );
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1327,14 +1489,22 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
-        debug!("Recorded reputation update for {} to score {}", peer_id, new_reputation);
+
+        debug!(
+            "Recorded reputation update for {} to score {}",
+            peer_id, new_reputation
+        );
     }
 
     /// Record a governance proposal submission
-    pub fn record_governance_proposal_submission(&self, proposal_id: &icn_governance::ProposalId, priority: &PropagationPriority) {
-        let operation_type = format!("governance_proposal_submission_{:?}", priority).to_lowercase();
-        
+    pub fn record_governance_proposal_submission(
+        &self,
+        proposal_id: &icn_governance::ProposalId,
+        priority: &PropagationPriority,
+    ) {
+        let operation_type =
+            format!("governance_proposal_submission_{:?}", priority).to_lowercase();
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1342,14 +1512,23 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
-        debug!("Recorded governance proposal submission: {:?} with priority {:?}", proposal_id, priority);
+
+        debug!(
+            "Recorded governance proposal submission: {:?} with priority {:?}",
+            proposal_id, priority
+        );
     }
 
     /// Record a governance vote cast
-    pub fn record_governance_vote_cast(&self, proposal_id: &icn_governance::ProposalId, vote_option: &str, priority: &PropagationPriority) {
-        let operation_type = format!("governance_vote_cast_{}_{:?}", vote_option, priority).to_lowercase();
-        
+    pub fn record_governance_vote_cast(
+        &self,
+        proposal_id: &icn_governance::ProposalId,
+        vote_option: &str,
+        priority: &PropagationPriority,
+    ) {
+        let operation_type =
+            format!("governance_vote_cast_{}_{:?}", vote_option, priority).to_lowercase();
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1357,14 +1536,17 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
-        debug!("Recorded governance vote cast: {:?} option {} with priority {:?}", proposal_id, vote_option, priority);
+
+        debug!(
+            "Recorded governance vote cast: {:?} option {} with priority {:?}",
+            proposal_id, vote_option, priority
+        );
     }
 
     /// Record a governance proposal execution
     pub fn record_governance_proposal_execution(&self, proposal_id: &icn_governance::ProposalId) {
         let operation_type = "governance_proposal_execution".to_string();
-        
+
         tokio::spawn({
             let operation_counts = self.operation_counts.clone();
             async move {
@@ -1372,7 +1554,7 @@ impl IntegrationMetrics {
                 *counts.entry(operation_type).or_insert(0) += 1;
             }
         });
-        
+
         debug!("Recorded governance proposal execution: {:?}", proposal_id);
     }
 }
@@ -1406,9 +1588,19 @@ pub enum Priority {
 
 #[derive(Debug, Clone)]
 pub enum DagOperationResult {
-    Store { cid: Cid },
-    Retrieve { cid: Cid, data: Vec<u8>, source: RetrievalSource },
-    Propagate { cid: Cid, propagated_to: usize, confirmations: usize },
+    Store {
+        cid: Cid,
+    },
+    Retrieve {
+        cid: Cid,
+        data: Vec<u8>,
+        source: RetrievalSource,
+    },
+    Propagate {
+        cid: Cid,
+        propagated_to: usize,
+        confirmations: usize,
+    },
 }
 
 impl DagOperationResult {
@@ -1595,7 +1787,7 @@ impl LatencyStats {
     pub fn add_sample(&mut self, duration: Duration) {
         self.count += 1;
         self.total += duration;
-        
+
         if self.count == 1 {
             self.min = duration;
             self.max = duration;
@@ -1607,7 +1799,7 @@ impl LatencyStats {
                 self.max = duration;
             }
         }
-        
+
         self.avg = self.total / self.count as u32;
     }
 }
@@ -1633,4 +1825,4 @@ pub struct IntegrationMetricsSummary {
     pub operation_counts: HashMap<String, u64>,
     pub error_counts: HashMap<String, u64>,
     pub latency_stats: HashMap<String, LatencyStats>,
-} 
+}

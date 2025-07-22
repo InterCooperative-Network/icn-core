@@ -5,6 +5,7 @@
 
 pub mod advanced_ccl_wasm;
 pub mod compile_checks;
+pub mod comprehensive_coordinator;
 pub mod cross_component_coordinator;
 pub mod enhanced_dag_sync;
 pub mod errors;
@@ -20,34 +21,39 @@ pub mod service_config;
 pub mod signers;
 pub mod smart_p2p_routing;
 pub mod stubs;
-pub mod comprehensive_coordinator;
 
 // Re-export important types for convenience
 pub use advanced_ccl_wasm::{
-    AdvancedCclWasmBackend, CclExecutionConfig, CclExecutionResult, CclPerformanceMetrics, OptimizationLevel,
+    AdvancedCclWasmBackend, CclExecutionConfig, CclExecutionResult, CclPerformanceMetrics,
+    OptimizationLevel,
 };
 pub use compile_checks::ProductionReady;
+pub use comprehensive_coordinator::{
+    ComprehensiveCoordinationConfig, ComprehensiveCoordinationStats, ComprehensiveCoordinator,
+    CoordinationEvent, OptimizationExecutionResult, SystemHealthStatus,
+};
 pub use cross_component_coordinator::{
-    CrossComponentCoordinator, DagOperation, DagOperationResult, Priority, SystemStatus,
-    HealthStatus, PerformanceMetrics, IntegrationMetricsSummary,
+    CrossComponentCoordinator, DagOperation, DagOperationResult, HealthStatus,
+    IntegrationMetricsSummary, PerformanceMetrics, Priority, SystemStatus,
 };
 pub use enhanced_dag_sync::{
-    EnhancedDagSync, PropagationPriority, PropagationStrategy, SyncHealth, SyncResult, NetworkConditions,
+    EnhancedDagSync, NetworkConditions, PropagationPriority, PropagationStrategy, SyncHealth,
+    SyncResult,
 };
 pub use errors::HostAbiError;
 pub use federation_integration::{
-    FederationIntegration, FederationAwareJobSelection, FederationBidInfo,
+    FederationAwareJobSelection, FederationBidInfo, FederationIntegration,
 };
 pub use host_environment::{ConcreteHostEnvironment, HostEnvironment};
 pub use mana::{LedgerBackend, ManaRepository, SimpleManaLedger};
 pub use mesh_network::{
     BidId, DefaultMeshNetworkService, JobAssignmentNotice, LocalMeshSubmitReceiptMessage,
-    MeshJobStateChange, MeshNetworkService, PeerStatistics, PingResult, SelectionPolicy, 
+    MeshJobStateChange, MeshNetworkService, PeerStatistics, PingResult, SelectionPolicy,
     PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
 pub use realtime_ccl_integration::{
-    CclIntegrationCoordinator, GovernanceEvent, GovernanceEventType, ProposalStatus,
-    ActiveProposal, VoteTracker, CclPerformanceMetrics,
+    ActiveProposal, CclIntegrationCoordinator, CclPerformanceMetrics, GovernanceEvent,
+    GovernanceEventType, ProposalStatus, VoteTracker,
 };
 pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
@@ -57,19 +63,15 @@ pub use runtime_context::{
     MeshNetworkServiceType, ParameterUpdate, RuntimeContext, RuntimeContextBuilder,
     RuntimeContextParams, MANA_MAX_CAPACITY_KEY,
 };
-pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
-pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
-pub use smart_p2p_routing::{
-    SmartP2pRouter, RoutingStrategy, MessagePriority, RoutePath, PeerRouteInfo, RoutingMetrics,
-};
-pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 pub use runtime_factory::{
     RuntimeContextFactory, RuntimeCreationConfig, RuntimeCreationConfigBuilder, RuntimeEnvironment,
 };
-pub use comprehensive_coordinator::{
-    ComprehensiveCoordinator, ComprehensiveCoordinationConfig, CoordinationEvent,
-    SystemHealthStatus, ComprehensiveCoordinationStats, OptimizationExecutionResult,
+pub use service_config::{ServiceConfig, ServiceConfigBuilder, ServiceEnvironment};
+pub use signers::{Ed25519Signer, HsmKeyStore, Signer, StubSigner};
+pub use smart_p2p_routing::{
+    MessagePriority, PeerRouteInfo, RoutePath, RoutingMetrics, RoutingStrategy, SmartP2pRouter,
 };
+pub use stubs::{RuntimeStubDagStore, StubDagStore, StubMeshNetworkService};
 
 // Conditional compilation helpers for DAG storage service
 pub type DagStorageService = dyn icn_dag::AsyncStorageService<icn_common::DagBlock> + Send;

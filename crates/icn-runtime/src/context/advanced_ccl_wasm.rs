@@ -4,8 +4,8 @@
 //! WASM execution including optimized compilation, advanced runtime features, and
 //! performance monitoring.
 
-use super::{HostAbiError, DagStorageService, DagStoreMutexType};
-use icn_common::{CommonError, Cid, Did, TimeProvider};
+use super::{DagStorageService, DagStoreMutexType, HostAbiError};
+use icn_common::{Cid, CommonError, Did, TimeProvider};
 use icn_governance::{Proposal, ProposalId, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -135,7 +135,7 @@ impl Default for CclExecutionConfig {
         Self {
             max_execution_time: Duration::from_secs(30),
             max_memory_bytes: 64 * 1024 * 1024, // 64MB
-            max_instructions: 10_000_000, // 10M instructions
+            max_instructions: 10_000_000,       // 10M instructions
             enable_optimizations: true,
             optimization_level: OptimizationLevel::Balanced,
             enable_monitoring: true,
@@ -156,7 +156,7 @@ impl AdvancedCclWasmBackend {
         engine_config.wasm_simd(true);
         engine_config.wasm_bulk_memory(true);
         engine_config.wasm_reference_types(true);
-        
+
         // Configure optimizations based on settings
         match config.optimization_level {
             OptimizationLevel::None => {
@@ -179,12 +179,13 @@ impl AdvancedCclWasmBackend {
             engine_config.profiler(wasmtime::ProfilingStrategy::JitDump);
         }
 
-        let engine = Engine::new(&engine_config)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to create WASM engine: {}", e)))?;
+        let engine = Engine::new(&engine_config).map_err(|e| {
+            HostAbiError::InternalError(format!("Failed to create WASM engine: {}", e))
+        })?;
 
         // Create linker with CCL-specific functions
         let mut linker = Linker::new(&engine);
-        
+
         // Add CCL runtime functions
         Self::add_ccl_functions(&mut linker)?;
 
@@ -202,75 +203,133 @@ impl AdvancedCclWasmBackend {
     /// Add CCL-specific runtime functions to the linker
     fn add_ccl_functions(linker: &mut Linker<CclWasmContext>) -> Result<(), HostAbiError> {
         // Governance functions
-        linker.func_wrap("ccl", "get_proposal_data", 
-            |_caller: wasmtime::Caller<'_, CclWasmContext>, proposal_id_ptr: u32, proposal_id_len: u32| -> u32 {
-                // Implementation for getting proposal data
-                0 // Success code
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add get_proposal_data: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "get_proposal_data",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>,
+                 proposal_id_ptr: u32,
+                 proposal_id_len: u32|
+                 -> u32 {
+                    // Implementation for getting proposal data
+                    0 // Success code
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add get_proposal_data: {}", e))
+            })?;
 
-        linker.func_wrap("ccl", "get_vote_count",
-            |_caller: wasmtime::Caller<'_, CclWasmContext>, proposal_id_ptr: u32, proposal_id_len: u32| -> u32 {
-                // Implementation for getting vote counts
-                0
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add get_vote_count: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "get_vote_count",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>,
+                 proposal_id_ptr: u32,
+                 proposal_id_len: u32|
+                 -> u32 {
+                    // Implementation for getting vote counts
+                    0
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add get_vote_count: {}", e))
+            })?;
 
-        linker.func_wrap("ccl", "get_member_count",
-            |_caller: wasmtime::Caller<'_, CclWasmContext>| -> u32 {
-                // Implementation for getting member count
-                100 // Mock member count
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add get_member_count: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "get_member_count",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>| -> u32 {
+                    // Implementation for getting member count
+                    100 // Mock member count
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add get_member_count: {}", e))
+            })?;
 
-        linker.func_wrap("ccl", "calculate_quorum",
-            |_caller: wasmtime::Caller<'_, CclWasmContext>, threshold_percent: u32| -> u32 {
-                // Implementation for calculating quorum
-                let member_count = 100; // Mock member count
-                (member_count * threshold_percent) / 100
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add calculate_quorum: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "calculate_quorum",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>, threshold_percent: u32| -> u32 {
+                    // Implementation for calculating quorum
+                    let member_count = 100; // Mock member count
+                    (member_count * threshold_percent) / 100
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add calculate_quorum: {}", e))
+            })?;
 
         // Mana and resource management
-        linker.func_wrap("ccl", "get_available_mana",
-            |caller: wasmtime::Caller<'_, CclWasmContext>| -> u64 {
-                caller.data().available_mana
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add get_available_mana: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "get_available_mana",
+                |caller: wasmtime::Caller<'_, CclWasmContext>| -> u64 {
+                    caller.data().available_mana
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add get_available_mana: {}", e))
+            })?;
 
-        linker.func_wrap("ccl", "consume_mana",
-            |mut caller: wasmtime::Caller<'_, CclWasmContext>, amount: u64| -> u32 {
-                let data = caller.data_mut();
-                if data.available_mana >= amount {
-                    data.available_mana -= amount;
-                    1 // Success
-                } else {
-                    0 // Insufficient mana
-                }
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add consume_mana: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "consume_mana",
+                |mut caller: wasmtime::Caller<'_, CclWasmContext>, amount: u64| -> u32 {
+                    let data = caller.data_mut();
+                    if data.available_mana >= amount {
+                        data.available_mana -= amount;
+                        1 // Success
+                    } else {
+                        0 // Insufficient mana
+                    }
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add consume_mana: {}", e))
+            })?;
 
         // Time and scheduling functions
-        linker.func_wrap("ccl", "get_current_timestamp",
-            |_caller: wasmtime::Caller<'_, CclWasmContext>| -> u64 {
-                // Get current Unix timestamp
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs()
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add get_current_timestamp: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "get_current_timestamp",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>| -> u64 {
+                    // Get current Unix timestamp
+                    std::time::SystemTime::now()
+                        .duration_since(std::time::UNIX_EPOCH)
+                        .unwrap_or_default()
+                        .as_secs()
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add get_current_timestamp: {}", e))
+            })?;
 
         // Cryptographic functions
-        linker.func_wrap("ccl", "verify_signature",
-            |_caller: wasmtime::Caller<'_, CclWasmContext>, 
-             sig_ptr: u32, sig_len: u32, 
-             msg_ptr: u32, msg_len: u32,
-             pubkey_ptr: u32, pubkey_len: u32| -> u32 {
-                // Implementation for signature verification
-                1 // Mock success
-            }
-        ).map_err(|e| HostAbiError::InternalError(format!("Failed to add verify_signature: {}", e)))?;
+        linker
+            .func_wrap(
+                "ccl",
+                "verify_signature",
+                |_caller: wasmtime::Caller<'_, CclWasmContext>,
+                 sig_ptr: u32,
+                 sig_len: u32,
+                 msg_ptr: u32,
+                 msg_len: u32,
+                 pubkey_ptr: u32,
+                 pubkey_len: u32|
+                 -> u32 {
+                    // Implementation for signature verification
+                    1 // Mock success
+                },
+            )
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to add verify_signature: {}", e))
+            })?;
 
         Ok(())
     }
@@ -288,7 +347,7 @@ impl AdvancedCclWasmBackend {
                     let mut metrics = self.performance_metrics.write().await;
                     metrics.compilation_stats.cache_hits += 1;
                 }
-                
+
                 // Update last used time and return cached module
                 drop(cache);
                 let mut cache = self.module_cache.write().await;
@@ -309,7 +368,9 @@ impl AdvancedCclWasmBackend {
         // Load WASM bytes from DAG
         let wasm_bytes = {
             let dag_store = self.dag_store.lock().await;
-            dag_store.get_block(module_cid).await
+            dag_store
+                .get_block(module_cid)
+                .await
                 .map_err(|e| HostAbiError::DagError(format!("Failed to load WASM module: {}", e)))?
                 .ok_or_else(|| HostAbiError::DagError("WASM module not found in DAG".to_string()))?
                 .data
@@ -324,10 +385,11 @@ impl AdvancedCclWasmBackend {
         // Cache the compiled module
         {
             let mut cache = self.module_cache.write().await;
-            
+
             // Evict oldest if cache is full
             if cache.len() >= self.execution_config.module_cache_size {
-                let oldest_key = cache.iter()
+                let oldest_key = cache
+                    .iter()
                     .min_by_key(|(_, cached)| cached.last_used)
                     .map(|(k, _)| k.clone());
                 if let Some(key) = oldest_key {
@@ -335,23 +397,26 @@ impl AdvancedCclWasmBackend {
                 }
             }
 
-            cache.insert(module_cid.clone(), CachedModule {
-                module: module.clone(),
-                compilation_time,
-                last_used: Instant::now(),
-                usage_count: 1,
-                optimization_level: self.execution_config.optimization_level,
-            });
+            cache.insert(
+                module_cid.clone(),
+                CachedModule {
+                    module: module.clone(),
+                    compilation_time,
+                    last_used: Instant::now(),
+                    usage_count: 1,
+                    optimization_level: self.execution_config.optimization_level,
+                },
+            );
         }
 
         // Update compilation statistics
         {
             let mut metrics = self.performance_metrics.write().await;
             metrics.compilation_stats.total_compilations += 1;
-            let total_time = metrics.compilation_stats.avg_compilation_time_ms 
+            let total_time = metrics.compilation_stats.avg_compilation_time_ms
                 * (metrics.compilation_stats.total_compilations - 1) as f64
                 + compilation_time.as_millis() as f64;
-            metrics.compilation_stats.avg_compilation_time_ms = 
+            metrics.compilation_stats.avg_compilation_time_ms =
                 total_time / metrics.compilation_stats.total_compilations as f64;
         }
 
@@ -384,7 +449,7 @@ impl AdvancedCclWasmBackend {
         };
 
         let mut store = Store::new(&self.engine, context);
-        
+
         // Set resource limits
         store.limiter(|_| &mut ResourceLimiter {
             max_memory: self.execution_config.max_memory_bytes,
@@ -394,14 +459,18 @@ impl AdvancedCclWasmBackend {
         });
 
         // Instantiate the module
-        let instance = self.linker.instantiate(&mut store, &module)
-            .map_err(|e| HostAbiError::InternalError(format!("Module instantiation failed: {}", e)))?;
+        let instance = self.linker.instantiate(&mut store, &module).map_err(|e| {
+            HostAbiError::InternalError(format!("Module instantiation failed: {}", e))
+        })?;
 
         // Execute the proposal evaluation function
-        let result = self.execute_with_timeout(&mut store, &instance, execution_start).await?;
+        let result = self
+            .execute_with_timeout(&mut store, &instance, execution_start)
+            .await?;
 
         // Update performance metrics
-        self.update_execution_metrics(execution_start, &result).await;
+        self.update_execution_metrics(execution_start, &result)
+            .await;
 
         Ok(result)
     }
@@ -416,12 +485,15 @@ impl AdvancedCclWasmBackend {
         // Get the main execution function
         let execute_func: TypedFunc<(), u32> = instance
             .get_typed_func(&mut *store, "execute_proposal")
-            .map_err(|e| HostAbiError::InternalError(format!("Function 'execute_proposal' not found: {}", e)))?;
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Function 'execute_proposal' not found: {}", e))
+            })?;
 
         // Execute with timeout
         let timeout_duration = self.execution_config.max_execution_time;
         let execution_future = async {
-            execute_func.call(&mut *store, ())
+            execute_func
+                .call(&mut *store, ())
                 .map_err(|e| HostAbiError::InternalError(format!("Execution failed: {}", e)))
         };
 
@@ -446,7 +518,10 @@ impl AdvancedCclWasmBackend {
         let memory_used = store.data().memory_usage;
         let instructions = store.data().instruction_count;
         // Calculate actual mana consumed based on initial vs remaining mana
-        let mana_consumed = store.data().initial_mana.saturating_sub(store.data().available_mana);
+        let mana_consumed = store
+            .data()
+            .initial_mana
+            .saturating_sub(store.data().available_mana);
 
         Ok(CclExecutionResult {
             success: result_code == 1,
@@ -460,13 +535,9 @@ impl AdvancedCclWasmBackend {
     }
 
     /// Update execution performance metrics
-    async fn update_execution_metrics(
-        &self,
-        start_time: Instant,
-        result: &CclExecutionResult,
-    ) {
+    async fn update_execution_metrics(&self, start_time: Instant, result: &CclExecutionResult) {
         let mut metrics = self.performance_metrics.write().await;
-        
+
         metrics.total_executions += 1;
         if result.success {
             metrics.successful_executions += 1;
@@ -484,8 +555,9 @@ impl AdvancedCclWasmBackend {
         if memory_mb > metrics.memory_stats.peak_memory_mb as f64 {
             metrics.memory_stats.peak_memory_mb = memory_mb as u64;
         }
-        
-        let total_memory = metrics.memory_stats.average_memory_mb * (metrics.total_executions - 1) as f64
+
+        let total_memory = metrics.memory_stats.average_memory_mb
+            * (metrics.total_executions - 1) as f64
             + memory_mb;
         metrics.memory_stats.average_memory_mb = total_memory / metrics.total_executions as f64;
     }
@@ -522,16 +594,30 @@ struct ResourceLimiter {
 }
 
 impl wasmtime::ResourceLimiter for ResourceLimiter {
-    fn memory_growing(&mut self, current: usize, desired: usize, _maximum: Option<usize>) -> anyhow::Result<bool> {
+    fn memory_growing(
+        &mut self,
+        current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
+    ) -> anyhow::Result<bool> {
         let new_memory = desired as u64;
         if new_memory > self.max_memory {
-            anyhow::bail!("Memory limit exceeded: {} > {}", new_memory, self.max_memory);
+            anyhow::bail!(
+                "Memory limit exceeded: {} > {}",
+                new_memory,
+                self.max_memory
+            );
         }
         self.current_memory = new_memory;
         Ok(true)
     }
 
-    fn table_growing(&mut self, _current: u32, _desired: u32, _maximum: Option<u32>) -> anyhow::Result<bool> {
+    fn table_growing(
+        &mut self,
+        _current: u32,
+        _desired: u32,
+        _maximum: Option<u32>,
+    ) -> anyhow::Result<bool> {
         Ok(true)
     }
 }
@@ -587,7 +673,7 @@ mod tests {
     #[tokio::test]
     async fn test_mana_calculation_edge_cases() {
         let initial_mana = 100u64;
-        
+
         // Test case 1: No mana consumed
         let mut context = CclWasmContext {
             current_proposal: None,

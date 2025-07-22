@@ -962,7 +962,9 @@ impl SemanticAnalyzer {
                     }
                 } else {
                     return Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: expected.clone(),
                     });
                 }

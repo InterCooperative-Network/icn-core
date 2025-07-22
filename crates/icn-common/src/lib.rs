@@ -499,7 +499,7 @@ pub fn parse_cid_from_string(cid_str: &str) -> Result<Cid, CommonError> {
 
 impl std::str::FromStr for Cid {
     type Err = CommonError;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         parse_cid_from_string(s)
     }

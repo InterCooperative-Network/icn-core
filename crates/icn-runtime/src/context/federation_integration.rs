@@ -5,12 +5,14 @@
 
 use super::{HostAbiError, MeshNetworkServiceType};
 use icn_common::{CommonError, Did, TimeProvider};
-use icn_identity::{FederationManager, FederationInfo, FederationMembershipService, MembershipStatus};
+use icn_identity::{
+    FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
+};
 use icn_reputation::ReputationStore;
+use log::{debug, error, info, warn};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use log::{debug, info, warn, error};
 
 /// Integration layer for federation management within the runtime context
 pub struct FederationIntegration {
@@ -66,15 +68,26 @@ impl FederationIntegration {
         let mut federations = Vec::new();
 
         // Get federations from manager
-        let managed_federations = self.federation_manager.list_federations().await
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to list managed federations: {}", e)))?;
+        let managed_federations =
+            self.federation_manager
+                .list_federations()
+                .await
+                .map_err(|e| {
+                    HostAbiError::InternalError(format!(
+                        "Failed to list managed federations: {}",
+                        e
+                    ))
+                })?;
         federations.extend(managed_federations);
 
         // Get cached discovered federations
         let cache = self.federation_cache.read().await;
         for federation in cache.values() {
             // Avoid duplicates
-            if !federations.iter().any(|f| f.federation_id == federation.federation_id) {
+            if !federations
+                .iter()
+                .any(|f| f.federation_id == federation.federation_id)
+            {
                 federations.push(federation.clone());
             }
         }
@@ -85,13 +98,16 @@ impl FederationIntegration {
     /// Discover federations from connected peers
     pub async fn discover_federations(&self) -> Result<Vec<FederationInfo>, HostAbiError> {
         let now = self.time_provider.unix_seconds();
-        
+
         // Check if we've done discovery recently (within last 5 minutes)
         {
             let state = self.discovery_state.read().await;
             if let Some(last_discovery) = state.last_discovery {
                 if now - last_discovery < 300 {
-                    debug!("Skipping federation discovery - recent attempt at {}", last_discovery);
+                    debug!(
+                        "Skipping federation discovery - recent attempt at {}",
+                        last_discovery
+                    );
                     return self.get_cached_federations().await;
                 }
             }
@@ -108,12 +124,14 @@ impl FederationIntegration {
         // Use network service to discover federations
         let discovered = match &*self.network_service {
             MeshNetworkServiceType::Default(service) => {
-                service.discover_federations().await
-                    .map_err(|e| HostAbiError::NetworkError(format!("Federation discovery failed: {}", e)))?
+                service.discover_federations().await.map_err(|e| {
+                    HostAbiError::NetworkError(format!("Federation discovery failed: {}", e))
+                })?
             }
             MeshNetworkServiceType::Stub(service) => {
-                service.discover_federations().await
-                    .map_err(|e| HostAbiError::NetworkError(format!("Federation discovery failed: {}", e)))?
+                service.discover_federations().await.map_err(|e| {
+                    HostAbiError::NetworkError(format!("Federation discovery failed: {}", e))
+                })?
             }
         };
 
@@ -149,45 +167,56 @@ impl FederationIntegration {
             // Try to discover the federation
             self.discover_federations().await?;
             let cache = self.federation_cache.read().await;
-            cache.get(federation_id).cloned()
-                .ok_or_else(|| HostAbiError::InternalError(
-                    format!("Federation {} not found after discovery", federation_id)
-                ))?
+            cache.get(federation_id).cloned().ok_or_else(|| {
+                HostAbiError::InternalError(format!(
+                    "Federation {} not found after discovery",
+                    federation_id
+                ))
+            })?
         };
 
         // Use federation manager to join
-        self.federation_manager.request_membership(
-            federation_id.to_string(),
-            self.node_identity.clone(),
-        ).await.map_err(|e| HostAbiError::InternalError(
-            format!("Failed to request federation membership: {}", e)
-        ))?;
+        self.federation_manager
+            .request_membership(federation_id.to_string(), self.node_identity.clone())
+            .await
+            .map_err(|e| {
+                HostAbiError::InternalError(format!(
+                    "Failed to request federation membership: {}",
+                    e
+                ))
+            })?;
 
-        info!("Successfully requested membership in federation: {}", federation_id);
+        info!(
+            "Successfully requested membership in federation: {}",
+            federation_id
+        );
         Ok(())
     }
 
     /// Leave a federation
     pub async fn leave_federation(&self, federation_id: &str) -> Result<(), HostAbiError> {
-        self.federation_manager.leave_federation(
-            federation_id.to_string(),
-            self.node_identity.clone(),
-        ).await.map_err(|e| HostAbiError::InternalError(
-            format!("Failed to leave federation: {}", e)
-        ))?;
+        self.federation_manager
+            .leave_federation(federation_id.to_string(), self.node_identity.clone())
+            .await
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to leave federation: {}", e))
+            })?;
 
         info!("Successfully left federation: {}", federation_id);
         Ok(())
     }
 
     /// Get our membership status in a federation
-    pub async fn get_membership_status(&self, federation_id: &str) -> Result<Option<MembershipStatus>, HostAbiError> {
-        self.federation_manager.get_membership_status(
-            federation_id,
-            &self.node_identity,
-        ).await.map_err(|e| HostAbiError::InternalError(
-            format!("Failed to get membership status: {}", e)
-        ))
+    pub async fn get_membership_status(
+        &self,
+        federation_id: &str,
+    ) -> Result<Option<MembershipStatus>, HostAbiError> {
+        self.federation_manager
+            .get_membership_status(federation_id, &self.node_identity)
+            .await
+            .map_err(|e| {
+                HostAbiError::InternalError(format!("Failed to get membership status: {}", e))
+            })
     }
 
     /// Get federations we are members of
@@ -248,10 +277,11 @@ impl FederationIntegration {
             for federation in &all_federations {
                 if federation.federation_id == our_federation.federation_id {
                     // Check if peer is also in this federation
-                    if let Ok(Some(peer_status)) = self.federation_manager.get_membership_status(
-                        &federation.federation_id,
-                        peer_did,
-                    ).await {
+                    if let Ok(Some(peer_status)) = self
+                        .federation_manager
+                        .get_membership_status(&federation.federation_id, peer_did)
+                        .await
+                    {
                         if peer_status == MembershipStatus::Active {
                             shared_federations += 1;
                             // Add trust based on federation type and reputation
@@ -286,13 +316,16 @@ impl FederationIntegration {
 
         // Discover new federations
         let discovered = self.discover_federations().await?;
-        
+
         // Update our federation memberships
         for federation in discovered {
             // Check if we should maintain membership
             if let Ok(Some(status)) = self.get_membership_status(&federation.federation_id).await {
                 if status == MembershipStatus::Active {
-                    debug!("Maintaining membership in federation: {}", federation.federation_id);
+                    debug!(
+                        "Maintaining membership in federation: {}",
+                        federation.federation_id
+                    );
                     // Could add periodic membership renewal here
                 }
             }
@@ -360,15 +393,18 @@ impl FederationAwareJobSelection {
         job_required_capabilities: &[String],
     ) -> Result<bool, HostAbiError> {
         // Check federation eligibility
-        if !self.federation_integration
+        if !self
+            .federation_integration
             .check_federation_eligibility(job_allowed_federations)
-            .await? {
+            .await?
+        {
             return Ok(false);
         }
 
         // Check federation capabilities
         if !job_required_capabilities.is_empty() {
-            let our_capabilities = self.federation_integration
+            let our_capabilities = self
+                .federation_integration
                 .get_federation_capabilities()
                 .await?;
 
@@ -389,10 +425,16 @@ impl FederationAwareJobSelection {
     /// Get enhanced bid information including federation context
     pub async fn get_federation_bid_info(&self) -> Result<FederationBidInfo, HostAbiError> {
         let federations = self.federation_integration.get_our_federations().await?;
-        let capabilities = self.federation_integration.get_federation_capabilities().await?;
+        let capabilities = self
+            .federation_integration
+            .get_federation_capabilities()
+            .await?;
 
         Ok(FederationBidInfo {
-            federation_ids: federations.iter().map(|f| f.federation_id.clone()).collect(),
+            federation_ids: federations
+                .iter()
+                .map(|f| f.federation_id.clone())
+                .collect(),
             federation_capabilities: capabilities,
             trust_level: self.calculate_trust_level(&federations).await,
         })

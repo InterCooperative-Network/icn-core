@@ -16,8 +16,8 @@ use icn_protocol::{
     ProtocolMessage,
 };
 use icn_runtime::context::{
-    CrossComponentCoordinator, DagOperation, Priority, RuntimeContext, RuntimeContextBuilder,
-    EnvironmentType,
+    CrossComponentCoordinator, DagOperation, EnvironmentType, Priority, RuntimeContext,
+    RuntimeContextBuilder,
 };
 use std::collections::HashMap;
 use std::sync::{Arc, Once};
@@ -45,13 +45,16 @@ pub struct EnhancedTestNode {
 
 impl EnhancedTestNode {
     /// Create a new enhanced test node with full coordination
-    pub async fn new(node_id: u32, bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn new(
+        node_id: u32,
+        bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>,
+    ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let identity = Did::new("test", &format!("enhanced_node_{}", node_id));
-        
+
         // Create the runtime context using the builder pattern
         let mut context_builder = RuntimeContextBuilder::new(EnvironmentType::Testing);
         context_builder = context_builder.with_identity(identity.clone());
-        
+
         let runtime_context = context_builder.build()?;
 
         // Get the coordinator from the runtime context
@@ -78,9 +81,9 @@ impl EnhancedTestNode {
         priority: Priority,
     ) -> Result<Cid, Box<dyn std::error::Error + Send + Sync>> {
         let operation = DagOperation::Store { data, priority };
-        
+
         let result = self.coordinator.coordinate_dag_operation(operation).await?;
-        
+
         match result {
             icn_runtime::context::DagOperationResult::Store { cid } => Ok(cid),
             _ => Err("Unexpected result type for store operation".into()),
@@ -93,13 +96,13 @@ impl EnhancedTestNode {
         cid: &Cid,
         timeout_duration: Duration,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> {
-        let operation = DagOperation::Retrieve { 
-            cid: cid.clone(), 
-            timeout: timeout_duration 
+        let operation = DagOperation::Retrieve {
+            cid: cid.clone(),
+            timeout: timeout_duration,
         };
-        
+
         let result = self.coordinator.coordinate_dag_operation(operation).await?;
-        
+
         match result {
             icn_runtime::context::DagOperationResult::Retrieve { data, .. } => Ok(data),
             _ => Err("Unexpected result type for retrieve operation".into()),
@@ -143,10 +146,12 @@ impl MessageHandler {
     pub async fn handle_message(&self, message: ProtocolMessage) {
         match &message.payload {
             MessagePayload::DagBlockRequest(request) => {
-                self.handle_coordinated_block_request(request, &message.sender).await;
+                self.handle_coordinated_block_request(request, &message.sender)
+                    .await;
             }
             MessagePayload::DagBlockAnnouncement(announcement) => {
-                self.handle_coordinated_block_announcement(announcement).await;
+                self.handle_coordinated_block_announcement(announcement)
+                    .await;
             }
             MessagePayload::DagBlockResponse(response) => {
                 self.handle_coordinated_block_response(response).await;
@@ -158,14 +163,26 @@ impl MessageHandler {
     }
 
     /// Handle block requests with economics consideration
-    async fn handle_coordinated_block_request(&self, request: &DagBlockRequestMessage, requester: &Did) {
-        debug!("Handling coordinated block request for: {}", request.block_cid);
+    async fn handle_coordinated_block_request(
+        &self,
+        request: &DagBlockRequestMessage,
+        requester: &Did,
+    ) {
+        debug!(
+            "Handling coordinated block request for: {}",
+            request.block_cid
+        );
 
         // Check if we should serve this request based on economics and reputation
-        let should_serve = self.should_serve_request(requester, &request.block_cid).await;
-        
+        let should_serve = self
+            .should_serve_request(requester, &request.block_cid)
+            .await;
+
         if !should_serve {
-            debug!("Declining to serve request from {} due to economics/reputation", requester);
+            debug!(
+                "Declining to serve request from {} due to economics/reputation",
+                requester
+            );
             return;
         }
 
@@ -182,20 +199,29 @@ impl MessageHandler {
         let response = DagBlockResponseMessage {
             block_cid: request.block_cid.clone(),
             block_data,
-            error: if block_data.is_none() { 
-                Some("Block not found".to_string()) 
-            } else { 
-                None 
+            error: if block_data.is_none() {
+                Some("Block not found".to_string())
+            } else {
+                None
             },
         };
 
-        debug!("Sending coordinated block response for: {}", request.block_cid);
+        debug!(
+            "Sending coordinated block response for: {}",
+            request.block_cid
+        );
         // In a real implementation, this would use the network service to send the response
     }
 
     /// Handle block announcements with intelligent caching
-    async fn handle_coordinated_block_announcement(&self, announcement: &DagBlockAnnouncementMessage) {
-        debug!("Handling coordinated block announcement: {}", announcement.block_cid);
+    async fn handle_coordinated_block_announcement(
+        &self,
+        announcement: &DagBlockAnnouncementMessage,
+    ) {
+        debug!(
+            "Handling coordinated block announcement: {}",
+            announcement.block_cid
+        );
 
         // Update known blocks with timestamp
         {
@@ -204,17 +230,25 @@ impl MessageHandler {
         }
 
         // Check if we need this block based on coordination strategy
-        let should_fetch = self.should_fetch_announced_block(&announcement.block_cid).await;
-        
+        let should_fetch = self
+            .should_fetch_announced_block(&announcement.block_cid)
+            .await;
+
         if should_fetch {
-            debug!("Proactively fetching announced block: {}", announcement.block_cid);
+            debug!(
+                "Proactively fetching announced block: {}",
+                announcement.block_cid
+            );
             // In a real implementation, this would initiate a fetch operation
         }
     }
 
     /// Handle block responses with coordination
     async fn handle_coordinated_block_response(&self, response: &DagBlockResponseMessage) {
-        debug!("Handling coordinated block response for: {}", response.block_cid);
+        debug!(
+            "Handling coordinated block response for: {}",
+            response.block_cid
+        );
 
         if let Some(data) = &response.block_data {
             // Store the received block
@@ -247,10 +281,13 @@ impl MessageHandler {
                 }
             }
 
-            debug!("Successfully stored and distributed block: {}", response.block_cid);
+            debug!(
+                "Successfully stored and distributed block: {}",
+                response.block_cid
+            );
         } else if let Some(error) = &response.error {
             warn!("Block request failed: {} - {}", response.block_cid, error);
-            
+
             // Notify pending requests of failure
             let mut pending = self.pending_requests.write().await;
             if let Some(senders) = pending.remove(&response.block_cid) {
@@ -268,7 +305,7 @@ impl MessageHandler {
         // 2. Check our available mana/resources
         // 3. Apply governance policies
         // 4. Consider network load
-        
+
         // For now, serve all requests
         debug!("Evaluating request from: {}", requester);
         true
@@ -281,7 +318,7 @@ impl MessageHandler {
         // 2. Consider our storage capacity
         // 3. Evaluate network bandwidth
         // 4. Apply caching policies
-        
+
         // For now, don't proactively fetch
         false
     }
@@ -324,12 +361,8 @@ impl MessageHandler {
                 debug!("Received requested block: {}", cid);
                 Ok(data)
             }
-            Ok(Ok(None)) => {
-                Err(format!("Block request failed: {}", cid).into())
-            }
-            Ok(Err(_)) => {
-                Err("Request channel closed unexpectedly".into())
-            }
+            Ok(Ok(None)) => Err(format!("Block request failed: {}", cid).into()),
+            Ok(Err(_)) => Err("Request channel closed unexpectedly".into()),
             Err(_) => {
                 // Clean up pending request on timeout
                 let mut pending = self.pending_requests.write().await;
@@ -348,14 +381,17 @@ pub struct EnhancedTestNetwork {
 impl EnhancedTestNetwork {
     /// Create a new enhanced test network
     pub async fn new(node_count: usize) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
-        info!("🚀 Creating enhanced test network with {} nodes", node_count);
+        info!(
+            "🚀 Creating enhanced test network with {} nodes",
+            node_count
+        );
 
         let mut nodes = Vec::new();
 
         // Create bootstrap node
         let bootstrap_node = EnhancedTestNode::new(0, vec![]).await?;
         bootstrap_node.start_coordination().await?;
-        
+
         nodes.push(bootstrap_node);
 
         // Create additional nodes
@@ -368,19 +404,26 @@ impl EnhancedTestNetwork {
         // Allow network establishment
         sleep(Duration::from_secs(2)).await;
 
-        info!("✅ Enhanced test network established with {} nodes", node_count);
+        info!(
+            "✅ Enhanced test network established with {} nodes",
+            node_count
+        );
 
         Ok(Self { nodes })
     }
 
     /// Test coordinated DAG operations
-    pub async fn test_coordinated_operations(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn test_coordinated_operations(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🧪 Testing coordinated DAG operations");
 
         let test_data = b"Enhanced coordinated test data".to_vec();
-        
+
         // Store with high priority on first node
-        let cid = self.nodes[0].coordinated_store(test_data.clone(), Priority::High).await?;
+        let cid = self.nodes[0]
+            .coordinated_store(test_data.clone(), Priority::High)
+            .await?;
         info!("📦 Stored block with high priority: {}", cid);
 
         // Allow propagation
@@ -388,7 +431,10 @@ impl EnhancedTestNetwork {
 
         // Try to retrieve from other nodes with coordination
         for (i, node) in self.nodes.iter().enumerate().skip(1) {
-            match node.coordinated_retrieve(&cid, Duration::from_secs(5)).await {
+            match node
+                .coordinated_retrieve(&cid, Duration::from_secs(5))
+                .await
+            {
                 Ok(retrieved_data) => {
                     if retrieved_data == test_data {
                         info!("✅ Node {} successfully retrieved coordinated data", i);
@@ -408,21 +454,28 @@ impl EnhancedTestNetwork {
     }
 
     /// Test system health monitoring
-    pub async fn test_health_monitoring(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn test_health_monitoring(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🏥 Testing health monitoring");
 
         for (i, node) in self.nodes.iter().enumerate() {
             let status = node.get_system_status().await;
             info!("📊 Node {} status: {:?}", i, status.health.overall);
-            
+
             // Verify health components are being monitored
-            assert!(!status.health.components.is_empty(), "Health components should be monitored");
-            
+            assert!(
+                !status.health.components.is_empty(),
+                "Health components should be monitored"
+            );
+
             // Check performance metrics
-            info!("⚡ Node {} performance: {} operations, {:.2}% success rate", 
-                  i, 
-                  status.performance.total_operations,
-                  status.performance.success_rate * 100.0);
+            info!(
+                "⚡ Node {} performance: {} operations, {:.2}% success rate",
+                i,
+                status.performance.total_operations,
+                status.performance.success_rate * 100.0
+            );
         }
 
         info!("✅ Health monitoring test completed");
@@ -430,7 +483,9 @@ impl EnhancedTestNetwork {
     }
 
     /// Test priority-based operations
-    pub async fn test_priority_operations(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn test_priority_operations(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🎯 Testing priority-based operations");
 
         let low_priority_data = b"Low priority data".to_vec();
@@ -438,9 +493,15 @@ impl EnhancedTestNetwork {
         let critical_priority_data = b"Critical priority data".to_vec();
 
         // Store data with different priorities
-        let low_cid = self.nodes[0].coordinated_store(low_priority_data.clone(), Priority::Low).await?;
-        let high_cid = self.nodes[0].coordinated_store(high_priority_data.clone(), Priority::High).await?;
-        let critical_cid = self.nodes[0].coordinated_store(critical_priority_data.clone(), Priority::Critical).await?;
+        let low_cid = self.nodes[0]
+            .coordinated_store(low_priority_data.clone(), Priority::Low)
+            .await?;
+        let high_cid = self.nodes[0]
+            .coordinated_store(high_priority_data.clone(), Priority::High)
+            .await?;
+        let critical_cid = self.nodes[0]
+            .coordinated_store(critical_priority_data.clone(), Priority::Critical)
+            .await?;
 
         info!("📦 Stored blocks with different priorities:");
         info!("  Low: {}", low_cid);
@@ -452,8 +513,14 @@ impl EnhancedTestNetwork {
 
         // Verify all blocks are retrievable (priority affects propagation speed, not availability)
         for cid in &[low_cid, high_cid, critical_cid] {
-            let retrieved = self.nodes[1].coordinated_retrieve(cid, Duration::from_secs(10)).await?;
-            assert!(!retrieved.is_empty(), "Should be able to retrieve block: {}", cid);
+            let retrieved = self.nodes[1]
+                .coordinated_retrieve(cid, Duration::from_secs(10))
+                .await?;
+            assert!(
+                !retrieved.is_empty(),
+                "Should be able to retrieve block: {}",
+                cid
+            );
         }
 
         info!("✅ Priority operations test completed");
@@ -461,17 +528,23 @@ impl EnhancedTestNetwork {
     }
 
     /// Test performance optimization learning
-    pub async fn test_performance_optimization(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    pub async fn test_performance_optimization(
+        &self,
+    ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         info!("🔧 Testing performance optimization learning");
 
         // Perform multiple operations to generate performance data
         for i in 0..10 {
             let data = format!("Performance test data {}", i).into_bytes();
-            let cid = self.nodes[0].coordinated_store(data, Priority::Normal).await?;
-            
+            let cid = self.nodes[0]
+                .coordinated_store(data, Priority::Normal)
+                .await?;
+
             // Retrieve from different nodes
             for node in &self.nodes[1..] {
-                let _ = node.coordinated_retrieve(&cid, Duration::from_secs(5)).await;
+                let _ = node
+                    .coordinated_retrieve(&cid, Duration::from_secs(5))
+                    .await;
             }
         }
 
@@ -479,9 +552,18 @@ impl EnhancedTestNetwork {
         for (i, node) in self.nodes.iter().enumerate() {
             let status = node.get_system_status().await;
             info!("📈 Node {} performance metrics:", i);
-            info!("  Total operations: {}", status.performance.total_operations);
-            info!("  Success rate: {:.2}%", status.performance.success_rate * 100.0);
-            info!("  Average duration: {:?}", status.performance.average_duration);
+            info!(
+                "  Total operations: {}",
+                status.performance.total_operations
+            );
+            info!(
+                "  Success rate: {:.2}%",
+                status.performance.success_rate * 100.0
+            );
+            info!(
+                "  Average duration: {:?}",
+                status.performance.average_duration
+            );
         }
 
         info!("✅ Performance optimization test completed");
@@ -494,79 +576,85 @@ impl EnhancedTestNetwork {
 #[tokio::test]
 async fn test_enhanced_network_coordination() {
     init_tracing();
-    
+
     let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
-    
+
     info!("✅ Enhanced network coordination test passed");
 }
 
 #[tokio::test]
 async fn test_coordinated_dag_operations() {
     init_tracing();
-    
+
     let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
-    
-    timeout(Duration::from_secs(30), network.test_coordinated_operations())
-        .await
-        .expect("Coordinated operations test should not timeout")
-        .expect("Coordinated operations should succeed");
-    
+
+    timeout(
+        Duration::from_secs(30),
+        network.test_coordinated_operations(),
+    )
+    .await
+    .expect("Coordinated operations test should not timeout")
+    .expect("Coordinated operations should succeed");
+
     info!("✅ Coordinated DAG operations test passed");
 }
 
 #[tokio::test]
 async fn test_system_health_monitoring() {
     init_tracing();
-    
+
     let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(2))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
-    
+
     timeout(Duration::from_secs(20), network.test_health_monitoring())
         .await
         .expect("Health monitoring test should not timeout")
         .expect("Health monitoring should work");
-    
+
     info!("✅ System health monitoring test passed");
 }
 
 #[tokio::test]
 async fn test_priority_based_operations() {
     init_tracing();
-    
+
     let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(2))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
-    
+
     timeout(Duration::from_secs(30), network.test_priority_operations())
         .await
         .expect("Priority operations test should not timeout")
         .expect("Priority operations should work");
-    
+
     info!("✅ Priority-based operations test passed");
 }
 
 #[tokio::test]
 async fn test_performance_optimization() {
     init_tracing();
-    
+
     let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(2))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
-    
-    timeout(Duration::from_secs(60), network.test_performance_optimization())
-        .await
-        .expect("Performance optimization test should not timeout")
-        .expect("Performance optimization should work");
-    
+
+    timeout(
+        Duration::from_secs(60),
+        network.test_performance_optimization(),
+    )
+    .await
+    .expect("Performance optimization test should not timeout")
+    .expect("Performance optimization should work");
+
     info!("✅ Performance optimization test passed");
-} 
+}

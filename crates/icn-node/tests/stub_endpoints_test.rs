@@ -12,10 +12,16 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Create router in testing mode for deterministic behavior
     let (router, _ctx) = app_router_with_options(
         RuntimeMode::Testing, // Use testing mode for stub services
-        None, // No API key required
-        None, // No auth token required
-        None, // No rate limit
-        None, None, None, None, None, None, None,
+        None,                 // No API key required
+        None,                 // No auth token required
+        None,                 // No rate limit
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
     .await;
 

@@ -33,6 +33,10 @@ pub mod trust_pathfinding;
 pub mod integration;
 
 // Re-export key types for convenient access
+pub use integration::{
+    ExecutionQuality, ReputationBasedExecutorSelection, ReputationEvent,
+    ReputationIntegrationConfig, ReputationIntegrationEngine, ReputationIntegrationStats,
+};
 pub use trust_aggregation::{
     AggregatedTrust, AggregationConfig, CombinationMethod, TrustAggregator, TrustSignal,
 };
@@ -42,10 +46,6 @@ pub use trust_decay::{
 };
 pub use trust_graph::{TrustEdge, TrustGraph};
 pub use trust_pathfinding::{PathDiscoveryConfig, TrustPath, TrustPathfinder};
-pub use integration::{
-    ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
-    ExecutionQuality, ReputationBasedExecutorSelection, ReputationIntegrationStats,
-};
 
 /// Store for retrieving and updating executor reputation scores.
 pub trait ReputationStore: Send + Sync {

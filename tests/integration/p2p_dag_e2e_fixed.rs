@@ -5,23 +5,25 @@
 
 #[cfg(feature = "enable-libp2p")]
 mod enhanced_p2p_dag_tests {
-    use icn_common::{compute_merkle_cid, Cid, DagBlock, DagLink, Did, SystemTimeProvider, TimeProvider};
+    use futures::future::join_all;
+    use icn_common::{
+        compute_merkle_cid, Cid, DagBlock, DagLink, Did, SystemTimeProvider, TimeProvider,
+    };
     use icn_dag::{InMemoryDagStore, StorageService};
     use icn_network::{
         libp2p_service::{Libp2pNetworkService, NetworkConfig},
-        NetworkService, NetworkStats, PeerId
+        NetworkService, NetworkStats, PeerId,
     };
     use icn_protocol::{
-        MessagePayload, ProtocolMessage, DagBlockAnnouncementMessage, DagBlockRequestMessage,
-        DagBlockResponseMessage
+        DagBlockAnnouncementMessage, DagBlockRequestMessage, DagBlockResponseMessage,
+        MessagePayload, ProtocolMessage,
     };
     use std::collections::{HashMap, HashSet};
     use std::sync::{Arc, Mutex, Once};
     use std::time::{Duration, Instant};
-    use tokio::time::{sleep, timeout};
     use tokio::sync::RwLock;
-    use futures::future::join_all;
-    use tracing::{info, warn, error, debug};
+    use tokio::time::{sleep, timeout};
+    use tracing::{debug, error, info, warn};
 
     /// Enhanced test node with proper message handling
     struct EnhancedTestNode {
@@ -55,7 +57,10 @@ mod enhanced_p2p_dag_tests {
         }
 
         /// Handle incoming protocol messages
-        async fn handle_message(&self, message: ProtocolMessage) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn handle_message(
+            &self,
+            message: ProtocolMessage,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             match message.payload {
                 MessagePayload::DagBlockRequest(req) => {
                     self.handle_block_request(req, message.sender).await
@@ -79,8 +84,11 @@ mod enhanced_p2p_dag_tests {
             request: DagBlockRequestMessage,
             requester: Did,
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            debug!("Handling block request for {} from {}", request.block_cid, requester);
-            
+            debug!(
+                "Handling block request for {} from {}",
+                request.block_cid, requester
+            );
+
             let block_data = {
                 let store = self.dag_store.lock().unwrap();
                 store.get(&request.block_cid)?
@@ -121,7 +129,7 @@ mod enhanced_p2p_dag_tests {
             announcement: DagBlockAnnouncementMessage,
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             debug!("Received block announcement for {}", announcement.block_cid);
-            
+
             // Check if we already have this block
             let have_block = {
                 let store = self.dag_store.lock().unwrap();
@@ -134,7 +142,7 @@ mod enhanced_p2p_dag_tests {
                     let mut known = self.known_blocks.write().await;
                     known.insert(announcement.block_cid.clone());
                 }
-                
+
                 debug!("Added {} to known blocks", announcement.block_cid);
             }
 
@@ -148,7 +156,7 @@ mod enhanced_p2p_dag_tests {
         ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             if let Some(block) = response.block_data {
                 debug!("Received block {} in response", block.cid);
-                
+
                 // Store the received block
                 {
                     let mut store = self.dag_store.lock().unwrap();
@@ -223,11 +231,15 @@ mod enhanced_p2p_dag_tests {
     }
 
     impl EnhancedTestNode {
-        async fn new(name: &str, bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>) -> Self {
+        async fn new(
+            name: &str,
+            bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>,
+        ) -> Self {
             let mut network_config = NetworkConfig::development();
             network_config.bootstrap_peers = bootstrap_peers;
 
-            let network_service = Arc::new(Libp2pNetworkService::new(network_config).await.unwrap());
+            let network_service =
+                Arc::new(Libp2pNetworkService::new(network_config).await.unwrap());
             let peer_id = PeerId::from(*network_service.local_peer_id());
             let did = Did::new("test", &format!("node_{}", name));
             let dag_store = Arc::new(Mutex::new(InMemoryDagStore::new()));
@@ -259,29 +271,31 @@ mod enhanced_p2p_dag_tests {
             }
         }
 
-        async fn get_connectivity_stats(&self) -> Result<NetworkStats, Box<dyn std::error::Error + Send + Sync>> {
-            self.network_service.get_network_stats().await.map_err(Into::into)
+        async fn get_connectivity_stats(
+            &self,
+        ) -> Result<NetworkStats, Box<dyn std::error::Error + Send + Sync>> {
+            self.network_service
+                .get_network_stats()
+                .await
+                .map_err(Into::into)
         }
 
         fn create_test_block(&self, data: &[u8], link_cids: Vec<Cid>) -> DagBlock {
-            let dag_links: Vec<DagLink> = link_cids.into_iter().map(|c| DagLink {
-                cid: c, 
-                name: "test_link".to_string(),
-                size: 100
-            }).collect();
-            
+            let dag_links: Vec<DagLink> = link_cids
+                .into_iter()
+                .map(|c| DagLink {
+                    cid: c,
+                    name: "test_link".to_string(),
+                    size: 100,
+                })
+                .collect();
+
             let timestamp = SystemTimeProvider.unix_seconds();
             let signature = None;
             let scope = None;
 
             let cid = compute_merkle_cid(
-                0x55,
-                data,
-                &dag_links,
-                timestamp,
-                &self.did,
-                &signature,
-                &scope,
+                0x55, data, &dag_links, timestamp, &self.did, &signature, &scope,
             );
 
             DagBlock {
@@ -295,12 +309,15 @@ mod enhanced_p2p_dag_tests {
             }
         }
 
-        async fn store_block(&self, block: &DagBlock) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+        async fn store_block(
+            &self,
+            block: &DagBlock,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             {
                 let mut store = self.dag_store.lock().unwrap();
                 store.put(block)?;
             }
-            
+
             // Announce the block to the network
             let announcement = ProtocolMessage::new(
                 MessagePayload::DagBlockAnnouncement(DagBlockAnnouncementMessage {
@@ -314,7 +331,10 @@ mod enhanced_p2p_dag_tests {
             );
 
             self.network_service.broadcast_message(announcement).await?;
-            info!("Node {:?} stored and announced block {}", self.peer_id, block.cid);
+            info!(
+                "Node {:?} stored and announced block {}",
+                self.peer_id, block.cid
+            );
             Ok(())
         }
 
@@ -323,8 +343,13 @@ mod enhanced_p2p_dag_tests {
             store.get(cid).unwrap()
         }
 
-        async fn request_block_from_network(&self, cid: &Cid) -> Result<Option<DagBlock>, Box<dyn std::error::Error + Send + Sync>> {
-            self.message_handler.request_block(cid, Duration::from_secs(5)).await
+        async fn request_block_from_network(
+            &self,
+            cid: &Cid,
+        ) -> Result<Option<DagBlock>, Box<dyn std::error::Error + Send + Sync>> {
+            self.message_handler
+                .request_block(cid, Duration::from_secs(5))
+                .await
         }
     }
 
@@ -337,21 +362,27 @@ mod enhanced_p2p_dag_tests {
         async fn new(node_count: usize) -> Self {
             assert!(node_count >= 2, "Need at least 2 nodes for testing");
             let mut nodes = Vec::new();
-            
+
             info!("Creating enhanced test network with {} nodes", node_count);
-            
+
             // Create bootstrap node
             let bootstrap_node = EnhancedTestNode::new("bootstrap", vec![]).await;
             let bootstrap_peer_id = *bootstrap_node.network_service.local_peer_id();
-            
+
             // Get bootstrap addresses
             let bootstrap_addrs = bootstrap_node.network_service.listening_addresses();
-            assert!(!bootstrap_addrs.is_empty(), "Bootstrap node should have listening addresses");
+            assert!(
+                !bootstrap_addrs.is_empty(),
+                "Bootstrap node should have listening addresses"
+            );
             let bootstrap_addr = bootstrap_addrs[0].clone();
-            
-            info!("Bootstrap node {:?} listening on: {}", bootstrap_peer_id, bootstrap_addr);
+
+            info!(
+                "Bootstrap node {:?} listening on: {}",
+                bootstrap_peer_id, bootstrap_addr
+            );
             nodes.push(bootstrap_node);
-            
+
             // Create remaining nodes
             for i in 1..node_count {
                 let node_name = format!("node_{}", i);
@@ -359,11 +390,11 @@ mod enhanced_p2p_dag_tests {
                 let node = EnhancedTestNode::new(&node_name, bootstrap_peers).await;
                 nodes.push(node);
             }
-            
+
             // Wait for network to establish
             info!("Waiting for network to establish connections...");
             sleep(Duration::from_secs(5)).await;
-            
+
             let network = Self { nodes };
             network.verify_connectivity().await;
             network
@@ -371,81 +402,109 @@ mod enhanced_p2p_dag_tests {
 
         async fn verify_connectivity(&self) {
             info!("Verifying enhanced network connectivity...");
-            
+
             for (i, node) in self.nodes.iter().enumerate() {
-                let stats = node.get_connectivity_stats().await
+                let stats = node
+                    .get_connectivity_stats()
+                    .await
                     .expect("Failed to get connectivity stats");
-                
+
                 info!("Node {}: {} peers", i, stats.peer_count);
-                
+
                 if i > 0 {
-                    assert!(stats.peer_count > 0, "Node {} should be connected to at least one peer", i);
+                    assert!(
+                        stats.peer_count > 0,
+                        "Node {} should be connected to at least one peer",
+                        i
+                    );
                 }
             }
-            
+
             info!("✅ All nodes are properly connected");
         }
 
         /// Test real distributed storage with network communication
-        async fn test_real_distributed_storage(&self) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            assert!(self.nodes.len() >= 2, "Need at least 2 nodes for distributed storage test");
-            
+        async fn test_real_distributed_storage(
+            &self,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            assert!(
+                self.nodes.len() >= 2,
+                "Need at least 2 nodes for distributed storage test"
+            );
+
             info!("Testing real distributed storage...");
-            
+
             // Create a test block on node 0
             let test_data = b"real_distributed_storage_test_data";
             let block = self.nodes[0].create_test_block(test_data, vec![]);
             let block_cid = block.cid.clone();
-            
+
             // Store the block on node 0
             self.nodes[0].store_block(&block).await?;
-            
+
             // Wait for network propagation
             sleep(Duration::from_secs(1)).await;
-            
+
             // Verify node 0 has the block
             let local_block = self.nodes[0].get_local_block(&block_cid);
-            assert!(local_block.is_some(), "Node 0 should have the block locally");
-            
+            assert!(
+                local_block.is_some(),
+                "Node 0 should have the block locally"
+            );
+
             // Request the block from node 1 via network
             info!("Requesting block from network via node 1...");
             let retrieved_block = self.nodes[1].request_block_from_network(&block_cid).await?;
-            
-            assert!(retrieved_block.is_some(), "Node 1 should be able to retrieve the block via network");
-            assert_eq!(retrieved_block.unwrap().cid, block_cid, "Retrieved block should match original");
-            
+
+            assert!(
+                retrieved_block.is_some(),
+                "Node 1 should be able to retrieve the block via network"
+            );
+            assert_eq!(
+                retrieved_block.unwrap().cid,
+                block_cid,
+                "Retrieved block should match original"
+            );
+
             info!("✅ Real distributed storage test passed");
             Ok(())
         }
 
         /// Test concurrent operations and network resilience
-        async fn test_concurrent_operations(&self, num_operations: usize) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-            info!("Testing {} concurrent operations across {} nodes", num_operations, self.nodes.len());
-            
+        async fn test_concurrent_operations(
+            &self,
+            num_operations: usize,
+        ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+            info!(
+                "Testing {} concurrent operations across {} nodes",
+                num_operations,
+                self.nodes.len()
+            );
+
             let start_time = Instant::now();
             let mut tasks = Vec::new();
-            
+
             for i in 0..num_operations {
                 let node_idx = i % self.nodes.len();
                 let node = &self.nodes[node_idx];
-                
+
                 let test_data = format!("concurrent_test_data_{}", i).into_bytes();
                 let block = node.create_test_block(&test_data, vec![]);
                 let block_cid = block.cid.clone();
-                
+
                 // Create concurrent store operations
                 let store_task = {
                     let node_store = node.dag_store.clone();
                     let node_network = node.network_service.clone();
                     let node_did = node.did.clone();
-                    
+
                     async move {
                         // Store block
                         {
                             let mut store = node_store.lock().unwrap();
                             store.put(&block)?;
                         }
-                        
+
                         // Announce to network
                         let announcement = ProtocolMessage::new(
                             MessagePayload::DagBlockAnnouncement(DagBlockAnnouncementMessage {
@@ -457,19 +516,19 @@ mod enhanced_p2p_dag_tests {
                             node_did,
                             None,
                         );
-                        
+
                         node_network.broadcast_message(announcement).await?;
-                        
+
                         Ok::<Cid, Box<dyn std::error::Error + Send + Sync>>(block_cid)
                     }
                 };
-                
+
                 tasks.push(store_task);
             }
-            
+
             // Execute all operations concurrently
             let results = join_all(tasks).await;
-            
+
             // Check results
             let mut successful_operations = 0;
             for result in results {
@@ -478,16 +537,20 @@ mod enhanced_p2p_dag_tests {
                     Err(e) => warn!("Concurrent operation failed: {}", e),
                 }
             }
-            
+
             let duration = start_time.elapsed();
             let ops_per_second = successful_operations as f64 / duration.as_secs_f64();
-            
-            info!("✅ Completed {}/{} operations in {:?} ({:.2} ops/sec)", 
-                  successful_operations, num_operations, duration, ops_per_second);
-            
-            assert!(successful_operations >= num_operations * 8 / 10, 
-                    "At least 80% of operations should succeed");
-            
+
+            info!(
+                "✅ Completed {}/{} operations in {:?} ({:.2} ops/sec)",
+                successful_operations, num_operations, duration, ops_per_second
+            );
+
+            assert!(
+                successful_operations >= num_operations * 8 / 10,
+                "At least 80% of operations should succeed"
+            );
+
             Ok(())
         }
     }
@@ -504,43 +567,49 @@ mod enhanced_p2p_dag_tests {
     #[tokio::test]
     async fn test_enhanced_network_setup() {
         init_tracing();
-        
+
         let _network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
             .expect("Network setup should not timeout");
-        
+
         info!("✅ Enhanced network setup test passed");
     }
 
     #[tokio::test]
     async fn test_real_distributed_storage_enhanced() {
         init_tracing();
-        
+
         let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
             .expect("Network setup should not timeout");
-        
-        timeout(Duration::from_secs(30), network.test_real_distributed_storage())
-            .await
-            .expect("Distributed storage test should not timeout")
-            .expect("Distributed storage test should succeed");
-        
+
+        timeout(
+            Duration::from_secs(30),
+            network.test_real_distributed_storage(),
+        )
+        .await
+        .expect("Distributed storage test should not timeout")
+        .expect("Distributed storage test should succeed");
+
         info!("✅ Real distributed storage enhanced test passed");
     }
 
     #[tokio::test]
     async fn test_concurrent_operations_enhanced() {
         init_tracing();
-        
+
         let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
             .await
             .expect("Network setup should not timeout");
-        
-        timeout(Duration::from_secs(60), network.test_concurrent_operations(20))
-            .await
-            .expect("Concurrent operations test should not timeout")
-            .expect("Concurrent operations test should succeed");
-        
+
+        timeout(
+            Duration::from_secs(60),
+            network.test_concurrent_operations(20),
+        )
+        .await
+        .expect("Concurrent operations test should not timeout")
+        .expect("Concurrent operations test should succeed");
+
         info!("✅ Concurrent operations enhanced test passed");
     }
-} 
+}

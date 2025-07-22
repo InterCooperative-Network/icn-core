@@ -352,7 +352,17 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
 #[tokio::test]
 async fn join_and_leave_federation_via_http() {
     let (router, _ctx) = app_router_with_options(
-        RuntimeMode::Testing, None, None, None, None, None, None, None, None, None, None,
+        RuntimeMode::Testing,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
     .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();

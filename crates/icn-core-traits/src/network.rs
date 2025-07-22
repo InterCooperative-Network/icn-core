@@ -57,16 +57,16 @@ pub enum NetworkEvent {
 pub trait NetworkService: Send + Sync {
     /// Start the network service
     async fn start(&self) -> Result<(), CoreTraitsError>;
-    
+
     /// Stop the network service
     async fn stop(&self) -> Result<(), CoreTraitsError>;
-    
+
     /// Check if the service is running
     fn is_running(&self) -> bool;
-    
+
     /// Get connected peers
     async fn get_connected_peers(&self) -> Result<Vec<PeerId>, CoreTraitsError>;
-    
+
     /// Send a message to a specific peer
     async fn send_message(
         &self,
@@ -74,16 +74,18 @@ pub trait NetworkService: Send + Sync {
         topic: &str,
         data: Vec<u8>,
     ) -> Result<(), CoreTraitsError>;
-    
+
     /// Broadcast a message to all peers
     async fn broadcast_message(&self, topic: &str, data: Vec<u8>) -> Result<(), CoreTraitsError>;
-    
+
     /// Get network statistics
     async fn get_network_stats(&self) -> Result<NetworkStats, CoreTraitsError>;
-    
+
     /// Subscribe to network events
-    async fn subscribe_to_events(&self) -> Result<tokio::sync::mpsc::Receiver<NetworkEvent>, CoreTraitsError>;
-    
+    async fn subscribe_to_events(
+        &self,
+    ) -> Result<tokio::sync::mpsc::Receiver<NetworkEvent>, CoreTraitsError>;
+
     /// Get the local peer ID
     fn get_local_peer_id(&self) -> PeerId;
 }
@@ -96,10 +98,10 @@ pub trait NetworkServiceProvider: Send + Sync {
         &self,
         config: HashMap<String, String>,
     ) -> Result<Arc<dyn NetworkService>, CoreTraitsError>;
-    
+
     /// Get the service type name
     fn get_service_type(&self) -> &'static str;
-    
+
     /// Check if the provider is available
     fn is_available(&self) -> bool;
 }
@@ -109,10 +111,10 @@ pub trait NetworkServiceProvider: Send + Sync {
 pub trait BasicNetworkService: Send + Sync {
     /// Send data to a peer
     async fn send_to_peer(&self, peer_id: &str, data: &[u8]) -> Result<(), CommonError>;
-    
+
     /// Get list of connected peers
     async fn get_peers(&self) -> Result<Vec<String>, CommonError>;
-    
+
     /// Check if connected to a specific peer
     async fn is_connected(&self, peer_id: &str) -> Result<bool, CommonError>;
 }
@@ -125,15 +127,17 @@ impl<T: NetworkService> BasicNetworkService for T {
             .await
             .map_err(|e| CommonError::InvalidInputError(e.to_string()))
     }
-    
+
     async fn get_peers(&self) -> Result<Vec<String>, CommonError> {
         self.get_connected_peers()
             .await
             .map_err(|e| CommonError::InvalidInputError(e.to_string()))
     }
-    
+
     async fn is_connected(&self, peer_id: &str) -> Result<bool, CommonError> {
-        let peers = self.get_connected_peers().await
+        let peers = self
+            .get_connected_peers()
+            .await
             .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
         Ok(peers.contains(&peer_id.to_string()))
     }

@@ -225,28 +225,42 @@ impl MeshNetworkService for MeshNetworkServiceType {
         }
     }
 
-    async fn ping_peer(&self, peer_id: Did) -> Result<super::mesh_network::PingResult, HostAbiError> {
+    async fn ping_peer(
+        &self,
+        peer_id: Did,
+    ) -> Result<super::mesh_network::PingResult, HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => s.ping_peer(peer_id).await,
             MeshNetworkServiceType::Default(s) => s.ping_peer(peer_id).await,
         }
     }
 
-    async fn get_peer_statistics(&self, peer_id: Did) -> Result<super::mesh_network::PeerStatistics, HostAbiError> {
+    async fn get_peer_statistics(
+        &self,
+        peer_id: Did,
+    ) -> Result<super::mesh_network::PeerStatistics, HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => s.get_peer_statistics(peer_id).await,
             MeshNetworkServiceType::Default(s) => s.get_peer_statistics(peer_id).await,
         }
     }
 
-    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_direct_message(
+        &self,
+        peer_id: Did,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => s.send_direct_message(peer_id, payload).await,
             MeshNetworkServiceType::Default(s) => s.send_direct_message(peer_id, payload).await,
         }
     }
 
-    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_multi_hop_message(
+        &self,
+        path: Vec<Did>,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => s.send_multi_hop_message(path, payload).await,
             MeshNetworkServiceType::Default(s) => s.send_multi_hop_message(path, payload).await,
@@ -317,8 +331,8 @@ impl std::fmt::Debug for RuntimeContext {
 use std::str::FromStr;
 
 // Add governance-specific types
-use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
 use super::cross_component_coordinator::CrossComponentCoordinator;
+use super::mesh_network::{PROPOSAL_COST_MANA, VOTE_COST_MANA};
 use icn_governance::{Proposal, ProposalId, ProposalSubmission, ProposalType, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 
@@ -646,7 +660,7 @@ impl RuntimeContext {
 
         let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
-        
+
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
@@ -773,7 +787,7 @@ impl RuntimeContext {
 
         let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
-        
+
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
@@ -840,7 +854,7 @@ impl RuntimeContext {
 
         let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
-        
+
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
@@ -1083,7 +1097,7 @@ impl RuntimeContext {
 
         let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
-        
+
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
@@ -1157,7 +1171,7 @@ impl RuntimeContext {
 
         let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
-        
+
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
@@ -2469,7 +2483,10 @@ impl RuntimeContext {
             timestamp: partial_output.timestamp,
             author_did: partial_output.executor_did.clone(),
             signature: None,
-            scope: Some(NodeScope(format!("partial_output:{}", partial_output.job_id))),
+            scope: Some(NodeScope(format!(
+                "partial_output:{}",
+                partial_output.job_id
+            ))),
         };
 
         // 4. Store in DAG

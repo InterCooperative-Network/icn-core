@@ -13,16 +13,16 @@ use tokio::task;
 async fn delegate_and_revoke_flow() {
     let (router, ctx) = app_router_with_options(
         RuntimeMode::Testing, // runtime_mode
-        None, // api_key
-        None, // auth_token
-        None, // rate_limit
-        None, // mana_ledger_backend
-        None, // mana_ledger_path
-        None, // storage_backend
-        None, // storage_path
-        None, // governance_db_path
-        None, // reputation_db_path
-        None, // parameter_store_path
+        None,                 // api_key
+        None,                 // auth_token
+        None,                 // rate_limit
+        None,                 // mana_ledger_backend
+        None,                 // mana_ledger_path
+        None,                 // storage_backend
+        None,                 // storage_path
+        None,                 // governance_db_path
+        None,                 // reputation_db_path
+        None,                 // parameter_store_path
     )
     .await;
     let node_did = ctx.current_identity.clone();

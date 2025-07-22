@@ -175,49 +175,57 @@ impl ServiceConfigBuilder {
                     let service = Arc::new(MeshNetworkServiceType::Default(
                         DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
                     ));
-                    
+
                     // Compile-time check for production builds
                     #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                     {
                         // This will be checked at runtime to ensure we're not using stubs
                         if matches!(&*service, MeshNetworkServiceType::Stub(_)) {
                             return Err(CommonError::InternalError(
-                                "Stub mesh network service cannot be used in production".to_string(),
+                                "Stub mesh network service cannot be used in production"
+                                    .to_string(),
                             ));
                         }
                     }
-                    
+
                     return Ok(service);
                 }
 
                 // If no network service provided, try to create libp2p service with defaults
                 #[cfg(feature = "enable-libp2p")]
                 {
-                    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
                     use icn_common::SystemTimeProvider;
-                    
-                    log::info!("Creating production libp2p network service with default configuration");
+                    use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+
+                    log::info!(
+                        "Creating production libp2p network service with default configuration"
+                    );
                     let network_config = NetworkConfig::production();
                     let time_provider = Arc::new(SystemTimeProvider);
-                    
+
                     match tokio::runtime::Handle::try_current() {
                         Ok(_) => {
                             // We're in an async context, create the service
-                            let libp2p_service = match Libp2pNetworkService::new(network_config).await {
-                                Ok(service) => Arc::new(service) as Arc<dyn icn_network::NetworkService>,
+                            let libp2p_service = match Libp2pNetworkService::new(network_config)
+                                .await
+                            {
+                                Ok(service) => {
+                                    Arc::new(service) as Arc<dyn icn_network::NetworkService>
+                                }
                                 Err(e) => {
                                     log::warn!("Failed to create libp2p service: {}. Falling back to error.", e);
-                                    return Err(CommonError::InternalError(
-                                        format!("Failed to create production network service: {}", e)
-                                    ));
+                                    return Err(CommonError::InternalError(format!(
+                                        "Failed to create production network service: {}",
+                                        e
+                                    )));
                                 }
                             };
-                            
+
                             let service = Arc::new(MeshNetworkServiceType::Default(
                                 DefaultMeshNetworkService::new(libp2p_service, signer.clone()),
                             ));
                             return Ok(service);
-                        },
+                        }
                         Err(_) => {
                             // Not in async context, return error with helpful message
                             return Err(CommonError::InternalError(
@@ -318,7 +326,7 @@ impl ServiceConfigBuilder {
 
         // Create enhanced DID resolver with production capabilities
         let time_provider = self.create_time_provider();
-        
+
         match self.environment {
             ServiceEnvironment::Production | ServiceEnvironment::Development => {
                 // Use enhanced resolver with caching and multiple method support
@@ -333,8 +341,11 @@ impl ServiceConfigBuilder {
                         "web".to_string(),
                     ],
                 };
-                
-                Arc::new(icn_identity::EnhancedDidResolver::new(config, time_provider))
+
+                Arc::new(icn_identity::EnhancedDidResolver::new(
+                    config,
+                    time_provider,
+                ))
             }
             ServiceEnvironment::Testing => {
                 // For testing, use simple key resolver for faster tests

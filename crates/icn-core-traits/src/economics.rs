@@ -11,7 +11,7 @@ use std::collections::HashMap;
 pub trait EconomicProvider: Send + Sync {
     /// Get economic health metrics
     async fn get_economic_health(&self) -> Result<EconomicHealth, CoreTraitsError>;
-    
+
     /// Calculate pricing for a resource or service
     async fn calculate_pricing(
         &self,
@@ -19,7 +19,7 @@ pub trait EconomicProvider: Send + Sync {
         usage_amount: u64,
         context: HashMap<String, String>,
     ) -> Result<u64, CoreTraitsError>;
-    
+
     /// Process economic transaction
     async fn process_transaction(
         &self,
@@ -28,9 +28,12 @@ pub trait EconomicProvider: Send + Sync {
         amount: u64,
         transaction_type: TransactionType,
     ) -> Result<String, CoreTraitsError>; // Returns transaction ID
-    
+
     /// Get economic policy for a resource
-    async fn get_economic_policy(&self, resource_type: &str) -> Result<EconomicPolicy, CoreTraitsError>;
+    async fn get_economic_policy(
+        &self,
+        resource_type: &str,
+    ) -> Result<EconomicPolicy, CoreTraitsError>;
 }
 
 /// Mana provider trait for mana-based economics
@@ -38,21 +41,25 @@ pub trait EconomicProvider: Send + Sync {
 pub trait ManaProvider: Send + Sync {
     /// Get mana balance for a DID
     async fn get_mana_balance(&self, did: &Did) -> Result<u64, CoreTraitsError>;
-    
+
     /// Spend mana for a DID
     async fn spend_mana(&self, did: &Did, amount: u64) -> Result<u64, CoreTraitsError>; // Returns remaining balance
-    
+
     /// Add mana to a DID (e.g., from regeneration)
     async fn add_mana(&self, did: &Did, amount: u64) -> Result<u64, CoreTraitsError>; // Returns new balance
-    
+
     /// Get mana regeneration rate for a DID
     async fn get_regeneration_rate(&self, did: &Did) -> Result<u64, CoreTraitsError>; // Mana per time unit
-    
+
     /// Check if DID has sufficient mana for operation
     async fn has_sufficient_mana(&self, did: &Did, required: u64) -> Result<bool, CoreTraitsError>;
-    
+
     /// Get mana transaction history
-    async fn get_mana_history(&self, did: &Did, limit: usize) -> Result<Vec<ManaTransaction>, CoreTraitsError>;
+    async fn get_mana_history(
+        &self,
+        did: &Did,
+        limit: usize,
+    ) -> Result<Vec<ManaTransaction>, CoreTraitsError>;
 }
 
 /// Resource provider trait for resource management
@@ -64,18 +71,21 @@ pub trait ResourceProvider: Send + Sync {
         requester: &Did,
         resource_spec: ResourceSpec,
     ) -> Result<ResourceAllocation, CoreTraitsError>;
-    
+
     /// Release allocated resources
     async fn release_resources(&self, allocation_id: &str) -> Result<(), CoreTraitsError>;
-    
+
     /// Get available resources
     async fn get_available_resources(&self) -> Result<HashMap<String, u64>, CoreTraitsError>;
-    
+
     /// Get resource utilization metrics
     async fn get_resource_utilization(&self) -> Result<ResourceUtilization, CoreTraitsError>;
-    
+
     /// Check resource availability
-    async fn check_resource_availability(&self, resource_spec: &ResourceSpec) -> Result<bool, CoreTraitsError>;
+    async fn check_resource_availability(
+        &self,
+        resource_spec: &ResourceSpec,
+    ) -> Result<bool, CoreTraitsError>;
 }
 
 /// Economic health metrics

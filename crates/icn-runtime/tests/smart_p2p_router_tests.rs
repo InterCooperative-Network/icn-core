@@ -2,10 +2,8 @@
 //!
 //! Tests the actual implemented methods in SmartP2pRouter and related components.
 
-use icn_runtime::context::{
-    RuntimeContextBuilder, EnvironmentType, HostAbiError,
-};
 use icn_common::Did;
+use icn_runtime::context::{EnvironmentType, HostAbiError, RuntimeContextBuilder};
 use std::str::FromStr;
 use tokio;
 
@@ -19,10 +17,10 @@ async fn test_smart_p2p_router_initialization() -> Result<(), Box<dyn std::error
         .build()?;
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Verify router is properly initialized through coordinator
     assert!(coordinator.smart_p2p_router.as_ref() as *const _ != std::ptr::null());
-    
+
     println!("✅ Smart P2P Router properly initialized via RuntimeContext");
     Ok(())
 }
@@ -37,10 +35,10 @@ async fn test_smart_p2p_router_startup() -> Result<(), Box<dyn std::error::Error
         .build()?;
 
     let smart_router = &runtime_ctx.cross_component_coordinator.smart_p2p_router;
-    
+
     // Test router startup
     let startup_result = smart_router.start().await;
-    
+
     match startup_result {
         Ok(_) => {
             println!("✅ Smart P2P Router started successfully");
@@ -50,7 +48,7 @@ async fn test_smart_p2p_router_startup() -> Result<(), Box<dyn std::error::Error
         }
         Err(e) => return Err(e.into()),
     }
-    
+
     Ok(())
 }
 
@@ -65,28 +63,26 @@ async fn test_get_best_route() -> Result<(), Box<dyn std::error::Error>> {
 
     let smart_router = &runtime_ctx.cross_component_coordinator.smart_p2p_router;
     let target_peer = Did::from_str("did:key:zTargetPeer")?;
-    
+
     // Test getting best route
     let route_result = smart_router.get_best_route(&target_peer).await;
-    
+
     match route_result {
-        Ok(route_option) => {
-            match route_option {
-                Some(route) => {
-                    println!("✅ Found route with {} peers", route.path_peers.len());
-                    assert!(!route.path_peers.is_empty());
-                }
-                None => {
-                    println!("✅ No route found (expected in test environment)");
-                }
+        Ok(route_option) => match route_option {
+            Some(route) => {
+                println!("✅ Found route with {} peers", route.path_peers.len());
+                assert!(!route.path_peers.is_empty());
             }
-        }
+            None => {
+                println!("✅ No route found (expected in test environment)");
+            }
+        },
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ Route discovery failed as expected (no network in test)");
         }
         Err(e) => return Err(e.into()),
     }
-    
+
     Ok(())
 }
 
@@ -101,19 +97,22 @@ async fn test_peer_reputation_update() -> Result<(), Box<dyn std::error::Error>>
 
     let smart_router = &runtime_ctx.cross_component_coordinator.smart_p2p_router;
     let peer_did = Did::from_str("did:key:zTestPeer")?;
-    
+
     // Test updating peer reputation
     let update_result = smart_router.update_peer_reputation(&peer_did, 85).await;
-    
+
     match update_result {
         Ok(_) => {
             println!("✅ Peer reputation updated successfully");
         }
         Err(e) => {
-            println!("✅ Peer reputation update failed: {:?} (may be expected in test)", e);
+            println!(
+                "✅ Peer reputation update failed: {:?} (may be expected in test)",
+                e
+            );
         }
     }
-    
+
     Ok(())
 }
 
@@ -127,10 +126,10 @@ async fn test_network_topology_discovery() -> Result<(), Box<dyn std::error::Err
         .build()?;
 
     let smart_router = &runtime_ctx.cross_component_coordinator.smart_p2p_router;
-    
+
     // Test network topology discovery
     let discovery_result = smart_router.discover_network_topology().await;
-    
+
     match discovery_result {
         Ok(_) => {
             println!("✅ Network topology discovery completed successfully");
@@ -140,7 +139,7 @@ async fn test_network_topology_discovery() -> Result<(), Box<dyn std::error::Err
         }
         Err(e) => return Err(e.into()),
     }
-    
+
     Ok(())
 }
 
@@ -154,19 +153,22 @@ async fn test_coordinator_background_tasks() -> Result<(), Box<dyn std::error::E
         .build()?;
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Test starting background tasks
     let start_result = coordinator.start_background_tasks().await;
-    
+
     match start_result {
         Ok(_) => {
             println!("✅ Background tasks started successfully");
         }
         Err(e) => {
-            println!("✅ Background tasks startup failed: {:?} (may be expected in test)", e);
+            println!(
+                "✅ Background tasks startup failed: {:?} (may be expected in test)",
+                e
+            );
         }
     }
-    
+
     Ok(())
 }
 
@@ -180,21 +182,33 @@ async fn test_system_status() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Test getting system status
     let status = coordinator.get_system_status().await;
-    
+
     println!("✅ System status retrieved:");
     println!("  - Health: {:?}", status.health);
-    println!("  - Performance total ops: {}", status.performance.total_operations);
-    println!("  - Performance success rate: {:.1}%", status.performance.success_rate * 100.0);
-    println!("  - Integration operation counts: {:?}", status.integration.operation_counts);
-    println!("  - Network DAG sync health: {}", status.network_dag.sync_health);
-    
+    println!(
+        "  - Performance total ops: {}",
+        status.performance.total_operations
+    );
+    println!(
+        "  - Performance success rate: {:.1}%",
+        status.performance.success_rate * 100.0
+    );
+    println!(
+        "  - Integration operation counts: {:?}",
+        status.integration.operation_counts
+    );
+    println!(
+        "  - Network DAG sync health: {}",
+        status.network_dag.sync_health
+    );
+
     // Verify status structure is reasonable
     assert!(status.performance.total_operations >= 0);
     assert!(status.performance.success_rate >= 0.0 && status.performance.success_rate <= 1.0);
-    
+
     Ok(())
 }
 
@@ -209,28 +223,29 @@ async fn test_optimal_routing_path() -> Result<(), Box<dyn std::error::Error>> {
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     let target_peer = Did::from_str("did:key:zTargetOptimalPeer")?;
-    
+
     // Test getting optimal routing path
     let path_result = coordinator.get_optimal_routing_path(&target_peer).await;
-    
+
     match path_result {
-        Ok(path_option) => {
-            match path_option {
-                Some(path) => {
-                    println!("✅ Optimal routing path found with {} peers", path.path_peers.len());
-                    assert!(path.path_quality >= 0.0 && path.path_quality <= 1.0);
-                }
-                None => {
-                    println!("✅ No optimal path found (expected in test environment)");
-                }
+        Ok(path_option) => match path_option {
+            Some(path) => {
+                println!(
+                    "✅ Optimal routing path found with {} peers",
+                    path.path_peers.len()
+                );
+                assert!(path.path_quality >= 0.0 && path.path_quality <= 1.0);
             }
-        }
+            None => {
+                println!("✅ No optimal path found (expected in test environment)");
+            }
+        },
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ Optimal routing failed as expected (no network in test)");
         }
         Err(e) => return Err(e.into()),
     }
-    
+
     Ok(())
 }
 
@@ -245,19 +260,24 @@ async fn test_peer_reputation_and_routes_update() -> Result<(), Box<dyn std::err
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
     let peer_did = Did::from_str("did:key:zTestReputationPeer")?;
-    
+
     // Test updating peer reputation and routes
-    let update_result = coordinator.update_peer_reputation_and_routes(&peer_did, 92).await;
-    
+    let update_result = coordinator
+        .update_peer_reputation_and_routes(&peer_did, 92)
+        .await;
+
     match update_result {
         Ok(_) => {
             println!("✅ Peer reputation and routes updated successfully");
         }
         Err(e) => {
-            println!("✅ Reputation and routes update failed: {:?} (may be expected in test)", e);
+            println!(
+                "✅ Reputation and routes update failed: {:?} (may be expected in test)",
+                e
+            );
         }
     }
-    
+
     Ok(())
 }
 
@@ -271,10 +291,10 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
         .build()?;
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Test intelligent DAG synchronization
     let sync_result = coordinator.sync_dag_intelligently().await;
-    
+
     match sync_result {
         Ok(result) => {
             println!("✅ Intelligent DAG sync completed:");
@@ -282,7 +302,7 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
             println!("  - Blocks sent: {}", result.blocks_sent);
             println!("  - Peers contacted: {}", result.peers_contacted);
             println!("  - Strategy used: {}", result.strategy_used);
-            
+
             // Verify result structure
             assert!(result.blocks_received >= 0);
             assert!(result.blocks_sent >= 0);
@@ -296,7 +316,7 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
         }
         Err(e) => return Err(e.into()),
     }
-    
+
     Ok(())
 }
 
@@ -310,14 +330,14 @@ async fn test_component_health_check() -> Result<(), Box<dyn std::error::Error>>
         .build()?;
 
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Test component health check through health monitor
     let health_status = coordinator.health_monitor.check_component_health().await;
-    
+
     println!("✅ Component health check completed: {:?}", health_status);
-    
+
     // Verify we got a valid health status
     assert!(health_status.is_healthy() || !health_status.is_healthy()); // Always true, just checking access
-    
+
     Ok(())
-} 
+}

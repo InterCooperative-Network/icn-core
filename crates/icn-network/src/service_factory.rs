@@ -3,9 +3,9 @@
 //! This module provides a factory for creating appropriate network services
 //! based on environment, configuration, and available features.
 
-use crate::{NetworkService, MeshNetworkError, StubNetworkService};
 #[cfg(feature = "libp2p")]
 use crate::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+use crate::{MeshNetworkError, NetworkService, StubNetworkService};
 use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
@@ -130,28 +130,22 @@ impl NetworkServiceFactory {
     /// Create a network service based on options
     pub async fn create(options: NetworkServiceOptions) -> NetworkServiceCreationResult {
         match options.environment {
-            NetworkEnvironment::Production => {
-                Self::create_production_service(options).await
-            }
-            NetworkEnvironment::Development => {
-                Self::create_development_service(options).await
-            }
-            NetworkEnvironment::Testing => {
-                Self::create_testing_service(options).await
-            }
-            NetworkEnvironment::Benchmarking => {
-                Self::create_benchmarking_service(options).await
-            }
+            NetworkEnvironment::Production => Self::create_production_service(options).await,
+            NetworkEnvironment::Development => Self::create_development_service(options).await,
+            NetworkEnvironment::Testing => Self::create_testing_service(options).await,
+            NetworkEnvironment::Benchmarking => Self::create_benchmarking_service(options).await,
         }
     }
 
     /// Create production network service (must be real libp2p)
-    async fn create_production_service(options: NetworkServiceOptions) -> NetworkServiceCreationResult {
+    async fn create_production_service(
+        options: NetworkServiceOptions,
+    ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
             let config = options.config.clone().unwrap_or_default();
             let libp2p_config = Self::convert_to_libp2p_config(config, &options);
-            
+
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
                     log::info!("✅ Production libp2p network service created successfully");
@@ -168,13 +162,13 @@ impl NetworkServiceFactory {
                 }
             }
         }
-        
+
         #[cfg(not(feature = "libp2p"))]
         {
             let error = MeshNetworkError::SetupError(
-                "Production environment requires libp2p feature to be enabled".to_string()
+                "Production environment requires libp2p feature to be enabled".to_string(),
             );
-            
+
             if options.allow_fallback {
                 log::error!("❌ libp2p not available in production, using stub service");
                 NetworkServiceCreationResult::Stub(Arc::new(StubNetworkService::default()))
@@ -185,7 +179,9 @@ impl NetworkServiceFactory {
     }
 
     /// Create development network service (prefers real, allows fallback)
-    async fn create_development_service(options: NetworkServiceOptions) -> NetworkServiceCreationResult {
+    async fn create_development_service(
+        options: NetworkServiceOptions,
+    ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
             let config = options.config.clone().unwrap_or_else(|| {
@@ -194,9 +190,9 @@ impl NetworkServiceFactory {
                 cfg.max_peers = 50; // Smaller peer limit for development
                 cfg
             });
-            
+
             let libp2p_config = Self::convert_to_libp2p_config(config, &options);
-            
+
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
                     log::info!("✅ Development libp2p network service created");
@@ -209,7 +205,7 @@ impl NetworkServiceFactory {
                 }
             }
         }
-        
+
         #[cfg(not(feature = "libp2p"))]
         {
             log::info!("🔄 Development using stub service (libp2p not available)");
@@ -218,14 +214,18 @@ impl NetworkServiceFactory {
     }
 
     /// Create testing network service (prefers stub for speed)
-    async fn create_testing_service(_options: NetworkServiceOptions) -> NetworkServiceCreationResult {
+    async fn create_testing_service(
+        _options: NetworkServiceOptions,
+    ) -> NetworkServiceCreationResult {
         // For testing, we usually want fast, deterministic stub services
         log::info!("🧪 Creating stub network service for testing");
         NetworkServiceCreationResult::Stub(Arc::new(StubNetworkService::default()))
     }
 
     /// Create benchmarking network service (optimized for performance)
-    async fn create_benchmarking_service(options: NetworkServiceOptions) -> NetworkServiceCreationResult {
+    async fn create_benchmarking_service(
+        options: NetworkServiceOptions,
+    ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
             let config = options.config.clone().unwrap_or_else(|| {
@@ -237,9 +237,9 @@ impl NetworkServiceFactory {
                 cfg.enable_mdns = false; // Disable mDNS for cleaner benchmarks
                 cfg
             });
-            
+
             let libp2p_config = Self::convert_to_libp2p_config(config, &options);
-            
+
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
                     log::info!("✅ Benchmarking libp2p network service created");
@@ -251,29 +251,34 @@ impl NetworkServiceFactory {
                 }
             }
         }
-        
+
         #[cfg(not(feature = "libp2p"))]
         {
             NetworkServiceCreationResult::Failed(MeshNetworkError::SetupError(
-                "Benchmarking requires libp2p feature to be enabled".to_string()
+                "Benchmarking requires libp2p feature to be enabled".to_string(),
             ))
         }
     }
 
     /// Convert unified config to libp2p config
     #[cfg(feature = "libp2p")]
-    fn convert_to_libp2p_config(config: NetworkServiceConfig, _options: &NetworkServiceOptions) -> NetworkConfig {
+    fn convert_to_libp2p_config(
+        config: NetworkServiceConfig,
+        _options: &NetworkServiceOptions,
+    ) -> NetworkConfig {
         use libp2p::{Multiaddr, PeerId};
         use std::str::FromStr;
 
         // Parse listen addresses
-        let listen_addresses = config.listen_addresses
+        let listen_addresses = config
+            .listen_addresses
             .iter()
             .filter_map(|addr_str| addr_str.parse::<Multiaddr>().ok())
             .collect();
 
         // Parse bootstrap peers
-        let bootstrap_peers = config.bootstrap_peers
+        let bootstrap_peers = config
+            .bootstrap_peers
             .iter()
             .filter_map(|peer| {
                 let peer_id = PeerId::from_str(&peer.peer_id).ok()?;
@@ -314,7 +319,7 @@ impl NetworkServiceFactory {
             // In debug builds, prefer development environment
             NetworkEnvironment::Development
         }
-        
+
         #[cfg(not(debug_assertions))]
         {
             // In release builds, prefer production environment
@@ -332,7 +337,9 @@ impl NetworkServiceFactory {
     }
 
     /// Create a service for production with strict requirements
-    pub async fn create_for_production(config: NetworkServiceConfig) -> Result<Arc<dyn NetworkService>, MeshNetworkError> {
+    pub async fn create_for_production(
+        config: NetworkServiceConfig,
+    ) -> Result<Arc<dyn NetworkService>, MeshNetworkError> {
         let options = NetworkServiceOptions {
             environment: NetworkEnvironment::Production,
             config: Some(config),
@@ -345,7 +352,7 @@ impl NetworkServiceFactory {
             NetworkServiceCreationResult::Libp2p(service) => Ok(service),
             NetworkServiceCreationResult::Failed(error) => Err(error),
             NetworkServiceCreationResult::Stub(_) => Err(MeshNetworkError::SetupError(
-                "Stub service not allowed in production".to_string()
+                "Stub service not allowed in production".to_string(),
             )),
         }
     }
@@ -430,7 +437,10 @@ pub mod presets {
     }
 
     /// Create a production-ready network service
-    pub async fn production(listen_addr: &str, bootstrap_peers: Vec<BootstrapPeer>) -> Result<Arc<dyn NetworkService>, MeshNetworkError> {
+    pub async fn production(
+        listen_addr: &str,
+        bootstrap_peers: Vec<BootstrapPeer>,
+    ) -> Result<Arc<dyn NetworkService>, MeshNetworkError> {
         let config = NetworkServiceConfig {
             listen_addresses: vec![listen_addr.to_string()],
             bootstrap_peers,
@@ -446,4 +456,4 @@ pub mod presets {
     pub async fn testing() -> Arc<dyn NetworkService> {
         NetworkServiceFactory::create_for_testing().await
     }
-} 
+}

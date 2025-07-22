@@ -11,16 +11,16 @@ use std::collections::HashMap;
 pub trait MeshProvider: Send + Sync {
     /// Submit a job for distributed execution
     async fn submit_job(&self, job: JobSubmission) -> Result<String, CoreTraitsError>; // Returns job ID
-    
+
     /// Get job status
     async fn get_job_status(&self, job_id: &str) -> Result<JobStatus, CoreTraitsError>;
-    
+
     /// Cancel a job
     async fn cancel_job(&self, job_id: &str) -> Result<(), CoreTraitsError>;
-    
+
     /// Get available executors
     async fn get_available_executors(&self) -> Result<Vec<ExecutorInfo>, CoreTraitsError>;
-    
+
     /// Get mesh network statistics
     async fn get_mesh_stats(&self) -> Result<MeshStats, CoreTraitsError>;
 }
@@ -29,17 +29,28 @@ pub trait MeshProvider: Send + Sync {
 #[async_trait]
 pub trait JobProvider: Send + Sync {
     /// Create a new job
-    async fn create_job(&self, submitter: &Did, job_spec: JobSpec) -> Result<String, CoreTraitsError>;
-    
+    async fn create_job(
+        &self,
+        submitter: &Did,
+        job_spec: JobSpec,
+    ) -> Result<String, CoreTraitsError>;
+
     /// Update job status
-    async fn update_job_status(&self, job_id: &str, status: JobExecutionStatus) -> Result<(), CoreTraitsError>;
-    
+    async fn update_job_status(
+        &self,
+        job_id: &str,
+        status: JobExecutionStatus,
+    ) -> Result<(), CoreTraitsError>;
+
     /// Get job details
     async fn get_job(&self, job_id: &str) -> Result<Option<JobInfo>, CoreTraitsError>;
-    
+
     /// List jobs by status
-    async fn list_jobs_by_status(&self, status: JobExecutionStatus) -> Result<Vec<JobInfo>, CoreTraitsError>;
-    
+    async fn list_jobs_by_status(
+        &self,
+        status: JobExecutionStatus,
+    ) -> Result<Vec<JobInfo>, CoreTraitsError>;
+
     /// Get job execution results
     async fn get_job_results(&self, job_id: &str) -> Result<Option<JobResults>, CoreTraitsError>;
 }
@@ -48,19 +59,37 @@ pub trait JobProvider: Send + Sync {
 #[async_trait]
 pub trait ExecutorProvider: Send + Sync {
     /// Register an executor
-    async fn register_executor(&self, executor: ExecutorRegistration) -> Result<String, CoreTraitsError>;
-    
+    async fn register_executor(
+        &self,
+        executor: ExecutorRegistration,
+    ) -> Result<String, CoreTraitsError>;
+
     /// Update executor status
-    async fn update_executor_status(&self, executor_id: &str, status: ExecutorStatus) -> Result<(), CoreTraitsError>;
-    
+    async fn update_executor_status(
+        &self,
+        executor_id: &str,
+        status: ExecutorStatus,
+    ) -> Result<(), CoreTraitsError>;
+
     /// Get executor capabilities
-    async fn get_executor_capabilities(&self, executor_id: &str) -> Result<ExecutorCapabilities, CoreTraitsError>;
-    
+    async fn get_executor_capabilities(
+        &self,
+        executor_id: &str,
+    ) -> Result<ExecutorCapabilities, CoreTraitsError>;
+
     /// Submit bid for a job
-    async fn submit_bid(&self, executor_id: &str, job_id: &str, bid: JobBid) -> Result<(), CoreTraitsError>;
-    
+    async fn submit_bid(
+        &self,
+        executor_id: &str,
+        job_id: &str,
+        bid: JobBid,
+    ) -> Result<(), CoreTraitsError>;
+
     /// Get executor performance metrics
-    async fn get_executor_metrics(&self, executor_id: &str) -> Result<ExecutorMetrics, CoreTraitsError>;
+    async fn get_executor_metrics(
+        &self,
+        executor_id: &str,
+    ) -> Result<ExecutorMetrics, CoreTraitsError>;
 }
 
 /// Job submission request

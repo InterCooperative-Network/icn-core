@@ -27,6 +27,10 @@ pub mod time_banking;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
+pub use automation::{
+    EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
+    EconomicHealthMetrics,
+};
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileResourceLedger;
 pub use ledger::{
@@ -53,10 +57,6 @@ pub use mutual_credit::{
 pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS};
 pub use time_banking::{
     InMemoryTimeBankingStore, TimeBankingStore, TimeRecord, TimeRecordStatus, WorkStatistics,
-};
-pub use automation::{
-    EconomicAutomationEngine, EconomicAutomationConfig, EconomicEvent,
-    EconomicHealthMetrics, EconomicAutomationStats,
 };
 
 #[cfg(test)]

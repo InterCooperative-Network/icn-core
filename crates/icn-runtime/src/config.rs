@@ -632,19 +632,21 @@ impl RuntimeConfig {
         {
             // Create production libp2p network service
             let network_config = self.create_libp2p_config()?;
-            
+
             // Use async block to handle the async network service creation
             use tokio::runtime::Handle;
-            
+
             let service = Handle::current().block_on(async {
                 icn_network::libp2p_service::Libp2pNetworkService::new(network_config)
                     .await
-                    .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))
+                    .map_err(|e| {
+                        CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
+                    })
             })?;
-            
+
             Ok(Arc::new(service))
         }
-        
+
         #[cfg(not(feature = "enable-libp2p"))]
         {
             // Fallback to stub service only when libp2p is not available
@@ -652,41 +654,52 @@ impl RuntimeConfig {
             Ok(Arc::new(icn_network::StubNetworkService::default()))
         }
     }
-    
+
     /// Create libp2p configuration from runtime configuration
-    fn create_libp2p_config(&self) -> Result<icn_network::libp2p_service::NetworkConfig, CommonError> {
+    fn create_libp2p_config(
+        &self,
+    ) -> Result<icn_network::libp2p_service::NetworkConfig, CommonError> {
         use icn_network::libp2p_service::NetworkConfig;
         use std::time::Duration;
-        
+
         // Parse listen addresses
         let mut listen_addresses = Vec::new();
         for addr_str in &self.network.listen_addresses {
-            let addr = addr_str.parse()
-                .map_err(|e| CommonError::ConfigError(format!("Invalid listen address '{}': {}", addr_str, e)))?;
+            let addr = addr_str.parse().map_err(|e| {
+                CommonError::ConfigError(format!("Invalid listen address '{}': {}", addr_str, e))
+            })?;
             listen_addresses.push(addr);
         }
-        
+
         // If no listen addresses specified, use default
         if listen_addresses.is_empty() {
             listen_addresses.push("/ip4/0.0.0.0/tcp/0".parse().unwrap());
         }
-        
+
         // Parse bootstrap peers
         let mut bootstrap_peers = Vec::new();
         for bootstrap in &self.network.bootstrap_peers {
-            let peer_id = bootstrap.peer_id.parse()
-                .map_err(|e| CommonError::ConfigError(format!("Invalid peer ID '{}': {}", bootstrap.peer_id, e)))?;
-            let multiaddr = bootstrap.address.parse()
-                .map_err(|e| CommonError::ConfigError(format!("Invalid multiaddr '{}': {}", bootstrap.address, e)))?;
+            let peer_id = bootstrap.peer_id.parse().map_err(|e| {
+                CommonError::ConfigError(format!("Invalid peer ID '{}': {}", bootstrap.peer_id, e))
+            })?;
+            let multiaddr = bootstrap.address.parse().map_err(|e| {
+                CommonError::ConfigError(format!(
+                    "Invalid multiaddr '{}': {}",
+                    bootstrap.address, e
+                ))
+            })?;
             bootstrap_peers.push((peer_id, multiaddr));
         }
-        
+
         Ok(NetworkConfig {
             listen_addresses,
             bootstrap_peers,
-            max_peers: self.network.connection_limits.max_incoming_connections.max(
-                self.network.connection_limits.max_outgoing_connections
-            ) as usize,
+            max_peers: self
+                .network
+                .connection_limits
+                .max_incoming_connections
+                .max(self.network.connection_limits.max_outgoing_connections)
+                as usize,
             max_peers_per_ip: self.network.connection_limits.max_connections_per_peer as usize,
             connection_timeout: Duration::from_millis(self.network.timeouts.connection_timeout_ms),
             request_timeout: Duration::from_millis(self.network.timeouts.request_timeout_ms),

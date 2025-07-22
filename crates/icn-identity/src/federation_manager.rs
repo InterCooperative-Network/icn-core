@@ -164,31 +164,31 @@ pub struct FederationMember {
 pub trait FederationRegistry: Send + Sync {
     /// Create a new federation
     fn create_federation(&self, info: FederationInfo) -> Result<(), CommonError>;
-    
+
     /// Get federation information
     fn get_federation(&self, federation_id: &str) -> Option<FederationInfo>;
-    
+
     /// Update federation information
     fn update_federation(&self, info: FederationInfo) -> Result<(), CommonError>;
-    
+
     /// List all federations
     fn list_federations(&self) -> Vec<FederationInfo>;
-    
+
     /// Search federations by criteria
     fn search_federations(&self, query: &FederationSearchQuery) -> Vec<FederationInfo>;
-    
+
     /// Add member to federation
     fn add_member(&self, federation_id: &str, member: FederationMember) -> Result<(), CommonError>;
-    
+
     /// Remove member from federation
     fn remove_member(&self, federation_id: &str, did: &Did) -> Result<(), CommonError>;
-    
+
     /// Get federation members
     fn get_members(&self, federation_id: &str) -> Vec<FederationMember>;
-    
+
     /// Get federations for a specific DID
     fn get_federations_for_did(&self, did: &Did) -> Vec<String>;
-    
+
     /// Update member capabilities
     fn update_member_capabilities(
         &self,
@@ -233,46 +233,51 @@ impl Default for InMemoryFederationRegistry {
 
 impl FederationRegistry for InMemoryFederationRegistry {
     fn create_federation(&self, info: FederationInfo) -> Result<(), CommonError> {
-        let mut federations = self.federations.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
+        let mut federations = self
+            .federations
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
         if federations.contains_key(&info.federation_id) {
             return Err(CommonError::InvalidInputError(format!(
-                "Federation {} already exists", info.federation_id
+                "Federation {} already exists",
+                info.federation_id
             )));
         }
-        
+
         federations.insert(info.federation_id.clone(), info);
         Ok(())
     }
-    
+
     fn get_federation(&self, federation_id: &str) -> Option<FederationInfo> {
         self.federations.read().ok()?.get(federation_id).cloned()
     }
-    
+
     fn update_federation(&self, info: FederationInfo) -> Result<(), CommonError> {
-        let mut federations = self.federations.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
+        let mut federations = self
+            .federations
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
         federations.insert(info.federation_id.clone(), info);
         Ok(())
     }
-    
+
     fn list_federations(&self) -> Vec<FederationInfo> {
-        self.federations.read()
+        self.federations
+            .read()
             .map(|f| f.values().cloned().collect())
             .unwrap_or_default()
     }
-    
+
     fn search_federations(&self, query: &FederationSearchQuery) -> Vec<FederationInfo> {
         let federations = match self.federations.read() {
             Ok(f) => f,
             Err(_) => return Vec::new(),
         };
-        
-        federations.values()
+
+        federations
+            .values()
             .filter(|fed| {
                 // Filter by type
                 if let Some(ref fed_type) = query.federation_type {
@@ -280,30 +285,31 @@ impl FederationRegistry for InMemoryFederationRegistry {
                         return false;
                     }
                 }
-                
+
                 // Filter by geographic scope
                 if let Some(ref scope) = query.geographic_scope {
                     if fed.geographic_scope.as_ref() != Some(scope) {
                         return false;
                     }
                 }
-                
+
                 // Filter by status
                 if let Some(ref status) = query.status {
                     if &fed.status != status {
                         return false;
                     }
                 }
-                
+
                 // Filter by keyword
                 if let Some(ref keyword) = query.keyword {
                     let keyword_lower = keyword.to_lowercase();
-                    if !fed.name.to_lowercase().contains(&keyword_lower) &&
-                       !fed.description.to_lowercase().contains(&keyword_lower) {
+                    if !fed.name.to_lowercase().contains(&keyword_lower)
+                        && !fed.description.to_lowercase().contains(&keyword_lower)
+                    {
                         return false;
                     }
                 }
-                
+
                 // Filter by required capabilities
                 if !query.required_capabilities.is_empty() {
                     for req_cap in &query.required_capabilities {
@@ -312,56 +318,63 @@ impl FederationRegistry for InMemoryFederationRegistry {
                         }
                     }
                 }
-                
+
                 true
             })
             .cloned()
             .collect()
     }
-    
+
     fn add_member(&self, federation_id: &str, member: FederationMember) -> Result<(), CommonError> {
         // Check if federation exists
         if self.get_federation(federation_id).is_none() {
             return Err(CommonError::InvalidInputError(format!(
-                "Federation {} does not exist", federation_id
+                "Federation {} does not exist",
+                federation_id
             )));
         }
-        
-        let mut members = self.members.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
-        let mut did_to_federations = self.did_to_federations.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
+
+        let mut members = self
+            .members
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
+        let mut did_to_federations = self
+            .did_to_federations
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
         // Add to members list
-        members.entry(federation_id.to_string())
+        members
+            .entry(federation_id.to_string())
             .or_insert_with(Vec::new)
             .push(member.clone());
-        
+
         // Add to DID->federations mapping
-        did_to_federations.entry(member.did.clone())
+        did_to_federations
+            .entry(member.did.clone())
             .or_insert_with(HashSet::new)
             .insert(federation_id.to_string());
-        
+
         Ok(())
     }
-    
+
     fn remove_member(&self, federation_id: &str, did: &Did) -> Result<(), CommonError> {
-        let mut members = self.members.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
-        let mut did_to_federations = self.did_to_federations.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
+        let mut members = self
+            .members
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
+        let mut did_to_federations = self
+            .did_to_federations
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
         // Remove from members list
         if let Some(member_list) = members.get_mut(federation_id) {
             member_list.retain(|m| &m.did != did);
         }
-        
+
         // Remove from DID->federations mapping
         if let Some(fed_set) = did_to_federations.get_mut(did) {
             fed_set.remove(federation_id);
@@ -369,35 +382,38 @@ impl FederationRegistry for InMemoryFederationRegistry {
                 did_to_federations.remove(did);
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn get_members(&self, federation_id: &str) -> Vec<FederationMember> {
-        self.members.read()
+        self.members
+            .read()
             .ok()
             .and_then(|m| m.get(federation_id).cloned())
             .unwrap_or_default()
     }
-    
+
     fn get_federations_for_did(&self, did: &Did) -> Vec<String> {
-        self.did_to_federations.read()
+        self.did_to_federations
+            .read()
             .ok()
             .and_then(|d| d.get(did).cloned())
             .map(|set| set.into_iter().collect())
             .unwrap_or_default()
     }
-    
+
     fn update_member_capabilities(
         &self,
         federation_id: &str,
         did: &Did,
         capabilities: FederationCapabilities,
     ) -> Result<(), CommonError> {
-        let mut members = self.members.write().map_err(|_| {
-            CommonError::InternalError("Failed to acquire write lock".to_string())
-        })?;
-        
+        let mut members = self
+            .members
+            .write()
+            .map_err(|_| CommonError::InternalError("Failed to acquire write lock".to_string()))?;
+
         if let Some(member_list) = members.get_mut(federation_id) {
             for member in member_list {
                 if &member.did == did {
@@ -406,9 +422,10 @@ impl FederationRegistry for InMemoryFederationRegistry {
                 }
             }
         }
-        
+
         Err(CommonError::InvalidInputError(format!(
-            "Member {} not found in federation {}", did, federation_id
+            "Member {} not found in federation {}",
+            did, federation_id
         )))
     }
 }
@@ -417,19 +434,19 @@ impl FederationRegistry for InMemoryFederationRegistry {
 pub trait FederationMembershipService: Send + Sync {
     /// Get federations for a DID
     fn get_federations(&self, did: &Did) -> Vec<String>;
-    
+
     /// Get capabilities for a DID in a specific federation
     fn get_capabilities(&self, did: &Did, federation_id: &str) -> Option<FederationCapabilities>;
-    
+
     /// Check if a DID is a member of a federation
     fn is_member(&self, did: &Did, federation_id: &str) -> bool;
-    
+
     /// Get trust scope for a DID (federation-based)
     fn get_trust_scope(&self, did: &Did) -> Option<String>;
-    
+
     /// Update member presence
     fn update_presence(&self, did: &Did, timestamp: u64) -> Result<(), CommonError>;
-    
+
     /// Get member reputation in context
     fn get_contextual_reputation(&self, did: &Did, federation_id: &str) -> Option<u64>;
 }
@@ -456,30 +473,33 @@ impl FederationMembershipService for DefaultFederationMembershipService {
     fn get_federations(&self, did: &Did) -> Vec<String> {
         self.registry.get_federations_for_did(did)
     }
-    
+
     fn get_capabilities(&self, did: &Did, federation_id: &str) -> Option<FederationCapabilities> {
         let members = self.registry.get_members(federation_id);
-        members.iter()
+        members
+            .iter()
             .find(|m| &m.did == did)
             .map(|m| m.capabilities.clone())
     }
-    
+
     fn is_member(&self, did: &Did, federation_id: &str) -> bool {
         let members = self.registry.get_members(federation_id);
-        members.iter().any(|m| &m.did == did && m.status == MembershipStatus::Active)
+        members
+            .iter()
+            .any(|m| &m.did == did && m.status == MembershipStatus::Active)
     }
-    
+
     fn get_trust_scope(&self, did: &Did) -> Option<String> {
         let federations = self.get_federations(did);
-        
+
         // Return the primary federation as trust scope
         // In a more sophisticated implementation, this could be context-dependent
         federations.first().cloned()
     }
-    
+
     fn update_presence(&self, did: &Did, timestamp: u64) -> Result<(), CommonError> {
         let federations = self.get_federations(did);
-        
+
         for federation_id in federations {
             let members = self.registry.get_members(&federation_id);
             for mut member in members {
@@ -491,13 +511,14 @@ impl FederationMembershipService for DefaultFederationMembershipService {
                 }
             }
         }
-        
+
         Ok(())
     }
-    
+
     fn get_contextual_reputation(&self, did: &Did, federation_id: &str) -> Option<u64> {
         let members = self.registry.get_members(federation_id);
-        members.iter()
+        members
+            .iter()
             .find(|m| &m.did == did)
             .map(|m| m.reputation_score)
     }
@@ -521,7 +542,7 @@ impl FederationManager {
             registry.clone(),
             time_provider.clone(),
         ));
-        
+
         Self {
             registry,
             membership_service,
@@ -529,15 +550,15 @@ impl FederationManager {
             time_provider,
         }
     }
-    
+
     /// Create a new federation
     pub fn create_federation(&self, info: FederationInfo) -> Result<(), CommonError> {
         // Validate admin DID
         self.did_resolver.resolve(&info.admin_did)?;
-        
+
         self.registry.create_federation(info)
     }
-    
+
     /// Join a federation
     pub fn join_federation(
         &self,
@@ -547,32 +568,33 @@ impl FederationManager {
     ) -> Result<(), CommonError> {
         // Validate DID
         self.did_resolver.resolve(did)?;
-        
+
         // Check if federation exists
-        let federation = self.registry.get_federation(federation_id)
-            .ok_or_else(|| CommonError::InvalidInputError(format!(
-                "Federation {} not found", federation_id
-            )))?;
-        
+        let federation = self.registry.get_federation(federation_id).ok_or_else(|| {
+            CommonError::InvalidInputError(format!("Federation {} not found", federation_id))
+        })?;
+
         // Check membership policy
         match federation.membership_policy {
             MembershipPolicy::Open => {
                 // Allow immediate joining
             }
-            MembershipPolicy::InviteOnly | MembershipPolicy::AdminApproval | MembershipPolicy::Consensus => {
+            MembershipPolicy::InviteOnly
+            | MembershipPolicy::AdminApproval
+            | MembershipPolicy::Consensus => {
                 // These would require additional approval flows
                 return Err(CommonError::InvalidInputError(
-                    "Federation requires approval for membership".to_string()
+                    "Federation requires approval for membership".to_string(),
                 ));
             }
             MembershipPolicy::Custom { .. } => {
                 // Custom policy validation would go here
                 return Err(CommonError::InvalidInputError(
-                    "Custom membership policy not implemented".to_string()
+                    "Custom membership policy not implemented".to_string(),
                 ));
             }
         }
-        
+
         let member = FederationMember {
             did: did.clone(),
             joined_at: self.time_provider.unix_seconds(),
@@ -583,35 +605,35 @@ impl FederationManager {
             roles: vec!["member".to_string()],
             metadata: HashMap::new(),
         };
-        
+
         self.registry.add_member(federation_id, member)
     }
-    
+
     /// Leave a federation
     pub fn leave_federation(&self, federation_id: &str, did: &Did) -> Result<(), CommonError> {
         self.registry.remove_member(federation_id, did)
     }
-    
+
     /// Get federation information
     pub fn get_federation(&self, federation_id: &str) -> Option<FederationInfo> {
         self.registry.get_federation(federation_id)
     }
-    
+
     /// List federations
     pub fn list_federations(&self) -> Vec<FederationInfo> {
         self.registry.list_federations()
     }
-    
+
     /// Search federations
     pub fn search_federations(&self, query: &FederationSearchQuery) -> Vec<FederationInfo> {
         self.registry.search_federations(query)
     }
-    
+
     /// Get membership service
     pub fn membership_service(&self) -> &Arc<dyn FederationMembershipService> {
         &self.membership_service
     }
-    
+
     /// Get registry
     pub fn registry(&self) -> &Arc<dyn FederationRegistry> {
         &self.registry
@@ -677,4 +699,4 @@ impl Default for NetworkCapabilities {
             regions: vec!["local".to_string()],
         }
     }
-} 
+}

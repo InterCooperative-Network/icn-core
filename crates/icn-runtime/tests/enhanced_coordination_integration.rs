@@ -3,12 +3,12 @@
 //! Tests the integration between smart P2P routing, real-time CCL integration,
 //! enhanced DAG synchronization, and comprehensive health monitoring.
 
-use icn_runtime::context::{
-    CrossComponentCoordinator, RuntimeContext, EnvironmentType, RuntimeContextBuilder,
-    SmartP2pRouter, CclIntegrationCoordinator, HostAbiError, MessagePriority, PropagationPriority,
-    DagOperation, Priority,
-};
 use icn_common::{Did, TimeProvider};
+use icn_runtime::context::{
+    CclIntegrationCoordinator, CrossComponentCoordinator, DagOperation, EnvironmentType,
+    HostAbiError, MessagePriority, Priority, PropagationPriority, RuntimeContext,
+    RuntimeContextBuilder, SmartP2pRouter,
+};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -16,7 +16,8 @@ use tokio;
 
 /// Test basic cross-component coordinator initialization
 #[tokio::test]
-async fn test_cross_component_coordinator_initialization() -> Result<(), Box<dyn std::error::Error>> {
+async fn test_cross_component_coordinator_initialization() -> Result<(), Box<dyn std::error::Error>>
+{
     // Create a testing runtime context
     let test_did = Did::from_str("did:key:zTestCoordinator")?;
     let runtime_ctx = RuntimeContextBuilder::new(EnvironmentType::Testing)
@@ -26,7 +27,7 @@ async fn test_cross_component_coordinator_initialization() -> Result<(), Box<dyn
 
     // Verify that the cross-component coordinator is properly initialized
     let coordinator = &runtime_ctx.cross_component_coordinator;
-    
+
     // Test that all components are properly initialized
     assert!(coordinator.smart_p2p_router.as_ref() as *const _ != std::ptr::null());
     assert!(coordinator.ccl_integration.as_ref() as *const _ != std::ptr::null());
@@ -53,17 +54,22 @@ async fn test_smart_p2p_routing() -> Result<(), Box<dyn std::error::Error>> {
     // Test intelligent message routing
     let target_peer = Did::from_str("did:key:zTargetPeer")?;
     let test_message = b"test governance message".to_vec();
-    
-    let message_id = coordinator.route_message_intelligently(
-        target_peer.clone(),
-        test_message,
-        MessagePriority::High,
-        None,
-    ).await?;
+
+    let message_id = coordinator
+        .route_message_intelligently(
+            target_peer.clone(),
+            test_message,
+            MessagePriority::High,
+            None,
+        )
+        .await?;
 
     // Verify message was queued
     assert!(!message_id.is_empty());
-    println!("✅ Message {} queued for intelligent routing to {}", message_id, target_peer);
+    println!(
+        "✅ Message {} queued for intelligent routing to {}",
+        message_id, target_peer
+    );
 
     // Test optimal routing path calculation
     let routing_path = coordinator.get_optimal_routing_path(&target_peer).await?;
@@ -88,27 +94,38 @@ async fn test_realtime_ccl_integration() -> Result<(), Box<dyn std::error::Error
 
     // Test real-time governance proposal submission
     let proposal_data = b"test governance proposal".to_vec();
-    let proposal_id = coordinator.submit_governance_proposal_realtime(
-        proposal_data,
-        PropagationPriority::High,
-        None,
-    ).await?;
+    let proposal_id = coordinator
+        .submit_governance_proposal_realtime(proposal_data, PropagationPriority::High, None)
+        .await?;
 
     assert!(!proposal_id.is_empty());
-    println!("✅ Governance proposal {} submitted with real-time integration", proposal_id);
+    println!(
+        "✅ Governance proposal {} submitted with real-time integration",
+        proposal_id
+    );
 
     // Test real-time vote casting
-    coordinator.cast_governance_vote_realtime(
-        proposal_id.clone(),
-        "yes".to_string(),
-        PropagationPriority::Normal,
-    ).await?;
+    coordinator
+        .cast_governance_vote_realtime(
+            proposal_id.clone(),
+            "yes".to_string(),
+            PropagationPriority::Normal,
+        )
+        .await?;
 
-    println!("✅ Vote cast on proposal {} with real-time integration", proposal_id);
+    println!(
+        "✅ Vote cast on proposal {} with real-time integration",
+        proposal_id
+    );
 
     // Test real-time proposal execution
-    coordinator.execute_governance_proposal_realtime(proposal_id.clone()).await?;
-    println!("✅ Proposal {} executed with real-time integration", proposal_id);
+    coordinator
+        .execute_governance_proposal_realtime(proposal_id.clone())
+        .await?;
+    println!(
+        "✅ Proposal {} executed with real-time integration",
+        proposal_id
+    );
 
     Ok(())
 }
@@ -127,18 +144,21 @@ async fn test_enhanced_dag_synchronization() -> Result<(), Box<dyn std::error::E
 
     // Test intelligent DAG block propagation
     let test_cid = icn_common::Cid::new_v1_sha256(0x71, b"test_block");
-    coordinator.propagate_block_intelligently(
-        test_cid.clone(),
-        PropagationPriority::Normal,
-        None,
-    ).await?;
+    coordinator
+        .propagate_block_intelligently(test_cid.clone(), PropagationPriority::Normal, None)
+        .await?;
 
-    println!("✅ Block {} propagated with intelligent selection", test_cid);
+    println!(
+        "✅ Block {} propagated with intelligent selection",
+        test_cid
+    );
 
     // Test intelligent DAG synchronization
     let sync_result = coordinator.sync_dag_intelligently().await?;
-    println!("✅ DAG sync completed: {} blocks received, {} blocks sent", 
-             sync_result.blocks_received, sync_result.blocks_sent);
+    println!(
+        "✅ DAG sync completed: {} blocks received, {} blocks sent",
+        sync_result.blocks_received, sync_result.blocks_sent
+    );
 
     Ok(())
 }
@@ -157,9 +177,14 @@ async fn test_reputation_based_coordination() -> Result<(), Box<dyn std::error::
 
     // Test reputation update and route recalculation
     let peer_id = Did::from_str("did:key:zPeerReputation")?;
-    coordinator.update_peer_reputation_and_routes(&peer_id, 750).await?;
+    coordinator
+        .update_peer_reputation_and_routes(&peer_id, 750)
+        .await?;
 
-    println!("✅ Peer {} reputation updated to 750 with route recalculation", peer_id);
+    println!(
+        "✅ Peer {} reputation updated to 750 with route recalculation",
+        peer_id
+    );
 
     Ok(())
 }
@@ -178,16 +203,21 @@ async fn test_system_status_reporting() -> Result<(), Box<dyn std::error::Error>
 
     // Test comprehensive system status
     let system_status = coordinator.get_system_status().await;
-    
+
     // Verify status components
     assert!(system_status.health.components.contains_key("network"));
     assert!(system_status.health.components.contains_key("dag"));
     assert!(system_status.health.components.contains_key("reputation"));
-    
-    println!("✅ System status report generated with {} components", 
-             system_status.health.components.len());
+
+    println!(
+        "✅ System status report generated with {} components",
+        system_status.health.components.len()
+    );
     println!("   Overall health: {:?}", system_status.health.overall);
-    println!("   Network DAG sync health: {}", system_status.network_dag.sync_health);
+    println!(
+        "   Network DAG sync health: {}",
+        system_status.network_dag.sync_health
+    );
 
     Ok(())
 }
@@ -212,11 +242,14 @@ async fn test_coordinated_dag_operations() -> Result<(), Box<dyn std::error::Err
     };
 
     let operation_result = coordinator.coordinate_dag_operation(dag_operation).await?;
-    
+
     // Verify the operation completed successfully
     match operation_result {
         icn_runtime::context::DagOperationResult::Store { cid } => {
-            println!("✅ Coordinated DAG store operation completed with CID: {}", cid);
+            println!(
+                "✅ Coordinated DAG store operation completed with CID: {}",
+                cid
+            );
         }
         _ => {
             return Err("Unexpected operation result type".into());
@@ -274,29 +307,34 @@ async fn test_complete_enhanced_coordination_workflow() -> Result<(), Box<dyn st
 
     // Step 2: Test health monitoring
     let initial_health = coordinator.health_monitor.check_component_health().await;
-    println!("✅ Step 2: Initial health check completed - overall: {:?}", initial_health.overall);
+    println!(
+        "✅ Step 2: Initial health check completed - overall: {:?}",
+        initial_health.overall
+    );
 
     // Step 3: Submit a governance proposal with real-time coordination
     let proposal_data = b"comprehensive test proposal".to_vec();
-    let proposal_id = coordinator.submit_governance_proposal_realtime(
-        proposal_data,
-        PropagationPriority::High,
-        None,
-    ).await?;
+    let proposal_id = coordinator
+        .submit_governance_proposal_realtime(proposal_data, PropagationPriority::High, None)
+        .await?;
     println!("✅ Step 3: Governance proposal {} submitted", proposal_id);
 
     // Step 4: Route messages intelligently
     let target_peer = Did::from_str("did:key:zWorkflowPeer")?;
-    let message_id = coordinator.route_message_intelligently(
-        target_peer.clone(),
-        b"workflow test message".to_vec(),
-        MessagePriority::High,
-        None,
-    ).await?;
+    let message_id = coordinator
+        .route_message_intelligently(
+            target_peer.clone(),
+            b"workflow test message".to_vec(),
+            MessagePriority::High,
+            None,
+        )
+        .await?;
     println!("✅ Step 4: Message {} routed intelligently", message_id);
 
     // Step 5: Update peer reputation and trigger route recalculation
-    coordinator.update_peer_reputation_and_routes(&target_peer, 850).await?;
+    coordinator
+        .update_peer_reputation_and_routes(&target_peer, 850)
+        .await?;
     println!("✅ Step 5: Peer reputation updated and routes recalculated");
 
     // Step 6: Perform coordinated DAG operations
@@ -308,22 +346,29 @@ async fn test_complete_enhanced_coordination_workflow() -> Result<(), Box<dyn st
     println!("✅ Step 6: Coordinated DAG operation completed");
 
     // Step 7: Cast vote with real-time integration
-    coordinator.cast_governance_vote_realtime(
-        proposal_id.clone(),
-        "yes".to_string(),
-        PropagationPriority::Normal,
-    ).await?;
+    coordinator
+        .cast_governance_vote_realtime(
+            proposal_id.clone(),
+            "yes".to_string(),
+            PropagationPriority::Normal,
+        )
+        .await?;
     println!("✅ Step 7: Vote cast with real-time integration");
 
     // Step 8: Get comprehensive system status
     let final_status = coordinator.get_system_status().await;
-    println!("✅ Step 8: Final system status - health: {:?}, components: {}", 
-             final_status.health.overall, final_status.health.components.len());
+    println!(
+        "✅ Step 8: Final system status - health: {:?}, components: {}",
+        final_status.health.overall,
+        final_status.health.components.len()
+    );
 
     // Step 9: Sync DAG intelligently
     let sync_result = coordinator.sync_dag_intelligently().await?;
-    println!("✅ Step 9: Intelligent DAG sync completed - {} blocks processed", 
-             sync_result.blocks_received + sync_result.blocks_sent);
+    println!(
+        "✅ Step 9: Intelligent DAG sync completed - {} blocks processed",
+        sync_result.blocks_received + sync_result.blocks_sent
+    );
 
     println!("🎉 Complete enhanced coordination workflow test completed successfully!");
 

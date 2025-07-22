@@ -64,17 +64,18 @@ pub mod metrics;
 pub use delegated_credential::{verify_delegation_chain, DelegatedCredential};
 pub mod enhanced_did_resolver;
 pub use enhanced_did_resolver::{
-    EnhancedDidResolver, EnhancedDidResolverBuilder, DidResolutionConfig, ResolutionStats, MethodStats,
+    DidResolutionConfig, EnhancedDidResolver, EnhancedDidResolverBuilder, MethodStats,
+    ResolutionStats,
 };
 pub mod federation_manager;
 pub use federation_manager::{
-    FederationManager, FederationMembershipService, FederationInfo, MembershipStatus,
-    FederationCapabilities, FederationRegistry,
+    FederationCapabilities, FederationInfo, FederationManager, FederationMembershipService,
+    FederationRegistry, MembershipStatus,
 };
 pub mod federation_integration;
 pub use federation_integration::{
-    FederationIntegrationEngine, FederationIntegrationConfig, FederationEvent,
-    ResourceType, SharingTerms, FederationIntegrationStats,
+    FederationEvent, FederationIntegrationConfig, FederationIntegrationEngine,
+    FederationIntegrationStats, ResourceType, SharingTerms,
 };
 
 // --- Core Cryptographic Operations & DID:key generation ---

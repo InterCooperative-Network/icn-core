@@ -2304,9 +2304,7 @@ fn load_imports(ast: &mut AstNode, base: &std::path::Path) -> Result<(), CclErro
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ast::{
-        AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
-    };
+    use crate::ast::{AstNode, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode};
 
     #[test]
     fn test_parse_simple_function_definition() {
@@ -2324,9 +2322,9 @@ mod tests {
                         parameters: vec![],
                         return_type: Some(TypeExprNode::Integer),
                         body: BlockNode {
-                            statements: vec![StatementNode::Return(
-                                Some(ExpressionNode::IntegerLiteral(42)),
-                            )],
+                            statements: vec![StatementNode::Return(Some(
+                                ExpressionNode::IntegerLiteral(42),
+                            ))],
                         },
                     },
                 )]);

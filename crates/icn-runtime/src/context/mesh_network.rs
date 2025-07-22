@@ -4,14 +4,16 @@ use super::errors::HostAbiError;
 #[cfg(feature = "enable-libp2p")]
 use icn_common::CommonError;
 use icn_common::Did;
-use icn_identity::{ExecutionReceipt as IdentityExecutionReceipt, SignatureBytes, FederationMembershipService};
+use icn_identity::{
+    ExecutionReceipt as IdentityExecutionReceipt, FederationMembershipService, SignatureBytes,
+};
 use icn_mesh::{ActualMeshJob, JobId, MeshJobBid};
 use icn_network::NetworkService;
-use icn_reputation::ReputationStore;
 use icn_protocol::{
     GossipMessage, GovernanceProposalMessage, MeshJobAssignmentMessage, MessagePayload,
     ProposalType, ProtocolMessage,
 };
+use icn_reputation::ReputationStore;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -118,33 +120,38 @@ pub trait MeshNetworkService: Send + Sync + std::fmt::Debug {
         &self,
         receipt: &icn_identity::ExecutionReceipt,
     ) -> Result<(), HostAbiError>;
-    
+
     // Additional methods needed for Smart P2P Routing and CCL Integration
-    
+
     /// Get list of currently connected peers
     async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError>;
-    
+
     /// Ping a specific peer to measure latency and connectivity
     async fn ping_peer(&self, peer_id: Did) -> Result<PingResult, HostAbiError>;
-    
+
     /// Get detailed statistics for a specific peer
     async fn get_peer_statistics(&self, peer_id: Did) -> Result<PeerStatistics, HostAbiError>;
-    
+
     /// Send a direct message to a specific peer
-    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError>;
-    
+    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>)
+        -> Result<(), HostAbiError>;
+
     /// Send a message via multiple hops through specified peers
-    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError>;
-    
+    async fn send_multi_hop_message(
+        &self,
+        path: Vec<Did>,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError>;
+
     /// Query connections of a specific peer to discover network topology
     async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError>;
-    
+
     /// Get average network latency across all connected peers
     async fn get_average_network_latency(&self) -> Result<f64, HostAbiError>;
-    
+
     /// Check if the network appears to be partitioned
     async fn is_network_partitioned(&self) -> Result<bool, HostAbiError>;
-    
+
     fn as_any(&self) -> &dyn std::any::Any;
 }
 
@@ -228,7 +235,7 @@ impl DefaultMeshNetworkService {
                 }
             }
         }
-        
+
         // Fallback to creating a simple DID from the peer ID
         icn_common::Did::new("peer", &peer_id.0)
     }
@@ -246,7 +253,10 @@ impl DefaultMeshNetworkService {
 
     /// Convert a DID to a network PeerId (simplified mapping for now)
     /// Calculate estimated duration for job execution based on bid resources
-    fn calculate_estimated_duration(&self, bid: &icn_mesh::MeshJobBid) -> Result<u64, HostAbiError> {
+    fn calculate_estimated_duration(
+        &self,
+        bid: &icn_mesh::MeshJobBid,
+    ) -> Result<u64, HostAbiError> {
         // Simple estimation based on offered resources
         // In a real implementation, this would be more sophisticated
         let base_duration = 120; // 2 minutes base
@@ -265,7 +275,10 @@ impl DefaultMeshNetworkService {
     }
 
     /// Get executor capabilities
-    fn get_executor_capabilities(&self, executor_did: &Did) -> Vec<icn_protocol::ExecutorCapability> {
+    fn get_executor_capabilities(
+        &self,
+        executor_did: &Did,
+    ) -> Vec<icn_protocol::ExecutorCapability> {
         // In a real implementation, this would query a capabilities registry
         // For now, return basic capabilities based on DID type
         match executor_did.method.as_str() {
@@ -330,7 +343,7 @@ impl DefaultMeshNetworkService {
                 let has_allowed_federation = executor_federations
                     .iter()
                     .any(|fed| allowed_federations.contains(fed));
-                
+
                 if !has_allowed_federation {
                     log::debug!(
                         "[MeshNetwork] Filtering out bid from {} - not in allowed federations: {:?}",
@@ -362,7 +375,7 @@ impl DefaultMeshNetworkService {
     ) -> Result<(), HostAbiError> {
         if let Some(ref reputation_store) = self.reputation_store {
             let current_reputation = reputation_store.get_reputation(executor_did);
-            
+
             // Calculate reputation change
             let reputation_delta = if job_successful {
                 // Successful execution increases reputation
@@ -559,7 +572,9 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                                     memory_mb: bid_message.offered_resources.memory_mb,
                                     storage_mb: bid_message.offered_resources.storage_mb,
                                 },
-                                executor_capabilities: bid_message.executor_capabilities.iter()
+                                executor_capabilities: bid_message
+                                    .executor_capabilities
+                                    .iter()
                                     .map(|cap| format!("{:?}", cap)) // Convert to string representation
                                     .collect(),
                                 executor_federations: bid_message.executor_federations.clone(),
@@ -811,15 +826,19 @@ impl MeshNetworkService for DefaultMeshNetworkService {
 
     async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError> {
         // Get network statistics to find connected peers
-        let stats = self.inner.get_network_stats().await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+        let stats = self.inner.get_network_stats().await.map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to get network stats: {}", e))
+        })?;
 
         // Try to discover peers to get a current list
-        let peer_ids = self.inner.discover_peers(None).await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to discover peers: {}", e)))?;
+        let peer_ids =
+            self.inner.discover_peers(None).await.map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to discover peers: {}", e))
+            })?;
 
         // Convert PeerIds to DIDs
-        let dids: Vec<Did> = peer_ids.iter()
+        let dids: Vec<Did> = peer_ids
+            .iter()
             .map(|peer_id| self.peer_id_to_did(peer_id))
             .collect();
 
@@ -846,11 +865,14 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         };
 
         // Send the ping message
-        match self.inner.send_message(&network_peer_id, ping_message).await {
+        match self
+            .inner
+            .send_message(&network_peer_id, ping_message)
+            .await
+        {
             Ok(_) => {
-                let round_trip_time = start_time.elapsed()
-                    .unwrap_or(StdDuration::from_millis(0));
-                
+                let round_trip_time = start_time.elapsed().unwrap_or(StdDuration::from_millis(0));
+
                 Ok(PingResult {
                     round_trip_time,
                     success: true,
@@ -858,9 +880,10 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                 })
             }
             Err(e) => {
-                let round_trip_time = start_time.elapsed()
+                let round_trip_time = start_time
+                    .elapsed()
                     .unwrap_or(StdDuration::from_millis(5000)); // Default high latency for failed pings
-                
+
                 Ok(PingResult {
                     round_trip_time,
                     success: false,
@@ -874,7 +897,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         // For now, return default statistics
         // In a real implementation, this would track actual peer performance
         let network_peer_id = self.did_to_peer_id(&peer_id);
-        
+
         // Try to ping the peer to get basic connectivity info
         match self.ping_peer(peer_id.clone()).await {
             Ok(ping_result) => {
@@ -899,7 +922,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
                         reliability: 0.0,
                     }
                 };
-                
+
                 Ok(stats)
             }
             Err(_) => {
@@ -909,9 +932,13 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         }
     }
 
-    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_direct_message(
+        &self,
+        peer_id: Did,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         let network_peer_id = self.did_to_peer_id(&peer_id);
-        
+
         let message = ProtocolMessage {
             payload: MessagePayload::GossipMessage(icn_protocol::GossipMessage {
                 topic: "direct_message".to_string(),
@@ -925,11 +952,19 @@ impl MeshNetworkService for DefaultMeshNetworkService {
             version: 1,
         };
 
-        self.inner.send_message(&network_peer_id, message).await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to send direct message: {}", e)))
+        self.inner
+            .send_message(&network_peer_id, message)
+            .await
+            .map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to send direct message: {}", e))
+            })
     }
 
-    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_multi_hop_message(
+        &self,
+        path: Vec<Did>,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         if path.is_empty() {
             return Err(HostAbiError::InvalidInput("Empty routing path".to_string()));
         }
@@ -937,7 +972,7 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         // For multi-hop routing, we'll send to the first peer in the path
         // In a real implementation, this would include routing information in the message
         let first_peer = &path[0];
-        
+
         // Create a routing message that includes the full path
         let routing_payload = bincode::serialize(&(path.clone(), payload))
             .map_err(|e| HostAbiError::SerializationError(e.to_string()))?;
@@ -956,21 +991,31 @@ impl MeshNetworkService for DefaultMeshNetworkService {
         };
 
         let network_peer_id = self.did_to_peer_id(first_peer);
-        self.inner.send_message(&network_peer_id, message).await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to send multi-hop message: {}", e)))
+        self.inner
+            .send_message(&network_peer_id, message)
+            .await
+            .map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to send multi-hop message: {}", e))
+            })
     }
 
     async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError> {
         // For now, simulate peer connections by discovering peers
         // In a real implementation, this would query the specific peer for its connections
         let network_peer_id = self.did_to_peer_id(&peer_id);
-        
+
         // Try to discover peers that might be connected to this peer
-        let all_peers = self.inner.discover_peers(Some(network_peer_id.0.clone())).await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to query peer connections: {}", e)))?;
+        let all_peers = self
+            .inner
+            .discover_peers(Some(network_peer_id.0.clone()))
+            .await
+            .map_err(|e| {
+                HostAbiError::NetworkError(format!("Failed to query peer connections: {}", e))
+            })?;
 
         // Convert to DIDs and filter out the queried peer itself
-        let connections: Vec<Did> = all_peers.iter()
+        let connections: Vec<Did> = all_peers
+            .iter()
             .map(|p| self.peer_id_to_did(p))
             .filter(|did| *did != peer_id)
             .take(5) // Limit to 5 connections for performance
@@ -981,23 +1026,28 @@ impl MeshNetworkService for DefaultMeshNetworkService {
     }
 
     async fn get_average_network_latency(&self) -> Result<f64, HostAbiError> {
-        let stats = self.inner.get_network_stats().await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+        let stats = self.inner.get_network_stats().await.map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to get network stats: {}", e))
+        })?;
 
         // Return average latency from network stats, or default if not available
         Ok(stats.avg_latency_ms.unwrap_or(200) as f64) // Default to 200ms
     }
 
     async fn is_network_partitioned(&self) -> Result<bool, HostAbiError> {
-        let stats = self.inner.get_network_stats().await
-            .map_err(|e| HostAbiError::NetworkError(format!("Failed to get network stats: {}", e)))?;
+        let stats = self.inner.get_network_stats().await.map_err(|e| {
+            HostAbiError::NetworkError(format!("Failed to get network stats: {}", e))
+        })?;
 
         // Simple heuristic: if we have very few peers, we might be partitioned
-        let is_partitioned = stats.peer_count < 2 || stats.failed_connections > stats.peer_count as u64 * 2;
-        
-        debug!("Network partition status: {} (peers: {}, failed: {})", 
-               is_partitioned, stats.peer_count, stats.failed_connections);
-        
+        let is_partitioned =
+            stats.peer_count < 2 || stats.failed_connections > stats.peer_count as u64 * 2;
+
+        debug!(
+            "Network partition status: {} (peers: {}, failed: {})",
+            is_partitioned, stats.peer_count, stats.failed_connections
+        );
+
         Ok(is_partitioned)
     }
 }
@@ -1006,17 +1056,31 @@ impl DefaultMeshNetworkService {
     // Helper methods for bid submission
 
     /// Calculate estimated duration based on job requirements and executor resources
-    fn calculate_estimated_duration(&self, bid: &icn_mesh::MeshJobBid) -> Result<u64, HostAbiError> {
+    fn calculate_estimated_duration(
+        &self,
+        bid: &icn_mesh::MeshJobBid,
+    ) -> Result<u64, HostAbiError> {
         // Basic estimation algorithm: consider resource availability vs requirements
         let base_duration = 60; // 1 minute base
-        
+
         // Factor in resource adequacy - if we have more resources, we can complete faster
-        let cpu_factor = if bid.resources.cpu_cores > 1 { 0.8 } else { 1.2 };
-        let memory_factor = if bid.resources.memory_mb > 1024 { 0.9 } else { 1.1 };
-        
+        let cpu_factor = if bid.resources.cpu_cores > 1 {
+            0.8
+        } else {
+            1.2
+        };
+        let memory_factor = if bid.resources.memory_mb > 1024 {
+            0.9
+        } else {
+            1.1
+        };
+
         let estimated_secs = (base_duration as f64 * cpu_factor * memory_factor) as u64;
-        
-        debug!("Estimated duration for job {:?}: {} seconds", bid.job_id, estimated_secs);
+
+        debug!(
+            "Estimated duration for job {:?}: {} seconds",
+            bid.job_id, estimated_secs
+        );
         Ok(estimated_secs.max(30).min(3600)) // Clamp between 30 seconds and 1 hour
     }
 
@@ -1032,20 +1096,26 @@ impl DefaultMeshNetworkService {
                 debug!("No reputation found for {}, using default", executor_did);
             }
         }
-        
+
         // Fallback to reasonable default based on DID characteristics
         let reputation = match executor_did.to_string().len() {
             len if len > 50 => 150, // Longer DIDs might be more established
             len if len > 30 => 100, // Medium DIDs get medium reputation
-            _ => 75, // Shorter DIDs get lower reputation
+            _ => 75,                // Shorter DIDs get lower reputation
         };
-        
-        debug!("Using fallback reputation for {}: {}", executor_did, reputation);
+
+        debug!(
+            "Using fallback reputation for {}: {}",
+            executor_did, reputation
+        );
         Ok(reputation)
     }
 
     /// Get executor capabilities based on node configuration
-    fn get_executor_capabilities(&self, _executor_did: &icn_common::Did) -> Vec<icn_protocol::ExecutorCapability> {
+    fn get_executor_capabilities(
+        &self,
+        _executor_did: &icn_common::Did,
+    ) -> Vec<icn_protocol::ExecutorCapability> {
         // In a real implementation, this would query node capabilities
         // For now, return a basic set of capabilities
         vec![
@@ -1064,12 +1134,9 @@ impl DefaultMeshNetworkService {
                 return federations;
             }
         }
-        
+
         // Fallback to default federations
-        vec![
-            "default-coop".to_string(),
-            "compute-mesh".to_string(),
-        ]
+        vec!["default-coop".to_string(), "compute-mesh".to_string()]
     }
 
     /// Get trust scope for the executor
@@ -1080,19 +1147,22 @@ impl DefaultMeshNetworkService {
                 return Some(trust_scope);
             }
         }
-        
+
         // Fallback to default scope
         Some("local-network".to_string())
     }
 
     /// Create execution metadata with proper logging and memory monitoring
-    fn create_execution_metadata(&self, receipt: &icn_identity::ExecutionReceipt) -> Result<icn_protocol::ExecutionMetadata, HostAbiError> {
+    fn create_execution_metadata(
+        &self,
+        receipt: &icn_identity::ExecutionReceipt,
+    ) -> Result<icn_protocol::ExecutionMetadata, HostAbiError> {
         // Generate execution logs based on job execution
         let logs = self.generate_execution_logs(receipt);
-        
+
         // Estimate memory usage based on job characteristics
         let peak_memory_mb = self.estimate_peak_memory_usage(receipt);
-        
+
         let metadata = icn_protocol::ExecutionMetadata {
             wall_time_ms: receipt.cpu_ms,
             peak_memory_mb,
@@ -1103,24 +1173,29 @@ impl DefaultMeshNetworkService {
                 Some(logs.join("\n"))
             },
         };
-        
-        debug!("Created execution metadata for job {:?}: wall_time={}ms, memory={}MB, success={}", 
-               receipt.job_id, metadata.wall_time_ms, metadata.peak_memory_mb, receipt.success);
-        
+
+        debug!(
+            "Created execution metadata for job {:?}: wall_time={}ms, memory={}MB, success={}",
+            receipt.job_id, metadata.wall_time_ms, metadata.peak_memory_mb, receipt.success
+        );
+
         Ok(metadata)
     }
 
     /// Generate execution logs for a job
     fn generate_execution_logs(&self, receipt: &icn_identity::ExecutionReceipt) -> Vec<String> {
         let mut logs = Vec::new();
-        
+
         // Add timestamp
-        logs.push(format!("Job execution started at timestamp: {}", receipt.cpu_ms));
-        
+        logs.push(format!(
+            "Job execution started at timestamp: {}",
+            receipt.cpu_ms
+        ));
+
         // Add job details
         logs.push(format!("Executing job: {:?}", receipt.job_id));
         logs.push(format!("Executor: {}", receipt.executor_did));
-        
+
         // Add execution details based on success/failure
         if receipt.success {
             logs.push("Job completed successfully".to_string());
@@ -1130,10 +1205,10 @@ impl DefaultMeshNetworkService {
             // In a real implementation, this would include actual error details
             logs.push("Error: Job terminated with non-zero exit code".to_string());
         }
-        
+
         // Add resource usage summary
         logs.push(format!("Total CPU time: {} ms", receipt.cpu_ms));
-        
+
         logs
     }
 
@@ -1141,16 +1216,19 @@ impl DefaultMeshNetworkService {
     fn estimate_peak_memory_usage(&self, receipt: &icn_identity::ExecutionReceipt) -> u32 {
         // Basic heuristic: estimate memory based on CPU time and success
         let base_memory = 128; // 128 MB base
-        
+
         // Longer running jobs likely used more memory
         let time_factor = (receipt.cpu_ms / 1000).min(10) as u32; // Max 10x multiplier
-        
+
         // Failed jobs might have used excessive memory
         let failure_penalty = if receipt.success { 1 } else { 2 };
-        
+
         let estimated_mb = base_memory + (time_factor * 32 * failure_penalty);
-        
-        debug!("Estimated peak memory for job {:?}: {} MB", receipt.job_id, estimated_mb);
+
+        debug!(
+            "Estimated peak memory for job {:?}: {} MB",
+            receipt.job_id, estimated_mb
+        );
         estimated_mb.min(4096) // Cap at 4GB
     }
 }

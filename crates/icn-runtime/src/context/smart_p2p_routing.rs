@@ -3,14 +3,14 @@
 //! This module implements intelligent message routing that leverages peer reputation,
 //! network topology, and adaptive routing strategies for optimal message delivery.
 
-use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
 use super::mesh_network::MeshNetworkService;
+use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
 use icn_common::{Did, TimeProvider};
 use icn_reputation::ReputationStore;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{RwLock, Mutex};
+use tokio::sync::{Mutex, RwLock};
 use tracing::{debug, error, info, warn};
 
 /// Smart P2P routing coordinator with reputation-based peer selection
@@ -352,7 +352,7 @@ impl SmartP2pRouter {
         deadline: Option<Instant>,
     ) -> Result<String, HostAbiError> {
         let message_id = self.generate_message_id().await;
-        
+
         let message = QueuedMessage {
             message_id: message_id.clone(),
             target_peer: target_peer.clone(),
@@ -376,16 +376,21 @@ impl SmartP2pRouter {
             queue.enqueue_message(message)?;
         }
 
-        debug!("Queued message {} for peer {} with priority {:?}", 
-               message_id, target_peer, priority);
-        
+        debug!(
+            "Queued message {} for peer {} with priority {:?}",
+            message_id, target_peer, priority
+        );
+
         Ok(message_id)
     }
 
     /// Get the best routing path to a target peer
-    pub async fn get_best_route(&self, target_peer: &Did) -> Result<Option<RoutePath>, HostAbiError> {
+    pub async fn get_best_route(
+        &self,
+        target_peer: &Did,
+    ) -> Result<Option<RoutePath>, HostAbiError> {
         let routing_table = self.routing_table.read().await;
-        
+
         if let Some(peer_info) = routing_table.direct_peers.get(target_peer) {
             // Check if direct connection is available and good quality
             if let Some(direct_quality) = &peer_info.direct_quality {
@@ -400,75 +405,93 @@ impl SmartP2pRouter {
                     }));
                 }
             }
-            
+
             // Find best multi-hop route
-            let best_route = peer_info.routing_paths.iter()
-                .max_by(|a, b| a.path_quality.partial_cmp(&b.path_quality).unwrap_or(std::cmp::Ordering::Equal))
+            let best_route = peer_info
+                .routing_paths
+                .iter()
+                .max_by(|a, b| {
+                    a.path_quality
+                        .partial_cmp(&b.path_quality)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                })
                 .cloned();
-                
+
             return Ok(best_route);
         }
-        
+
         // Peer not found in routing table
         Ok(None)
     }
 
     /// Update peer reputation and adjust routing preferences
-    pub async fn update_peer_reputation(&self, peer_id: &Did, new_reputation: u64) -> Result<(), HostAbiError> {
+    pub async fn update_peer_reputation(
+        &self,
+        peer_id: &Did,
+        new_reputation: u64,
+    ) -> Result<(), HostAbiError> {
         let mut routing_table = self.routing_table.write().await;
-        
+
         if let Some(peer_info) = routing_table.direct_peers.get_mut(peer_id) {
             let old_reputation = peer_info.reputation_score;
             peer_info.reputation_score = new_reputation;
-            
+
             // Recalculate routing paths if reputation changed significantly
             if (new_reputation as i64 - old_reputation as i64).abs() > 50 {
                 self.recalculate_routing_paths_for_peer(peer_id).await?;
             }
-            
-            debug!("Updated reputation for peer {} from {} to {}", 
-                   peer_id, old_reputation, new_reputation);
+
+            debug!(
+                "Updated reputation for peer {} from {} to {}",
+                peer_id, old_reputation, new_reputation
+            );
         }
-        
+
         Ok(())
     }
 
     /// Discover and update network topology
     pub async fn discover_network_topology(&self) -> Result<(), HostAbiError> {
         info!("Starting network topology discovery");
-        
+
         // Get current peer list from network service
         let connected_peers = self.get_connected_peers().await?;
-        
+
         // Update routing table with discovered peers
         let mut routing_table = self.routing_table.write().await;
-        
+
         for peer_id in connected_peers {
             if peer_id != self.node_identity {
                 let reputation = self.reputation_store.get_reputation(&peer_id);
                 let quality = self.measure_connection_quality(&peer_id).await?;
-                
-                routing_table.direct_peers.insert(peer_id.clone(), PeerRouteInfo {
-                    peer_id: peer_id.clone(),
-                    direct_quality: Some(quality),
-                    routing_paths: vec![], // Will be calculated separately
-                    reputation_score: reputation,
-                    last_success: Instant::now(),
-                    failure_count: 0,
-                    estimated_delivery_ms: 100, // Default estimate
-                });
+
+                routing_table.direct_peers.insert(
+                    peer_id.clone(),
+                    PeerRouteInfo {
+                        peer_id: peer_id.clone(),
+                        direct_quality: Some(quality),
+                        routing_paths: vec![], // Will be calculated separately
+                        reputation_score: reputation,
+                        last_success: Instant::now(),
+                        failure_count: 0,
+                        estimated_delivery_ms: 100, // Default estimate
+                    },
+                );
             }
         }
-        
+
         routing_table.last_topology_update = Instant::now();
-        
+
         // Discover multi-hop routes and topology clusters
         self.discover_multi_hop_routes(&mut routing_table).await?;
         self.analyze_topology_clusters(&mut routing_table).await?;
-        
-        info!("Network topology discovery completed: {} direct peers, {} clusters",
-              routing_table.direct_peers.len(), routing_table.topology_clusters.len());
-        
+
+        info!(
+            "Network topology discovery completed: {} direct peers, {} clusters",
+            routing_table.direct_peers.len(),
+            routing_table.topology_clusters.len()
+        );
+
         Ok(())
     }
 
@@ -480,86 +503,89 @@ impl SmartP2pRouter {
         let strategy_manager = self.strategy_manager.clone();
         let metrics = self.metrics.clone();
         let network_service = self.network_service.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_millis(50));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::process_message_queue(
                     &message_queue,
                     &routing_table,
                     &strategy_manager,
                     &metrics,
                     &network_service,
-                ).await {
+                )
+                .await
+                {
                     error!("Error processing message queue: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     async fn start_topology_discovery_task(&self) -> Result<(), HostAbiError> {
         let router = Arc::new(self.clone());
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(30));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = router.discover_network_topology().await {
                     error!("Error in topology discovery: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     async fn start_performance_monitoring_task(&self) -> Result<(), HostAbiError> {
         let metrics = self.metrics.clone();
         let routing_table = self.routing_table.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(60));
-            
+
             loop {
                 interval.tick().await;
-                
+
                 if let Err(e) = Self::monitor_routing_performance(&metrics, &routing_table).await {
                     error!("Error monitoring routing performance: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     async fn start_adaptive_learning_task(&self) -> Result<(), HostAbiError> {
         let strategy_manager = self.strategy_manager.clone();
         let metrics = self.metrics.clone();
-        
+
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(300)); // Every 5 minutes
-            
+
             loop {
                 interval.tick().await;
-                
-                if let Err(e) = Self::adaptive_strategy_learning(&strategy_manager, &metrics).await {
+
+                if let Err(e) = Self::adaptive_strategy_learning(&strategy_manager, &metrics).await
+                {
                     error!("Error in adaptive learning: {}", e);
                 }
             }
         });
-        
+
         Ok(())
     }
 
     // Helper methods for message processing
-    
+
     async fn select_optimal_routing_strategy(
         target_peer: &Did,
         routing_table: &Arc<RwLock<RoutingTable>>,
@@ -567,7 +593,7 @@ impl SmartP2pRouter {
     ) -> Result<RoutingStrategy, HostAbiError> {
         let table = routing_table.read().await;
         let manager = strategy_manager.lock().await;
-        
+
         // Check if we have direct connection with good quality
         if let Some(peer_info) = table.direct_peers.get(target_peer) {
             if let Some(quality) = &peer_info.direct_quality {
@@ -575,16 +601,20 @@ impl SmartP2pRouter {
                     return Ok(RoutingStrategy::Direct);
                 }
             }
-            
+
             // Use reputation-based routing for high-reputation peers
             if peer_info.reputation_score > 500 {
-                return Ok(RoutingStrategy::ReputationBased { min_reputation: 300 });
+                return Ok(RoutingStrategy::ReputationBased {
+                    min_reputation: 300,
+                });
             }
         }
-        
+
         // Use adaptive strategy based on network conditions
         if manager.network_conditions.reachable_peers < 5 {
-            Ok(RoutingStrategy::MostReliable { min_reliability: 0.7 })
+            Ok(RoutingStrategy::MostReliable {
+                min_reliability: 0.7,
+            })
         } else if manager.network_conditions.congestion_level > 0.8 {
             Ok(RoutingStrategy::LoadBalanced)
         } else {
@@ -601,106 +631,184 @@ impl SmartP2pRouter {
         match strategy {
             RoutingStrategy::Direct => {
                 // Send directly to target peer
-                network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                    .map_err(|e| HostAbiError::NetworkError(format!("Direct routing failed: {}", e)))
+                network_service
+                    .send_direct_message(message.target_peer.clone(), message.payload.clone())
+                    .await
+                    .map_err(|e| {
+                        HostAbiError::NetworkError(format!("Direct routing failed: {}", e))
+                    })
             }
             RoutingStrategy::ReputationBased { min_reputation } => {
                 let table = routing_table.read().await;
-                
+
                 // Find best path through high-reputation peers
                 if let Some(peer_info) = table.direct_peers.get(&message.target_peer) {
-                    let best_path = peer_info.routing_paths.iter()
+                    let best_path = peer_info
+                        .routing_paths
+                        .iter()
                         .filter(|path| {
                             // Check if all peers in path meet reputation requirement
                             path.path_peers.iter().all(|peer| {
-                                table.direct_peers.get(peer)
+                                table
+                                    .direct_peers
+                                    .get(peer)
                                     .map(|info| info.reputation_score >= *min_reputation)
                                     .unwrap_or(false)
                             })
                         })
-                        .max_by(|a, b| a.path_quality.partial_cmp(&b.path_quality).unwrap_or(std::cmp::Ordering::Equal));
-                        
+                        .max_by(|a, b| {
+                            a.path_quality
+                                .partial_cmp(&b.path_quality)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+
                     if let Some(path) = best_path {
                         Self::send_via_path(message, path, network_service).await
                     } else {
                         // Fallback to direct if no reputation-based path available
-                        network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                            .map_err(|e| HostAbiError::NetworkError(format!("Reputation-based routing failed: {}", e)))
+                        network_service
+                            .send_direct_message(
+                                message.target_peer.clone(),
+                                message.payload.clone(),
+                            )
+                            .await
+                            .map_err(|e| {
+                                HostAbiError::NetworkError(format!(
+                                    "Reputation-based routing failed: {}",
+                                    e
+                                ))
+                            })
                     }
                 } else {
-                    Err(HostAbiError::NetworkError("Target peer not found in routing table".to_string()))
+                    Err(HostAbiError::NetworkError(
+                        "Target peer not found in routing table".to_string(),
+                    ))
                 }
             }
             RoutingStrategy::LowestLatency => {
                 let table = routing_table.read().await;
-                
+
                 if let Some(peer_info) = table.direct_peers.get(&message.target_peer) {
-                    let best_path = peer_info.routing_paths.iter()
+                    let best_path = peer_info
+                        .routing_paths
+                        .iter()
                         .min_by(|a, b| a.estimated_latency_ms.cmp(&b.estimated_latency_ms));
-                        
+
                     if let Some(path) = best_path {
                         Self::send_via_path(message, path, network_service).await
                     } else {
-                        network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                            .map_err(|e| HostAbiError::NetworkError(format!("Low latency routing failed: {}", e)))
+                        network_service
+                            .send_direct_message(
+                                message.target_peer.clone(),
+                                message.payload.clone(),
+                            )
+                            .await
+                            .map_err(|e| {
+                                HostAbiError::NetworkError(format!(
+                                    "Low latency routing failed: {}",
+                                    e
+                                ))
+                            })
                     }
                 } else {
-                    Err(HostAbiError::NetworkError("Target peer not found in routing table".to_string()))
+                    Err(HostAbiError::NetworkError(
+                        "Target peer not found in routing table".to_string(),
+                    ))
                 }
             }
             RoutingStrategy::MostReliable { min_reliability } => {
                 let table = routing_table.read().await;
-                
+
                 if let Some(peer_info) = table.direct_peers.get(&message.target_peer) {
-                    let best_path = peer_info.routing_paths.iter()
+                    let best_path = peer_info
+                        .routing_paths
+                        .iter()
                         .filter(|path| path.reliability >= *min_reliability)
-                        .max_by(|a, b| a.reliability.partial_cmp(&b.reliability).unwrap_or(std::cmp::Ordering::Equal));
-                        
+                        .max_by(|a, b| {
+                            a.reliability
+                                .partial_cmp(&b.reliability)
+                                .unwrap_or(std::cmp::Ordering::Equal)
+                        });
+
                     if let Some(path) = best_path {
                         Self::send_via_path(message, path, network_service).await
                     } else {
-                        network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                            .map_err(|e| HostAbiError::NetworkError(format!("Reliable routing failed: {}", e)))
+                        network_service
+                            .send_direct_message(
+                                message.target_peer.clone(),
+                                message.payload.clone(),
+                            )
+                            .await
+                            .map_err(|e| {
+                                HostAbiError::NetworkError(format!(
+                                    "Reliable routing failed: {}",
+                                    e
+                                ))
+                            })
                     }
                 } else {
-                    Err(HostAbiError::NetworkError("Target peer not found in routing table".to_string()))
+                    Err(HostAbiError::NetworkError(
+                        "Target peer not found in routing table".to_string(),
+                    ))
                 }
             }
             RoutingStrategy::Redundant { path_count } => {
                 let table = routing_table.read().await;
-                
+
                 if let Some(peer_info) = table.direct_peers.get(&message.target_peer) {
-                    let paths: Vec<_> = peer_info.routing_paths.iter()
-                        .take(*path_count)
-                        .collect();
-                    
+                    let paths: Vec<_> = peer_info.routing_paths.iter().take(*path_count).collect();
+
                     if paths.is_empty() {
                         // Fallback to direct
-                        network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                            .map_err(|e| HostAbiError::NetworkError(format!("Redundant routing failed: {}", e)))
+                        network_service
+                            .send_direct_message(
+                                message.target_peer.clone(),
+                                message.payload.clone(),
+                            )
+                            .await
+                            .map_err(|e| {
+                                HostAbiError::NetworkError(format!(
+                                    "Redundant routing failed: {}",
+                                    e
+                                ))
+                            })
                     } else {
                         // Send via multiple paths (fire and forget for redundancy)
                         let mut success = false;
                         for path in paths {
-                            if Self::send_via_path(message, path, network_service).await.is_ok() {
+                            if Self::send_via_path(message, path, network_service)
+                                .await
+                                .is_ok()
+                            {
                                 success = true;
                             }
                         }
-                        
+
                         if success {
                             Ok(())
                         } else {
-                            Err(HostAbiError::NetworkError("All redundant paths failed".to_string()))
+                            Err(HostAbiError::NetworkError(
+                                "All redundant paths failed".to_string(),
+                            ))
                         }
                     }
                 } else {
-                    Err(HostAbiError::NetworkError("Target peer not found in routing table".to_string()))
+                    Err(HostAbiError::NetworkError(
+                        "Target peer not found in routing table".to_string(),
+                    ))
                 }
             }
             _ => {
                 // For other strategies, fallback to direct routing for now
-                network_service.send_direct_message(message.target_peer.clone(), message.payload.clone()).await
-                    .map_err(|e| HostAbiError::NetworkError(format!("Strategy {:?} routing failed: {}", strategy, e)))
+                network_service
+                    .send_direct_message(message.target_peer.clone(), message.payload.clone())
+                    .await
+                    .map_err(|e| {
+                        HostAbiError::NetworkError(format!(
+                            "Strategy {:?} routing failed: {}",
+                            strategy, e
+                        ))
+                    })
             }
         }
     }
@@ -713,14 +821,18 @@ impl SmartP2pRouter {
         if path.path_peers.is_empty() {
             return Err(HostAbiError::NetworkError("Empty routing path".to_string()));
         }
-        
+
         if path.path_peers.len() == 1 {
             // Direct path
-            network_service.send_direct_message(path.path_peers[0].clone(), message.payload.clone()).await
+            network_service
+                .send_direct_message(path.path_peers[0].clone(), message.payload.clone())
+                .await
                 .map_err(|e| HostAbiError::NetworkError(format!("Path routing failed: {}", e)))
         } else {
             // Multi-hop path
-            network_service.send_multi_hop_message(path.path_peers.clone(), message.payload.clone()).await
+            network_service
+                .send_multi_hop_message(path.path_peers.clone(), message.payload.clone())
+                .await
                 .map_err(|e| HostAbiError::NetworkError(format!("Multi-hop routing failed: {}", e)))
         }
     }
@@ -731,18 +843,20 @@ impl SmartP2pRouter {
         processing_time: Duration,
     ) -> Result<(), HostAbiError> {
         let mut metrics_guard = metrics.lock().await;
-        
+
         metrics_guard.total_messages += 1;
         metrics_guard.successful_deliveries += 1;
-        
+
         // Update priority-specific metrics
-        let avg_time = metrics_guard.avg_delivery_time_by_priority
+        let avg_time = metrics_guard
+            .avg_delivery_time_by_priority
             .entry(message.priority)
             .or_insert(0.0);
         *avg_time = (*avg_time + processing_time.as_millis() as f64) / 2.0;
-        
+
         // Update per-peer statistics
-        let peer_stats = metrics_guard.peer_routing_stats
+        let peer_stats = metrics_guard
+            .peer_routing_stats
             .entry(message.target_peer.clone())
             .or_insert(PeerRoutingStats {
                 messages_sent: 0,
@@ -750,12 +864,12 @@ impl SmartP2pRouter {
                 avg_delivery_time_ms: 0.0,
                 preferred_strategy: None,
             });
-            
+
         peer_stats.messages_sent += 1;
         peer_stats.successful_deliveries += 1;
-        peer_stats.avg_delivery_time_ms = 
+        peer_stats.avg_delivery_time_ms =
             (peer_stats.avg_delivery_time_ms + processing_time.as_millis() as f64) / 2.0;
-        
+
         Ok(())
     }
 
@@ -765,12 +879,13 @@ impl SmartP2pRouter {
         failure_reason: &str,
     ) -> Result<(), HostAbiError> {
         let mut metrics_guard = metrics.lock().await;
-        
+
         metrics_guard.total_messages += 1;
         metrics_guard.failed_deliveries += 1;
-        
+
         // Update per-peer statistics
-        let peer_stats = metrics_guard.peer_routing_stats
+        let peer_stats = metrics_guard
+            .peer_routing_stats
             .entry(message.target_peer.clone())
             .or_insert(PeerRoutingStats {
                 messages_sent: 0,
@@ -778,10 +893,13 @@ impl SmartP2pRouter {
                 avg_delivery_time_ms: 0.0,
                 preferred_strategy: None,
             });
-            
+
         peer_stats.messages_sent += 1;
-        
-        debug!("Message {} failed for peer {}: {}", message.message_id, message.target_peer, failure_reason);
+
+        debug!(
+            "Message {} failed for peer {}: {}",
+            message.message_id, message.target_peer, failure_reason
+        );
         Ok(())
     }
 
@@ -793,81 +911,99 @@ impl SmartP2pRouter {
     ) -> Result<(), HostAbiError> {
         let mut manager = strategy_manager.lock().await;
         let strategy_name = format!("{:?}", strategy);
-        
-        let performance = manager.strategy_performance
-            .entry(strategy_name)
-            .or_insert(StrategyPerformance {
-                messages_routed: 0,
-                successful_deliveries: 0,
-                avg_delivery_time_ms: 0.0,
-                resource_efficiency: 1.0,
-                last_updated: Instant::now(),
-            });
-            
+
+        let performance =
+            manager
+                .strategy_performance
+                .entry(strategy_name)
+                .or_insert(StrategyPerformance {
+                    messages_routed: 0,
+                    successful_deliveries: 0,
+                    avg_delivery_time_ms: 0.0,
+                    resource_efficiency: 1.0,
+                    last_updated: Instant::now(),
+                });
+
         performance.messages_routed += 1;
         if success {
             performance.successful_deliveries += 1;
         }
-        
+
         let delivery_time_ms = processing_time.as_millis() as f64;
-        performance.avg_delivery_time_ms = 
-            (performance.avg_delivery_time_ms * (performance.messages_routed - 1) as f64 + delivery_time_ms) 
+        performance.avg_delivery_time_ms = (performance.avg_delivery_time_ms
+            * (performance.messages_routed - 1) as f64
+            + delivery_time_ms)
             / performance.messages_routed as f64;
-            
+
         performance.last_updated = Instant::now();
-        
+
         Ok(())
     }
 
     // Helper methods (implementation stubs for now)
 
     async fn generate_message_id(&self) -> String {
-        format!("msg_{}_{}", 
-                self.time_provider.unix_seconds(),
-                fastrand::u32(..))
+        format!(
+            "msg_{}_{}",
+            self.time_provider.unix_seconds(),
+            fastrand::u32(..)
+        )
     }
 
     async fn get_connected_peers(&self) -> Result<Vec<Did>, HostAbiError> {
         // Query the network service for currently connected peers
         match self.network_service.get_connected_peers().await {
             Ok(peer_ids) => {
-                debug!("Retrieved {} connected peers from network service", peer_ids.len());
+                debug!(
+                    "Retrieved {} connected peers from network service",
+                    peer_ids.len()
+                );
                 Ok(peer_ids)
             }
             Err(e) => {
                 error!("Failed to get connected peers: {}", e);
-                Err(HostAbiError::NetworkError(format!("Failed to get connected peers: {}", e)))
+                Err(HostAbiError::NetworkError(format!(
+                    "Failed to get connected peers: {}",
+                    e
+                )))
             }
         }
     }
 
-    async fn measure_connection_quality(&self, peer_id: &Did) -> Result<ConnectionQuality, HostAbiError> {
+    async fn measure_connection_quality(
+        &self,
+        peer_id: &Did,
+    ) -> Result<ConnectionQuality, HostAbiError> {
         // Measure actual connection quality through ping and statistics
         let start_time = Instant::now();
-        
+
         // Perform connection quality test
         match self.network_service.ping_peer(peer_id.clone()).await {
             Ok(ping_result) => {
                 let latency_ms = ping_result.round_trip_time.as_millis() as f64;
-                
+
                 // Get historical performance data
-                let historical_stats = self.network_service.get_peer_statistics(peer_id.clone()).await
+                let historical_stats = self
+                    .network_service
+                    .get_peer_statistics(peer_id.clone())
+                    .await
                     .unwrap_or_default();
-                
+
                 // Calculate stability based on recent connection history
                 let stability = if historical_stats.total_messages > 0 {
-                    historical_stats.successful_messages as f64 / historical_stats.total_messages as f64
+                    historical_stats.successful_messages as f64
+                        / historical_stats.total_messages as f64
                 } else {
                     1.0 // Assume good until proven otherwise
                 };
-                
+
                 // Calculate packet loss rate from historical data
                 let packet_loss_rate = if historical_stats.total_messages > 0 {
                     1.0 - stability
                 } else {
                     0.0
                 };
-                
+
                 let quality = ConnectionQuality {
                     latency_ms,
                     packet_loss_rate,
@@ -875,18 +1011,21 @@ impl SmartP2pRouter {
                     bandwidth_bps: historical_stats.estimated_bandwidth,
                     last_measured: Instant::now(),
                 };
-                
+
                 debug!("Measured connection quality for peer {}: {:.2}ms latency, {:.2}% loss, {:.2} stability",
                        peer_id, latency_ms, packet_loss_rate * 100.0, stability);
-                
+
                 Ok(quality)
             }
             Err(e) => {
-                warn!("Failed to measure connection quality for peer {}: {}", peer_id, e);
-                
+                warn!(
+                    "Failed to measure connection quality for peer {}: {}",
+                    peer_id, e
+                );
+
                 // Return degraded quality for unreachable peers
                 Ok(ConnectionQuality {
-                    latency_ms: 5000.0, // High latency indicates poor connection
+                    latency_ms: 5000.0,    // High latency indicates poor connection
                     packet_loss_rate: 1.0, // 100% loss for unreachable peers
                     stability: 0.0,
                     bandwidth_bps: None,
@@ -896,12 +1035,15 @@ impl SmartP2pRouter {
         }
     }
 
-    async fn calculate_direct_quality_score(&self, quality: &ConnectionQuality) -> Result<f64, HostAbiError> {
+    async fn calculate_direct_quality_score(
+        &self,
+        quality: &ConnectionQuality,
+    ) -> Result<f64, HostAbiError> {
         // Calculate a composite quality score
         let latency_score = 1.0 - (quality.latency_ms / 5000.0).min(1.0);
         let loss_score = 1.0 - quality.packet_loss_rate;
         let stability_score = quality.stability;
-        
+
         Ok((latency_score + loss_score + stability_score) / 3.0)
     }
 
@@ -910,30 +1052,45 @@ impl SmartP2pRouter {
         Ok(())
     }
 
-    async fn discover_multi_hop_routes(&self, routing_table: &mut RoutingTable) -> Result<(), HostAbiError> {
+    async fn discover_multi_hop_routes(
+        &self,
+        routing_table: &mut RoutingTable,
+    ) -> Result<(), HostAbiError> {
         // Discover multi-hop routing paths using network topology
         info!("Discovering multi-hop routes through network topology");
-        
+
         let direct_peers: Vec<Did> = routing_table.direct_peers.keys().cloned().collect();
-        
+
         // For each direct peer, discover their connections (2-hop routes)
         for peer_id in &direct_peers {
-            match self.network_service.query_peer_connections(peer_id.clone()).await {
+            match self
+                .network_service
+                .query_peer_connections(peer_id.clone())
+                .await
+            {
                 Ok(peer_connections) => {
                     // Create 2-hop routes through this peer
                     for target_peer in peer_connections {
-                        if target_peer != self.node_identity && !direct_peers.contains(&target_peer) {
+                        if target_peer != self.node_identity && !direct_peers.contains(&target_peer)
+                        {
                             let route = RoutePath {
                                 path_peers: vec![peer_id.clone(), target_peer.clone()],
-                                path_quality: self.calculate_multi_hop_quality(peer_id, &target_peer).await?,
-                                estimated_latency_ms: self.estimate_multi_hop_latency(peer_id, &target_peer).await?,
-                                reliability: self.calculate_multi_hop_reliability(peer_id, &target_peer).await?,
+                                path_quality: self
+                                    .calculate_multi_hop_quality(peer_id, &target_peer)
+                                    .await?,
+                                estimated_latency_ms: self
+                                    .estimate_multi_hop_latency(peer_id, &target_peer)
+                                    .await?,
+                                reliability: self
+                                    .calculate_multi_hop_reliability(peer_id, &target_peer)
+                                    .await?,
                                 last_used: Instant::now(),
                                 success_rate: 1.0, // Initial optimistic assumption
                             };
-                            
+
                             // Add to routing table
-                            routing_table.multi_hop_routes
+                            routing_table
+                                .multi_hop_routes
                                 .entry(target_peer.clone())
                                 .or_insert_with(Vec::new)
                                 .push(route);
@@ -945,29 +1102,32 @@ impl SmartP2pRouter {
                 }
             }
         }
-        
+
         // Discover 3-hop routes for better coverage
         let two_hop_peers: Vec<Did> = routing_table.multi_hop_routes.keys().cloned().collect();
-        
+
         for intermediate_peer in &direct_peers {
             for target_peer in &two_hop_peers {
                 // Try to find routes through intermediate peer to 2-hop targets
                 // Collect routes to process to avoid borrow conflicts
-                let routes_to_extend: Vec<RoutePath> = if let Some(routes_to_target) = routing_table.multi_hop_routes.get(target_peer) {
-                    routes_to_target.iter()
+                let routes_to_extend: Vec<RoutePath> = if let Some(routes_to_target) =
+                    routing_table.multi_hop_routes.get(target_peer)
+                {
+                    routes_to_target
+                        .iter()
                         .filter(|route| route.path_peers.len() == 2)
                         .cloned()
                         .collect()
                 } else {
                     Vec::new()
                 };
-                
+
                 // Now create and add extended routes
                 for existing_route in routes_to_extend {
                     // Create 3-hop route
                     let mut new_path = vec![intermediate_peer.clone()];
                     new_path.extend_from_slice(&existing_route.path_peers);
-                    
+
                     let route = RoutePath {
                         path_peers: new_path,
                         path_quality: existing_route.path_quality * 0.8, // Degrade quality for longer paths
@@ -976,71 +1136,97 @@ impl SmartP2pRouter {
                         last_used: Instant::now(),
                         success_rate: existing_route.success_rate * 0.9,
                     };
-                    
-                    routing_table.multi_hop_routes
+
+                    routing_table
+                        .multi_hop_routes
                         .entry(target_peer.clone())
                         .or_insert_with(Vec::new)
                         .push(route);
                 }
             }
         }
-        
+
         // Sort routes by quality for each target
         for routes in routing_table.multi_hop_routes.values_mut() {
-            routes.sort_by(|a, b| b.path_quality.partial_cmp(&a.path_quality).unwrap_or(std::cmp::Ordering::Equal));
-            
+            routes.sort_by(|a, b| {
+                b.path_quality
+                    .partial_cmp(&a.path_quality)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+
             // Keep only top 5 routes per target to avoid excessive memory usage
             routes.truncate(5);
         }
-        
-        info!("Discovered multi-hop routes to {} targets", routing_table.multi_hop_routes.len());
+
+        info!(
+            "Discovered multi-hop routes to {} targets",
+            routing_table.multi_hop_routes.len()
+        );
         Ok(())
     }
 
-    async fn calculate_multi_hop_quality(&self, intermediate_peer: &Did, target_peer: &Did) -> Result<f64, HostAbiError> {
-        let intermediate_quality = if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
-            self.calculate_direct_quality_score(&quality).await?
-        } else {
-            0.5 // Default moderate quality
-        };
-        
+    async fn calculate_multi_hop_quality(
+        &self,
+        intermediate_peer: &Did,
+        target_peer: &Did,
+    ) -> Result<f64, HostAbiError> {
+        let intermediate_quality =
+            if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
+                self.calculate_direct_quality_score(&quality).await?
+            } else {
+                0.5 // Default moderate quality
+            };
+
         // Estimate target quality based on reputation
         let target_reputation = self.reputation_store.get_reputation(target_peer);
         let target_quality = (target_reputation as f64 / 1000.0).min(1.0);
-        
+
         // Multi-hop quality is the product of link qualities with degradation
         Ok(intermediate_quality * target_quality * 0.85) // 15% degradation for multi-hop
     }
 
-    async fn estimate_multi_hop_latency(&self, intermediate_peer: &Did, _target_peer: &Did) -> Result<u64, HostAbiError> {
-        let intermediate_latency = if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
-            quality.latency_ms as u64
-        } else {
-            500 // Default moderate latency
-        };
-        
+    async fn estimate_multi_hop_latency(
+        &self,
+        intermediate_peer: &Did,
+        _target_peer: &Did,
+    ) -> Result<u64, HostAbiError> {
+        let intermediate_latency =
+            if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
+                quality.latency_ms as u64
+            } else {
+                500 // Default moderate latency
+            };
+
         // Estimate additional latency for the second hop
         let estimated_second_hop_latency = 150; // ms
-        
+
         Ok(intermediate_latency + estimated_second_hop_latency)
     }
 
-    async fn calculate_multi_hop_reliability(&self, intermediate_peer: &Did, target_peer: &Did) -> Result<f64, HostAbiError> {
-        let intermediate_reliability = if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
-            quality.stability
-        } else {
-            0.8 // Default moderate reliability
-        };
-        
+    async fn calculate_multi_hop_reliability(
+        &self,
+        intermediate_peer: &Did,
+        target_peer: &Did,
+    ) -> Result<f64, HostAbiError> {
+        let intermediate_reliability =
+            if let Ok(quality) = self.measure_connection_quality(intermediate_peer).await {
+                quality.stability
+            } else {
+                0.8 // Default moderate reliability
+            };
+
         // Estimate target reliability based on reputation
         let target_reputation = self.reputation_store.get_reputation(target_peer);
         let target_reliability = ((target_reputation as f64 / 1000.0) * 0.5 + 0.5).min(1.0);
-        
+
         // Multi-hop reliability is the product of individual reliabilities
         Ok(intermediate_reliability * target_reliability)
     }
 
-    async fn analyze_topology_clusters(&self, _routing_table: &mut RoutingTable) -> Result<(), HostAbiError> {
+    async fn analyze_topology_clusters(
+        &self,
+        _routing_table: &mut RoutingTable,
+    ) -> Result<(), HostAbiError> {
         // Implementation would analyze network topology and identify clusters
         Ok(())
     }
@@ -1057,7 +1243,7 @@ impl SmartP2pRouter {
         // Process messages from highest to lowest priority
         let message_to_process = {
             let mut queue = message_queue.lock().await;
-            
+
             // Try high priority first
             if let Some(message) = queue.high_priority.pop_front() {
                 Some(message)
@@ -1080,7 +1266,7 @@ impl SmartP2pRouter {
 
         if let Some(mut message) = message_to_process {
             let process_start = Instant::now();
-            
+
             // Check if message has expired
             if let Some(deadline) = message.deadline {
                 if Instant::now() > deadline {
@@ -1092,7 +1278,7 @@ impl SmartP2pRouter {
 
             // Increment attempt counter
             message.attempts += 1;
-            
+
             // Determine routing strategy
             let routing_strategy = if let Some(strategy) = &message.routing_strategy {
                 strategy.clone()
@@ -1101,7 +1287,8 @@ impl SmartP2pRouter {
                     &message.target_peer,
                     routing_table,
                     strategy_manager,
-                ).await?
+                )
+                .await?
             };
 
             // Attempt to route the message
@@ -1110,32 +1297,63 @@ impl SmartP2pRouter {
                 &routing_strategy,
                 routing_table,
                 network_service,
-            ).await {
+            )
+            .await
+            {
                 Ok(_) => {
                     // Message routed successfully
                     let processing_time = process_start.elapsed();
-                    debug!("Successfully routed message {} to {} in {:.2}ms using strategy {:?}",
-                           message.message_id, message.target_peer, processing_time.as_millis(), routing_strategy);
-                    
-                    Self::update_metrics_for_successful_message(&metrics, &message, processing_time).await?;
-                    Self::update_strategy_performance(&strategy_manager, &routing_strategy, true, processing_time).await?;
+                    debug!(
+                        "Successfully routed message {} to {} in {:.2}ms using strategy {:?}",
+                        message.message_id,
+                        message.target_peer,
+                        processing_time.as_millis(),
+                        routing_strategy
+                    );
+
+                    Self::update_metrics_for_successful_message(
+                        &metrics,
+                        &message,
+                        processing_time,
+                    )
+                    .await?;
+                    Self::update_strategy_performance(
+                        &strategy_manager,
+                        &routing_strategy,
+                        true,
+                        processing_time,
+                    )
+                    .await?;
                 }
                 Err(e) => {
                     // Message routing failed
-                    warn!("Failed to route message {} to {} (attempt {}/{}): {}",
-                          message.message_id, message.target_peer, message.attempts, message.max_attempts, e);
+                    warn!(
+                        "Failed to route message {} to {} (attempt {}/{}): {}",
+                        message.message_id,
+                        message.target_peer,
+                        message.attempts,
+                        message.max_attempts,
+                        e
+                    );
 
-                    Self::update_strategy_performance(&strategy_manager, &routing_strategy, false, process_start.elapsed()).await?;
+                    Self::update_strategy_performance(
+                        &strategy_manager,
+                        &routing_strategy,
+                        false,
+                        process_start.elapsed(),
+                    )
+                    .await?;
 
                     // Retry if attempts remaining
                     if message.attempts < message.max_attempts {
                         // Add back to retry queue with exponential backoff
                         message.routing_strategy = Some(routing_strategy);
-                        
+
                         // Schedule retry with backoff
-                        let backoff_delay = Duration::from_millis(100 * (1 << (message.attempts - 1)).min(32));
+                        let backoff_delay =
+                            Duration::from_millis(100 * (1 << (message.attempts - 1)).min(32));
                         let message_queue_clone = message_queue.clone();
-                        
+
                         tokio::spawn(async move {
                             tokio::time::sleep(backoff_delay).await;
                             if let Ok(mut queue) = message_queue_clone.try_lock() {
@@ -1146,8 +1364,12 @@ impl SmartP2pRouter {
                         });
                     } else {
                         // Max attempts reached, message failed permanently
-                        error!("Message {} permanently failed after {} attempts", message.message_id, message.attempts);
-                        Self::update_metrics_for_failed_message(&metrics, &message, "max_attempts").await?;
+                        error!(
+                            "Message {} permanently failed after {} attempts",
+                            message.message_id, message.attempts
+                        );
+                        Self::update_metrics_for_failed_message(&metrics, &message, "max_attempts")
+                            .await?;
                     }
                 }
             }
@@ -1217,19 +1439,25 @@ impl MessageQueue {
         match message.priority {
             MessagePriority::Critical | MessagePriority::High => {
                 if self.high_priority.len() >= self.max_sizes.high_priority_max {
-                    return Err(HostAbiError::InternalError("High priority queue full".to_string()));
+                    return Err(HostAbiError::InternalError(
+                        "High priority queue full".to_string(),
+                    ));
                 }
                 self.high_priority.push_back(message);
             }
             MessagePriority::Normal => {
                 if self.normal_priority.len() >= self.max_sizes.normal_priority_max {
-                    return Err(HostAbiError::InternalError("Normal priority queue full".to_string()));
+                    return Err(HostAbiError::InternalError(
+                        "Normal priority queue full".to_string(),
+                    ));
                 }
                 self.normal_priority.push_back(message);
             }
             MessagePriority::Low => {
                 if self.low_priority.len() >= self.max_sizes.low_priority_max {
-                    return Err(HostAbiError::InternalError("Low priority queue full".to_string()));
+                    return Err(HostAbiError::InternalError(
+                        "Low priority queue full".to_string(),
+                    ));
                 }
                 self.low_priority.push_back(message);
             }
@@ -1243,9 +1471,13 @@ impl RoutingStrategyManager {
         Self {
             available_strategies: vec![
                 RoutingStrategy::Direct,
-                RoutingStrategy::ReputationBased { min_reputation: 100 },
+                RoutingStrategy::ReputationBased {
+                    min_reputation: 100,
+                },
                 RoutingStrategy::LowestLatency,
-                RoutingStrategy::MostReliable { min_reliability: 0.8 },
+                RoutingStrategy::MostReliable {
+                    min_reliability: 0.8,
+                },
                 RoutingStrategy::Adaptive,
             ],
             strategy_performance: HashMap::new(),

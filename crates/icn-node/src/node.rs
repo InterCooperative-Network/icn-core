@@ -43,7 +43,8 @@ use icn_identity::{
     did_key_from_verifying_key, generate_ed25519_keypair,
     zk::{DummyProver, ZkProver},
     CooperativeRegistry, Credential, DisclosedCredential,
-    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, RevocationRegistry, SignatureBytes,
+    ExecutionReceipt as IdentityExecutionReceipt, InMemoryCredentialStore, RevocationRegistry,
+    SignatureBytes,
 };
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 #[allow(unused_imports)]
@@ -698,8 +699,11 @@ async fn correlation_id_middleware(
 pub async fn build_network_service(
     config: &NodeConfig,
 ) -> Result<Arc<dyn NetworkService>, CommonError> {
-    use icn_network::{NetworkServiceFactory, NetworkServiceOptionsBuilder, NetworkEnvironment, service_factory::NetworkServiceConfig};
-    
+    use icn_network::{
+        service_factory::NetworkServiceConfig, NetworkEnvironment, NetworkServiceFactory,
+        NetworkServiceOptionsBuilder,
+    };
+
     info!(
         "🚀 Building network service - test_mode: {}, enable_p2p: {}",
         config.test_mode, config.p2p.enable_p2p
@@ -724,25 +728,32 @@ pub async fn build_network_service(
             addresses.extend(config.p2p.additional_listen_addresses.iter().cloned());
             addresses
         },
-        bootstrap_peers: config.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).iter().map(|peer_addr| {
-            // Parse peer address in format: peer_id@multiaddr or just multiaddr
-            if let Some((peer_id, addr)) = peer_addr.split_once('@') {
-                icn_network::BootstrapPeer {
-                    peer_id: peer_id.to_string(),
-                    address: addr.to_string(),
-                    weight: Some(1),
-                    trusted: true,
+        bootstrap_peers: config
+            .p2p
+            .bootstrap_peers
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .iter()
+            .map(|peer_addr| {
+                // Parse peer address in format: peer_id@multiaddr or just multiaddr
+                if let Some((peer_id, addr)) = peer_addr.split_once('@') {
+                    icn_network::BootstrapPeer {
+                        peer_id: peer_id.to_string(),
+                        address: addr.to_string(),
+                        weight: Some(1),
+                        trusted: true,
+                    }
+                } else {
+                    // If no peer ID provided, use empty string and let the network layer handle it
+                    icn_network::BootstrapPeer {
+                        peer_id: String::new(),
+                        address: peer_addr.clone(),
+                        weight: Some(1),
+                        trusted: true,
+                    }
                 }
-            } else {
-                // If no peer ID provided, use empty string and let the network layer handle it
-                icn_network::BootstrapPeer {
-                    peer_id: String::new(),
-                    address: peer_addr.clone(),
-                    weight: Some(1),
-                    trusted: true,
-                }
-            }
-        }).collect(),
+            })
+            .collect(),
         enable_mdns: config.p2p.enable_mdns,
         max_peers: config.p2p.max_peers as usize,
         connection_timeout_ms: config.p2p.connection_timeout_ms,
@@ -788,18 +799,27 @@ pub async fn build_network_service(
 pub async fn app_router() -> Router {
     app_router_with_options(
         RuntimeMode::Testing, // Default to testing mode for backward compatibility
-        None, None, None, None, None, None, None, None, None, None
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
+        None,
     )
-        .await
-        .0
+    .await
+    .0
 }
 
 /// Construct a router with explicit runtime mode configuration.
-/// 
+///
 /// **🏭 PRODUCTION**: Use `RuntimeMode::Production` for production deployments
 /// **🛠️ DEVELOPMENT**: Use `RuntimeMode::Development` for local development  
 /// **🧪 TESTING**: Use `RuntimeMode::Testing` for tests and temporary instances
-/// 
+///
 /// This function creates a complete ICN node router with the specified service configuration.
 /// The runtime mode determines which services are used:
 /// - Production: All real services, persistent storage, production backends
@@ -824,9 +844,8 @@ pub async fn app_router_with_options(
     // Generate a new identity for this instance
     let (sk, pk) = generate_ed25519_keypair();
     let node_did_string = did_key_from_verifying_key(&pk);
-    let node_did = Did::from_str(&node_did_string)
-        .expect("Failed to create node DID");
-    
+    let node_did = Did::from_str(&node_did_string).expect("Failed to create node DID");
+
     match runtime_mode {
         RuntimeMode::Production => info!("🏭 Production Node DID: {}", node_did),
         RuntimeMode::Development => info!("🛠️ Development Node DID: {}", node_did),
@@ -834,13 +853,15 @@ pub async fn app_router_with_options(
     }
 
     let signer = Arc::new(Ed25519Signer::new_with_keys(sk, pk));
-    
+
     // Configure storage backends based on runtime mode
     let storage_backend = storage_backend.unwrap_or_else(|| runtime_mode.default_storage_backend());
     let storage_path = storage_path.unwrap_or_else(|| runtime_mode.default_storage_path());
-    let mana_ledger_backend = mana_ledger_backend.unwrap_or_else(|| runtime_mode.default_mana_ledger_backend());
-    let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| runtime_mode.default_mana_ledger_path());
-    
+    let mana_ledger_backend =
+        mana_ledger_backend.unwrap_or_else(|| runtime_mode.default_mana_ledger_backend());
+    let mana_ledger_path =
+        mana_ledger_path.unwrap_or_else(|| runtime_mode.default_mana_ledger_path());
+
     let mut cfg = NodeConfig {
         storage: StorageConfig {
             storage_backend,
@@ -877,7 +898,7 @@ pub async fn app_router_with_options(
     let mut rt_ctx = match runtime_mode {
         RuntimeMode::Production => {
             info!("🏭 Creating production RuntimeContext with all real services");
-            
+
             #[cfg(feature = "enable-libp2p")]
             {
                 // Create real libp2p network service for production
@@ -885,9 +906,9 @@ pub async fn app_router_with_options(
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
-                        .expect("Failed to create libp2p service for production")
+                        .expect("Failed to create libp2p service for production"),
                 );
-                
+
                 RuntimeContext::new_for_production(
                     node_did.clone(),
                     network_service,
@@ -905,13 +926,13 @@ pub async fn app_router_with_options(
                 return (
                     Router::new(),
                     RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
-                        .expect("Fallback to testing context")
+                        .expect("Fallback to testing context"),
                 );
             }
         }
         RuntimeMode::Development => {
             info!("🛠️ Creating development RuntimeContext with mixed services");
-            
+
             #[cfg(feature = "enable-libp2p")]
             {
                 // Create libp2p service for development
@@ -919,9 +940,9 @@ pub async fn app_router_with_options(
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
-                        .expect("Failed to create libp2p service for development")
+                        .expect("Failed to create libp2p service for development"),
                 );
-                
+
                 RuntimeContext::new_for_development(
                     node_did.clone(),
                     signer.clone(),
@@ -966,9 +987,15 @@ pub async fn app_router_with_options(
     }
 
     match runtime_mode {
-        RuntimeMode::Production => info!("✅ Production node initialized with 1000 mana and real services"),
-        RuntimeMode::Development => info!("✅ Development node initialized with 1000 mana and mixed services"),
-        RuntimeMode::Testing => info!("✅ Testing node initialized with 1000 mana and stub services"),
+        RuntimeMode::Production => {
+            info!("✅ Production node initialized with 1000 mana and real services")
+        }
+        RuntimeMode::Development => {
+            info!("✅ Development node initialized with 1000 mana and mixed services")
+        }
+        RuntimeMode::Testing => {
+            info!("✅ Testing node initialized with 1000 mana and stub services")
+        }
     }
 
     rt_ctx.clone().spawn_mesh_job_manager().await; // Start the job manager
@@ -2053,7 +2080,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
 
     // Register all core metrics (excluding runtime metrics due to circular dependency)
     register_core_metrics(&mut registry);
-    
+
     // Register runtime metrics directly to avoid circular dependency
     icn_runtime::register_runtime_metrics(&mut registry);
 
@@ -2079,7 +2106,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
 
     // Add federation-specific metrics
     let runtime_ctx = &state.runtime_context;
-    
+
     // Mana ledger metrics
     let mana_account_count = runtime_ctx.mana_ledger.all_accounts().len();
     let mana_accounts_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
@@ -2089,7 +2116,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         "Number of active mana accounts on this node",
         mana_accounts_gauge,
     );
-    
+
     // Job state metrics
     let job_states = &runtime_ctx.job_states;
     let total_jobs = job_states.len();
@@ -2097,7 +2124,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut assigned_jobs = 0;
     let mut completed_jobs = 0;
     let mut failed_jobs = 0;
-    
+
     for job_state in job_states.iter() {
         match &*job_state.value() {
             icn_mesh::JobState::Pending => pending_jobs += 1,
@@ -2106,7 +2133,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
             icn_mesh::JobState::Failed { .. } => failed_jobs += 1,
         }
     }
-    
+
     let node_total_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     node_total_jobs_gauge.set(total_jobs as f64);
     registry.register(
@@ -2114,7 +2141,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         "Total number of jobs tracked by this node",
         node_total_jobs_gauge,
     );
-    
+
     let node_pending_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     node_pending_jobs_gauge.set(pending_jobs as f64);
     registry.register(
@@ -2122,23 +2149,23 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
         "Number of pending jobs on this node",
         node_pending_jobs_gauge,
     );
-    
+
     let node_assigned_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     node_assigned_jobs_gauge.set(assigned_jobs as f64);
     registry.register(
-        "node_assigned_jobs", 
+        "node_assigned_jobs",
         "Number of assigned jobs on this node",
         node_assigned_jobs_gauge,
     );
-    
+
     let node_completed_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     node_completed_jobs_gauge.set(completed_jobs as f64);
     registry.register(
         "node_completed_jobs",
-        "Number of completed jobs on this node", 
+        "Number of completed jobs on this node",
         node_completed_jobs_gauge,
     );
-    
+
     let node_failed_jobs_gauge: Gauge<f64, std::sync::atomic::AtomicU64> = Gauge::default();
     node_failed_jobs_gauge.set(failed_jobs as f64);
     registry.register(
@@ -3413,7 +3440,10 @@ async fn mesh_get_job_stream_handler(
         }),
     ];
 
-    (StatusCode::OK, Json(serde_json::Value::Array(stream_chunks)))
+    (
+        StatusCode::OK,
+        Json(serde_json::Value::Array(stream_chunks)),
+    )
 }
 
 // POST /mesh/jobs/{job_id}/cancel - Cancel a running job

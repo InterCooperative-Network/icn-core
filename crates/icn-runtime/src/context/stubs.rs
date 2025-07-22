@@ -479,33 +479,50 @@ impl MeshNetworkService for StubMeshNetworkService {
             icn_common::Did::new("peer", "stub_peer_2"),
             icn_common::Did::new("peer", "stub_peer_3"),
         ];
-        
-        log::debug!("[StubMeshNetwork] Returning {} mock connected peers", mock_peers.len());
+
+        log::debug!(
+            "[StubMeshNetwork] Returning {} mock connected peers",
+            mock_peers.len()
+        );
         Ok(mock_peers)
     }
 
-    async fn ping_peer(&self, peer_id: Did) -> Result<super::mesh_network::PingResult, HostAbiError> {
+    async fn ping_peer(
+        &self,
+        peer_id: Did,
+    ) -> Result<super::mesh_network::PingResult, HostAbiError> {
         use std::time::Duration as StdDuration;
-        
+
         // Simulate different ping results based on peer ID
         let success = !peer_id.to_string().contains("unreachable");
         let latency_ms = if success { 50 } else { 5000 };
-        
+
         let result = super::mesh_network::PingResult {
             round_trip_time: StdDuration::from_millis(latency_ms),
             success,
-            error: if success { None } else { Some("Peer unreachable".to_string()) },
+            error: if success {
+                None
+            } else {
+                Some("Peer unreachable".to_string())
+            },
         };
-        
-        log::debug!("[StubMeshNetwork] Ping to {}: success={}, latency={}ms", 
-                   peer_id, result.success, latency_ms);
-        
+
+        log::debug!(
+            "[StubMeshNetwork] Ping to {}: success={}, latency={}ms",
+            peer_id,
+            result.success,
+            latency_ms
+        );
+
         Ok(result)
     }
 
-    async fn get_peer_statistics(&self, peer_id: Did) -> Result<super::mesh_network::PeerStatistics, HostAbiError> {
+    async fn get_peer_statistics(
+        &self,
+        peer_id: Did,
+    ) -> Result<super::mesh_network::PeerStatistics, HostAbiError> {
         use std::time::SystemTime;
-        
+
         // Return mock statistics based on peer ID
         let stats = if peer_id.to_string().contains("high_performance") {
             super::mesh_network::PeerStatistics {
@@ -539,47 +556,73 @@ impl MeshNetworkService for StubMeshNetworkService {
                 reliability: 0.94,
             }
         };
-        
-        log::debug!("[StubMeshNetwork] Statistics for {}: reliability={:.2}", 
-                   peer_id, stats.reliability);
-        
+
+        log::debug!(
+            "[StubMeshNetwork] Statistics for {}: reliability={:.2}",
+            peer_id,
+            stats.reliability
+        );
+
         Ok(stats)
     }
 
-    async fn send_direct_message(&self, peer_id: Did, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_direct_message(
+        &self,
+        peer_id: Did,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         // Simulate message sending with some peers being unreachable
         if peer_id.to_string().contains("unreachable") {
-            return Err(HostAbiError::NetworkError(format!("Peer {} is unreachable", peer_id)));
+            return Err(HostAbiError::NetworkError(format!(
+                "Peer {} is unreachable",
+                peer_id
+            )));
         }
-        
-        log::debug!("[StubMeshNetwork] Sent direct message to {} ({} bytes)", 
-                   peer_id, payload.len());
+
+        log::debug!(
+            "[StubMeshNetwork] Sent direct message to {} ({} bytes)",
+            peer_id,
+            payload.len()
+        );
         Ok(())
     }
 
-    async fn send_multi_hop_message(&self, path: Vec<Did>, payload: Vec<u8>) -> Result<(), HostAbiError> {
+    async fn send_multi_hop_message(
+        &self,
+        path: Vec<Did>,
+        payload: Vec<u8>,
+    ) -> Result<(), HostAbiError> {
         if path.is_empty() {
             return Err(HostAbiError::InvalidInput("Empty routing path".to_string()));
         }
-        
+
         // Simulate multi-hop routing with potential failures
         for peer in &path {
             if peer.to_string().contains("unreachable") {
-                return Err(HostAbiError::NetworkError(format!("Peer {} in path is unreachable", peer)));
+                return Err(HostAbiError::NetworkError(format!(
+                    "Peer {} in path is unreachable",
+                    peer
+                )));
             }
         }
-        
-        log::debug!("[StubMeshNetwork] Sent multi-hop message via {} hops ({} bytes)", 
-                   path.len(), payload.len());
+
+        log::debug!(
+            "[StubMeshNetwork] Sent multi-hop message via {} hops ({} bytes)",
+            path.len(),
+            payload.len()
+        );
         Ok(())
     }
 
     async fn query_peer_connections(&self, peer_id: Did) -> Result<Vec<Did>, HostAbiError> {
         // Simulate peer connections based on peer ID
         if peer_id.to_string().contains("unreachable") {
-            return Err(HostAbiError::NetworkError(format!("Cannot query unreachable peer {}", peer_id)));
+            return Err(HostAbiError::NetworkError(format!(
+                "Cannot query unreachable peer {}",
+                peer_id
+            )));
         }
-        
+
         let connections = if peer_id.to_string().contains("well_connected") {
             vec![
                 icn_common::Did::new("peer", "connection_1"),
@@ -594,17 +637,23 @@ impl MeshNetworkService for StubMeshNetworkService {
                 icn_common::Did::new("peer", "connection_2"),
             ]
         };
-        
-        log::debug!("[StubMeshNetwork] Peer {} has {} connections", 
-                   peer_id, connections.len());
-        
+
+        log::debug!(
+            "[StubMeshNetwork] Peer {} has {} connections",
+            peer_id,
+            connections.len()
+        );
+
         Ok(connections)
     }
 
     async fn get_average_network_latency(&self) -> Result<f64, HostAbiError> {
         // Return a simulated average network latency
         let avg_latency = 125.0; // 125ms average
-        log::debug!("[StubMeshNetwork] Average network latency: {:.1}ms", avg_latency);
+        log::debug!(
+            "[StubMeshNetwork] Average network latency: {:.1}ms",
+            avg_latency
+        );
         Ok(avg_latency)
     }
 
@@ -612,7 +661,10 @@ impl MeshNetworkService for StubMeshNetworkService {
         // Simulate network partition detection
         // For testing purposes, we'll say the network is not partitioned
         let is_partitioned = false;
-        log::debug!("[StubMeshNetwork] Network partition status: {}", is_partitioned);
+        log::debug!(
+            "[StubMeshNetwork] Network partition status: {}",
+            is_partitioned
+        );
         Ok(is_partitioned)
     }
 }

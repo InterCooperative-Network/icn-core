@@ -4,16 +4,18 @@
 //! appropriate service configurations based on environment and requirements.
 
 use super::{
-    RuntimeContext, ServiceConfig, ServiceConfigBuilder, ServiceEnvironment,
-    DagStoreMutexType, DagStorageService, SimpleManaLedger,
+    DagStorageService, DagStoreMutexType, RuntimeContext, ServiceConfig, ServiceConfigBuilder,
+    ServiceEnvironment, SimpleManaLedger,
 };
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{DidResolver, EnhancedDidResolver, SigningKey};
-use icn_network::{NetworkService, NetworkServiceFactory, NetworkServiceOptionsBuilder, NetworkEnvironment};
+use icn_network::{
+    NetworkEnvironment, NetworkService, NetworkServiceFactory, NetworkServiceOptionsBuilder,
+};
 use icn_reputation::ReputationStore;
-use std::sync::Arc;
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
+use std::sync::Arc;
 
 /// Runtime environment types for context creation
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -134,7 +136,9 @@ impl RuntimeContextFactory {
     }
 
     /// Create a production runtime context
-    async fn create_production(config: RuntimeCreationConfig) -> Result<Arc<RuntimeContext>, CommonError> {
+    async fn create_production(
+        config: RuntimeCreationConfig,
+    ) -> Result<Arc<RuntimeContext>, CommonError> {
         log::info!("🏭 Creating production runtime context");
 
         // Create network service
@@ -142,13 +146,16 @@ impl RuntimeContextFactory {
             NetworkEnvironment::Production,
             config.network_config,
             config.allow_fallback,
-        ).await?;
+        )
+        .await?;
 
         // Create enhanced DID resolver
-        let time_provider = config.time_provider.unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
-        let did_resolver = config.did_resolver.unwrap_or_else(|| {
-            Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone()))
-        });
+        let time_provider = config
+            .time_provider
+            .unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
+        let did_resolver = config
+            .did_resolver
+            .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
         // Create signer - for now use a deterministic key for production
         // TODO: In real production, this should use proper key management
@@ -156,19 +163,23 @@ impl RuntimeContextFactory {
 
         // Create persistent DAG store
         let data_dir = config.data_dir.unwrap_or_else(|| PathBuf::from("./data"));
-        let dag_store = Self::create_dag_store(RuntimeEnvironment::Production, Some(data_dir.clone()))?;
+        let dag_store =
+            Self::create_dag_store(RuntimeEnvironment::Production, Some(data_dir.clone()))?;
 
         // Create mana ledger
         let mana_ledger = SimpleManaLedger::new(data_dir.join("mana.sled"));
         if let Some(initial_mana) = config.initial_mana {
-            mana_ledger.credit(&config.identity, initial_mana)
-                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+            mana_ledger
+                .credit(&config.identity, initial_mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
         }
 
         // Create reputation store
-        let reputation_store = config.reputation_store.unwrap_or_else(|| {
-            Arc::new(icn_reputation::InMemoryReputationStore::new())
-        });
+        let reputation_store = config
+            .reputation_store
+            .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()));
 
         // Build service config
         let service_config = ServiceConfig::production(
@@ -186,7 +197,9 @@ impl RuntimeContextFactory {
     }
 
     /// Create a development runtime context
-    async fn create_development(config: RuntimeCreationConfig) -> Result<Arc<RuntimeContext>, CommonError> {
+    async fn create_development(
+        config: RuntimeCreationConfig,
+    ) -> Result<Arc<RuntimeContext>, CommonError> {
         log::info!("🛠️ Creating development runtime context");
 
         // Create network service (prefers real but allows fallback)
@@ -194,42 +207,50 @@ impl RuntimeContextFactory {
             NetworkEnvironment::Development,
             config.network_config,
             config.allow_fallback,
-        ).await;
+        )
+        .await;
 
         // Create enhanced DID resolver
-        let time_provider = config.time_provider.unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
-        let did_resolver = config.did_resolver.unwrap_or_else(|| {
-            Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone()))
-        });
+        let time_provider = config
+            .time_provider
+            .unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
+        let did_resolver = config
+            .did_resolver
+            .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
         // Create signer - for now use a deterministic key for development
         // TODO: In real development, this should use proper key management
         let signer = Arc::new(super::signers::StubSigner::new());
 
         // Create DAG store (persistent if data_dir provided)
-        let dag_store = Self::create_dag_store(RuntimeEnvironment::Development, config.data_dir.clone())?;
+        let dag_store =
+            Self::create_dag_store(RuntimeEnvironment::Development, config.data_dir.clone())?;
 
         // Create mana ledger
         let mana_ledger = if let Some(data_dir) = config.data_dir {
             SimpleManaLedger::new(data_dir.join("dev-mana.sled"))
         } else {
             // Use temporary file for development
-            let temp_file = tempfile::NamedTempFile::new()
-                .map_err(|e| CommonError::IoError(format!("Failed to create temp mana ledger: {}", e)))?;
+            let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
+                CommonError::IoError(format!("Failed to create temp mana ledger: {}", e))
+            })?;
             let temp_path = temp_file.path().to_path_buf();
             std::mem::forget(temp_file);
             SimpleManaLedger::new(temp_path)
         };
 
         if let Some(initial_mana) = config.initial_mana {
-            mana_ledger.credit(&config.identity, initial_mana)
-                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+            mana_ledger
+                .credit(&config.identity, initial_mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
         }
 
         // Create reputation store
-        let reputation_store = config.reputation_store.unwrap_or_else(|| {
-            Arc::new(icn_reputation::InMemoryReputationStore::new())
-        });
+        let reputation_store = config
+            .reputation_store
+            .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()));
 
         // Build service config
         let service_config = ServiceConfig::development(
@@ -244,7 +265,9 @@ impl RuntimeContextFactory {
     }
 
     /// Create a testing runtime context
-    async fn create_testing(config: RuntimeCreationConfig) -> Result<Arc<RuntimeContext>, CommonError> {
+    async fn create_testing(
+        config: RuntimeCreationConfig,
+    ) -> Result<Arc<RuntimeContext>, CommonError> {
         log::info!("🧪 Creating testing runtime context");
 
         // For testing, we typically want fast stub services
@@ -252,12 +275,13 @@ impl RuntimeContextFactory {
             NetworkEnvironment::Testing,
             None,
             true, // Always allow fallback for testing
-        ).await;
+        )
+        .await;
 
         // Create basic DID resolver
-        let did_resolver = config.did_resolver.unwrap_or_else(|| {
-            Arc::new(icn_identity::KeyDidResolver)
-        });
+        let did_resolver = config
+            .did_resolver
+            .unwrap_or_else(|| Arc::new(icn_identity::KeyDidResolver));
 
         // Create stub signer for testing
         let signer = Arc::new(super::signers::StubSigner::new());
@@ -266,15 +290,19 @@ impl RuntimeContextFactory {
         let dag_store = Self::create_dag_store(RuntimeEnvironment::Testing, None)?;
 
         // Create temporary mana ledger
-        let temp_file = tempfile::NamedTempFile::new()
-            .map_err(|e| CommonError::IoError(format!("Failed to create temp mana ledger: {}", e)))?;
+        let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
+            CommonError::IoError(format!("Failed to create temp mana ledger: {}", e))
+        })?;
         let temp_path = temp_file.path().to_path_buf();
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
         if let Some(initial_mana) = config.initial_mana {
-            mana_ledger.credit(&config.identity, initial_mana)
-                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+            mana_ledger
+                .credit(&config.identity, initial_mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
         }
 
         // Create in-memory reputation store
@@ -285,7 +313,9 @@ impl RuntimeContextFactory {
     }
 
     /// Create an integration testing runtime context
-    async fn create_integration(config: RuntimeCreationConfig) -> Result<Arc<RuntimeContext>, CommonError> {
+    async fn create_integration(
+        config: RuntimeCreationConfig,
+    ) -> Result<Arc<RuntimeContext>, CommonError> {
         log::info!("🔗 Creating integration testing runtime context");
 
         // For integration testing, we want real services with test configurations
@@ -293,33 +323,42 @@ impl RuntimeContextFactory {
             NetworkEnvironment::Production,
             config.network_config,
             config.allow_fallback,
-        ).await?;
+        )
+        .await?;
 
         // Create enhanced DID resolver
-        let time_provider = config.time_provider.unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
-        let did_resolver = config.did_resolver.unwrap_or_else(|| {
-            Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone()))
-        });
+        let time_provider = config
+            .time_provider
+            .unwrap_or_else(|| Arc::new(icn_common::SystemTimeProvider));
+        let did_resolver = config
+            .did_resolver
+            .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
         // Create signer - for now use a deterministic key for integration testing
         // TODO: In real integration testing, this should use proper key management
         let signer = Arc::new(super::signers::StubSigner::new());
 
         // Create persistent DAG store in test directory
-        let data_dir = config.data_dir.unwrap_or_else(|| PathBuf::from("./test-data"));
-        let dag_store = Self::create_dag_store(RuntimeEnvironment::Integration, Some(data_dir.clone()))?;
+        let data_dir = config
+            .data_dir
+            .unwrap_or_else(|| PathBuf::from("./test-data"));
+        let dag_store =
+            Self::create_dag_store(RuntimeEnvironment::Integration, Some(data_dir.clone()))?;
 
         // Create persistent mana ledger
         let mana_ledger = SimpleManaLedger::new(data_dir.join("test-mana.sled"));
         if let Some(initial_mana) = config.initial_mana {
-            mana_ledger.credit(&config.identity, initial_mana)
-                .map_err(|e| CommonError::InternalError(format!("Failed to set initial mana: {}", e)))?;
+            mana_ledger
+                .credit(&config.identity, initial_mana)
+                .map_err(|e| {
+                    CommonError::InternalError(format!("Failed to set initial mana: {}", e))
+                })?;
         }
 
         // Create reputation store
-        let reputation_store = config.reputation_store.unwrap_or_else(|| {
-            Arc::new(icn_reputation::InMemoryReputationStore::new())
-        });
+        let reputation_store = config
+            .reputation_store
+            .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()));
 
         // Build service config
         let service_config = ServiceConfig::production(
@@ -359,15 +398,16 @@ impl RuntimeContextFactory {
             NetworkServiceCreationResult::Stub(service) => {
                 if environment == NetworkEnvironment::Production && !allow_fallback {
                     Err(CommonError::NetworkError(
-                        "Production environment requires real network service".to_string()
+                        "Production environment requires real network service".to_string(),
                     ))
                 } else {
                     Ok(service)
                 }
             }
-            NetworkServiceCreationResult::Failed(e) => {
-                Err(CommonError::NetworkError(format!("Network service creation failed: {}", e)))
-            }
+            NetworkServiceCreationResult::Failed(e) => Err(CommonError::NetworkError(format!(
+                "Network service creation failed: {}",
+                e
+            ))),
         }
     }
 
@@ -379,19 +419,26 @@ impl RuntimeContextFactory {
         match environment {
             RuntimeEnvironment::Production | RuntimeEnvironment::Integration => {
                 let data_dir = data_dir.ok_or_else(|| {
-                    CommonError::InternalError("Data directory required for production/integration".to_string())
+                    CommonError::InternalError(
+                        "Data directory required for production/integration".to_string(),
+                    )
                 })?;
 
                 // Create directory if it doesn't exist
-                std::fs::create_dir_all(&data_dir)
-                    .map_err(|e| CommonError::IoError(format!("Failed to create data directory: {}", e)))?;
+                std::fs::create_dir_all(&data_dir).map_err(|e| {
+                    CommonError::IoError(format!("Failed to create data directory: {}", e))
+                })?;
 
                 // For now, use sled store as default persistent store
                 #[cfg(feature = "persist-sled")]
                 {
                     let dag_path = data_dir.join("dag.sled");
-                    let store = icn_dag::SledDagStore::new(dag_path)
-                        .map_err(|e| CommonError::InternalError(format!("Failed to create sled DAG store: {}", e)))?;
+                    let store = icn_dag::SledDagStore::new(dag_path).map_err(|e| {
+                        CommonError::InternalError(format!(
+                            "Failed to create sled DAG store: {}",
+                            e
+                        ))
+                    })?;
                     Ok(Arc::new(DagStoreMutexType::new(store)))
                 }
 
@@ -399,35 +446,48 @@ impl RuntimeContextFactory {
                 {
                     // Fallback to in-memory store if persistence not available
                     log::warn!("Persistent storage not available, using in-memory DAG store");
-                    Ok(Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())))
+                    Ok(Arc::new(DagStoreMutexType::new(
+                        super::stubs::StubDagStore::new(),
+                    )))
                 }
             }
             RuntimeEnvironment::Development => {
                 if let Some(data_dir) = data_dir {
                     // Try to use persistent store for development
-                    std::fs::create_dir_all(&data_dir)
-                        .map_err(|e| CommonError::IoError(format!("Failed to create data directory: {}", e)))?;
+                    std::fs::create_dir_all(&data_dir).map_err(|e| {
+                        CommonError::IoError(format!("Failed to create data directory: {}", e))
+                    })?;
 
                     #[cfg(feature = "persist-sled")]
                     {
                         let dag_path = data_dir.join("dev-dag.sled");
-                        let store = icn_dag::SledDagStore::new(dag_path)
-                            .map_err(|e| CommonError::InternalError(format!("Failed to create sled DAG store: {}", e)))?;
+                        let store = icn_dag::SledDagStore::new(dag_path).map_err(|e| {
+                            CommonError::InternalError(format!(
+                                "Failed to create sled DAG store: {}",
+                                e
+                            ))
+                        })?;
                         Ok(Arc::new(DagStoreMutexType::new(store)))
                     }
 
                     #[cfg(not(feature = "persist-sled"))]
                     {
-                        Ok(Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())))
+                        Ok(Arc::new(DagStoreMutexType::new(
+                            super::stubs::StubDagStore::new(),
+                        )))
                     }
                 } else {
                     // Use in-memory store for development without data directory
-                    Ok(Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())))
+                    Ok(Arc::new(DagStoreMutexType::new(
+                        super::stubs::StubDagStore::new(),
+                    )))
                 }
             }
             RuntimeEnvironment::Testing => {
                 // Always use in-memory store for testing
-                Ok(Arc::new(DagStoreMutexType::new(super::stubs::StubDagStore::new())))
+                Ok(Arc::new(DagStoreMutexType::new(
+                    super::stubs::StubDagStore::new(),
+                )))
             }
         }
     }
@@ -452,10 +512,10 @@ impl RuntimeContextFactory {
         };
 
         let context = Self::create(config).await?;
-        
+
         // Validate that we're using production services
         context.validate_production_services()?;
-        
+
         Ok(context)
     }
 
@@ -466,10 +526,13 @@ impl RuntimeContextFactory {
     }
 
     /// Create a development context with local networking
-    pub async fn create_local_development(identity: Did, data_dir: Option<PathBuf>) -> Result<Arc<RuntimeContext>, CommonError> {
+    pub async fn create_local_development(
+        identity: Did,
+        data_dir: Option<PathBuf>,
+    ) -> Result<Arc<RuntimeContext>, CommonError> {
         let mut config = RuntimeCreationConfig::development(identity);
         config.data_dir = data_dir;
-        
+
         // Configure for local development
         let network_config = icn_network::service_factory::NetworkServiceConfig {
             listen_addresses: vec!["/ip4/127.0.0.1/tcp/0".to_string()],
@@ -478,7 +541,7 @@ impl RuntimeContextFactory {
             ..Default::default()
         };
         config.network_config = Some(network_config);
-        
+
         Self::create(config).await
     }
 }
@@ -505,7 +568,10 @@ impl RuntimeCreationConfigBuilder {
         self
     }
 
-    pub fn network_config(mut self, config: icn_network::service_factory::NetworkServiceConfig) -> Self {
+    pub fn network_config(
+        mut self,
+        config: icn_network::service_factory::NetworkServiceConfig,
+    ) -> Self {
         self.config.network_config = Some(config);
         self
     }
@@ -593,4 +659,4 @@ pub mod presets {
 
         RuntimeContextFactory::create(config).await
     }
-} 
+}

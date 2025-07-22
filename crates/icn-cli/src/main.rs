@@ -947,7 +947,10 @@ enum QrCommands {
         did: String,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
     /// Generate QR code for token transfer
@@ -963,7 +966,10 @@ enum QrCommands {
         memo: Option<String>,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
     /// Generate QR code for voting on a proposal
@@ -977,7 +983,10 @@ enum QrCommands {
         voter: Option<String>,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
     /// Generate QR code for joining a federation
@@ -989,7 +998,10 @@ enum QrCommands {
         code: Option<String>,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
     /// Generate QR code for verifying a credential
@@ -1001,7 +1013,10 @@ enum QrCommands {
         challenge: Option<String>,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
     /// Decode an ICN action URL and display its contents
@@ -1017,7 +1032,10 @@ enum QrCommands {
         url: String,
         #[clap(long, help = "QR code size in pixels", default_value = "256")]
         size: u32,
-        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        #[clap(
+            long,
+            help = "Output file path (optional, defaults to terminal display)"
+        )]
         output: Option<String>,
     },
 }
@@ -1502,21 +1520,34 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             QrCommands::ShareIdentity { did, size, output } => {
                 handle_qr_share_identity(did, *size, output).await?
             }
-            QrCommands::Transfer { token, amount, to, memo, size, output } => {
-                handle_qr_transfer(token, *amount, to, memo, *size, output).await?
-            }
-            QrCommands::Vote { proposal, vote, voter, size, output } => {
-                handle_qr_vote(proposal, vote, voter, *size, output).await?
-            }
-            QrCommands::Join { federation, code, size, output } => {
-                handle_qr_join(federation, code, *size, output).await?
-            }
-            QrCommands::VerifyCredential { credential, challenge, size, output } => {
-                handle_qr_verify_credential(credential, challenge, *size, output).await?
-            }
-            QrCommands::Decode { url } => {
-                handle_qr_decode(url).await?
-            }
+            QrCommands::Transfer {
+                token,
+                amount,
+                to,
+                memo,
+                size,
+                output,
+            } => handle_qr_transfer(token, *amount, to, memo, *size, output).await?,
+            QrCommands::Vote {
+                proposal,
+                vote,
+                voter,
+                size,
+                output,
+            } => handle_qr_vote(proposal, vote, voter, *size, output).await?,
+            QrCommands::Join {
+                federation,
+                code,
+                size,
+                output,
+            } => handle_qr_join(federation, code, *size, output).await?,
+            QrCommands::VerifyCredential {
+                credential,
+                challenge,
+                size,
+                output,
+            } => handle_qr_verify_credential(credential, challenge, *size, output).await?,
+            QrCommands::Decode { url } => handle_qr_decode(url).await?,
             QrCommands::Encode { url, size, output } => {
                 handle_qr_encode(url, *size, output).await?
             }
@@ -4319,14 +4350,15 @@ async fn handle_qr_vote(
     size: u32,
     output: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let proposal = Cid::from_str(proposal).map_err(|_| anyhow::anyhow!("Invalid proposal CID format"))?;
+    let proposal =
+        Cid::from_str(proposal).map_err(|_| anyhow::anyhow!("Invalid proposal CID format"))?;
     let vote = VoteChoice::from_str(vote)?;
     let voter = if let Some(voter_str) = voter {
         Some(Did::from_str(voter_str).map_err(|_| anyhow::anyhow!("Invalid voter DID format"))?)
     } else {
         None
     };
-    
+
     let action = Action::Vote {
         proposal,
         vote,
@@ -4354,7 +4386,8 @@ async fn handle_qr_verify_credential(
     size: u32,
     output: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let credential = Cid::from_str(credential).map_err(|_| anyhow::anyhow!("Invalid credential CID format"))?;
+    let credential =
+        Cid::from_str(credential).map_err(|_| anyhow::anyhow!("Invalid credential CID format"))?;
     let action = Action::VerifyCredential {
         credential,
         challenge: challenge.clone(),
@@ -4366,13 +4399,18 @@ async fn handle_qr_decode(url: &str) -> Result<(), anyhow::Error> {
     let action = ActionEncoder::decode(url)?;
     println!("Decoded ICN Action:");
     println!("{}", serde_json::to_string_pretty(&action)?);
-    
+
     match &action {
         Action::ShareIdentity { did } => {
             println!("\n📱 Action: Share Identity");
             println!("   DID: {}", did);
         }
-        Action::TransferToken { token, amount, to, memo } => {
+        Action::TransferToken {
+            token,
+            amount,
+            to,
+            memo,
+        } => {
             println!("\n💰 Action: Transfer Token");
             println!("   Token: {}", token);
             println!("   Amount: {}", amount);
@@ -4381,7 +4419,11 @@ async fn handle_qr_decode(url: &str) -> Result<(), anyhow::Error> {
                 println!("   Memo: {}", memo);
             }
         }
-        Action::Vote { proposal, vote, voter } => {
+        Action::Vote {
+            proposal,
+            vote,
+            voter,
+        } => {
             println!("\n🗳️ Action: Vote on Proposal");
             println!("   Proposal: {}", proposal);
             println!("   Vote: {}", vote);
@@ -4389,14 +4431,20 @@ async fn handle_qr_decode(url: &str) -> Result<(), anyhow::Error> {
                 println!("   Voter: {}", voter);
             }
         }
-        Action::JoinFederation { federation_id, invitation_code } => {
+        Action::JoinFederation {
+            federation_id,
+            invitation_code,
+        } => {
             println!("\n🤝 Action: Join Federation");
             println!("   Federation: {}", federation_id);
             if let Some(code) = invitation_code {
                 println!("   Invitation Code: {}", code);
             }
         }
-        Action::VerifyCredential { credential, challenge } => {
+        Action::VerifyCredential {
+            credential,
+            challenge,
+        } => {
             println!("\n🔐 Action: Verify Credential");
             println!("   Credential: {}", credential);
             if let Some(challenge) = challenge {
@@ -4407,7 +4455,7 @@ async fn handle_qr_decode(url: &str) -> Result<(), anyhow::Error> {
             println!("\n🔧 Action: Custom or Advanced");
         }
     }
-    
+
     Ok(())
 }
 
@@ -4418,7 +4466,7 @@ async fn handle_qr_encode(
 ) -> Result<(), anyhow::Error> {
     // Validate that it's a proper ICN URL
     let _action = ActionEncoder::decode(url)?;
-    
+
     if let Some(output_path) = output {
         let qr_data = QrGenerator::generate_png(url, size)?;
         std::fs::write(output_path, qr_data)?;
@@ -4429,7 +4477,7 @@ async fn handle_qr_encode(
         println!("\n📱 QR Code:");
         println!("{}", terminal_qr);
     }
-    
+
     Ok(())
 }
 
@@ -4439,7 +4487,7 @@ async fn generate_and_display_qr(
     output: &Option<String>,
 ) -> Result<(), anyhow::Error> {
     let url = ActionEncoder::encode(action)?;
-    
+
     if let Some(output_path) = output {
         let qr_data = QrGenerator::generate_for_action(action, &icn_action::QrMetadata::default())?;
         std::fs::write(output_path, qr_data)?;
@@ -4452,6 +4500,6 @@ async fn generate_and_display_qr(
         println!("{}", terminal_qr);
         println!("\n💡 Tip: Use --output <file.png> to save as image");
     }
-    
+
     Ok(())
 }
