@@ -1,4 +1,4 @@
-use super::{ResourceLedger, TokenClass, TokenClassId};
+use super::{ResourceLedger, TokenClass, TokenClassId, TransferRecord};
 use icn_common::{CommonError, Did};
 use rusqlite::{Connection, OptionalExtension};
 use std::path::PathBuf;
@@ -256,5 +256,34 @@ impl ResourceLedger for SqliteResourceLedger {
 
     fn get_balance(&self, class: &TokenClassId, owner: &Did) -> u64 {
         self.read_balance(class, owner).unwrap_or(0)
+    }
+
+    fn update_class(&self, class_id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
+        // Update an existing token class
+        self.write_class(class_id, &class)
+    }
+
+    fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> {
+        // TODO: Implement proper listing from SQLite database
+        // For now, return empty list as this is a stub implementation
+        Vec::new()
+    }
+
+    fn can_transfer(
+        &self,
+        class_id: &TokenClassId,
+        from: &Did,
+        _to: &Did,
+        amount: u64,
+    ) -> Result<bool, CommonError> {
+        // Check if the transfer is allowed (sufficient balance)
+        let balance = self.get_balance(class_id, from);
+        Ok(balance >= amount)
+    }
+
+    fn get_transfer_history(&self, _class_id: &TokenClassId, _did: &Did) -> Vec<TransferRecord> {
+        // TODO: Implement proper transfer history tracking
+        // For now, return empty history as this is a stub implementation
+        Vec::new()
     }
 }
