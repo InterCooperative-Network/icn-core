@@ -9,6 +9,7 @@ use icn_common::{Cid, CommonError, Did, TimeProvider};
 use icn_governance::{Proposal, ProposalId, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -452,17 +453,24 @@ impl AdvancedCclWasmBackend {
 
         let mut store = Store::new(&self.engine, context);
 
-        // TODO: Fix resource limiter - wasmtime API lifetime issue
-        // Need to properly implement Store resource limiting
-        // The limiter API requires complex lifetime management that needs refactoring
-        //
-        // let mut limiter = ResourceLimiter {
-        //     max_memory: self.execution_config.max_memory_bytes,
-        //     max_instructions: self.execution_config.max_instructions,
-        //     current_memory: 0,
-        //     current_instructions: 0,
-        // };
-        // store.limiter(|_| &mut limiter);
+        // Create and set resource limiter with proper lifetime management
+        // Using Arc<Mutex<>> to handle the wasmtime API lifetime requirements
+        let resource_limiter = std::sync::Arc::new(std::sync::Mutex::new(ResourceLimiter {
+            max_memory: self.execution_config.max_memory_bytes,
+            max_instructions: self.execution_config.max_instructions,
+            current_memory: 0,
+            current_instructions: 0,
+        }));
+
+        // Clone for the closure to avoid lifetime issues
+        let limiter_clone = resource_limiter.clone();
+        store.limiter(move |_| limiter_clone.lock().unwrap().deref_mut());
+
+        log::debug!(
+            "[AdvancedCCL] Set resource limits: max_memory={}, max_instructions={}",
+            self.execution_config.max_memory_bytes,
+            self.execution_config.max_instructions
+        );
 
         // Instantiate the module
         let instance = self.linker.instantiate(&mut store, &module).map_err(|e| {
