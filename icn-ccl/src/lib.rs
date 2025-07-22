@@ -111,47 +111,10 @@ pub fn compile_ccl_file_to_wasm(
 pub use cli::{check_ccl_file, compile_ccl_file, explain_ccl_policy, format_ccl_file};
 
 /// Expand macro definitions in the given AST using the standard library.
-fn expand_macros(ast: ast::AstNode, stdlib: &StandardLibrary) -> Result<ast::AstNode, CclError> {
-    use ast::{AstNode, PolicyStatementNode};
-
-    if let AstNode::Policy(stmts) = ast {
-        let mut expanded = Vec::new();
-        let _local_stdlib = stdlib;
-
-        // First pass: collect macro definitions and register them
-        // TODO: Implement macro registration in StandardLibrary
-        for stmt in &stmts {
-            if let PolicyStatementNode::MacroDef {
-                name: _,
-                params: _,
-                body: _,
-            } = stmt
-            {
-                // local_stdlib.register_macro(name.clone(), params.clone(), body.clone());
-            }
-        }
-
-        // Second pass: process statements
-        // For now, we just keep all statements including macro definitions
-        // TODO: Implement full macro expansion in expressions
-        for stmt in stmts {
-            match stmt {
-                PolicyStatementNode::MacroDef { .. } => {
-                    // Keep macro definitions in the output
-                    expanded.push(stmt);
-                }
-                other => {
-                    // For now, just keep other statements as-is
-                    // TODO: In a full implementation, we would recursively
-                    // traverse expressions in these statements to find and expand macro calls
-                    expanded.push(other);
-                }
-            }
-        }
-        Ok(AstNode::Policy(expanded))
-    } else {
-        // For non-Policy nodes, return as-is for now
-        // TODO: Implement macro expansion for other node types
-        Ok(ast)
-    }
+fn expand_macros(ast: ast::AstNode, _stdlib: &StandardLibrary) -> Result<ast::AstNode, CclError> {
+    // For now, keep this simple and functional
+    // Just return the AST as-is since macro expansion is complex
+    // and the main functionality should work without it
+    // TODO: Implement full macro expansion when AST structure is stable
+    Ok(ast)
 }

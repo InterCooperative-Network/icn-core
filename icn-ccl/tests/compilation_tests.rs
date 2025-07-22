@@ -1,6 +1,39 @@
 use icn_ccl::compile_ccl_source_to_wasm;
 
 #[test]
+fn test_else_if_chain_compilation() {
+    let source = r#"
+        fn test_grades(score: Integer) -> String {
+            if score >= 90 {
+                return "A";
+            } else if score >= 80 {
+                return "B";
+            } else if score >= 70 {
+                return "C";
+            } else if score >= 60 {
+                return "D";
+            } else {
+                return "F";
+            }
+        }
+        
+        fn run() -> Integer {
+            let grade = test_grades(85);
+            return 1; // Simple success test
+        }
+    "#;
+
+    let result = compile_ccl_source_to_wasm(source);
+    assert!(
+        result.is_ok(),
+        "Else-if chain should compile successfully: {:?}", result
+    );
+
+    let (wasm, _meta) = result.unwrap();
+    assert!(wasm.starts_with(b"\0asm"), "Should produce valid WASM");
+}
+
+#[test]
 fn test_array_assignment_compilation() {
     let source = r#"
         fn run() -> Integer {
