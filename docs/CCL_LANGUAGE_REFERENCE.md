@@ -52,6 +52,15 @@ Supported statements inside blocks:
 - `return` expressions
 - `if` / `else` conditional blocks
 - `while` loops
+- `for` loops
+
+For loops iterate over arrays or other iterable values:
+
+```ccl
+for item in numbers {
+    log_value(item);
+}
+```
 
 ### Expressions
 
