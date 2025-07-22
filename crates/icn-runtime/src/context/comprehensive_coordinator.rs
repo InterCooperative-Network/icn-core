@@ -372,7 +372,7 @@ pub struct HealthAnomaly {
 }
 
 /// Status of health anomalies
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum AnomalyStatus {
     /// Recently detected
     Active,

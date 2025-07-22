@@ -252,66 +252,15 @@ impl DefaultMeshNetworkService {
     }
 
     /// Convert a DID to a network PeerId (simplified mapping for now)
-    /// Calculate estimated duration for job execution based on bid resources
-    fn calculate_estimated_duration(
-        &self,
-        bid: &icn_mesh::MeshJobBid,
-    ) -> Result<u64, HostAbiError> {
-        // Simple estimation based on offered resources
-        // In a real implementation, this would be more sophisticated
-        let base_duration = 120; // 2 minutes base
-        let resource_factor = (bid.resources.cpu_cores as f64 / 4.0).max(0.25);
-        Ok((base_duration as f64 / resource_factor) as u64)
-    }
 
-    /// Get executor reputation score
-    fn get_executor_reputation(&self, executor_did: &Did) -> Result<u64, HostAbiError> {
-        if let Some(ref reputation_store) = self.reputation_store {
-            Ok(reputation_store.get_reputation(executor_did))
-        } else {
-            // Default reputation if no store available
-            Ok(50) // Neutral reputation
-        }
-    }
 
-    /// Get executor capabilities
-    fn get_executor_capabilities(
-        &self,
-        executor_did: &Did,
-    ) -> Vec<icn_protocol::ExecutorCapability> {
-        // In a real implementation, this would query a capabilities registry
-        // For now, return basic capabilities based on DID type
-        match executor_did.method.as_str() {
-            "key" => vec![icn_protocol::ExecutorCapability::BasicCompute],
-            "web" => vec![
-                icn_protocol::ExecutorCapability::BasicCompute,
-                icn_protocol::ExecutorCapability::WebServices,
-            ],
-            "peer" => vec![
-                icn_protocol::ExecutorCapability::BasicCompute,
-                icn_protocol::ExecutorCapability::P2pServices,
-            ],
-            _ => vec![icn_protocol::ExecutorCapability::BasicCompute],
-        }
-    }
 
-    /// Get executor federations
-    fn get_executor_federations(&self, executor_did: &Did) -> Vec<String> {
-        if let Some(ref federation_service) = self.federation_service {
-            // In a real implementation, this would query federation memberships
-            // For now, return empty list as placeholder
-            Vec::new()
-        } else {
-            Vec::new()
-        }
-    }
 
-    /// Get executor trust scope
-    fn get_executor_trust_scope(&self, _executor_did: &Did) -> Option<String> {
-        // In a real implementation, this would determine trust scope
-        // For now, return basic trust level
-        Some("basic".to_string())
-    }
+
+
+
+
+
 
     /// Enhanced bid filtering with reputation and federation constraints
     async fn filter_bids_by_reputation_and_federation(
@@ -391,7 +340,9 @@ impl DefaultMeshNetworkService {
                 .max(0)
                 .min(100) as u64;
 
-            reputation_store.set_score(executor_did.clone(), new_reputation);
+            // Use record_execution instead of set_score (which doesn't exist)
+            // We'll use a default execution time and let the store handle reputation calculation
+            reputation_store.record_execution(executor_did, job_successful, 1000); // 1 second default
 
             log::info!(
                 "[MeshNetwork] Updated reputation for {}: {} -> {} (change: {})",

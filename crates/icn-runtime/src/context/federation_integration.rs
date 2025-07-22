@@ -68,16 +68,9 @@ impl FederationIntegration {
         let mut federations = Vec::new();
 
         // Get federations from manager
-        let managed_federations =
-            self.federation_manager
-                .list_federations()
-                .await
-                .map_err(|e| {
-                    HostAbiError::InternalError(format!(
-                        "Failed to list managed federations: {}",
-                        e
-                    ))
-                })?;
+        let managed_federations = self
+            .federation_manager
+            .list_federations();
         federations.extend(managed_federations);
 
         // Get cached discovered federations
@@ -124,14 +117,13 @@ impl FederationIntegration {
         // Use network service to discover federations
         let discovered = match &*self.network_service {
             MeshNetworkServiceType::Default(service) => {
-                service.discover_federations().await.map_err(|e| {
+                service.inner.discover_federations().await.map_err(|e| {
                     HostAbiError::NetworkError(format!("Federation discovery failed: {}", e))
                 })?
             }
             MeshNetworkServiceType::Stub(service) => {
-                service.discover_federations().await.map_err(|e| {
-                    HostAbiError::NetworkError(format!("Federation discovery failed: {}", e))
-                })?
+                // For stub service, return empty list as default implementation
+                vec![]
             }
         };
 
@@ -175,13 +167,13 @@ impl FederationIntegration {
             })?
         };
 
-        // Use federation manager to join
+        // Use federation manager to join  
+        let capabilities = icn_identity::FederationCapabilities::default(); // Use default capabilities
         self.federation_manager
-            .request_membership(federation_id.to_string(), self.node_identity.clone())
-            .await
+            .join_federation(federation_id, &self.node_identity, capabilities)
             .map_err(|e| {
                 HostAbiError::InternalError(format!(
-                    "Failed to request federation membership: {}",
+                    "Failed to join federation: {}",
                     e
                 ))
             })?;
@@ -196,8 +188,7 @@ impl FederationIntegration {
     /// Leave a federation
     pub async fn leave_federation(&self, federation_id: &str) -> Result<(), HostAbiError> {
         self.federation_manager
-            .leave_federation(federation_id.to_string(), self.node_identity.clone())
-            .await
+            .leave_federation(federation_id, &self.node_identity)
             .map_err(|e| {
                 HostAbiError::InternalError(format!("Failed to leave federation: {}", e))
             })?;
@@ -210,13 +201,20 @@ impl FederationIntegration {
     pub async fn get_membership_status(
         &self,
         federation_id: &str,
-    ) -> Result<Option<MembershipStatus>, HostAbiError> {
-        self.federation_manager
-            .get_membership_status(federation_id, &self.node_identity)
-            .await
-            .map_err(|e| {
-                HostAbiError::InternalError(format!("Failed to get membership status: {}", e))
-            })
+    ) -> Result<Option<icn_identity::MembershipStatus>, HostAbiError> {
+        let is_member = self
+            .federation_manager
+            .membership_service()
+            .is_member(&self.node_identity, federation_id);
+        
+        // Convert boolean to MembershipStatus
+        let status = if is_member {
+            Some(icn_identity::MembershipStatus::Active)
+        } else {
+            None
+        };
+        
+        Ok(status)
     }
 
     /// Get federations we are members of

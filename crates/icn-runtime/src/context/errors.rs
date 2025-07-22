@@ -50,3 +50,12 @@ impl From<CommonError> for HostAbiError {
         HostAbiError::Common(err)
     }
 }
+
+impl From<HostAbiError> for CommonError {
+    fn from(err: HostAbiError) -> Self {
+        match err {
+            HostAbiError::Common(common_err) => common_err,
+            other => CommonError::InternalError(other.to_string()),
+        }
+    }
+}
