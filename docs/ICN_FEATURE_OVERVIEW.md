@@ -67,6 +67,9 @@ ICN enables autonomous federated systems that support cooperative coordination w
 ### **🚧 In Development**
 - **Scoped Token Framework**: Comprehensive capability-bound token system
 - **Federated Trust Markets**: Cross-cooperative token acceptance
+- **Policy Scheduling**: Automated enforcement intervals for economic rules
+- **Bid/Ask Spread Management**: Configurable spreads for internal markets
+- **Demand Forecasting**: Predictive models driven by reputation data
 
 ### **🔮 Planned**
 - **Cooperative Banking**: Decentralized financial services for cooperatives

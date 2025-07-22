@@ -121,6 +121,7 @@
 ### **Cooperative Features**
 - **[docs/COOPERATIVE_ROADMAP.md](docs/COOPERATIVE_ROADMAP.md)** - Cooperative infrastructure implementation
 - **[docs/ICN_FEATURE_OVERVIEW.md](docs/ICN_FEATURE_OVERVIEW.md)** - Complete feature overview
+- **Economic Automation Enhancements**: Reputation-weighted mana and policy schedules
 
 ### **Philosophy & Vision**
 - **[docs/INTRODUCTION.md](docs/INTRODUCTION.md)** - ICN vision and capabilities

@@ -513,6 +513,17 @@ pub struct MarketMakingState {
     pub risk_metrics: RiskMetrics,
 }
 
+impl Default for MarketMakingState {
+    fn default() -> Self {
+        Self {
+            positions: HashMap::new(),
+            inventory: HashMap::new(),
+            performance: MarketMakingPerformance::default(),
+            risk_metrics: RiskMetrics::default(),
+        }
+    }
+}
+
 /// Market making position
 #[derive(Debug, Clone)]
 pub struct MarketPosition {
@@ -1181,10 +1192,66 @@ impl EconomicAutomationEngine {
         _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
         _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement policy enforcement logic
+        log::debug!("Enforcing economic policies");
+
+        let mut policies = _economic_policies.write().unwrap();
+        let now = Instant::now();
+
+        for policy in policies.values_mut() {
+            // Determine the policy schedule
+            let schedule_seconds = policy
+                .parameters
+                .get("schedule_seconds")
+                .cloned()
+                .unwrap_or(60.0);
+            if now.duration_since(policy.last_updated)
+                < Duration::from_secs(schedule_seconds as u64)
+            {
+                continue;
+            }
+
+            match policy.policy_type {
+                PolicyType::ManaRegeneration => {
+                    let target_balance = policy
+                        .parameters
+                        .get("target_balance")
+                        .cloned()
+                        .unwrap_or(0.0) as u64;
+
+                    for did in _mana_ledger.all_accounts() {
+                        let current = _mana_ledger.get_balance(&did);
+                        if current < target_balance {
+                            let diff = target_balance - current;
+                            _mana_ledger.credit(&did, diff)?;
+
+                            let _ = _event_tx.send(EconomicEvent::PolicyViolation {
+                                violator: did.clone(),
+                                policy_id: policy.policy_id.clone(),
+                                violation_type: ViolationType::ExcessiveConsumption {
+                                    consumed: current,
+                                    limit: target_balance,
+                                },
+                                penalty_applied: Some(EconomicPenalty {
+                                    penalty_type: PenaltyType::ManaPenalty,
+                                    severity: 0.0,
+                                    duration: None,
+                                    amount: Some(diff),
+                                    restrictions: vec![],
+                                }),
+                                timestamp: _time_provider.unix_seconds() * 1000,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
+
+            policy.last_updated = now;
+        }
+
         Ok(())
     }
-    
+
     async fn monitor_economic_health(
         _health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
         _mana_ledger: &Arc<dyn ManaLedger>,
@@ -1193,26 +1260,145 @@ impl EconomicAutomationEngine {
         _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
         _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement health monitoring logic
+        log::debug!("Monitoring economic health");
+
+        let accounts = _mana_ledger.all_accounts();
+        if accounts.is_empty() {
+            return Ok(());
+        }
+
+        let mut balances: Vec<u64> = accounts
+            .iter()
+            .map(|did| _mana_ledger.get_balance(did))
+            .collect();
+        balances.sort_unstable();
+
+        let total: u64 = balances.iter().sum();
+        let n = balances.len() as f64;
+
+        // Gini coefficient for mana inequality
+        let mut cumulative = 0f64;
+        let mut gini_area = 0f64;
+        for b in &balances {
+            cumulative += *b as f64;
+            gini_area += cumulative;
+        }
+        let gini = if total > 0 {
+            (n + 1.0 - 2.0 * gini_area / cumulative) / n
+        } else {
+            0.0
+        };
+
+        let mut metrics = _health_metrics.write().unwrap();
+        metrics.mana_inequality = gini;
+        metrics.overall_health = 1.0 - gini;
+        metrics.activity_level = total as f64 / n;
+        metrics.last_updated = _time_provider.unix_seconds() * 1000;
+
         Ok(())
     }
-    
+
     async fn execute_market_making(
         _market_making_state: &Arc<RwLock<MarketMakingState>>,
         _pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
         _config: &EconomicAutomationConfig,
         _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement market making logic
+        log::debug!("Executing market making routine");
+
+        let mut state = _market_making_state.write().unwrap();
+        let models = _pricing_models.read().unwrap();
+
+        for (resource, model) in models.iter() {
+            let mid = model.current_price;
+            let half = mid * _config.market_making_spread / 2.0;
+            let bid = mid - half;
+            let ask = mid + half;
+
+            let position_id = format!("{}-{}", resource, state.performance.total_trades);
+            state.positions.insert(
+                position_id.clone(),
+                MarketPosition {
+                    position_id,
+                    resource_type: resource.clone(),
+                    size: 1,
+                    entry_price: bid,
+                    current_price: mid,
+                    unrealized_pnl: 0.0,
+                    timestamp: Instant::now(),
+                },
+            );
+
+            let inventory = state.inventory.entry(resource.clone()).or_insert(0);
+            *inventory += 1;
+
+            state.performance.total_trades += 1;
+            state.performance.total_volume += 1;
+            state.performance.avg_spread_captured =
+                ((state.performance.avg_spread_captured
+                    * (state.performance.total_trades - 1) as f64)
+                    + _config.market_making_spread)
+                    / state.performance.total_trades as f64;
+
+            let ts = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_millis() as u64;
+
+            let _ = _event_tx.send(EconomicEvent::MarketTransaction {
+                transaction_id: format!("tx_{}", state.performance.total_trades),
+                buyer: Did::new("icn", "market"),
+                seller: Did::new("icn", "market"),
+                resource_type: resource.clone(),
+                amount: 1,
+                price: ask,
+                timestamp: ts,
+            });
+        }
+
         Ok(())
     }
-    
+
     async fn run_predictive_models(
         _health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
         _pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
         _mana_accounts: &Arc<RwLock<HashMap<Did, ManaAccountState>>>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement predictive modeling logic
+        log::debug!("Running predictive models");
+
+        let accounts = _mana_accounts.read().unwrap();
+        let avg_rep: f64 = if accounts.is_empty() {
+            0.0
+        } else {
+            accounts
+                .values()
+                .map(|a| a.reputation_bonus)
+                .sum::<f64>()
+                / accounts.len() as f64
+        };
+
+        let demand_factor = 1.0 + (avg_rep / 100.0);
+
+        let mut models = _pricing_models.write().unwrap();
+        for model in models.values_mut() {
+            let recent: Vec<f64> = model
+                .price_history
+                .iter()
+                .rev()
+                .take(5)
+                .map(|(_, p)| *p)
+                .collect();
+            if !recent.is_empty() {
+                let avg_price = recent.iter().copied().sum::<f64>() / recent.len() as f64;
+                model.supply_demand_ratio = demand_factor * (avg_price / model.base_price);
+                model.last_updated = Instant::now();
+            }
+        }
+
+        let mut metrics = _health_metrics.write().unwrap();
+        metrics.activity_level = demand_factor;
+        metrics.last_updated = Instant::now().elapsed().as_secs();
+
         Ok(())
     }
     
@@ -1331,6 +1517,44 @@ pub struct EconomicAutomationStats {
 mod tests {
     use super::*;
     use icn_common::SystemTimeProvider;
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[derive(Default)]
+    struct SimpleManaLedger {
+        balances: Mutex<HashMap<Did, u64>>, 
+    }
+
+    impl ManaLedger for SimpleManaLedger {
+        fn get_balance(&self, did: &Did) -> u64 {
+            *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+        }
+
+        fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            self.balances.lock().unwrap().insert(did.clone(), amount);
+            Ok(())
+        }
+
+        fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            let bal = map.get_mut(did).ok_or_else(|| CommonError::PolicyDenied("account".into()))?;
+            if *bal < amount {
+                return Err(CommonError::PolicyDenied("insufficient".into()));
+            }
+            *bal -= amount;
+            Ok(())
+        }
+
+        fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+            let mut map = self.balances.lock().unwrap();
+            *map.entry(did.clone()).or_insert(0) += amount;
+            Ok(())
+        }
+
+        fn all_accounts(&self) -> Vec<Did> {
+            self.balances.lock().unwrap().keys().cloned().collect()
+        }
+    }
     
     #[test]
     fn test_economic_automation_config() {
@@ -1365,5 +1589,144 @@ mod tests {
             }
             _ => panic!("Unexpected allocation strategy"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_enforce_policies() {
+        let ledger = Arc::new(SimpleManaLedger::default());
+        let did = Did::new("icn", "alice");
+        ledger.credit(&did, 1).unwrap();
+
+        let mut params = HashMap::new();
+        params.insert("target_balance".to_string(), 10.0);
+        params.insert("schedule_seconds".to_string(), 0.0);
+
+        let policy = EconomicPolicy {
+            policy_id: "p1".into(),
+            policy_type: PolicyType::ManaRegeneration,
+            parameters: params,
+            enforcement_level: 1.0,
+            last_updated: Instant::now() - Duration::from_secs(120),
+            status: PolicyStatus::Active,
+        };
+
+        let policies = Arc::new(RwLock::new(HashMap::from([("p1".into(), policy)])));
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let tp = Arc::new(SystemTimeProvider {});
+
+        EconomicAutomationEngine::enforce_economic_policies(&policies, &ledger, &EconomicAutomationConfig::default(), &tx, &tp)
+            .await
+            .unwrap();
+
+        assert_eq!(ledger.get_balance(&did), 10);
+    }
+
+    #[tokio::test]
+    async fn test_monitor_health() {
+        let ledger = Arc::new(SimpleManaLedger::default());
+        ledger.credit(&Did::new("icn", "a"), 10).unwrap();
+        ledger.credit(&Did::new("icn", "b"), 20).unwrap();
+
+        let metrics = Arc::new(RwLock::new(EconomicHealthMetrics {
+            overall_health: 1.0,
+            mana_inequality: 0.0,
+            resource_efficiency: 0.0,
+            market_liquidity: 0.0,
+            price_stability: 0.0,
+            activity_level: 0.0,
+            last_updated: 0,
+        }));
+
+        let (tx, _rx) = mpsc::unbounded_channel();
+        let tp = Arc::new(SystemTimeProvider {});
+
+        EconomicAutomationEngine::monitor_economic_health(&metrics, &ledger, &Arc::new(SimpleResourceLedger {}), &EconomicAutomationConfig::default(), &tx, &tp)
+            .await
+            .unwrap();
+
+        let m = metrics.read().unwrap();
+        assert!(m.last_updated > 0);
+    }
+
+    #[derive(Default)]
+    struct SimpleResourceLedger;
+
+    impl ResourceLedger for SimpleResourceLedger {
+        fn create_class(&self, _class_id: &TokenClassId, _class: TokenClass) -> Result<(), CommonError> { Ok(()) }
+        fn get_class(&self, _class_id: &TokenClassId) -> Option<TokenClass> { None }
+        fn update_class(&self, _class_id: &TokenClassId, _class: TokenClass) -> Result<(), CommonError> { Ok(()) }
+        fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> { Vec::new() }
+        fn mint(&self, _class_id: &TokenClassId, _owner: &Did, _amount: u64) -> Result<(), CommonError> { Ok(()) }
+        fn burn(&self, _class_id: &TokenClassId, _owner: &Did, _amount: u64) -> Result<(), CommonError> { Ok(()) }
+        fn transfer(&self, _class_id: &TokenClassId, _from: &Did, _to: &Did, _amount: u64) -> Result<(), CommonError> { Ok(()) }
+        fn get_balance(&self, _class_id: &TokenClassId, _owner: &Did) -> u64 { 0 }
+        fn can_transfer(&self, _class_id: &TokenClassId, _from: &Did, _to: &Did, _amount: u64) -> Result<bool, CommonError> { Ok(true) }
+        fn get_transfer_history(&self, _class_id: &TokenClassId, _did: &Did) -> Vec<TransferRecord> { Vec::new() }
+    }
+
+    #[tokio::test]
+    async fn test_market_making() {
+        let state = Arc::new(RwLock::new(MarketMakingState::default()));
+        let mut model = DynamicPricingModel {
+            base_price: 10.0,
+            current_price: 10.0,
+            price_history: VecDeque::new(),
+            supply_demand_ratio: 1.0,
+            quality_factor: 1.0,
+            competition_factor: 1.0,
+            last_updated: Instant::now(),
+        };
+        model.price_history.push_back((Instant::now(), 10.0));
+        let models = Arc::new(RwLock::new(HashMap::from([("cpu".into(), model)])));
+        let config = EconomicAutomationConfig { market_making_spread: 0.1, ..Default::default() };
+        let (tx, _rx) = mpsc::unbounded_channel();
+
+        EconomicAutomationEngine::execute_market_making(&state, &models, &config, &tx)
+            .await
+            .unwrap();
+
+        assert!(!state.read().unwrap().positions.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_predictive_models() {
+        let metrics = Arc::new(RwLock::new(EconomicHealthMetrics {
+            overall_health: 1.0,
+            mana_inequality: 0.0,
+            resource_efficiency: 0.0,
+            market_liquidity: 0.0,
+            price_stability: 0.0,
+            activity_level: 0.0,
+            last_updated: 0,
+        }));
+
+        let mut model = DynamicPricingModel {
+            base_price: 10.0,
+            current_price: 10.0,
+            price_history: VecDeque::new(),
+            supply_demand_ratio: 1.0,
+            quality_factor: 1.0,
+            competition_factor: 1.0,
+            last_updated: Instant::now(),
+        };
+        model.price_history.push_back((Instant::now(), 10.0));
+        let models = Arc::new(RwLock::new(HashMap::from([("cpu".into(), model)])));
+
+        let account = ManaAccountState {
+            account: Did::new("icn", "a"),
+            balance: 10,
+            capacity: 100,
+            regeneration_rate: 1.0,
+            last_regeneration: Instant::now(),
+            reputation_bonus: 10.0,
+            usage_history: VecDeque::new(),
+        };
+        let accounts = Arc::new(RwLock::new(HashMap::from([(account.account.clone(), account)])));
+
+        EconomicAutomationEngine::run_predictive_models(&metrics, &models, &accounts)
+            .await
+            .unwrap();
+
+        assert!(metrics.read().unwrap().activity_level > 1.0);
     }
 } 
