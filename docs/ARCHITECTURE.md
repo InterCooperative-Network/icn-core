@@ -239,6 +239,13 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 
 **Dependencies**: All domain crates, WASM runtime
 
+**Runtime Initialization Steps**:
+1. `NodeConfig` is loaded and environment overrides are applied.
+2. A `ServiceConfig` is constructed with networking, storage and signing services.
+3. `RuntimeContext::from_service_config` initializes the execution monitor logger and builds the cross-component coordinator.
+4. Executor capabilities and federation memberships from `NodeConfig` populate runtime parameters.
+5. Job and executor managers are started to process work.
+
 ### Service Layer
 
 #### `icn-api`
