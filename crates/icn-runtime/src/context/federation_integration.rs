@@ -6,8 +6,9 @@
 use super::{HostAbiError, MeshNetworkServiceType};
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{
-    FederationInfo, FederationManager, FederationMembershipService, FederationType, FederationStatus, MembershipStatus,
+    FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
 };
+use icn_identity::federation_manager::{FederationType, FederationStatus, MembershipPolicy};
 use icn_reputation::ReputationStore;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -141,9 +142,9 @@ impl FederationIntegration {
                     created_at: chrono::Utc::now().timestamp() as u64,
                     federation_type: FederationType::General, // Default type
                     geographic_scope: None,
-                    membership_policy: icn_identity::MembershipPolicy::Open,
+                    membership_policy: MembershipPolicy::Open,
                     required_capabilities: Vec::new(),
-                    status: icn_identity::FederationStatus::Active,
+                    status: FederationStatus::Active,
                     metadata: std::collections::HashMap::new(),
                 };
                 
@@ -297,16 +298,15 @@ impl FederationIntegration {
                         .membership_service()
                         .is_member(peer_did, &federation.federation_id)
                     {
-                            shared_federations += 1;
-                            // Add trust based on federation type and reputation
-                            let federation_weight = match federation.federation_type {
-                                FederationType::Governance => 2.0,
-                                FederationType::Compute => 1.5,
-                                FederationType::Economic => 1.8,
-                                _ => 1.0,
-                            };
-                            trust_score += federation_weight;
-                        }
+                        shared_federations += 1;
+                        // Add trust based on federation type and reputation
+                        let federation_weight = match federation.federation_type {
+                            FederationType::Governance => 2.0,
+                            FederationType::Compute => 1.5,
+                            FederationType::Economic => 1.8,
+                            _ => 1.0,
+                        };
+                        trust_score += federation_weight;
                     }
                 }
             }
@@ -357,19 +357,19 @@ impl FederationIntegration {
         for federation in our_federations {
             // Add federation-specific capabilities
             match federation.federation_type {
-                icn_identity::FederationType::Compute => {
+                FederationType::Compute => {
                     capabilities.push("compute_federation".to_string());
                     capabilities.push("distributed_processing".to_string());
                 }
-                icn_identity::FederationType::Data => {
+                FederationType::Data => {
                     capabilities.push("data_federation".to_string());
                     capabilities.push("data_sharing".to_string());
                 }
-                icn_identity::FederationType::Governance => {
+                FederationType::Governance => {
                     capabilities.push("governance_federation".to_string());
                     capabilities.push("proposal_voting".to_string());
                 }
-                icn_identity::FederationType::Economic => {
+                FederationType::Economic => {
                     capabilities.push("economic_federation".to_string());
                     capabilities.push("resource_trading".to_string());
                 }
@@ -460,9 +460,9 @@ impl FederationAwareJobSelection {
 
         for federation in federations {
             let weight = match federation.federation_type {
-                icn_identity::FederationType::Governance => 3.0,
-                icn_identity::FederationType::Economic => 2.5,
-                icn_identity::FederationType::Compute => 2.0,
+                FederationType::Governance => 3.0,
+                FederationType::Economic => 2.5,
+                FederationType::Compute => 2.0,
                 _ => 1.0,
             };
 

@@ -368,12 +368,12 @@ impl AdvancedCclWasmBackend {
         // Load WASM bytes from DAG
         let wasm_bytes = {
             let dag_store = self.dag_store.lock().await;
-            dag_store
-                .retrieve(module_cid)
+            let block = dag_store
+                .get(module_cid)
                 .await
                 .map_err(|e| HostAbiError::DagError(format!("Failed to load WASM module: {}", e)))?
-                .ok_or_else(|| HostAbiError::DagError("WASM module not found in DAG".to_string()))?
-                .data
+                .ok_or_else(|| HostAbiError::DagError("WASM module not found in DAG".to_string()))?;
+            block.data
         };
 
         // Compile with optimizations

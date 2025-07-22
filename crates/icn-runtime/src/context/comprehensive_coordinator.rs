@@ -987,21 +987,25 @@ impl ComprehensiveCoordinator {
         smart_router: &Arc<SmartP2pRouter>,
         adaptive_routing: &Arc<AdaptiveRoutingEngine>,
     ) -> Result<(), CommonError> {
-        let health = system_health.read().unwrap();
-        let cpu_util = *health.resource_utilization.get("cpu").unwrap_or(&0.0);
-        let network_util = *health.resource_utilization.get("network").unwrap_or(&0.0);
+        // Extract all data from the health guard before any async operations
+        let (cpu_util, network_util, predicted_cpu, predicted_network) = {
+            let health = system_health.read().unwrap();
+            let cpu_util = *health.resource_utilization.get("cpu").unwrap_or(&0.0);
+            let network_util = *health.resource_utilization.get("network").unwrap_or(&0.0);
 
-        let predicted_cpu = health
-            .performance_trends
-            .get("cpu")
-            .and_then(|t| t.predicted_value)
-            .unwrap_or(cpu_util);
-        let predicted_network = health
-            .performance_trends
-            .get("network")
-            .and_then(|t| t.predicted_value)
-            .unwrap_or(network_util);
-        drop(health);
+            let predicted_cpu = health
+                .performance_trends
+                .get("cpu")
+                .and_then(|t| t.predicted_value)
+                .unwrap_or(cpu_util);
+            let predicted_network = health
+                .performance_trends
+                .get("network")
+                .and_then(|t| t.predicted_value)
+                .unwrap_or(network_util);
+                
+            (cpu_util, network_util, predicted_cpu, predicted_network)
+        }; // health guard is dropped here
 
         let routing_metrics = adaptive_routing.get_performance_metrics();
         let success_rate = if routing_metrics.total_routing_decisions > 0 {
