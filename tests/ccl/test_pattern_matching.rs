@@ -1,4 +1,4 @@
-use icn_ccl::parser::parse_ccl_source;
+use icn_ccl::{parser::parse_ccl_source, compile_ccl_source_to_wasm};
 
 fn main() {
     // Test pattern matching parsing
@@ -13,12 +13,13 @@ fn main() {
     
     let result = parse_ccl_source(source);
     match result {
-        Ok(_) => {
-            println!("✓ Pattern matching parsed successfully!");
-        }
-        Err(e) => {
-            println!("✗ Failed to parse pattern matching: {:?}", e);
-        }
+        Ok(_) => println!("✓ Pattern matching parsed successfully!"),
+        Err(e) => println!("✗ Failed to parse pattern matching: {:?}", e),
+    }
+
+    match compile_ccl_source_to_wasm(source) {
+        Ok((wasm, _)) => assert!(wasm.starts_with(b"\0asm")),
+        Err(e) => panic!("Compilation failed: {}", e),
     }
     
     // Test simple enum pattern
@@ -33,11 +34,12 @@ fn main() {
     
     let result2 = parse_ccl_source(source2);
     match result2 {
-        Ok(_) => {
-            println!("✓ Enum pattern matching parsed successfully!");
-        }
-        Err(e) => {
-            println!("✗ Failed to parse enum patterns: {:?}", e);
-        }
+        Ok(_) => println!("✓ Enum pattern matching parsed successfully!"),
+        Err(e) => println!("✗ Failed to parse enum patterns: {:?}", e),
+    }
+
+    match compile_ccl_source_to_wasm(source2) {
+        Ok((wasm, _)) => assert!(wasm.starts_with(b"\0asm")),
+        Err(e) => panic!("Compilation failed: {}", e),
     }
 }

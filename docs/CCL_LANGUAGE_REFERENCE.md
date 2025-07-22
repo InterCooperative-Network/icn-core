@@ -75,6 +75,11 @@ match result {
 }
 ```
 
+`match` expressions are compiled into WebAssembly using nested blocks. Each arm
+compares the matched value against its pattern and jumps out of the block when a
+match succeeds. The current compiler supports literal patterns, variable
+bindings and enum variant patterns.
+
 ### Policy Rules
 
 Policy oriented contracts can declare rules which evaluate an expression and then

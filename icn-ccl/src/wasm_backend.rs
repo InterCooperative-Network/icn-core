@@ -1,7 +1,7 @@
 // icn-ccl/src/wasm_backend.rs
 use crate::ast::{
-    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, StatementNode,
-    TypeAnnotationNode, UnaryOperator,
+    AstNode, BinaryOperator, BlockNode, ExpressionNode, PolicyStatementNode, PatternNode,
+    StatementNode, TypeAnnotationNode, UnaryOperator, LiteralNode,
 };
 use crate::error::CclError;
 use crate::metadata::ContractMetadata;
@@ -3718,10 +3718,43 @@ impl WasmBackend {
                 Ok(ValType::I32)
             }
 
-            ExpressionNode::Match { .. } => {
-                // TODO: Implement pattern matching in WASM backend
-                instrs.push(Instruction::I32Const(0)); // placeholder return value
-                Ok(ValType::I32)
+            ExpressionNode::Match { expr, arms } => {
+                // Evaluate the expression being matched and store in a local
+                let match_ty = self.emit_expression(expr, instrs, locals, indices)?;
+                let match_local = locals.get_or_add("__match_val", match_ty);
+                instrs.push(Instruction::LocalSet(match_local));
+
+                // Determine result type by inspecting the first arm
+                let mut tmp = Vec::new();
+                let result_ty = self.emit_expression(&arms[0].body, &mut tmp, locals, indices)?;
+                tmp.clear();
+
+                instrs.push(Instruction::Block(wasm_encoder::BlockType::Result(result_ty)));
+
+                for (i, arm) in arms.iter().enumerate() {
+                    if i < arms.len() - 1 {
+                        self.emit_pattern_condition(&arm.pattern, match_local, match_ty, instrs, locals)?;
+                        if let Some(guard) = &arm.guard {
+                            let guard_ty = self.emit_expression(guard, instrs, locals, indices)?;
+                            if guard_ty != ValType::I32 {
+                                return Err(CclError::WasmGenerationError("Match guard must be boolean".to_string()));
+                            }
+                            instrs.push(Instruction::I32Eqz);
+                            instrs.push(Instruction::BrIf(0));
+                        }
+                        instrs.push(Instruction::If(wasm_encoder::BlockType::Result(result_ty)));
+                        self.bind_pattern(&arm.pattern, match_local, match_ty, instrs, locals)?;
+                        self.emit_expression(&arm.body, instrs, locals, indices)?;
+                        instrs.push(Instruction::Br(1));
+                        instrs.push(Instruction::End);
+                    } else {
+                        self.bind_pattern(&arm.pattern, match_local, match_ty, instrs, locals)?;
+                        self.emit_expression(&arm.body, instrs, locals, indices)?;
+                    }
+                }
+
+                instrs.push(Instruction::End);
+                Ok(result_ty)
             } // All legacy expressions removed - CCL 0.1 uses new expression variants
         }
     }
@@ -4497,6 +4530,66 @@ impl WasmBackend {
 
         Ok(())
     }
+
+    /// Generate the condition for a pattern match arm
+    fn emit_pattern_condition(
+        &mut self,
+        pattern: &PatternNode,
+        match_local: u32,
+        match_ty: ValType,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+    ) -> Result<(), CclError> {
+        match pattern {
+            PatternNode::Literal(LiteralNode::Integer(i)) => {
+                instrs.push(Instruction::LocalGet(match_local));
+                if match_ty == ValType::I32 {
+                    instrs.push(Instruction::I32Const(*i as i32));
+                    instrs.push(Instruction::I32Eq);
+                } else {
+                    instrs.push(Instruction::I64Const(*i));
+                    instrs.push(Instruction::I64Eq);
+                }
+            }
+            PatternNode::Literal(LiteralNode::Boolean(b)) => {
+                instrs.push(Instruction::LocalGet(match_local));
+                instrs.push(Instruction::I32Const(if *b { 1 } else { 0 }));
+                instrs.push(Instruction::I32Eq);
+            }
+            PatternNode::Variable(_) | PatternNode::Wildcard => {
+                instrs.push(Instruction::I32Const(1));
+            }
+            PatternNode::Enum { variant, .. } => {
+                instrs.push(Instruction::LocalGet(match_local));
+                let idx = Self::enum_variant_index(variant);
+                instrs.push(Instruction::I64Const(idx));
+                instrs.push(Instruction::I64Eq);
+            }
+            _ => {
+                return Err(CclError::WasmGenerationError(
+                    "Unsupported pattern type".to_string(),
+                ));
+            }
+        }
+        Ok(())
+    }
+
+    /// Bind variables for a pattern when entering an arm
+    fn bind_pattern(
+        &mut self,
+        pattern: &PatternNode,
+        match_local: u32,
+        match_ty: ValType,
+        instrs: &mut Vec<Instruction>,
+        locals: &mut LocalEnv,
+    ) -> Result<(), CclError> {
+        if let PatternNode::Variable(name) = pattern {
+            let idx = locals.get_or_add(name, match_ty);
+            instrs.push(Instruction::LocalGet(match_local));
+            instrs.push(Instruction::LocalSet(idx));
+        }
+        Ok(())
+    }
 }
 
 fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
@@ -4523,5 +4616,21 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             "Unsupported type {}",
             name
         ))),
+    }
+}
+
+impl WasmBackend {
+    fn enum_variant_index(name: &str) -> i64 {
+        match name {
+            "Pending" => 0,
+            "Active" => 1,
+            "Passed" => 2,
+            "Rejected" => 3,
+            "Ok" => 0,
+            "Err" => 1,
+            "Some" => 1,
+            "None" => 0,
+            _ => 0,
+        }
     }
 }
