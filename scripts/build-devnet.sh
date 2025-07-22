@@ -24,20 +24,32 @@ echo "🧹 Cleaning previous builds..."
 cargo clean
 
 # Build in release mode with reduced debug info to avoid LLVM issues
-echo "🏗️ Building in release mode with reduced debug info..."
+echo "🏗️ Building ICN node in release mode with reduced debug info..."
 cargo build --release --package icn-node --features with-libp2p
+
+# Also build CLI to avoid compilation during federation setup
+echo "🏗️ Building ICN CLI in release mode..."
+cargo build --release --package icn-cli
 
 # If release build succeeds but we need debug for development, try with limited debug
 if [ $? -eq 0 ]; then
-    echo "✅ Release build successful"
+    echo "✅ Release builds successful"
     
-    echo "🔧 Attempting debug build with limited debug info..."
+    echo "🔧 Attempting debug builds with limited debug info..."
     # Try debug build with very limited debug info
     RUSTFLAGS="-C debuginfo=0" cargo build --package icn-node --features with-libp2p || {
         echo "⚠️ Debug build failed, using release build for devnet"
         # Copy release binary to debug location for devnet
         mkdir -p target/debug
         cp target/release/icn-node target/debug/icn-node
+    }
+    
+    # Try CLI debug build
+    RUSTFLAGS="-C debuginfo=0" cargo build --package icn-cli || {
+        echo "⚠️ CLI debug build failed, using release build"
+        # Copy release CLI binary to debug location
+        mkdir -p target/debug
+        cp target/release/icn-cli target/debug/icn-cli
     }
 else
     echo "❌ Release build failed"

@@ -33,14 +33,14 @@ COPY tests/ ./tests/
 # Build the ICN node binary
 # Increase rustc stack size to avoid segfaults during optimized builds
 # 64 MiB as suggested by rustc error message (67108864 bytes)
-ENV RUST_MIN_STACK=67108864
+ENV RUST_MIN_STACK=16777216
 
 # Additional memory optimizations for the build
 ENV CARGO_NET_RETRY=10
 ENV CARGO_NET_TIMEOUT=300
 
 # Ultra-conservative compilation flags to minimize memory usage
-ENV RUSTFLAGS="-C debuginfo=0 -C opt-level=1 -C strip=symbols -C codegen-units=16 -C incremental=false"
+ENV RUSTFLAGS="-C debuginfo=1 -C opt-level=1 -C strip=symbols -C codegen-units=4"
 ENV CARGO_PROFILE_RELEASE_DEBUG=0
 ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=1
 ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
@@ -63,6 +63,7 @@ ENV CARGO_BUILD_JOBS=2
 # Build with increased stack size and memory limits
 # Use release mode with reduced debug info to avoid LLVM issues
 RUN bash -c "cargo build --release -p icn-node --features with-libp2p"
+RUN bash -c "cargo build --release -p icn-cli"
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -79,8 +80,9 @@ RUN mkdir -p /app/data /app/icn_data /app/.icn /app/config /app/.local /app/.cac
     chown -R icn:icn /app && \
     chmod -R 755 /app
 
-# Copy binary from builder stage (built in release mode)
+# Copy binaries from builder stage (built in release mode)
 COPY --from=builder /app/target/release/icn-node /usr/local/bin/icn-node
+COPY --from=builder /app/target/release/icn-cli /usr/local/bin/icn-cli
 
 # Copy entrypoint script
 COPY icn-devnet/entrypoint.sh /usr/local/bin/entrypoint.sh

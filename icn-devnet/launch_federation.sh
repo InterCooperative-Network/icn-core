@@ -162,19 +162,55 @@ wait_for_network_convergence() {
 # Configure federation using icn-cli
 setup_federation_cli() {
     log "Setting up federation with icn-cli..."
-    cargo run -p icn-cli -- \
+    
+    # Set environment variables to work around LLVM/Rust compiler issues if CLI needs compilation
+    export RUST_MIN_STACK=16777216
+    export RUSTFLAGS="-C debuginfo=0 -C opt-level=1"
+    
+    # Use pre-built CLI binary instead of cargo run to avoid compilation
+    local cli_binary=""
+    if [ -f "../target/debug/icn-cli" ]; then
+        cli_binary="../target/debug/icn-cli"
+    elif [ -f "../target/release/icn-cli" ]; then
+        cli_binary="../target/release/icn-cli"
+    else
+        # Fall back to cargo run with protected environment
+        log "Pre-built CLI not found, attempting to compile with safe environment..."
+        cargo run -p icn-cli -- \
+            --api-url "$NODE_A_URL" \
+            --api-key "$NODE_A_API_KEY" \
+            federation init >/dev/null
+        cargo run -p icn-cli -- \
+            --api-url "$NODE_B_URL" \
+            --api-key "$NODE_B_API_KEY" \
+            federation join "$NODE_A_URL" >/dev/null
+        cargo run -p icn-cli -- \
+            --api-url "$NODE_C_URL" \
+            --api-key "$NODE_C_API_KEY" \
+            federation join "$NODE_A_URL" >/dev/null
+        cargo run -p icn-cli -- \
+            --api-url "$NODE_A_URL" \
+            --api-key "$NODE_A_API_KEY" \
+            federation sync >/dev/null
+        return
+    fi
+    
+    log "Using pre-built CLI binary: $cli_binary"
+    
+    # Use pre-built binary for federation setup
+    $cli_binary \
         --api-url "$NODE_A_URL" \
         --api-key "$NODE_A_API_KEY" \
         federation init >/dev/null
-    cargo run -p icn-cli -- \
+    $cli_binary \
         --api-url "$NODE_B_URL" \
         --api-key "$NODE_B_API_KEY" \
         federation join "$NODE_A_URL" >/dev/null
-    cargo run -p icn-cli -- \
+    $cli_binary \
         --api-url "$NODE_C_URL" \
         --api-key "$NODE_C_API_KEY" \
         federation join "$NODE_A_URL" >/dev/null
-    cargo run -p icn-cli -- \
+    $cli_binary \
         --api-url "$NODE_A_URL" \
         --api-key "$NODE_A_API_KEY" \
         federation sync >/dev/null
