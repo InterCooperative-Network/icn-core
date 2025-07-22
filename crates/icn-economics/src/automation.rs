@@ -1174,45 +1174,196 @@ impl EconomicAutomationEngine {
         Ok(())
     }
     
-    async fn enforce_economic_policies(
-        _economic_policies: &Arc<RwLock<HashMap<String, EconomicPolicy>>>,
-        _mana_ledger: &Arc<dyn ManaLedger>,
+    pub async fn enforce_economic_policies(
+        economic_policies: &Arc<RwLock<HashMap<String, EconomicPolicy>>>,
+        mana_ledger: &Arc<dyn ManaLedger>,
         _config: &EconomicAutomationConfig,
-        _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
-        _time_provider: &Arc<dyn TimeProvider>,
+        event_tx: &mpsc::UnboundedSender<EconomicEvent>,
+        time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement policy enforcement logic
+        let policies = economic_policies.read().unwrap();
+        let accounts = mana_ledger.all_accounts();
+
+        for policy in policies.values() {
+            if !matches!(policy.status, PolicyStatus::Active) {
+                continue;
+            }
+
+            match policy.policy_type {
+                PolicyType::ManaRegeneration => {
+                    let min_balance = policy
+                        .parameters
+                        .get("min_balance")
+                        .cloned()
+                        .unwrap_or(0.0) as u64;
+                    for did in &accounts {
+                        let bal = mana_ledger.get_balance(did);
+                        if bal < min_balance {
+                            let diff = min_balance - bal;
+                            mana_ledger.credit(did, diff)?;
+                            let _ = event_tx.send(EconomicEvent::ManaRegenerated {
+                                account: did.clone(),
+                                amount: diff,
+                                new_balance: min_balance,
+                                regeneration_rate: policy.enforcement_level,
+                                timestamp: time_provider.unix_seconds() * 1000,
+                            });
+                        }
+                    }
+                }
+                PolicyType::AntiManipulation => {
+                    let max_balance = policy
+                        .parameters
+                        .get("max_balance")
+                        .cloned()
+                        .unwrap_or(u64::MAX as f64) as u64;
+                    for did in &accounts {
+                        let bal = mana_ledger.get_balance(did);
+                        if bal > max_balance {
+                            let diff = bal - max_balance;
+                            mana_ledger.spend(did, diff)?;
+                            let penalty = EconomicPenalty {
+                                penalty_type: PenaltyType::ManaPenalty,
+                                severity: diff as f64 / bal as f64,
+                                duration: None,
+                                amount: Some(diff),
+                                restrictions: Vec::new(),
+                            };
+                            let _ = event_tx.send(EconomicEvent::PolicyViolation {
+                                violator: did.clone(),
+                                policy_id: policy.policy_id.clone(),
+                                violation_type: ViolationType::ExcessiveConsumption {
+                                    consumed: bal,
+                                    limit: max_balance,
+                                },
+                                penalty_applied: Some(penalty),
+                                timestamp: time_provider.unix_seconds() * 1000,
+                            });
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
         Ok(())
     }
     
-    async fn monitor_economic_health(
-        _health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
-        _mana_ledger: &Arc<dyn ManaLedger>,
+    pub async fn monitor_economic_health(
+        health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
+        mana_ledger: &Arc<dyn ManaLedger>,
         _resource_ledger: &Arc<dyn ResourceLedger>,
         _config: &EconomicAutomationConfig,
-        _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
-        _time_provider: &Arc<dyn TimeProvider>,
+        event_tx: &mpsc::UnboundedSender<EconomicEvent>,
+        time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement health monitoring logic
+        let accounts = mana_ledger.all_accounts();
+        let mut balances: Vec<u64> = accounts.iter().map(|d| mana_ledger.get_balance(d)).collect();
+        balances.sort_unstable();
+        let total: u64 = balances.iter().sum();
+        let n = balances.len() as f64;
+        let gini = if total == 0 || balances.is_empty() {
+            0.0
+        } else {
+            let mut cum = 0.0;
+            for (i, v) in balances.iter().enumerate() {
+                cum += (i as f64 + 1.0) * *v as f64;
+            }
+            (2.0 * cum) / (n * total as f64) - (n + 1.0) / n
+        };
+
+        let mut metrics = health_metrics.write().unwrap();
+        metrics.mana_inequality = gini;
+        metrics.activity_level = (accounts.len() as f64 / 100.0).min(1.0);
+        metrics.overall_health = 1.0 - gini;
+        metrics.last_updated = time_provider.unix_seconds();
+
+        if metrics.overall_health < 0.2 {
+            let _ = event_tx.send(EconomicEvent::ThresholdReached {
+                threshold_type: ThresholdType::EconomicInequality,
+                current_value: gini,
+                threshold_value: 0.2,
+                action_taken: None,
+                timestamp: metrics.last_updated * 1000,
+            });
+        }
+
         Ok(())
     }
     
-    async fn execute_market_making(
-        _market_making_state: &Arc<RwLock<MarketMakingState>>,
-        _pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
-        _config: &EconomicAutomationConfig,
-        _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
+    pub async fn execute_market_making(
+        market_making_state: &Arc<RwLock<MarketMakingState>>,
+        pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
+        config: &EconomicAutomationConfig,
+        event_tx: &mpsc::UnboundedSender<EconomicEvent>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement market making logic
+        let mut state = market_making_state.write().unwrap();
+        let models = pricing_models.read().unwrap();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64;
+
+        for (resource, model) in models.iter() {
+            let buy_price = model.current_price * (1.0 - config.market_making_spread / 2.0);
+            let sell_price = model.current_price * (1.0 + config.market_making_spread / 2.0);
+
+            state.performance.total_trades += 2;
+            state.performance.total_volume += 2;
+            state.performance.total_pnl += sell_price - buy_price;
+            state.performance.avg_spread_captured =
+                state.performance.total_pnl / state.performance.total_trades as f64;
+
+            let maker = Did::from_str("did:icn:maker").unwrap_or_default();
+            let pool = Did::from_str("did:icn:pool").unwrap_or_default();
+
+            let _ = event_tx.send(EconomicEvent::MarketTransaction {
+                transaction_id: format!("{}_buy", resource),
+                buyer: maker.clone(),
+                seller: pool.clone(),
+                resource_type: resource.clone(),
+                amount: 1,
+                price: buy_price,
+                timestamp,
+            });
+
+            let _ = event_tx.send(EconomicEvent::MarketTransaction {
+                transaction_id: format!("{}_sell", resource),
+                buyer: pool,
+                seller: maker,
+                resource_type: resource.clone(),
+                amount: 1,
+                price: sell_price,
+                timestamp,
+            });
+        }
+
         Ok(())
     }
     
-    async fn run_predictive_models(
-        _health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
-        _pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
-        _mana_accounts: &Arc<RwLock<HashMap<Did, ManaAccountState>>>,
+    pub async fn run_predictive_models(
+        health_metrics: &Arc<RwLock<EconomicHealthMetrics>>,
+        pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
+        mana_accounts: &Arc<RwLock<HashMap<Did, ManaAccountState>>>,
     ) -> Result<(), CommonError> {
-        // TODO: Implement predictive modeling logic
+        let mut models = pricing_models.write().unwrap();
+        for model in models.values_mut() {
+            if model.price_history.len() >= 3 {
+                let avg: f64 = model
+                    .price_history
+                    .iter()
+                    .rev()
+                    .take(3)
+                    .map(|(_, p)| *p)
+                    .sum::<f64>()
+                    / 3.0;
+                model.current_price = (model.current_price + avg) / 2.0;
+            }
+        }
+
+        let account_count = mana_accounts.read().unwrap().len();
+        let mut metrics = health_metrics.write().unwrap();
+        metrics.activity_level = (account_count as f64 / 100.0).min(1.0);
         Ok(())
     }
     

@@ -68,6 +68,7 @@
 #### **Governance & Economics (82% Complete)**
 - **[crates/icn-governance/README.md](crates/icn-governance/README.md)** - Proposal engine and voting
 - **[crates/icn-economics/README.md](crates/icn-economics/README.md)** - Mana and economic policy
+- **[docs/economic-automation.md](docs/economic-automation.md)** - Economic automation engine overview
 - **[crates/icn-reputation/README.md](crates/icn-reputation/README.md)** - Trust scoring
 - **[crates/icn-eventstore/README.md](crates/icn-eventstore/README.md)** - Event sourcing utilities
 
