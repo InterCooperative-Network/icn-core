@@ -1188,9 +1188,11 @@ impl FederationIntegrationEngine {
                 log::info!("Proposal {} has reached voting deadline", proposal_id);
                 
                 // Evaluate proposal outcome
-                let total_votes = proposal.votes_for + proposal.votes_against;
+                let votes_for = proposal.voting_status.values().filter(|&&vote| vote).count();
+                let votes_against = proposal.voting_status.values().filter(|&&vote| !vote).count();
+                let total_votes = votes_for + votes_against;
                 if total_votes > 0 {
-                    let approval_rate = (proposal.votes_for as f64) / (total_votes as f64);
+                    let approval_rate = (votes_for as f64) / (total_votes as f64);
                     let threshold = 0.6; // 60% approval required
                     
                     if approval_rate >= threshold {
