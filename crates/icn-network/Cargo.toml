@@ -9,6 +9,7 @@ readme = "README.md"
 
 [dependencies]
 icn-common = { path = "../icn-common" }
+icn-core-traits = { path = "../icn-core-traits" }
 icn-protocol = { path = "../icn-protocol" }
 icn-identity = { path = "../icn-identity" }
 

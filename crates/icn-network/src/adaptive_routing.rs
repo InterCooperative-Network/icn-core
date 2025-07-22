@@ -5,10 +5,7 @@
 
 use crate::{NetworkService, MeshNetworkError, PeerId, NetworkStats};
 use icn_common::{Did, TimeProvider, CommonError};
-// Simplified ReputationStore trait to avoid circular dependencies
-pub trait ReputationStore: Send + Sync {
-    fn get_reputation(&self, did: &Did) -> u32;
-}
+use icn_core_traits::ReputationStore;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};

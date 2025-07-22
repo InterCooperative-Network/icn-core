@@ -5,8 +5,7 @@
 
 use crate::{ReputationStore, TrustCalculationEngine, TrustGraph};
 use icn_common::{CommonError, Did, TimeProvider};
-// Mesh types - in a real implementation, these should be in a shared crate
-use icn_network::{NetworkService, PeerId};
+use icn_core_traits::{NetworkService, PeerId};
 // Governance types - in a real implementation, these should be in a shared crate
 // Note: ManaLedger trait should be defined in a separate shared crate or moved to icn-common
 // Identity types - in a real implementation, these should be in a shared crate
@@ -366,7 +365,7 @@ pub struct ReputationIntegrationEngine {
     trust_calculation_engine: Arc<TrustCalculationEngine>,
     trust_graph: Arc<RwLock<TrustGraph>>,
     network_service: Arc<dyn NetworkService>,
-    governance_module: Arc<TokioMutex<GovernanceModule>>,
+    governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
     mana_ledger: Arc<dyn ManaLedger>,
     did_resolver: Arc<dyn DidResolver>,
     time_provider: Arc<dyn TimeProvider>,
@@ -490,7 +489,7 @@ impl ReputationIntegrationEngine {
         trust_calculation_engine: Arc<TrustCalculationEngine>,
         trust_graph: Arc<RwLock<TrustGraph>>,
         network_service: Arc<dyn NetworkService>,
-        governance_module: Arc<TokioMutex<GovernanceModule>>,
+        governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
         mana_ledger: Arc<dyn ManaLedger>,
         did_resolver: Arc<dyn DidResolver>,
         time_provider: Arc<dyn TimeProvider>,
@@ -942,7 +941,7 @@ impl ReputationIntegrationEngine {
     
     async fn update_governance_weights(
         _weights: &Arc<RwLock<HashMap<Did, GovernanceWeight>>>,
-        _governance: &Arc<TokioMutex<GovernanceModule>>,
+        _governance: &Arc<TokioMutex<dyn GovernanceModule>>,
         _store: &Arc<dyn ReputationStore>,
         _config: &ReputationIntegrationConfig,
     ) -> Result<(), CommonError> {
