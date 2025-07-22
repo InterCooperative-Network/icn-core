@@ -32,8 +32,18 @@ pub enum StdCategory {
 }
 
 /// CCL Standard Library
+#[derive(Clone)]
 pub struct StdLibrary {
     functions: HashMap<String, StdFunction>,
+    macros: HashMap<String, MacroDefinition>,
+}
+
+/// Macro definition structure
+#[derive(Debug, Clone)]
+pub struct MacroDefinition {
+    pub name: String,
+    pub params: Vec<String>,
+    pub body: Vec<crate::ast::StatementNode>,
 }
 
 impl StdLibrary {
@@ -41,6 +51,7 @@ impl StdLibrary {
     pub fn new() -> Self {
         let mut stdlib = StdLibrary {
             functions: HashMap::new(),
+            macros: HashMap::new(),
         };
 
         stdlib.register_governance_functions();
@@ -1366,6 +1377,25 @@ impl StdLibrary {
             description: "Calculate Merkle tree root".to_string(),
             category: StdCategory::Crypto,
         });
+    }
+
+    /// Register a macro definition
+    pub fn register_macro(&mut self, name: String, params: Vec<String>, body: Vec<crate::ast::StatementNode>) {
+        self.macros.insert(name.clone(), MacroDefinition {
+            name,
+            params,
+            body,
+        });
+    }
+
+    /// Get a macro definition by name
+    pub fn get_macro(&self, name: &str) -> Option<&MacroDefinition> {
+        self.macros.get(name)
+    }
+
+    /// Check if a function or macro exists
+    pub fn has_function_or_macro(&self, name: &str) -> bool {
+        self.functions.contains_key(name) || self.macros.contains_key(name)
     }
 }
 

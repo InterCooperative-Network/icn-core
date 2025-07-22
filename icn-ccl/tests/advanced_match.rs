@@ -11,7 +11,7 @@ fn parse_match_with_multiple_arms() {
         ) = &items[0]
         {
             match &body.statements[0] {
-                icn_ccl::ast::StatementNode::Return(ExpressionNode::Match { .. }) => {
+                icn_ccl::ast::StatementNode::Return(Some(ExpressionNode::Match { .. })) => {
                     // success
                 }
                 _ => panic!("expected match expression in return"),
