@@ -53,11 +53,7 @@ pub fn parse_import_statement(pair: Pair<Rule>) -> Result<ImportStatementNode, C
         .ok_or_else(|| CclError::ParsingError("Import missing path".to_string()))?;
     let path = path_pair.as_str().trim_matches('"').to_string();
 
-    let alias = if let Some(alias_pair) = inner.next() {
-        Some(alias_pair.as_str().to_string())
-    } else {
-        None
-    };
+    let alias = inner.next().map(|alias_pair| alias_pair.as_str().to_string());
 
     Ok(ImportStatementNode { path, alias })
 }
@@ -1707,6 +1703,7 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
     }
 }
 
+#[allow(dead_code)]
 fn parse_lvalue(pair: Pair<Rule>) -> Result<LValueNode, CclError> {
     match pair.as_rule() {
         Rule::lvalue => {

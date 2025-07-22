@@ -551,7 +551,7 @@ fn explain_ast(ast: &AstNode, target: Option<&str>) -> String {
                                     name,
                                     return_type
                                         .as_ref()
-                                        .map(|rt| type_expr_to_string(rt))
+                                        .map(type_expr_to_string)
                                         .unwrap_or_else(|| "void".to_string())
                                 ));
                             }

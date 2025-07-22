@@ -1188,7 +1188,7 @@ impl WasmBackend {
                         let arr_ptr = locals.get_or_add("__push_ptr", ValType::I32);
                         // capture variable index if identifier to update after realloc
                         let arr_var = if let ExpressionNode::Identifier(name) = &args[0] {
-                            locals.get(&name).map(|(idx, _)| idx)
+                            locals.get(name).map(|(idx, _)| idx)
                         } else {
                             None
                         };
@@ -4209,6 +4209,7 @@ impl WasmBackend {
     }
 
     /// Emit string content comparison (equal or not equal)
+    #[allow(dead_code)]
     fn emit_string_comparison(
         &mut self,
         instrs: &mut Vec<Instruction>,
@@ -4390,6 +4391,7 @@ impl WasmBackend {
     }
 
     /// Emit simple string hash function (FNV-1a variant)
+    #[allow(dead_code)]
     fn emit_simple_string_hash(
         &mut self,
         instrs: &mut Vec<Instruction>,
@@ -4466,6 +4468,7 @@ impl WasmBackend {
     }
 
     /// Emit string equality check (returns 1 if equal, 0 if not)
+    #[allow(dead_code)]
     fn emit_string_equality_check(
         &mut self,
         instrs: &mut Vec<Instruction>,
@@ -4577,7 +4580,7 @@ impl WasmBackend {
         match_local: u32,
         match_ty: ValType,
         instrs: &mut Vec<Instruction>,
-        locals: &mut LocalEnv,
+        _locals: &mut LocalEnv,
     ) -> Result<(), CclError> {
         match pattern {
             PatternNode::Literal(LiteralNode::Integer(i)) => {

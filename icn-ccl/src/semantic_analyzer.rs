@@ -55,7 +55,7 @@ pub struct SemanticAnalyzer {
     function_table: HashMap<String, FunctionSignature>,
     struct_table: HashMap<String, StructType>, // Track struct definitions
     type_parameter_scope: TypeParameterScope,  // Current generic type parameters in scope
-    monomorphized_instances: Vec<MonomorphizedInstance>, // Track instantiated generics
+    _monomorphized_instances: Vec<MonomorphizedInstance>, // Track instantiated generics
     current_scope_level: usize,
     current_return_type: Option<TypeAnnotationNode>,
     errors: Vec<CclError>,
@@ -70,7 +70,7 @@ impl SemanticAnalyzer {
             type_parameter_scope: TypeParameterScope {
                 parameters: HashMap::new(),
             },
-            monomorphized_instances: Vec::new(),
+            _monomorphized_instances: Vec::new(),
             current_scope_level: 0,
             current_return_type: None,
             errors: Vec::new(),
@@ -603,29 +603,30 @@ impl SemanticAnalyzer {
 
     fn analyze_policy_statement(&mut self, stmt: &PolicyStatementNode) -> Result<(), CclError> {
         match stmt {
-            PolicyStatementNode::FunctionDef(func_ast) => {
-                if let AstNode::FunctionDefinition {
+            PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition {
+                name,
+                type_parameters,
+                parameters,
+                return_type,
+                body,
+                ..
+            }) => {
+                self.analyze_function_definition(
                     name,
                     type_parameters,
                     parameters,
-                    return_type,
+                    return_type.as_ref(),
                     body,
-                    ..
-                } = func_ast
-                {
-                    self.analyze_function_definition(
-                        name,
-                        type_parameters,
-                        parameters,
-                        return_type.as_ref(),
-                        body,
-                    )?;
-                }
+                )?;
             }
-            PolicyStatementNode::StructDef(struct_ast) => {
-                if let AstNode::StructDefinition { name, fields, .. } = struct_ast {
-                    self.analyze_struct_definition(name, fields)?;
-                }
+            PolicyStatementNode::FunctionDef(_) => {
+                // Handle non-FunctionDefinition case if needed
+            }
+            PolicyStatementNode::StructDef(AstNode::StructDefinition { name, fields, .. }) => {
+                self.analyze_struct_definition(name, fields)?;
+            }
+            PolicyStatementNode::StructDef(_) => {
+                // Handle non-StructDefinition case if needed
             }
             PolicyStatementNode::ConstDef {
                 name,

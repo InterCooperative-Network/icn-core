@@ -731,12 +731,9 @@ impl Optimizer {
 
     /// Check if a statement is dead code that can be removed
     fn is_dead_code(&self, stmt: &StatementNode) -> bool {
-        match stmt {
-            StatementNode::ExpressionStatement(ExpressionNode::Literal(LiteralNode::Integer(
+        matches!(stmt, StatementNode::ExpressionStatement(ExpressionNode::Literal(LiteralNode::Integer(
                 0,
-            ))) => true,
-            _ => false,
-        }
+            ))))
     }
 }
 
