@@ -1,4 +1,34 @@
 use icn_ccl::{ast::StatementNode, compile_ccl_source_to_wasm, parser::parse_ccl_source, CclError};
+use icn_common::{Cid, DagBlock};
+use icn_dag::InMemoryDagStore;
+use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
+use icn_mesh::{ActualMeshJob, JobId, JobSpec};
+use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
+use icn_runtime::executor::{WasmExecutor, WasmExecutorConfig};
+use std::str::FromStr;
+use std::sync::Arc;
+use std::thread;
+use tokio::runtime::Runtime;
+use tokio::sync::Mutex as TokioMutex;
+
+fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
+    let temp = tempfile::tempdir().unwrap();
+    let dag_store = Arc::new(TokioMutex::new(InMemoryDagStore::new()));
+    let ctx = RuntimeContext::new_with_ledger_path(
+        icn_common::Did::from_str(did).unwrap(),
+        Arc::new(StubMeshNetworkService::new()),
+        Arc::new(StubSigner::new()),
+        Arc::new(icn_identity::KeyDidResolver),
+        dag_store,
+        temp.path().join("mana"),
+        temp.path().join("reputation"),
+        None,
+    );
+    ctx.mana_ledger
+        .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)
+        .unwrap();
+    ctx
+}
 
 #[test]
 fn parse_simple_for_loop() {
@@ -144,4 +174,112 @@ fn parse_for_loop_boolean_array() {
     "#;
     let ast = parse_ccl_source(src).expect("parse");
     assert!(matches!(ast, icn_ccl::ast::AstNode::Policy(_)));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn for_loop_sum_three_elements() {
+    let src = r#"
+        fn run() -> Integer {
+            let nums = [1, 2, 3];
+            let total = 0;
+            for n in nums { total = total + n; }
+            return total;
+        }
+    "#;
+    let (wasm, _) = compile_ccl_source_to_wasm(src).expect("compile");
+    let ctx = ctx_with_temp_store("did:key:zFor3", 10);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let cid = block.cid.clone();
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"for3")),
+        manifest_cid: cid,
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
+    let job_clone = job.clone();
+    let handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { exec.execute_job(&job_clone).await })
+    });
+    let receipt = handle.join().unwrap().unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+    let expected_cid = Cid::new_v1_sha256(0x55, &6i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn for_loop_sum_five_elements() {
+    let src = r#"
+        fn run() -> Integer {
+            let nums = [1, 2, 3, 4, 5];
+            let total = 0;
+            for n in nums { total = total + n; }
+            return total;
+        }
+    "#;
+    let (wasm, _) = compile_ccl_source_to_wasm(src).expect("compile");
+    let ctx = ctx_with_temp_store("did:key:zFor5", 10);
+    let ts = 0u64;
+    let author = icn_common::Did::new("key", "tester");
+    let sig_opt = None;
+    let cid = icn_common::compute_merkle_cid(0x71, &wasm, &[], ts, &author, &sig_opt, &None);
+    let block = DagBlock {
+        cid: cid.clone(),
+        data: wasm.clone(),
+        links: vec![],
+        timestamp: ts,
+        author_did: author,
+        signature: sig_opt,
+        scope: None,
+    };
+    {
+        let mut store = ctx.dag_store.lock().await;
+        store.put(&block).unwrap();
+    }
+    let cid = block.cid.clone();
+    let (sk, vk) = generate_ed25519_keypair();
+    let node_did = icn_common::Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
+    let job = ActualMeshJob {
+        id: JobId(Cid::new_v1_sha256(0x55, b"for5")),
+        manifest_cid: cid,
+        spec: JobSpec::default(),
+        creator_did: node_did.clone(),
+        cost_mana: 0,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
+    };
+    let signer = Arc::new(StubSigner::new_with_keys(sk, vk));
+    let exec = WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
+    let job_clone = job.clone();
+    let handle = std::thread::spawn(move || {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async { exec.execute_job(&job_clone).await })
+    });
+    let receipt = handle.join().unwrap().unwrap();
+    assert_eq!(receipt.executor_did, node_did);
+    let expected_cid = Cid::new_v1_sha256(0x55, &15i64.to_le_bytes());
+    assert_eq!(receipt.result_cid, expected_cid);
 }
