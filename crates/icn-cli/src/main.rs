@@ -22,7 +22,7 @@ use std::str::FromStr;
 
 // Types from our ICN crates that CLI will interact with (serialize/deserialize)
 // These types are expected to be sent to/received from the icn-node HTTP API.
-use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
+use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType, parse_cid_from_string};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use chrono;
 use icn_action::{Action, ActionEncoder, QrGenerator, VoteChoice};
@@ -4319,7 +4319,7 @@ async fn handle_qr_vote(
     size: u32,
     output: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let proposal = Cid::from_str(proposal).map_err(|_| anyhow::anyhow!("Invalid proposal CID format"))?;
+    let proposal = parse_cid_from_string(proposal).map_err(|_| anyhow::anyhow!("Invalid proposal CID format"))?;
     let vote = VoteChoice::from_str(vote)?;
     let voter = if let Some(voter_str) = voter {
         Some(Did::from_str(voter_str).map_err(|_| anyhow::anyhow!("Invalid voter DID format"))?)
@@ -4354,7 +4354,7 @@ async fn handle_qr_verify_credential(
     size: u32,
     output: &Option<String>,
 ) -> Result<(), anyhow::Error> {
-    let credential = Cid::from_str(credential).map_err(|_| anyhow::anyhow!("Invalid credential CID format"))?;
+    let credential = parse_cid_from_string(credential).map_err(|_| anyhow::anyhow!("Invalid credential CID format"))?;
     let action = Action::VerifyCredential {
         credential,
         challenge: challenge.clone(),

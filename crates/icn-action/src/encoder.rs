@@ -3,11 +3,11 @@
 //! This module handles the conversion between Action structs and icn:// URLs.
 
 use crate::{Action, ActionError, VoteChoice};
-use icn_common::{Did, Cid};
+use icn_common::{Did, Cid, parse_cid_from_string};
 use std::collections::HashMap;
 use std::str::FromStr;
 use url::Url;
-use base64::{engine::general_purpose, Engine as _};
+use base64;
 
 /// Encodes and decodes actions to/from URLs
 pub struct ActionEncoder;
@@ -124,7 +124,7 @@ impl ActionEncoder {
                         .map_err(|_| ActionError::DidParsing(did_str.clone()))?;
                     Ok(Action::ShareIdentity { did })
                 } else if let Some(cid_str) = params.get("cid") {
-                    let cid = Cid::from_str(cid_str)
+                    let cid = parse_cid_from_string(cid_str)
                         .map_err(|_| ActionError::InvalidParameter(format!("Invalid CID: {}", cid_str)))?;
                     Ok(Action::ShareContent {
                         cid,
@@ -162,7 +162,7 @@ impl ActionEncoder {
             "vote" => {
                 let proposal_str = params.get("proposal")
                     .ok_or_else(|| ActionError::MissingParameter("proposal".to_string()))?;
-                let proposal = Cid::from_str(proposal_str)
+                let proposal = parse_cid_from_string(proposal_str)
                     .map_err(|_| ActionError::InvalidParameter(format!("Invalid proposal CID: {}", proposal_str)))?;
                 
                 let vote_str = params.get("vote")
@@ -197,7 +197,7 @@ impl ActionEncoder {
             "verify" => {
                 let credential_str = params.get("vc")
                     .ok_or_else(|| ActionError::MissingParameter("vc".to_string()))?;
-                let credential = Cid::from_str(credential_str)
+                let credential = parse_cid_from_string(credential_str)
                     .map_err(|_| ActionError::InvalidParameter(format!("Invalid credential CID: {}", credential_str)))?;
                 
                 Ok(Action::VerifyCredential {
@@ -209,7 +209,7 @@ impl ActionEncoder {
             "submit" => {
                 let job_str = params.get("job")
                     .ok_or_else(|| ActionError::MissingParameter("job".to_string()))?;
-                let job_spec = Cid::from_str(job_str)
+                let job_spec = parse_cid_from_string(job_str)
                     .map_err(|_| ActionError::InvalidParameter(format!("Invalid job CID: {}", job_str)))?;
                 
                 let submitter_str = params.get("submitter")
@@ -243,7 +243,7 @@ impl ActionEncoder {
     /// Create a shortened URL for QR codes (returns base64 encoded action)
     pub fn encode_compact(action: &Action) -> Result<String, ActionError> {
         let json = serde_json::to_string(action)?;
-        let encoded = base64::engine::general_purpose::STANDARD.encode(json.as_bytes());
+        let encoded = base64::encode(json.as_bytes());
         Ok(format!("icn://x?d={}", encoded))
     }
     
@@ -262,7 +262,7 @@ impl ActionEncoder {
         let data = params.get("d")
             .ok_or_else(|| ActionError::MissingParameter("d".to_string()))?;
         
-        let decoded = base64::engine::general_purpose::STANDARD.decode(data)
+        let decoded = base64::decode(data)
             .map_err(|_| ActionError::InvalidParameter("Invalid base64 data".to_string()))?;
         
         let json_str = String::from_utf8(decoded)
@@ -276,6 +276,7 @@ impl ActionEncoder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::parse_cid_from_string;
     
     #[test]
     fn test_share_identity_encoding() {
@@ -307,7 +308,8 @@ mod tests {
     
     #[test]
     fn test_vote_encoding() {
-        let proposal = Cid::from_str("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi").unwrap();
+        // Use a valid CIDv1 string - this is a real IPFS CID format
+        let proposal = parse_cid_from_string("bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi").unwrap();
         let action = Action::Vote {
             proposal,
             vote: VoteChoice::Approve,
