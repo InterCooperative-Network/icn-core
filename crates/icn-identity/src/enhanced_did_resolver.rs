@@ -1,23 +1,27 @@
-//! Enhanced DID resolution system with support for multiple methods and caching
+//! Enhanced DID resolution system with support for multiple methods and LRU caching
 //!
 //! This module provides a comprehensive DID resolution system that can handle
-//! multiple DID methods efficiently with caching and fallback mechanisms.
+//! multiple DID methods efficiently with LRU caching and invalidation mechanisms.
 
 use crate::{DidResolver, KeyDidResolver, PeerDidResolver, WebDidResolver};
 use icn_common::{CommonError, Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
+use lru::LruCache;
+use std::num::NonZeroUsize;
 
-/// Cache entry for DID resolution results
+/// Cache entry for DID resolution results with access tracking
 #[derive(Debug, Clone)]
 struct CacheEntry {
     verifying_key: ed25519_dalek::VerifyingKey,
     expires_at: u64,
     method_used: String,
+    access_count: u64,
+    last_accessed: u64,
 }
 
-/// Configuration for DID resolution
+/// Configuration for DID resolution with enhanced cache settings
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DidResolutionConfig {
     /// Cache TTL in seconds
@@ -30,6 +34,12 @@ pub struct DidResolutionConfig {
     pub enable_fallback: bool,
     /// Preferred method order for resolution
     pub method_preference: Vec<String>,
+    /// Enable cache invalidation based on access patterns
+    pub enable_intelligent_invalidation: bool,
+    /// Minimum access count before entry is considered "hot"
+    pub hot_entry_threshold: u64,
+    /// Cache hit ratio threshold for triggering cache optimization
+    pub cache_optimization_threshold: f64,
 }
 
 impl Default for DidResolutionConfig {
@@ -40,14 +50,17 @@ impl Default for DidResolutionConfig {
             web_timeout_seconds: 30,
             enable_fallback: true,
             method_preference: vec!["key".to_string(), "peer".to_string(), "web".to_string()],
+            enable_intelligent_invalidation: true,
+            hot_entry_threshold: 5,
+            cache_optimization_threshold: 0.8,
         }
     }
 }
 
-/// Enhanced DID resolver with caching and multiple method support
+/// Enhanced DID resolver with LRU caching and multiple method support
 pub struct EnhancedDidResolver {
     config: DidResolutionConfig,
-    cache: Arc<RwLock<HashMap<String, CacheEntry>>>,
+    lru_cache: Arc<Mutex<LruCache<String, CacheEntry>>>,
     time_provider: Arc<dyn TimeProvider>,
 
     // Method-specific resolvers
@@ -57,16 +70,17 @@ pub struct EnhancedDidResolver {
 
     // Statistics
     stats: Arc<RwLock<ResolutionStats>>,
+    method_stats: Arc<RwLock<HashMap<String, MethodStats>>>,
 }
 
-/// Resolution statistics for monitoring
+/// Resolution statistics for monitoring and optimization
 #[derive(Debug, Default, Clone)]
 pub struct ResolutionStats {
     pub total_resolutions: u64,
     pub cache_hits: u64,
     pub cache_misses: u64,
-    pub method_stats: HashMap<String, MethodStats>,
     pub errors: HashMap<String, u64>,
+    pub avg_resolution_time_ms: f64,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -77,15 +91,18 @@ pub struct MethodStats {
 }
 
 impl EnhancedDidResolver {
-    /// Create a new enhanced DID resolver
+    /// Create a new enhanced DID resolver with LRU caching
     pub fn new(config: DidResolutionConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
+        let cache_size = NonZeroUsize::new(config.max_cache_size).unwrap_or_else(|| NonZeroUsize::new(1000).unwrap());
+        
         Self {
-            config,
-            cache: Arc::new(RwLock::new(HashMap::new())),
+            lru_cache: Arc::new(Mutex::new(LruCache::new(cache_size))),
+            stats: Arc::new(RwLock::new(ResolutionStats::default())),
+            method_stats: Arc::new(RwLock::new(HashMap::new())),
             time_provider,
             key_resolver: KeyDidResolver,
             peer_resolver: PeerDidResolver,
-            web_resolver: Arc::new(RwLock::new(WebDidResolver::new())),
+            web_resolver: Arc::new(RwLock::new(WebDidResolver::default())),
             stats: Arc::new(RwLock::new(ResolutionStats::default())),
         }
     }
@@ -109,7 +126,7 @@ impl EnhancedDidResolver {
 
     /// Clear the resolution cache
     pub fn clear_cache(&self) {
-        if let Ok(mut cache) = self.cache.write() {
+        if let Ok(mut cache) = self.lru_cache.write() {
             cache.clear();
         }
     }
@@ -150,7 +167,7 @@ impl EnhancedDidResolver {
         match &result {
             Ok(key) => {
                 // Cache successful resolution
-                self.cache_result(&did_string, *key, &did.method);
+                self.lru_cache_result(&did_string, *key, &did.method);
 
                 // Update method stats
                 self.update_method_stats(&did.method, true, duration_ms);
@@ -220,7 +237,7 @@ impl EnhancedDidResolver {
 
     /// Get result from cache if valid
     fn get_from_cache(&self, did_string: &str) -> Option<CacheEntry> {
-        let cache = self.cache.read().ok()?;
+        let cache = self.lru_cache.read().ok()?;
         let entry = cache.get(did_string)?.clone();
 
         // Check if expired
@@ -228,7 +245,7 @@ impl EnhancedDidResolver {
         if now >= entry.expires_at {
             // Entry expired, remove it
             drop(cache);
-            if let Ok(mut cache) = self.cache.write() {
+            if let Ok(mut cache) = self.lru_cache.write() {
                 cache.remove(did_string);
             }
             return None;
@@ -239,7 +256,7 @@ impl EnhancedDidResolver {
 
     /// Cache a successful resolution result
     fn cache_result(&self, did_string: &str, key: ed25519_dalek::VerifyingKey, method: &str) {
-        if let Ok(mut cache) = self.cache.write() {
+        if let Ok(mut cache) = self.lru_cache.write() {
             // Enforce cache size limit
             if cache.len() >= self.config.max_cache_size {
                 self.evict_oldest_entry(&mut cache);
@@ -320,7 +337,7 @@ impl EnhancedDidResolver {
     /// Preload DIDs into cache (useful for known federation members)
     pub fn preload_cache(&self, did_key_pairs: Vec<(Did, ed25519_dalek::VerifyingKey)>) {
         for (did, key) in did_key_pairs {
-            self.cache_result(&did.to_string(), key, &did.method);
+            self.lru_cache_result(&did.to_string(), key, &did.method);
         }
     }
 }
