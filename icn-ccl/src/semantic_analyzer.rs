@@ -121,17 +121,42 @@ impl SemanticAnalyzer {
     fn analyze_node(&mut self, node: &AstNode) -> Result<(), CclError> {
         match node {
             AstNode::Program(nodes) => {
+                // Two-pass analysis: first collect all function signatures, then analyze bodies
+                
+                // Pass 1: Register all function signatures and struct types
                 for node in nodes {
                     match node {
-                        crate::ast::TopLevelNode::Import(_) => {
-                            // Import validation would be done during parsing/linking
+                        crate::ast::TopLevelNode::Function(function) => {
+                            // Register function signature without analyzing body
+                            self.register_function_signature(
+                                &function.name,
+                                &function.type_parameters,
+                                &function.parameters,
+                                function.return_type.as_ref(),
+                            )?;
                         }
+                        crate::ast::TopLevelNode::Struct(struct_def) => {
+                            self.register_struct_type(struct_def)?;
+                        }
+                        crate::ast::TopLevelNode::Enum(enum_def) => {
+                            self.analyze_enum_definition(enum_def)?;
+                        }
+                        crate::ast::TopLevelNode::Const(const_def) => {
+                            self.analyze_const_declaration(const_def)?;
+                        }
+                        _ => {}
+                    }
+                }
+
+                // Pass 2: Analyze function bodies now that all signatures are known
+                for node in nodes {
+                    match node {
                         crate::ast::TopLevelNode::Contract(contract) => {
                             self.analyze_contract(contract)?;
                         }
                         crate::ast::TopLevelNode::Function(function) => {
-                            // Analyze standalone function
-                            self.analyze_function_definition(
+                            // Now analyze the function body
+                            self.analyze_function_body(
                                 &function.name,
                                 &function.type_parameters,
                                 &function.parameters,
@@ -139,20 +164,7 @@ impl SemanticAnalyzer {
                                 &function.body,
                             )?;
                         }
-                        crate::ast::TopLevelNode::Struct(struct_def) => {
-                            // Standalone struct definitions should be validated
-                            // and registered so subsequent items can use them.
-                            self.analyze_struct_definition(&struct_def.name, &struct_def.fields)?;
-                            self.register_struct_type(struct_def)?;
-                        }
-                        crate::ast::TopLevelNode::Enum(enum_def) => {
-                            // Validate and register standalone enums
-                            self.analyze_enum_definition(enum_def)?;
-                        }
-                        crate::ast::TopLevelNode::Const(const_def) => {
-                            // Analyze top-level constant declarations
-                            self.analyze_const_declaration(const_def)?;
-                        }
+                        _ => {}
                     }
                 }
             }
@@ -299,6 +311,95 @@ impl SemanticAnalyzer {
                 return_type: return_type_ann.clone(),
             },
         );
+
+        // Enter function scope
+        self.enter_scope();
+        self.current_return_type = Some(return_type_ann);
+
+        // Add parameters to symbol table
+        for param in parameters {
+            let resolved_type = self.resolve_type_expr(&param.type_expr)?;
+            self.symbol_table.insert(
+                param.name.clone(),
+                Symbol {
+                    name: param.name.clone(),
+                    symbol_type: resolved_type,
+                    is_mutable: true, // Function parameters are mutable within function scope
+                    scope_level: self.current_scope_level,
+                },
+            );
+        }
+
+        // Analyze function body
+        self.analyze_block(body)?;
+
+        // Exit function scope and restore type parameter scope
+        self.exit_scope();
+        self.current_return_type = None;
+        self.type_parameter_scope = old_type_scope;
+
+        Ok(())
+    }
+
+    /// Register function signature without analyzing body (for two-pass analysis)
+    fn register_function_signature(
+        &mut self,
+        name: &str,
+        type_parameters: &[crate::ast::TypeParameterNode],
+        parameters: &[ParameterNode],
+        return_type: Option<&TypeExprNode>,
+    ) -> Result<(), CclError> {
+        // Enter type parameter scope
+        let old_type_scope = self.type_parameter_scope.clone();
+        for type_param in type_parameters {
+            self.type_parameter_scope
+                .parameters
+                .insert(type_param.name.clone(), type_param.bounds.clone());
+        }
+
+        // Register function in function table
+        let return_type_ann = return_type
+            .map(|rt| self.resolve_type_expr(rt))
+            .unwrap_or_else(|| Ok(TypeAnnotationNode::Custom("void".to_string())))?;
+
+        self.function_table.insert(
+            name.to_string(),
+            FunctionSignature {
+                name: name.to_string(),
+                type_parameters: type_parameters.iter().map(|tp| tp.name.clone()).collect(),
+                params: parameters
+                    .iter()
+                    .map(|p| self.resolve_type_expr(&p.type_expr))
+                    .collect::<Result<Vec<_>, _>>()?,
+                return_type: return_type_ann,
+            },
+        );
+
+        // Restore type parameter scope
+        self.type_parameter_scope = old_type_scope;
+        Ok(())
+    }
+
+    /// Analyze function body (second pass after all signatures are registered)
+    fn analyze_function_body(
+        &mut self,
+        name: &str,
+        type_parameters: &[crate::ast::TypeParameterNode],
+        parameters: &[ParameterNode],
+        return_type: Option<&TypeExprNode>,
+        body: &BlockNode,
+    ) -> Result<(), CclError> {
+        // Enter type parameter scope
+        let old_type_scope = self.type_parameter_scope.clone();
+        for type_param in type_parameters {
+            self.type_parameter_scope
+                .parameters
+                .insert(type_param.name.clone(), type_param.bounds.clone());
+        }
+
+        let return_type_ann = return_type
+            .map(|rt| self.resolve_type_expr(rt))
+            .unwrap_or_else(|| Ok(TypeAnnotationNode::Custom("void".to_string())))?;
 
         // Enter function scope
         self.enter_scope();
@@ -1071,6 +1172,11 @@ impl SemanticAnalyzer {
                 self.check_unary_op(operator, &operand_type)
             }
             ExpressionNode::FunctionCall { name, args } => {
+                // Handle generic array functions specially
+                if let Some(return_type) = self.handle_generic_array_function(name, args)? {
+                    return Ok(return_type);
+                }
+
                 // Clone the signature to avoid borrow conflicts
                 if let Some(signature) = self.function_table.get(name).cloned() {
                     if args.len() != signature.params.len() {
@@ -1470,6 +1576,101 @@ impl SemanticAnalyzer {
         self.symbol_table
             .retain(|_, symbol| symbol.scope_level < self.current_scope_level);
         self.current_scope_level -= 1;
+    }
+
+    /// Helper to check if an array element type is "unknown"
+    fn is_unknown_array_element_type(&self, element_type: &TypeAnnotationNode) -> bool {
+        matches!(element_type, TypeAnnotationNode::Custom(t) if t == "unknown")
+    }
+
+    /// Handle generic array functions that work with any array element type
+    fn handle_generic_array_function(
+        &mut self,
+        name: &str,
+        args: &[ExpressionNode],
+    ) -> Result<Option<TypeAnnotationNode>, CclError> {
+        match name {
+            "array_push" => {
+                if args.len() != 2 {
+                    return Err(CclError::ArgumentCountMismatchError {
+                        function: name.to_string(),
+                        expected: 2,
+                        found: args.len(),
+                    });
+                }
+
+                let array_type = self.evaluate_expression(&args[0])?;
+                let element_type = self.evaluate_expression(&args[1])?;
+
+                match &array_type {
+                    TypeAnnotationNode::Array(expected_element) => {
+                        // Allow pushing any element into an Array(unknown) array
+                        if self.is_unknown_array_element_type(expected_element)
+                            || element_type.compatible_with(expected_element) {
+                            Ok(Some(TypeAnnotationNode::Integer)) // Return new length
+                        } else {
+                            Err(CclError::TypeMismatchError {
+                                expected: *expected_element.clone(),
+                                found: element_type,
+                            })
+                        }
+                    }
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: array_type,
+                    }),
+                }
+            }
+            "array_len" | "array_length" => {
+                if args.len() != 1 {
+                    return Err(CclError::ArgumentCountMismatchError {
+                        function: name.to_string(),
+                        expected: 1,
+                        found: args.len(),
+                    });
+                }
+
+                let array_type = self.evaluate_expression(&args[0])?;
+                match array_type {
+                    TypeAnnotationNode::Array(_) => Ok(Some(TypeAnnotationNode::Integer)),
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: array_type,
+                    }),
+                }
+            }
+            "array_contains" => {
+                if args.len() != 2 {
+                    return Err(CclError::ArgumentCountMismatchError {
+                        function: name.to_string(),
+                        expected: 2,
+                        found: args.len(),
+                    });
+                }
+
+                let array_type = self.evaluate_expression(&args[0])?;
+                let element_type = self.evaluate_expression(&args[1])?;
+
+                match &array_type {
+                    TypeAnnotationNode::Array(expected_element) => {
+                        if self.is_unknown_array_element_type(expected_element)
+                            || element_type.compatible_with(expected_element) {
+                            Ok(Some(TypeAnnotationNode::Bool))
+                        } else {
+                            Err(CclError::TypeMismatchError {
+                                expected: *expected_element.clone(),
+                                found: element_type,
+                            })
+                        }
+                    }
+                    _ => Err(CclError::TypeMismatchError {
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        found: array_type,
+                    }),
+                }
+            }
+            _ => Ok(None), // Not a generic array function
+        }
     }
 }
 

@@ -1673,7 +1673,7 @@ fn parse_let_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
 }
 
 fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclError> {
-    // assignment_stmt = { identifier ~ "=" ~ expr ~ ";" | identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" | ... }
+    // assignment_stmt = { identifier ~ "=" ~ expr ~ ";" | identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr ~ ";" | identifier ~ "." ~ identifier ~ "=" ~ expr ~ ";" }
     let inner = pair.into_inner();
     let tokens: Vec<_> = inner.collect();
 
@@ -1687,16 +1687,30 @@ fn parse_assignment_statement(pair: Pair<Rule>) -> Result<StatementNode, CclErro
             Ok(StatementNode::Assignment { lvalue, value })
         }
         3 => {
-            // Index assignment: identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr
-            let identifier = tokens[0].as_str().to_string();
-            let index = parse_expression(tokens[1].clone())?;
-            let value = parse_expression(tokens[2].clone())?;
+            // Check if this is member access or index access by looking at the pattern
+            if tokens[1].as_rule() == Rule::expr {
+                // Index assignment: identifier ~ "[" ~ expr ~ "]" ~ "=" ~ expr
+                let identifier = tokens[0].as_str().to_string();
+                let index = parse_expression(tokens[1].clone())?;
+                let value = parse_expression(tokens[2].clone())?;
 
-            let lvalue = LValueNode::IndexAccess {
-                object: Box::new(ExpressionNode::Identifier(identifier)),
-                index: Box::new(index),
-            };
-            Ok(StatementNode::Assignment { lvalue, value })
+                let lvalue = LValueNode::IndexAccess {
+                    object: Box::new(ExpressionNode::Identifier(identifier)),
+                    index: Box::new(index),
+                };
+                Ok(StatementNode::Assignment { lvalue, value })
+            } else {
+                // Member access assignment: identifier ~ "." ~ identifier ~ "=" ~ expr
+                let object_name = tokens[0].as_str().to_string();
+                let member_name = tokens[1].as_str().to_string();
+                let value = parse_expression(tokens[2].clone())?;
+
+                let lvalue = LValueNode::MemberAccess {
+                    object: Box::new(ExpressionNode::Identifier(object_name)),
+                    member: member_name,
+                };
+                Ok(StatementNode::Assignment { lvalue, value })
+            }
         }
         _ => Err(CclError::ParsingError(format!(
             "Unexpected assignment statement structure with {} tokens",

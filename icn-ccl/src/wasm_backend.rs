@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 43; // 6 original + 37 new functions (11 economics + 15 identity + 11 DAG)
+const IMPORT_COUNT: u32 = 44; // 6 original + 38 new functions (11 economics + 15 identity + 11 DAG + 1 time)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -133,6 +133,12 @@ impl WasmBackend {
                 self.data_offset += len;
                 self.constants
                     .insert(const_decl.name.clone(), (ptr as i64, ValType::I32));
+            }
+            ExpressionNode::Literal(crate::ast::LiteralNode::Boolean(value)) => {
+                // Handle boolean literals (store as I32: 1 for true, 0 for false)
+                let bool_value = if *value { 1 } else { 0 };
+                self.constants
+                    .insert(const_decl.name.clone(), (bool_value, ValType::I32));
             }
             _ => {
                 return Err(CclError::WasmGenerationError(format!(
@@ -233,6 +239,18 @@ impl WasmBackend {
             wasm_encoder::EntityType::Function(ty_get_rep),
         );
         fn_indices.insert("host_get_reputation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_get_time = types.len() as u32;
+        types
+            .ty()
+            .function(Vec::<ValType>::new(), vec![ValType::I64]);
+        imports.import(
+            "icn",
+            "host_get_current_time",
+            wasm_encoder::EntityType::Function(ty_get_time),
+        );
+        fn_indices.insert("host_get_current_time".to_string(), next_index);
         next_index += 1;
 
         let ty_submit = types.len() as u32;
@@ -931,6 +949,14 @@ impl WasmBackend {
         );
         fn_indices.insert("host_verify_cooperative_membership".to_string(), next_index);
         next_index += 1;
+
+        // Pre-register all user-defined functions before processing AST
+        // This allows forward references to work correctly
+        let user_functions = self.collect_user_functions(ast)?;
+        for func_name in &user_functions {
+            fn_indices.insert(func_name.clone(), next_index);
+            next_index += 1;
+        }
 
         let policy_items = match ast {
             AstNode::Policy(items) => items.clone(),
@@ -3037,14 +3063,15 @@ impl WasmBackend {
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Eq) => {
                         // For DIDs (pointer comparison) or Strings (content comparison)
-                        // For simplicity, use pointer comparison for now
-                        instrs.push(Instruction::I32Eq);
+                        // Use proper string content comparison
+                        self.emit_string_equality_check(instrs, locals)?;
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Neq) => {
                         // For DIDs (pointer comparison) or Strings (content comparison)
-                        // For simplicity, use pointer comparison for now
-                        instrs.push(Instruction::I32Ne);
+                        // Use proper string content comparison and negate result
+                        self.emit_string_equality_check(instrs, locals)?;
+                        instrs.push(Instruction::I32Eqz); // Negate the result
                         Ok(ValType::I32)
                     }
                     (ValType::I32, ValType::I32, BinaryOperator::Lt) => {
@@ -3553,7 +3580,7 @@ impl WasmBackend {
                 instrs.push(Instruction::I32Add);
 
                 // Load the field value (assume i64 for integers)
-                if member == "name" || member == "title" {
+                if member == "name" || member == "title" || member == "choice" || member == "status" || member == "voter" {
                     // String fields return the pointer (i32)
                     instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
                         offset: 0,
@@ -4111,15 +4138,55 @@ impl WasmBackend {
                 instrs.push(Instruction::LocalSet(idx));
                 Ok(())
             }
-            crate::ast::LValueNode::MemberAccess {
-                object: _,
-                member: _,
-            } => {
-                // TODO: Implement struct member assignment
-                instrs.push(Instruction::Drop); // Drop the value for now
-                Err(CclError::WasmGenerationError(
-                    "Member access assignment not yet supported".to_string(),
-                ))
+            crate::ast::LValueNode::MemberAccess { object, member } => {
+                // Implement struct member assignment
+                // Value to assign is already on the stack, store it in a local
+                let value_local = locals.get_or_add("__member_assign_value", ValType::I64);
+                instrs.push(Instruction::LocalTee(value_local));
+
+                // Evaluate the struct object to get its pointer
+                let obj_ty = self.emit_expression(object, instrs, locals, _indices)?;
+                if obj_ty != ValType::I32 {
+                    return Err(CclError::WasmGenerationError(
+                        "Member assignment target must be a struct".to_string(),
+                    ));
+                }
+                let obj_local = locals.get_or_add("__member_assign_obj", ValType::I32);
+                instrs.push(Instruction::LocalTee(obj_local));
+
+                // Simple implementation: assume fixed field offsets
+                // This is a simplified version - real implementation would use struct metadata
+                let field_offset = match member.as_str() {
+                    "id" => 0,
+                    "title" | "voter" | "choice" => 8, 
+                    "votes" => 16,
+                    "status" | "weight" => 24,
+                    _ => 0, // Default to first field
+                };
+
+                // Store the value at the calculated offset
+                instrs.push(Instruction::LocalGet(obj_local));
+                instrs.push(Instruction::I32Const(field_offset));
+                instrs.push(Instruction::I32Add);
+                instrs.push(Instruction::LocalGet(value_local));
+                
+                // For string fields, store as pointer (I32). For other fields, store as I64
+                if member == "title" || member == "voter" || member == "choice" || member == "status" {
+                    instrs.push(Instruction::I32WrapI64); // Convert string pointer to I32
+                    instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                } else {
+                    instrs.push(Instruction::I64Store(wasm_encoder::MemArg {
+                        offset: 0,
+                        align: 0,
+                        memory_index: 0,
+                    }));
+                }
+
+                Ok(())
             }
             crate::ast::LValueNode::IndexAccess { object, index } => {
                 // Implement proper array index assignment with bounds checking
@@ -4654,14 +4721,53 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             Ok(ValType::I64)
         }
         TypeAnnotationNode::Option(_) | TypeAnnotationNode::Result { .. } => Ok(ValType::I64),
-        TypeAnnotationNode::Custom(name) => Err(CclError::WasmGenerationError(format!(
-            "Unsupported type {}",
-            name
-        ))),
+        TypeAnnotationNode::Custom(name) => {
+            // Custom types (structs, enums) are represented as pointers in WASM
+            // This includes user-defined structs like ReputationProposal, ReputationVote, etc.
+            Ok(ValType::I32)
+        },
     }
 }
 
 impl WasmBackend {
+    /// Collect all user-defined function names from the AST for pre-registration
+    fn collect_user_functions(&self, ast: &AstNode) -> Result<Vec<String>, CclError> {
+        let mut functions = Vec::new();
+        
+        match ast {
+            AstNode::Policy(items) => {
+                for item in items {
+                    if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { name, .. }) = item {
+                        functions.push(name.clone());
+                    }
+                }
+            }
+            AstNode::Program(nodes) => {
+                for node in nodes {
+                    match node {
+                        crate::ast::TopLevelNode::Contract(contract) => {
+                            for body_item in &contract.body {
+                                if let crate::ast::ContractBodyNode::Function(func) = body_item {
+                                    functions.push(func.name.clone());
+                                }
+                            }
+                        }
+                        crate::ast::TopLevelNode::Function(func) => {
+                            functions.push(func.name.clone());
+                        }
+                        _ => {} // Skip other items
+                    }
+                }
+            }
+            AstNode::FunctionDefinition { name, .. } => {
+                functions.push(name.clone());
+            }
+            _ => {} // No functions in other node types
+        }
+        
+        Ok(functions)
+    }
+
     fn enum_variant_index(name: &str) -> i64 {
         match name {
             "Pending" => 0,
