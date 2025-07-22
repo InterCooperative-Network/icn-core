@@ -63,6 +63,18 @@ name = "test_comprehensive_parts"
 path = "test_comprehensive_parts.rs"
 
 [[bin]]
+name = "test_calculate_result_debug"
+path = "test_calculate_result_debug.rs"
+
+[[bin]]
+name = "test_problematic_ops"
+path = "test_problematic_ops.rs"
+
+[[bin]]
+name = "test_string_comparison_debug"
+path = "test_string_comparison_debug.rs"
+
+[[bin]]
 name = "test_assignment"
 path = "test_assignment.rs"
 
