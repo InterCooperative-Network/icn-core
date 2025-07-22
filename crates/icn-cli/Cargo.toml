@@ -16,6 +16,7 @@ icn-dag = { path = "../icn-dag" }
 icn-identity = { path = "../icn-identity" }
 icn-runtime = { path = "../icn-runtime" }
 icn-zk = { path = "../icn-zk", features = ["devtools"] }
+icn-action = { path = "../icn-action" }
 ark-serialize = "0.4"
 ark-std = "0.4"
 anyhow = "1.0"

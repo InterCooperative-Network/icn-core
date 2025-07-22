@@ -25,6 +25,7 @@ use std::str::FromStr;
 use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
 use chrono;
+use icn_action::{Action, ActionEncoder, QrGenerator, VoteChoice};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
 };
@@ -201,6 +202,11 @@ enum Commands {
     Credential {
         #[clap(subcommand)]
         command: credential_lifecycle::CredentialLifecycleCommands,
+    },
+    /// QR code and NFC action generation
+    Qr {
+        #[clap(subcommand)]
+        command: QrCommands,
     },
 }
 
@@ -932,6 +938,90 @@ enum ZkCommands {
     },
 }
 
+#[derive(Subcommand, Debug)]
+enum QrCommands {
+    /// Generate QR code for sharing identity (DID)
+    #[clap(name = "share-identity")]
+    ShareIdentity {
+        #[clap(help = "DID to share")]
+        did: String,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+    /// Generate QR code for token transfer
+    #[clap(name = "transfer")]
+    Transfer {
+        #[clap(help = "Token type/name")]
+        token: String,
+        #[clap(help = "Amount to transfer")]
+        amount: u64,
+        #[clap(help = "Recipient DID")]
+        to: String,
+        #[clap(long, help = "Optional memo")]
+        memo: Option<String>,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+    /// Generate QR code for voting on a proposal
+    #[clap(name = "vote")]
+    Vote {
+        #[clap(help = "Proposal CID")]
+        proposal: String,
+        #[clap(help = "Vote choice: approve, reject, or abstain")]
+        vote: String,
+        #[clap(long, help = "Voter DID (optional)")]
+        voter: Option<String>,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+    /// Generate QR code for joining a federation
+    #[clap(name = "join")]
+    Join {
+        #[clap(help = "Federation ID or name")]
+        federation: String,
+        #[clap(long, help = "Invitation code (optional)")]
+        code: Option<String>,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+    /// Generate QR code for verifying a credential
+    #[clap(name = "verify-credential")]
+    VerifyCredential {
+        #[clap(help = "Credential CID")]
+        credential: String,
+        #[clap(long, help = "Challenge string (optional)")]
+        challenge: Option<String>,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+    /// Decode an ICN action URL and display its contents
+    #[clap(name = "decode")]
+    Decode {
+        #[clap(help = "ICN action URL to decode")]
+        url: String,
+    },
+    /// Generate QR code from any ICN action URL
+    #[clap(name = "encode")]
+    Encode {
+        #[clap(help = "ICN action URL to encode")]
+        url: String,
+        #[clap(long, help = "QR code size in pixels", default_value = "256")]
+        size: u32,
+        #[clap(long, help = "Output file path (optional, defaults to terminal display)")]
+        output: Option<String>,
+    },
+}
+
 // --- Main CLI Logic ---
 
 #[tokio::main]
@@ -1406,6 +1496,29 @@ async fn run_command(cli: &Cli, client: &Client) -> Result<(), anyhow::Error> {
             }
             credential_lifecycle::CredentialLifecycleCommands::Example { flow } => {
                 handle_credential_example(cli, client, flow).await?
+            }
+        },
+        Commands::Qr { command } => match command {
+            QrCommands::ShareIdentity { did, size, output } => {
+                handle_qr_share_identity(did, *size, output).await?
+            }
+            QrCommands::Transfer { token, amount, to, memo, size, output } => {
+                handle_qr_transfer(token, *amount, to, memo, *size, output).await?
+            }
+            QrCommands::Vote { proposal, vote, voter, size, output } => {
+                handle_qr_vote(proposal, vote, voter, *size, output).await?
+            }
+            QrCommands::Join { federation, code, size, output } => {
+                handle_qr_join(federation, code, *size, output).await?
+            }
+            QrCommands::VerifyCredential { credential, challenge, size, output } => {
+                handle_qr_verify_credential(credential, challenge, *size, output).await?
+            }
+            QrCommands::Decode { url } => {
+                handle_qr_decode(url).await?
+            }
+            QrCommands::Encode { url, size, output } => {
+                handle_qr_encode(url, *size, output).await?
             }
         },
         Commands::Monitor { command } => match command {
@@ -4166,5 +4279,179 @@ async fn handle_credential_example(
     _flow: &crate::credential_lifecycle::ExampleFlows,
 ) -> Result<(), anyhow::Error> {
     println!("🚧 Credential examples not yet implemented");
+    Ok(())
+}
+
+// --- QR Code Command Handlers ---
+
+async fn handle_qr_share_identity(
+    did: &str,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let did = Did::from_str(did).map_err(|_| anyhow::anyhow!("Invalid DID format"))?;
+    let action = Action::ShareIdentity { did };
+    generate_and_display_qr(&action, size, output).await
+}
+
+async fn handle_qr_transfer(
+    token: &str,
+    amount: u64,
+    to: &str,
+    memo: &Option<String>,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let to = Did::from_str(to).map_err(|_| anyhow::anyhow!("Invalid recipient DID format"))?;
+    let action = Action::TransferToken {
+        token: token.to_string(),
+        amount,
+        to,
+        memo: memo.clone(),
+    };
+    generate_and_display_qr(&action, size, output).await
+}
+
+async fn handle_qr_vote(
+    proposal: &str,
+    vote: &str,
+    voter: &Option<String>,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let proposal = Cid::from_str(proposal).map_err(|_| anyhow::anyhow!("Invalid proposal CID format"))?;
+    let vote = VoteChoice::from_str(vote)?;
+    let voter = if let Some(voter_str) = voter {
+        Some(Did::from_str(voter_str).map_err(|_| anyhow::anyhow!("Invalid voter DID format"))?)
+    } else {
+        None
+    };
+    
+    let action = Action::Vote {
+        proposal,
+        vote,
+        voter,
+    };
+    generate_and_display_qr(&action, size, output).await
+}
+
+async fn handle_qr_join(
+    federation: &str,
+    code: &Option<String>,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let action = Action::JoinFederation {
+        federation_id: federation.to_string(),
+        invitation_code: code.clone(),
+    };
+    generate_and_display_qr(&action, size, output).await
+}
+
+async fn handle_qr_verify_credential(
+    credential: &str,
+    challenge: &Option<String>,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let credential = Cid::from_str(credential).map_err(|_| anyhow::anyhow!("Invalid credential CID format"))?;
+    let action = Action::VerifyCredential {
+        credential,
+        challenge: challenge.clone(),
+    };
+    generate_and_display_qr(&action, size, output).await
+}
+
+async fn handle_qr_decode(url: &str) -> Result<(), anyhow::Error> {
+    let action = ActionEncoder::decode(url)?;
+    println!("Decoded ICN Action:");
+    println!("{}", serde_json::to_string_pretty(&action)?);
+    
+    match &action {
+        Action::ShareIdentity { did } => {
+            println!("\n📱 Action: Share Identity");
+            println!("   DID: {}", did);
+        }
+        Action::TransferToken { token, amount, to, memo } => {
+            println!("\n💰 Action: Transfer Token");
+            println!("   Token: {}", token);
+            println!("   Amount: {}", amount);
+            println!("   To: {}", to);
+            if let Some(memo) = memo {
+                println!("   Memo: {}", memo);
+            }
+        }
+        Action::Vote { proposal, vote, voter } => {
+            println!("\n🗳️ Action: Vote on Proposal");
+            println!("   Proposal: {}", proposal);
+            println!("   Vote: {}", vote);
+            if let Some(voter) = voter {
+                println!("   Voter: {}", voter);
+            }
+        }
+        Action::JoinFederation { federation_id, invitation_code } => {
+            println!("\n🤝 Action: Join Federation");
+            println!("   Federation: {}", federation_id);
+            if let Some(code) = invitation_code {
+                println!("   Invitation Code: {}", code);
+            }
+        }
+        Action::VerifyCredential { credential, challenge } => {
+            println!("\n🔐 Action: Verify Credential");
+            println!("   Credential: {}", credential);
+            if let Some(challenge) = challenge {
+                println!("   Challenge: {}", challenge);
+            }
+        }
+        _ => {
+            println!("\n🔧 Action: Custom or Advanced");
+        }
+    }
+    
+    Ok(())
+}
+
+async fn handle_qr_encode(
+    url: &str,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    // Validate that it's a proper ICN URL
+    let _action = ActionEncoder::decode(url)?;
+    
+    if let Some(output_path) = output {
+        let qr_data = QrGenerator::generate_png(url, size)?;
+        std::fs::write(output_path, qr_data)?;
+        println!("✅ QR code saved to: {}", output_path);
+    } else {
+        let terminal_qr = QrGenerator::display_terminal(url)?;
+        println!("🔗 ICN Action URL: {}", url);
+        println!("\n📱 QR Code:");
+        println!("{}", terminal_qr);
+    }
+    
+    Ok(())
+}
+
+async fn generate_and_display_qr(
+    action: &Action,
+    size: u32,
+    output: &Option<String>,
+) -> Result<(), anyhow::Error> {
+    let url = ActionEncoder::encode(action)?;
+    
+    if let Some(output_path) = output {
+        let qr_data = QrGenerator::generate_for_action(action, &icn_action::QrMetadata::default())?;
+        std::fs::write(output_path, qr_data)?;
+        println!("✅ QR code saved to: {}", output_path);
+        println!("🔗 ICN Action URL: {}", url);
+    } else {
+        let terminal_qr = QrGenerator::display_terminal(&url)?;
+        println!("🔗 ICN Action URL: {}", url);
+        println!("\n📱 QR Code:");
+        println!("{}", terminal_qr);
+        println!("\n💡 Tip: Use --output <file.png> to save as image");
+    }
+    
     Ok(())
 }
