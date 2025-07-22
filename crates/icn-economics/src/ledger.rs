@@ -563,9 +563,9 @@ impl ResourceLedger for FileResourceLedger {
     fn can_transfer(
         &self,
         class_id: &TokenClassId,
-        from: &Did,
+        _from: &Did,
         to: &Did,
-        amount: u64,
+        _amount: u64,
     ) -> Result<bool, CommonError> {
         let data = self.data.lock().unwrap();
 
