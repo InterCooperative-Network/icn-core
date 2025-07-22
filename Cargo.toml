@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "crates/icn-common",
+    "crates/icn-core-traits",
     "crates/icn-identity",
     "crates/icn-dag",
     "crates/icn-mesh",
