@@ -5,7 +5,7 @@ use ark_bn254::{Bn254, Fr};
 use ark_groth16::ProvingKey;
 use ark_relations::r1cs::ConstraintSynthesizer;
 use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_std::rand::rngs::OsRng;
+use rand::rngs::OsRng;
 use directories_next as dirs_next;
 use icn_common::CommonError;
 use icn_zk::CircuitParameters;

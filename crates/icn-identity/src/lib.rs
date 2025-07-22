@@ -29,6 +29,11 @@ pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
 pub mod revocation_registry;
 pub use revocation_registry::{InMemoryRevocationRegistry, RevocationRegistry};
+pub mod key_management;
+pub use key_management::{
+    AdvancedKeyManager, KeyRotationConfig, KeyMetadata, KeyAuditEntry, 
+    KeyOperation, KeyOperationResult, KeyRotationStats
+};
 pub mod cooperative_schemas;
 pub use cooperative_schemas::{
     schemas, CooperativeCapability, CooperativeMembershipBuilder, CooperativeProfile,
