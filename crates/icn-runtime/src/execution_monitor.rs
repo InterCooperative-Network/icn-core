@@ -1,6 +1,6 @@
+use log::{LevelFilter, Metadata, Record};
 use once_cell::sync::Lazy;
 use std::sync::Mutex;
-use log::{LevelFilter, Metadata, Record};
 
 /// Simple logger that stores log lines in memory for later retrieval.
 pub struct ExecutionLogger {
@@ -9,7 +9,9 @@ pub struct ExecutionLogger {
 
 impl ExecutionLogger {
     const fn new() -> Self {
-        Self { logs: Mutex::new(Vec::new()) }
+        Self {
+            logs: Mutex::new(Vec::new()),
+        }
     }
 
     fn take(&self) -> String {

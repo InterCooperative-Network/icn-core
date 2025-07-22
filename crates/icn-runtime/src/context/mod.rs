@@ -52,8 +52,8 @@ pub use mesh_network::{
     PROPOSAL_COST_MANA, VOTE_COST_MANA,
 };
 pub use realtime_ccl_integration::{
-    ActiveProposal, CclIntegrationCoordinator, GovernanceEvent,
-    GovernanceEventType, ProposalStatus, VoteTracker,
+    ActiveProposal, CclIntegrationCoordinator, GovernanceEvent, GovernanceEventType,
+    ProposalStatus, VoteTracker,
 };
 pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,

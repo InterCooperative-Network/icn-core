@@ -433,7 +433,7 @@ impl RuntimeContextFactory {
                 #[cfg(feature = "persist-sled")]
                 {
                     let dag_path = data_dir.join("dag.sled");
-                    let store = icn_dag::SledDagStore::new(dag_path).map_err(|e| {
+                    let store = icn_dag::TokioFileDagStore::new(dag_path).map_err(|e| {
                         CommonError::InternalError(format!(
                             "Failed to create sled DAG store: {}",
                             e
@@ -461,7 +461,7 @@ impl RuntimeContextFactory {
                     #[cfg(feature = "persist-sled")]
                     {
                         let dag_path = data_dir.join("dev-dag.sled");
-                        let store = icn_dag::SledDagStore::new(dag_path).map_err(|e| {
+                        let store = icn_dag::TokioFileDagStore::new(dag_path).map_err(|e| {
                             CommonError::InternalError(format!(
                                 "Failed to create sled DAG store: {}",
                                 e

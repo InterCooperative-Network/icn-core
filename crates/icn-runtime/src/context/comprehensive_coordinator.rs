@@ -1003,7 +1003,7 @@ impl ComprehensiveCoordinator {
                 .get("network")
                 .and_then(|t| t.predicted_value)
                 .unwrap_or(network_util);
-                
+
             (cpu_util, network_util, predicted_cpu, predicted_network)
         }; // health guard is dropped here
 

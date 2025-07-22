@@ -464,7 +464,7 @@ impl AdaptiveRoutingEngine {
         let route_info = RouteInfo {
             destination: destination.clone(),
             hops: vec![peer.clone()],
-            latency: 100, // Estimated latency in milliseconds
+            latency: 100,      // Estimated latency in milliseconds
             success_rate: 0.9, // Default success rate
             last_used: current_timestamp(),
             usage_count: 0,
@@ -774,7 +774,12 @@ impl AdaptiveNetworkService {
         }
 
         // Try to find a connected peer that corresponds to this DID
-        match self.routing_engine.network_service.discover_peers(None).await {
+        match self
+            .routing_engine
+            .network_service
+            .discover_peers(None)
+            .await
+        {
             Ok(peers) => {
                 // First, try exact match if the DID contains a recognizable peer ID
                 for peer_id in &peers {

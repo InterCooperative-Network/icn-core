@@ -493,7 +493,7 @@ impl GovernanceAutomationEngine {
                 // TODO: Fix policy enforcement - self not available in async move
                 // Need to restructure to avoid self reference in spawned task
                 log::debug!("Policy enforcement loop tick (not implemented)");
-                
+
                 // Placeholder for policy enforcement logic
                 // In the future, this should call a static function or method
                 // that doesn't require &self
@@ -728,14 +728,17 @@ impl GovernanceAutomationEngine {
         // Load active policies from cache (scope the guard to avoid Send issues)
         let policy_data: Vec<(String, PolicyContract)> = {
             let policies = _policy_cache.read().unwrap();
-            
+
             if policies.is_empty() {
                 log::debug!("No active policies to enforce");
                 return Ok(());
             }
-            
+
             // Clone the data we need so we can drop the guard
-            policies.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            policies
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         }; // RwLockReadGuard is dropped here
 
         for (policy_id, policy_contract) in policy_data.iter() {

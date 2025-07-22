@@ -5,10 +5,10 @@
 
 use super::{HostAbiError, MeshNetworkServiceType};
 use icn_common::{CommonError, Did, TimeProvider};
+use icn_identity::federation_manager::{FederationStatus, FederationType, MembershipPolicy};
 use icn_identity::{
     FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
 };
-use icn_identity::federation_manager::{FederationType, FederationStatus, MembershipPolicy};
 use icn_reputation::ReputationStore;
 use log::{debug, error, info, warn};
 use std::collections::HashMap;
@@ -69,9 +69,7 @@ impl FederationIntegration {
         let mut federations = Vec::new();
 
         // Get federations from manager
-        let managed_federations = self
-            .federation_manager
-            .list_federations();
+        let managed_federations = self.federation_manager.list_federations();
         federations.extend(managed_federations);
 
         // Get cached discovered federations
@@ -147,13 +145,19 @@ impl FederationIntegration {
                     status: FederationStatus::Active,
                     metadata: std::collections::HashMap::new(),
                 };
-                
-                cache.insert(protocol_federation.federation_id.clone(), identity_federation.clone());
+
+                cache.insert(
+                    protocol_federation.federation_id.clone(),
+                    identity_federation.clone(),
+                );
                 identity_federations.push(identity_federation);
             }
         }
 
-        info!("Discovered {} federations from network", identity_federations.len());
+        info!(
+            "Discovered {} federations from network",
+            identity_federations.len()
+        );
         Ok(identity_federations)
     }
 
@@ -185,15 +189,12 @@ impl FederationIntegration {
             })?
         };
 
-        // Use federation manager to join  
+        // Use federation manager to join
         let capabilities = icn_identity::FederationCapabilities::default(); // Use default capabilities
         self.federation_manager
             .join_federation(federation_id, &self.node_identity, capabilities)
             .map_err(|e| {
-                HostAbiError::InternalError(format!(
-                    "Failed to join federation: {}",
-                    e
-                ))
+                HostAbiError::InternalError(format!("Failed to join federation: {}", e))
             })?;
 
         info!(
@@ -224,14 +225,14 @@ impl FederationIntegration {
             .federation_manager
             .membership_service()
             .is_member(&self.node_identity, federation_id);
-        
+
         // Convert boolean to MembershipStatus
         let status = if is_member {
             Some(icn_identity::MembershipStatus::Active)
         } else {
             None
         };
-        
+
         Ok(status)
     }
 
