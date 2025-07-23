@@ -362,14 +362,17 @@ impl Signable for RankedChoiceBallot {
     fn to_signable_bytes(&self) -> Result<Vec<u8>, icn_common::CommonError> {
         let mut bytes = Vec::new();
         
-        // Include ballot_id
+        // Include ballot_id with separator
         bytes.extend_from_slice(self.ballot_id.0.as_bytes());
+        bytes.push(b'\0'); // Separator to prevent collision
         
-        // Include voter DID (from DID document)
+        // Include voter DID (from DID document) with separator
         bytes.extend_from_slice(self.voter_did.id.to_string().as_bytes());
+        bytes.push(b'\0'); // Separator to prevent collision
         
-        // Include election_id
+        // Include election_id with separator
         bytes.extend_from_slice(self.election_id.0.as_bytes());
+        bytes.push(b'\0'); // Separator to prevent collision
         
         // Include preferences in order (critical for ranked choice integrity)
         for preference in &self.preferences {
@@ -377,11 +380,11 @@ impl Signable for RankedChoiceBallot {
             bytes.push(b'\0'); // Separator to prevent ambiguity
         }
         
-        // Include timestamp for replay protection
+        // Include timestamp for replay protection - use full u128 to prevent overflow
         let timestamp_nanos = self.timestamp
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
-            .as_nanos() as u64;
+            .as_nanos();
         bytes.extend_from_slice(&timestamp_nanos.to_le_bytes());
         
         Ok(bytes)
