@@ -4,7 +4,7 @@
 //! features including scheduled rotation, comprehensive audit logging, and 
 //! hardware security module integration.
 
-use crate::{KeyRotation, KeyStorage, SigningKey, generate_ed25519_keypair};
+use crate::{KeyRotation, KeyStorage};
 use icn_common::{CommonError, Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -190,7 +190,7 @@ impl AdvancedKeyManager {
         // Get current metadata
         let mut metadata_map = self.key_metadata.write().unwrap();
         let metadata = metadata_map.get_mut(did).ok_or_else(|| {
-            CommonError::KeyNotFound(format!("Key metadata not found for DID: {}", did))
+            CommonError::ResourceNotFound(format!("Key metadata not found for DID: {}", did))
         })?;
 
         // Create key version entry for the old key
@@ -218,6 +218,8 @@ impl AdvancedKeyManager {
 
         // Move metadata to new DID
         let updated_metadata = metadata.clone();
+        let rotation_count = metadata.rotation_count;
+        drop(metadata); // Release the mutable reference
         metadata_map.remove(did);
         metadata_map.insert(new_did.clone(), updated_metadata);
 
@@ -231,7 +233,7 @@ impl AdvancedKeyManager {
         let mut audit_metadata = HashMap::new();
         audit_metadata.insert("old_did".to_string(), did.to_string());
         audit_metadata.insert("new_did".to_string(), new_did.to_string());
-        audit_metadata.insert("rotation_count".to_string(), metadata.rotation_count.to_string());
+        audit_metadata.insert("rotation_count".to_string(), rotation_count.to_string());
         
         self.log_key_operation(
             new_did.clone(),
