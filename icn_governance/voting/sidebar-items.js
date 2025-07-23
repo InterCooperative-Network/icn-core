@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["VotingError"],"struct":["BallotId","Candidate","CandidateId","Election","ElectionId","EligibilityRules","RankedChoiceBallot","RankedChoiceResult","RankedChoiceRound","Signature","VotingPeriod"],"trait":["BallotValidator","VotingSystem"]};

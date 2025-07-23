@@ -1180,49 +1180,65 @@
 <a href=#1180 id=1180 data-nosnippet>1180</a></span><span class="kw">mod </span>tests {
 <a href=#1181 id=1181 data-nosnippet>1181</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
 <a href=#1182 id=1182 data-nosnippet>1182</a>    <span class="kw">use </span>icn_common::SystemTimeProvider;
-<a href=#1183 id=1183 data-nosnippet>1183</a>
-<a href=#1184 id=1184 data-nosnippet>1184</a>    <span class="attr">#[test]
-<a href=#1185 id=1185 data-nosnippet>1185</a>    </span><span class="kw">fn </span>test_governance_automation_config() {
-<a href=#1186 id=1186 data-nosnippet>1186</a>        <span class="kw">let </span>config = GovernanceAutomationConfig::default();
-<a href=#1187 id=1187 data-nosnippet>1187</a>        <span class="macro">assert!</span>(config.min_participation_rate &gt; <span class="number">0.0</span>);
-<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="macro">assert!</span>(config.auto_execution_threshold &gt; <span class="number">0.0</span>);
-<a href=#1189 id=1189 data-nosnippet>1189</a>        <span class="macro">assert!</span>(!config.voting_reminder_intervals.is_empty());
-<a href=#1190 id=1190 data-nosnippet>1190</a>    }
-<a href=#1191 id=1191 data-nosnippet>1191</a>
-<a href=#1192 id=1192 data-nosnippet>1192</a>    <span class="attr">#[test]
-<a href=#1193 id=1193 data-nosnippet>1193</a>    </span><span class="kw">fn </span>test_vote_weight_calculation() {
-<a href=#1194 id=1194 data-nosnippet>1194</a>        <span class="kw">let </span>weight = VoteWeight {
-<a href=#1195 id=1195 data-nosnippet>1195</a>            base_weight: <span class="number">1.0</span>,
-<a href=#1196 id=1196 data-nosnippet>1196</a>            reputation_multiplier: <span class="number">1.5</span>,
-<a href=#1197 id=1197 data-nosnippet>1197</a>            total_weight: <span class="number">1.5</span>,
-<a href=#1198 id=1198 data-nosnippet>1198</a>        };
-<a href=#1199 id=1199 data-nosnippet>1199</a>
-<a href=#1200 id=1200 data-nosnippet>1200</a>        <span class="macro">assert_eq!</span>(
-<a href=#1201 id=1201 data-nosnippet>1201</a>            weight.total_weight,
-<a href=#1202 id=1202 data-nosnippet>1202</a>            weight.base_weight * weight.reputation_multiplier
-<a href=#1203 id=1203 data-nosnippet>1203</a>        );
-<a href=#1204 id=1204 data-nosnippet>1204</a>    }
-<a href=#1205 id=1205 data-nosnippet>1205</a>
-<a href=#1206 id=1206 data-nosnippet>1206</a>    <span class="attr">#[test]
-<a href=#1207 id=1207 data-nosnippet>1207</a>    </span><span class="kw">fn </span>test_voting_status_calculation() {
-<a href=#1208 id=1208 data-nosnippet>1208</a>        <span class="kw">let </span><span class="kw-2">mut </span>state = ProposalAutomationState {
-<a href=#1209 id=1209 data-nosnippet>1209</a>            proposal: Proposal::default(),
-<a href=#1210 id=1210 data-nosnippet>1210</a>            submitted_at: Instant::now(),
-<a href=#1211 id=1211 data-nosnippet>1211</a>            voting_status: VotingStatus {
-<a href=#1212 id=1212 data-nosnippet>1212</a>                eligible_voters: <span class="number">10</span>,
-<a href=#1213 id=1213 data-nosnippet>1213</a>                votes_cast: <span class="number">3</span>,
-<a href=#1214 id=1214 data-nosnippet>1214</a>                participation_rate: <span class="number">0.3</span>,
-<a href=#1215 id=1215 data-nosnippet>1215</a>                support_percentage: <span class="number">0.67</span>,
-<a href=#1216 id=1216 data-nosnippet>1216</a>                quorum_reached: <span class="bool-val">true</span>,
-<a href=#1217 id=1217 data-nosnippet>1217</a>                predicted_outcome: <span class="prelude-val">None</span>,
-<a href=#1218 id=1218 data-nosnippet>1218</a>            },
-<a href=#1219 id=1219 data-nosnippet>1219</a>            reminders_sent: <span class="macro">vec!</span>[],
-<a href=#1220 id=1220 data-nosnippet>1220</a>            execution_attempted: <span class="bool-val">false</span>,
-<a href=#1221 id=1221 data-nosnippet>1221</a>            eligible_voters: <span class="macro">vec!</span>[],
-<a href=#1222 id=1222 data-nosnippet>1222</a>            votes_received: HashMap::new(),
-<a href=#1223 id=1223 data-nosnippet>1223</a>        };
-<a href=#1224 id=1224 data-nosnippet>1224</a>
-<a href=#1225 id=1225 data-nosnippet>1225</a>        <span class="macro">assert_eq!</span>(state.voting_status.participation_rate, <span class="number">0.3</span>);
-<a href=#1226 id=1226 data-nosnippet>1226</a>        <span class="macro">assert!</span>(state.voting_status.quorum_reached);
-<a href=#1227 id=1227 data-nosnippet>1227</a>    }
-<a href=#1228 id=1228 data-nosnippet>1228</a>}</code></pre></div></section></main></body></html>
+<a href=#1183 id=1183 data-nosnippet>1183</a>    <span class="kw">use crate</span>::{Proposal, ProposalId, ProposalType, ProposalStatus};
+<a href=#1184 id=1184 data-nosnippet>1184</a>    <span class="kw">use </span>std::collections::HashMap;
+<a href=#1185 id=1185 data-nosnippet>1185</a>
+<a href=#1186 id=1186 data-nosnippet>1186</a>    <span class="attr">#[test]
+<a href=#1187 id=1187 data-nosnippet>1187</a>    </span><span class="kw">fn </span>test_governance_automation_config() {
+<a href=#1188 id=1188 data-nosnippet>1188</a>        <span class="kw">let </span>config = GovernanceAutomationConfig::default();
+<a href=#1189 id=1189 data-nosnippet>1189</a>        <span class="macro">assert!</span>(config.min_participation_rate &gt; <span class="number">0.0</span>);
+<a href=#1190 id=1190 data-nosnippet>1190</a>        <span class="macro">assert!</span>(config.auto_execution_threshold &gt; <span class="number">0.0</span>);
+<a href=#1191 id=1191 data-nosnippet>1191</a>        <span class="macro">assert!</span>(!config.voting_reminder_intervals.is_empty());
+<a href=#1192 id=1192 data-nosnippet>1192</a>    }
+<a href=#1193 id=1193 data-nosnippet>1193</a>
+<a href=#1194 id=1194 data-nosnippet>1194</a>    <span class="attr">#[test]
+<a href=#1195 id=1195 data-nosnippet>1195</a>    </span><span class="kw">fn </span>test_vote_weight_calculation() {
+<a href=#1196 id=1196 data-nosnippet>1196</a>        <span class="kw">let </span>weight = AutomationVoteWeight {
+<a href=#1197 id=1197 data-nosnippet>1197</a>            base_weight: <span class="number">1.0</span>,
+<a href=#1198 id=1198 data-nosnippet>1198</a>            reputation_multiplier: <span class="number">1.5</span>,
+<a href=#1199 id=1199 data-nosnippet>1199</a>            total_weight: <span class="number">1.5</span>,
+<a href=#1200 id=1200 data-nosnippet>1200</a>        };
+<a href=#1201 id=1201 data-nosnippet>1201</a>
+<a href=#1202 id=1202 data-nosnippet>1202</a>        <span class="macro">assert_eq!</span>(
+<a href=#1203 id=1203 data-nosnippet>1203</a>            weight.total_weight,
+<a href=#1204 id=1204 data-nosnippet>1204</a>            weight.base_weight * weight.reputation_multiplier
+<a href=#1205 id=1205 data-nosnippet>1205</a>        );
+<a href=#1206 id=1206 data-nosnippet>1206</a>    }
+<a href=#1207 id=1207 data-nosnippet>1207</a>
+<a href=#1208 id=1208 data-nosnippet>1208</a>    <span class="attr">#[test]
+<a href=#1209 id=1209 data-nosnippet>1209</a>    </span><span class="kw">fn </span>test_voting_status_calculation() {
+<a href=#1210 id=1210 data-nosnippet>1210</a>        <span class="kw">let </span>proposal = Proposal {
+<a href=#1211 id=1211 data-nosnippet>1211</a>            id: ProposalId(<span class="string">"test-proposal"</span>.to_string()),
+<a href=#1212 id=1212 data-nosnippet>1212</a>            proposer: Did::default(),
+<a href=#1213 id=1213 data-nosnippet>1213</a>            proposal_type: ProposalType::GenericText(<span class="string">"Test proposal"</span>.to_string()),
+<a href=#1214 id=1214 data-nosnippet>1214</a>            description: <span class="string">"Test description"</span>.to_string(),
+<a href=#1215 id=1215 data-nosnippet>1215</a>            created_at: <span class="number">0</span>,
+<a href=#1216 id=1216 data-nosnippet>1216</a>            voting_deadline: <span class="number">3600</span>,
+<a href=#1217 id=1217 data-nosnippet>1217</a>            status: ProposalStatus::VotingOpen,
+<a href=#1218 id=1218 data-nosnippet>1218</a>            quorum: <span class="prelude-val">None</span>,
+<a href=#1219 id=1219 data-nosnippet>1219</a>            threshold: <span class="prelude-val">None</span>,
+<a href=#1220 id=1220 data-nosnippet>1220</a>            content_cid: <span class="prelude-val">None</span>,
+<a href=#1221 id=1221 data-nosnippet>1221</a>            votes: HashMap::new(),
+<a href=#1222 id=1222 data-nosnippet>1222</a>        };
+<a href=#1223 id=1223 data-nosnippet>1223</a>        
+<a href=#1224 id=1224 data-nosnippet>1224</a>        <span class="kw">let </span><span class="kw-2">mut </span>state = ProposalAutomationState {
+<a href=#1225 id=1225 data-nosnippet>1225</a>            proposal,
+<a href=#1226 id=1226 data-nosnippet>1226</a>            submitted_at: Instant::now(),
+<a href=#1227 id=1227 data-nosnippet>1227</a>            voting_status: VotingStatus {
+<a href=#1228 id=1228 data-nosnippet>1228</a>                eligible_voters: <span class="number">10</span>,
+<a href=#1229 id=1229 data-nosnippet>1229</a>                votes_cast: <span class="number">3</span>,
+<a href=#1230 id=1230 data-nosnippet>1230</a>                participation_rate: <span class="number">0.3</span>,
+<a href=#1231 id=1231 data-nosnippet>1231</a>                support_percentage: <span class="number">0.67</span>,
+<a href=#1232 id=1232 data-nosnippet>1232</a>                quorum_reached: <span class="bool-val">true</span>,
+<a href=#1233 id=1233 data-nosnippet>1233</a>                predicted_outcome: <span class="prelude-val">None</span>,
+<a href=#1234 id=1234 data-nosnippet>1234</a>            },
+<a href=#1235 id=1235 data-nosnippet>1235</a>            reminders_sent: <span class="macro">vec!</span>[],
+<a href=#1236 id=1236 data-nosnippet>1236</a>            execution_attempted: <span class="bool-val">false</span>,
+<a href=#1237 id=1237 data-nosnippet>1237</a>            eligible_voters: <span class="macro">vec!</span>[],
+<a href=#1238 id=1238 data-nosnippet>1238</a>            votes_received: HashMap::new(),
+<a href=#1239 id=1239 data-nosnippet>1239</a>        };
+<a href=#1240 id=1240 data-nosnippet>1240</a>
+<a href=#1241 id=1241 data-nosnippet>1241</a>        <span class="macro">assert_eq!</span>(state.voting_status.participation_rate, <span class="number">0.3</span>);
+<a href=#1242 id=1242 data-nosnippet>1242</a>        <span class="macro">assert!</span>(state.voting_status.quorum_reached);
+<a href=#1243 id=1243 data-nosnippet>1243</a>    }
+<a href=#1244 id=1244 data-nosnippet>1244</a>}</code></pre></div></section></main></body></html>
