@@ -1293,7 +1293,7 @@ pub async fn app_router_from_context(
     let config = Arc::new(TokioMutex::new(NodeConfig::default()));
 
     // Initialize cooperative registry using the context's DAG store
-    let cooperative_registry = Arc::new(CooperativeRegistry::new(ctx.dag_store.clone()));
+    let cooperative_registry = Arc::new(CooperativeRegistry::new(ctx.dag_store.store.clone()));
 
     let app_state = AppState {
         runtime_context: ctx.clone(),
@@ -1692,7 +1692,7 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initialize cooperative registry
-    let cooperative_registry = Arc::new(CooperativeRegistry::new(rt_ctx.dag_store.clone()));
+    let cooperative_registry = Arc::new(CooperativeRegistry::new(rt_ctx.dag_store.store.clone()));
 
     let app_state = AppState {
         runtime_context: rt_ctx.clone(),
@@ -1968,7 +1968,7 @@ async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut overall_status = "OK";
 
     // Check DAG store health
-    match state.runtime_context.dag_store.try_lock() {
+    match state.runtime_context.dag_store.store.try_lock() {
         Ok(_) => checks.dag_store = "OK".to_string(),
         Err(_) => {
             checks.dag_store = "BUSY".to_string();
@@ -2031,7 +2031,7 @@ async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
     };
 
     // Check if DAG store is accessible
-    checks.dag_store_available = state.runtime_context.dag_store.try_lock().is_ok();
+    checks.dag_store_available = state.runtime_context.dag_store.store.try_lock().is_ok();
 
     // Check if mana ledger is working
     let test_did = icn_common::Did::new("key", "readiness_test");
@@ -2225,7 +2225,7 @@ async fn dag_put_handler(
         }
     };
     match icn_api::submit_dag_block(
-        state.runtime_context.dag_store.clone(),
+        state.runtime_context.dag_store.store.clone(),
         block_json,
         state.runtime_context.policy_enforcer.clone(),
         state.runtime_context.current_identity.clone(),
@@ -2258,7 +2258,7 @@ async fn dag_get_handler(
             .into_response();
         }
     };
-    let store = state.runtime_context.dag_store.lock().await;
+    let store = state.runtime_context.dag_store.store.lock().await;
     match store.get(&cid_to_get).await {
         Ok(Some(block)) => (StatusCode::OK, Json(block.data)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
@@ -2299,7 +2299,7 @@ async fn dag_meta_handler(
 
     // Get metadata synchronously
     let metadata_result: Result<Option<icn_dag::DagBlockMetadata>, CommonError> = {
-        let store = state.runtime_context.dag_store.lock().await;
+        let store = state.runtime_context.dag_store.store.lock().await;
         match store.get(&cid).await {
             Ok(block_opt) => Ok(block_opt.map(|b| icn_dag::metadata_from_block(&b))),
             Err(e) => Err(match e {
@@ -2335,7 +2335,7 @@ async fn dag_meta_handler(
 /// GET /dag/root – Retrieve the current DAG root CID.
 /// Clients can compare this value across peers for synchronization.
 async fn dag_root_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let store = state.runtime_context.dag_store.lock().await;
+    let store = state.runtime_context.dag_store.store.lock().await;
     match icn_dag::current_root(&*store).await {
         Ok(Some(cid)) => (StatusCode::OK, Json(cid.to_string())).into_response(),
         Ok(None) => (StatusCode::OK, Json(String::new())).into_response(),
@@ -2386,7 +2386,7 @@ async fn dag_pin_handler(
             .into_response();
         }
     };
-    let mut store = state.runtime_context.dag_store.lock().await;
+    let mut store = state.runtime_context.dag_store.store.lock().await;
     if let Err(e) = store.pin_block(&cid).await {
         return map_rust_error_to_json_response(
             format!("Pin error: {e}"),
@@ -2419,7 +2419,7 @@ async fn dag_unpin_handler(
             .into_response();
         }
     };
-    let mut store = state.runtime_context.dag_store.lock().await;
+    let mut store = state.runtime_context.dag_store.store.lock().await;
     match store.unpin_block(&cid).await {
         Ok(()) => (StatusCode::OK, Json(cid)).into_response(),
         Err(e) => map_rust_error_to_json_response(
@@ -2433,7 +2433,7 @@ async fn dag_unpin_handler(
 // POST /dag/prune – Remove expired blocks
 async fn dag_prune_handler(State(state): State<AppState>) -> impl IntoResponse {
     let now = state.runtime_context.time_provider.unix_seconds();
-    let mut store = state.runtime_context.dag_store.lock().await;
+    let mut store = state.runtime_context.dag_store.store.lock().await;
     match store.prune_expired(now).await {
         Ok(removed) => (
             StatusCode::OK,
@@ -2533,7 +2533,7 @@ async fn contracts_post_handler(
     };
 
     match icn_api::submit_dag_block(
-        state.runtime_context.dag_store.clone(),
+        state.runtime_context.dag_store.store.clone(),
         block_json,
         state.runtime_context.policy_enforcer.clone(),
         state.runtime_context.current_identity.clone(),
@@ -2612,7 +2612,7 @@ async fn data_query_handler(
         }
     };
 
-    match query_data(state.runtime_context.dag_store.clone(), cid_json).await {
+    match query_data(state.runtime_context.dag_store.store.clone(), cid_json).await {
         Ok(Some(block)) => (StatusCode::OK, Json(block)).into_response(),
         Ok(None) => map_rust_error_to_json_response("Block not found", StatusCode::NOT_FOUND)
             .into_response(),

@@ -536,7 +536,7 @@ impl RuntimeContextBuilder {
                     signer,
                     mana_ledger,
                     self.network_service,
-                    self.dag_store,
+                    self.dag_store.map(|wrapper| wrapper.store),
                 )
             }
             EnvironmentType::Testing => {
@@ -1107,7 +1107,7 @@ impl RuntimeContext {
             signer,
             mana_ledger,
             network_service,
-            dag_store,
+            dag_store.map(|store| DagStoreWrapper::generic_production(store)),
         )?;
         Self::from_service_config(config)
     }

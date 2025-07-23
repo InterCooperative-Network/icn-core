@@ -554,7 +554,8 @@ impl RuntimeConfig {
             || (environment == ServiceEnvironment::Development
                 && self.storage.dag_store.store_type != "memory")
         {
-            let dag_store = self.create_dag_store()?;
+            let dag_store_raw = self.create_dag_store()?;
+            let dag_store = crate::context::dag_store_wrapper::DagStoreWrapper::generic_production(dag_store_raw);
             builder = builder.with_dag_store(dag_store);
         }
 

@@ -7,6 +7,7 @@ use super::{
     DagStorageService, DagStoreMutexType, RuntimeContext, ServiceConfig, ServiceConfigBuilder,
     ServiceEnvironment, SimpleManaLedger,
 };
+use super::dag_store_wrapper::DagStoreWrapper;
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{DidResolver, EnhancedDidResolver, SigningKey};
 use icn_network::{
@@ -233,8 +234,9 @@ impl RuntimeContextFactory {
 
         // Create persistent DAG store
         let data_dir = config.data_dir.unwrap_or_else(|| PathBuf::from("./data"));
-        let dag_store =
+        let dag_store_raw =
             Self::create_dag_store(RuntimeEnvironment::Production, Some(data_dir.clone()))?;
+        let dag_store = DagStoreWrapper::generic_production(dag_store_raw);
 
         // Create mana ledger
         let mana_ledger = SimpleManaLedger::new(data_dir.join("mana.sled"));
@@ -313,8 +315,9 @@ impl RuntimeContextFactory {
         };
 
         // Create DAG store (persistent if data_dir provided)
-        let dag_store =
+        let dag_store_raw =
             Self::create_dag_store(RuntimeEnvironment::Development, config.data_dir.clone())?;
+        let dag_store = DagStoreWrapper::generic_production(dag_store_raw);
 
         // Create mana ledger
         let mana_ledger = if let Some(data_dir) = config.data_dir {
@@ -445,7 +448,8 @@ impl RuntimeContextFactory {
             hasher.update(config.identity.to_string().as_bytes());
             hasher.update(b"integration-test-key-seed");
             let seed = hasher.finalize();
-            let signing_key = icn_identity::SigningKey::from_bytes(&seed[..32]);
+            let seed_array: [u8; 32] = seed[..32].try_into().expect("Seed should be 32 bytes");
+            let signing_key = icn_identity::SigningKey::from_bytes(&seed_array);
             Arc::new(super::signers::Ed25519Signer::new(signing_key))
         };
 
@@ -453,8 +457,9 @@ impl RuntimeContextFactory {
         let data_dir = config
             .data_dir
             .unwrap_or_else(|| PathBuf::from("./test-data"));
-        let dag_store =
+        let dag_store_raw =
             Self::create_dag_store(RuntimeEnvironment::Integration, Some(data_dir.clone()))?;
+        let dag_store = DagStoreWrapper::generic_production(dag_store_raw);
 
         // Create persistent mana ledger
         let mana_ledger = SimpleManaLedger::new(data_dir.join("test-mana.sled"));

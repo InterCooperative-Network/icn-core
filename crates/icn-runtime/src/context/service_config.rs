@@ -14,6 +14,7 @@ use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
 use downcast_rs::Downcast;
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::sync::Arc;
 
 /// Service configuration environments

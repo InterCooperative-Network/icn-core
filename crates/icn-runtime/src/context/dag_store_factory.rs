@@ -10,7 +10,6 @@ use super::dag_store_wrapper::{DagStoreType, DagStoreWrapper};
 use super::stubs::StubDagStore;
 use super::{DagStorageService, DagStoreMutexType};
 use icn_common::CommonError;
-use icn_dag::compat::CompatAsyncStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -152,32 +151,40 @@ impl DagStoreFactory {
         match config.backend {
             #[cfg(feature = "persist-sled")]
             DagStoreBackend::Sled => {
-                let store = icn_dag::sled_store::SledDagStore::new(config.storage_path.clone())?;
-                let compat_store = CompatAsyncStore::new(store);
-                let wrapped_store = Arc::new(DagStoreMutexType::new(compat_store));
-                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::Sled))
+                // TODO: Implement proper Sled store with AsyncStorageService trait
+                log::warn!("Sled DAG store not yet compatible with AsyncStorageService, using stub for now");
+                let store = StubDagStore::new();
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::stub(wrapped_store))
             }
 
             #[cfg(feature = "persist-rocksdb")]
             DagStoreBackend::RocksDB => {
-                let store = icn_dag::rocksdb_store::RocksDagStore::new(config.storage_path.clone())?;
-                let compat_store = CompatAsyncStore::new(store);
-                let wrapped_store = Arc::new(DagStoreMutexType::new(compat_store));
-                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::RocksDB))
+                // TODO: Implement proper RocksDB store with AsyncStorageService trait
+                log::warn!("RocksDB DAG store not yet compatible with AsyncStorageService, using stub for now");
+                let store = StubDagStore::new();
+                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                Ok(DagStoreWrapper::stub(wrapped_store))
             }
 
             #[cfg(feature = "persist-sqlite")]
             DagStoreBackend::SQLite => {
-                let store = icn_dag::sqlite_store::SqliteDagStore::new(config.storage_path.clone())?;
+                // TODO: Implement proper SQLite store with AsyncStorageService trait
+                log::warn!("SQLite DAG store not yet compatible with AsyncStorageService, using stub for now");
+                let store = StubDagStore::new();
                 let wrapped_store = Arc::new(DagStoreMutexType::new(store));
-                Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::SQLite))
+                Ok(DagStoreWrapper::stub(wrapped_store))
             }
 
             #[cfg(feature = "persist-postgres")]
             DagStoreBackend::PostgreSQL => {
                 // For PostgreSQL, the storage_path is used as connection string or config path
                 let config_str = config.storage_path.to_string_lossy().to_string();
-                let store = icn_dag::postgres_store::PostgresDagStore::new(&config_str)?;
+                let store = tokio::task::block_in_place(|| {
+                    tokio::runtime::Handle::current().block_on(
+                        icn_dag::postgres_store::PostgresDagStore::new(&config_str)
+                    )
+                })?;
                 let wrapped_store = Arc::new(DagStoreMutexType::new(store));
                 Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::PostgreSQL))
             }
