@@ -1061,7 +1061,8 @@ mod tests {
 
     // Helper function to create a RuntimeContext with stubbed services for testing.
     fn create_test_context() -> Arc<RuntimeContext> {
-        RuntimeContext::new_with_stubs(TEST_IDENTITY_DID_STR)
+        let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Invalid test DID");
+        RuntimeContext::new_for_testing(test_did, None)
             .expect("Failed to create test context")
     }
 
@@ -1357,19 +1358,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_runtime_context_new_with_stubs() {
+    async fn test_runtime_context_new_for_testing() {
         let node_did_str = "did:key:z6MkjL4FwS3np2p2NLiqH57sX99pZtG9x3Fy9bYh3xHqs14z";
-        let ctx = RuntimeContext::new_with_stubs(node_did_str).unwrap();
-        assert_eq!(ctx.current_identity.to_string(), node_did_str);
+        let test_did = Did::from_str(node_did_str).unwrap();
+        let ctx = RuntimeContext::new_for_testing(test_did.clone(), None).unwrap();
+        assert_eq!(ctx.current_identity, test_did);
         // Further checks can be added here if needed
     }
 
     #[tokio::test]
-    async fn test_runtime_context_new_with_stubs_and_mana() {
+    async fn test_runtime_context_new_for_testing_with_mana() {
         let node_did_str = "did:key:zTestManaDid";
         let initial_mana = 1000u64;
-        let ctx = RuntimeContext::new_with_stubs_and_mana(node_did_str, initial_mana).unwrap();
-        assert_eq!(ctx.current_identity.to_string(), node_did_str);
+        let test_did = Did::from_str(node_did_str).unwrap();
+        let ctx = RuntimeContext::new_for_testing(test_did.clone(), Some(initial_mana)).unwrap();
+        assert_eq!(ctx.current_identity, test_did);
         let balance = ctx.get_mana(&ctx.current_identity).await.unwrap();
         assert_eq!(balance, initial_mana);
     }

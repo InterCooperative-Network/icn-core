@@ -96,14 +96,14 @@ impl EnhancedDidResolver {
         let cache_size = NonZeroUsize::new(config.max_cache_size).unwrap_or_else(|| NonZeroUsize::new(1000).unwrap());
         
         Self {
+            config,
             lru_cache: Arc::new(Mutex::new(LruCache::new(cache_size))),
-            stats: Arc::new(RwLock::new(ResolutionStats::default())),
-            method_stats: Arc::new(RwLock::new(HashMap::new())),
             time_provider,
             key_resolver: KeyDidResolver,
             peer_resolver: PeerDidResolver,
             web_resolver: Arc::new(RwLock::new(WebDidResolver::default())),
             stats: Arc::new(RwLock::new(ResolutionStats::default())),
+            method_stats: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -126,7 +126,7 @@ impl EnhancedDidResolver {
 
     /// Clear the resolution cache
     pub fn clear_cache(&self) {
-        if let Ok(mut cache) = self.lru_cache.write() {
+        if let Ok(mut cache) = self.lru_cache.lock() {
             cache.clear();
         }
     }
@@ -167,7 +167,7 @@ impl EnhancedDidResolver {
         match &result {
             Ok(key) => {
                 // Cache successful resolution
-                self.lru_cache_result(&did_string, *key, &did.method);
+                self.cache_result(&did_string, *key, &did.method);
 
                 // Update method stats
                 self.update_method_stats(&did.method, true, duration_ms);
@@ -237,7 +237,7 @@ impl EnhancedDidResolver {
 
     /// Get result from cache if valid
     fn get_from_cache(&self, did_string: &str) -> Option<CacheEntry> {
-        let cache = self.lru_cache.read().ok()?;
+        let mut cache = self.lru_cache.lock().ok()?;
         let entry = cache.get(did_string)?.clone();
 
         // Check if expired
@@ -245,8 +245,8 @@ impl EnhancedDidResolver {
         if now >= entry.expires_at {
             // Entry expired, remove it
             drop(cache);
-            if let Ok(mut cache) = self.lru_cache.write() {
-                cache.remove(did_string);
+            if let Ok(mut cache) = self.lru_cache.lock() {
+                cache.pop(did_string);
             }
             return None;
         }
@@ -256,19 +256,19 @@ impl EnhancedDidResolver {
 
     /// Cache a successful resolution result
     fn cache_result(&self, did_string: &str, key: ed25519_dalek::VerifyingKey, method: &str) {
-        if let Ok(mut cache) = self.lru_cache.write() {
-            // Enforce cache size limit
-            if cache.len() >= self.config.max_cache_size {
-                self.evict_oldest_entry(&mut cache);
-            }
+        if let Ok(mut cache) = self.lru_cache.lock() {
+            // LruCache automatically evicts oldest entry when capacity is exceeded
+            // No manual eviction needed
 
             let expires_at = self.time_provider.unix_seconds() + self.config.cache_ttl_seconds;
-            cache.insert(
+            cache.put(
                 did_string.to_string(),
                 CacheEntry {
                     verifying_key: key,
                     expires_at,
                     method_used: method.to_string(),
+                    access_count: 1,
+                    last_accessed: self.time_provider.unix_seconds(),
                 },
             );
         }
@@ -293,8 +293,8 @@ impl EnhancedDidResolver {
 
     /// Update method-specific statistics
     fn update_method_stats(&self, method: &str, success: bool, duration_ms: f64) {
-        if let Ok(mut stats) = self.stats.write() {
-            let method_stats = stats.method_stats.entry(method.to_string()).or_default();
+        if let Ok(mut method_stats_map) = self.method_stats.write() {
+            let method_stats = method_stats_map.entry(method.to_string()).or_default();
 
             if success {
                 method_stats.successes += 1;
@@ -337,7 +337,7 @@ impl EnhancedDidResolver {
     /// Preload DIDs into cache (useful for known federation members)
     pub fn preload_cache(&self, did_key_pairs: Vec<(Did, ed25519_dalek::VerifyingKey)>) {
         for (did, key) in did_key_pairs {
-            self.lru_cache_result(&did.to_string(), key, &did.method);
+            self.cache_result(&did.to_string(), key, &did.method);
         }
     }
 }
