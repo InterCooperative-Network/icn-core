@@ -53,6 +53,12 @@ pub struct RuntimeCreationConfig {
     pub enable_federation_management: bool,
     /// Whether to allow fallback services
     pub allow_fallback: bool,
+    /// Optional path to encrypted key file
+    pub key_file_path: Option<PathBuf>,
+    /// Optional passphrase for encrypted key file
+    pub key_passphrase: Option<String>,
+    /// Optional HSM key store for hardware-backed keys
+    pub hsm: Option<Arc<dyn super::signers::HsmKeyStore>>,
 }
 
 impl RuntimeCreationConfig {
@@ -69,6 +75,9 @@ impl RuntimeCreationConfig {
             reputation_store: None,
             enable_federation_management: true,
             allow_fallback: false,
+            key_file_path: None,
+            key_passphrase: None,
+            hsm: None,
         }
     }
 
@@ -85,6 +94,9 @@ impl RuntimeCreationConfig {
             reputation_store: None,
             enable_federation_management: true,
             allow_fallback: true,
+            key_file_path: None,
+            key_passphrase: None,
+            hsm: None,
         }
     }
 
@@ -101,6 +113,9 @@ impl RuntimeCreationConfig {
             reputation_store: None,
             enable_federation_management: false, // Disable for faster tests
             allow_fallback: true,
+            key_file_path: None,
+            key_passphrase: None,
+            hsm: None,
         }
     }
 
@@ -117,7 +132,39 @@ impl RuntimeCreationConfig {
             reputation_store: None,
             enable_federation_management: true,
             allow_fallback: false,
+            key_file_path: None,
+            key_passphrase: None,
+            hsm: None,
         }
+    }
+
+    /// Set encrypted key file path and passphrase
+    pub fn with_encrypted_key_file<P: Into<PathBuf>, S: Into<String>>(
+        mut self,
+        path: P,
+        passphrase: S,
+    ) -> Self {
+        self.key_file_path = Some(path.into());
+        self.key_passphrase = Some(passphrase.into());
+        self
+    }
+
+    /// Set HSM key store
+    pub fn with_hsm_key_store(mut self, hsm: Arc<dyn super::signers::HsmKeyStore>) -> Self {
+        self.hsm = Some(hsm);
+        self
+    }
+
+    /// Set data directory
+    pub fn with_data_dir<P: Into<PathBuf>>(mut self, path: P) -> Self {
+        self.data_dir = Some(path.into());
+        self
+    }
+
+    /// Set initial mana balance
+    pub fn with_initial_mana(mut self, mana: u64) -> Self {
+        self.initial_mana = Some(mana);
+        self
     }
 }
 
@@ -157,9 +204,32 @@ impl RuntimeContextFactory {
             .did_resolver
             .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
-        // Create signer - for now use a deterministic key for production
-        // TODO: In real production, this should use proper key management
-        let signer = Arc::new(super::signers::StubSigner::new());
+        // Create signer with proper key management for production
+        let signer = if let Some(key_path) = &config.key_file_path {
+            // Use key from encrypted file if provided
+            if let Some(passphrase) = &config.key_passphrase {
+                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
+                    key_path,
+                    passphrase.as_bytes(),
+                ).map_err(|e| CommonError::CryptoError(format!("Failed to load production key: {}", e)))?) as Arc<dyn super::signers::Signer>
+            } else {
+                return Err(CommonError::CryptoError(
+                    "Production environment requires passphrase for encrypted key file".to_string(),
+                ));
+            }
+        } else if let Some(hsm) = &config.hsm {
+            // Use HSM if configured
+            Arc::new(super::signers::Ed25519Signer::from_hsm(hsm.as_ref())
+                .map_err(|e| CommonError::CryptoError(format!("Failed to load HSM key: {}", e)))?)
+        } else {
+            // Generate a new key for this production instance and warn the user
+            log::warn!("🔑 PRODUCTION WARNING: No key file or HSM configured. Generating ephemeral key. This key will not persist across restarts!");
+            log::warn!("🔑 For production use, provide either:");
+            log::warn!("🔑 - key_file_path and key_passphrase for encrypted file");
+            log::warn!("🔑 - hsm configuration for hardware security module");
+            let (signing_key, _) = icn_identity::generate_ed25519_keypair();
+            Arc::new(super::signers::Ed25519Signer::new(signing_key))
+        };
 
         // Create persistent DAG store
         let data_dir = config.data_dir.unwrap_or_else(|| PathBuf::from("./data"));
@@ -218,9 +288,29 @@ impl RuntimeContextFactory {
             .did_resolver
             .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
-        // Create signer - for now use a deterministic key for development
-        // TODO: In real development, this should use proper key management
-        let signer = Arc::new(super::signers::StubSigner::new());
+        // Create signer with proper key management for development
+        let signer = if let Some(key_path) = &config.key_file_path {
+            // Use key from encrypted file if provided
+            if let Some(passphrase) = &config.key_passphrase {
+                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
+                    key_path,
+                    passphrase.as_bytes(),
+                ).map_err(|e| CommonError::CryptoError(format!("Failed to load development key: {}", e)))?) as Arc<dyn super::signers::Signer>
+            } else {
+                return Err(CommonError::CryptoError(
+                    "Development environment with key file requires passphrase".to_string(),
+                ));
+            }
+        } else if let Some(hsm) = &config.hsm {
+            // Use HSM if configured
+            Arc::new(super::signers::Ed25519Signer::from_hsm(hsm.as_ref())
+                .map_err(|e| CommonError::CryptoError(format!("Failed to load HSM key: {}", e)))?)
+        } else {
+            // For development, generate a new key (this is fine for dev environments)
+            log::info!("🔧 DEVELOPMENT: Generating ephemeral Ed25519 key for this session");
+            let (signing_key, _) = icn_identity::generate_ed25519_keypair();
+            Arc::new(super::signers::Ed25519Signer::new(signing_key))
+        };
 
         // Create DAG store (persistent if data_dir provided)
         let dag_store =
@@ -334,9 +424,30 @@ impl RuntimeContextFactory {
             .did_resolver
             .unwrap_or_else(|| Arc::new(EnhancedDidResolver::with_defaults(time_provider.clone())));
 
-        // Create signer - for now use a deterministic key for integration testing
-        // TODO: In real integration testing, this should use proper key management
-        let signer = Arc::new(super::signers::StubSigner::new());
+        // Create signer with proper key management for integration testing
+        let signer = if let Some(key_path) = &config.key_file_path {
+            // Use key from encrypted file if provided (for consistent test keys)
+            if let Some(passphrase) = &config.key_passphrase {
+                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
+                    key_path,
+                    passphrase.as_bytes(),
+                ).map_err(|e| CommonError::CryptoError(format!("Failed to load test key: {}", e)))?) as Arc<dyn super::signers::Signer>
+            } else {
+                return Err(CommonError::CryptoError(
+                    "Integration test environment with key file requires passphrase".to_string(),
+                ));
+            }
+        } else {
+            // For integration tests, use a deterministic key based on the identity to ensure reproducible tests
+            log::info!("🧪 INTEGRATION TEST: Using deterministic Ed25519 key based on identity");
+            use sha2::{Digest, Sha256};
+            let mut hasher = Sha256::new();
+            hasher.update(config.identity.to_string().as_bytes());
+            hasher.update(b"integration-test-key-seed");
+            let seed = hasher.finalize();
+            let signing_key = icn_identity::SigningKey::from_bytes(&seed[..32]);
+            Arc::new(super::signers::Ed25519Signer::new(signing_key))
+        };
 
         // Create persistent DAG store in test directory
         let data_dir = config
