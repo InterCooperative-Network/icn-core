@@ -23,6 +23,6 @@ just validate                 # format, lint and test
 
 ## 4. Explore Further
 - [Developer Onboarding Guide](../ONBOARDING.md)
-- [ICN Feature Overview](../ICN_FEATURE_OVERVIEW.md)
+- [Project Status & Roadmap](../../PROJECT_STATUS_AND_ROADMAP.md)
 - [Project Context](../../CONTEXT.md)
 - [Resource Tokens](../resource_tokens.md)

@@ -229,7 +229,7 @@ Examples:
 ### **Project Understanding**
 - **[README.md](README.md)** - Project overview and capabilities
 - **[CONTEXT.md](CONTEXT.md)** - Philosophical foundation and complete context
-- **[docs/status/STATUS.md](docs/status/STATUS.md)** - Current progress (77-82% complete)
+- **[PROJECT_STATUS_AND_ROADMAP.md](PROJECT_STATUS_AND_ROADMAP.md)** - Current progress and development roadmap
 - **[ICN_API_REFERENCE.md](ICN_API_REFERENCE.md)** - All 60+ HTTP endpoints
 
 ### **Development Guides**

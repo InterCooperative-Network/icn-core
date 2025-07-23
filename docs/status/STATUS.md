@@ -1,5 +1,7 @@
 # ICN Core Status Report
 
+> **📄 CONSOLIDATION NOTICE**: This document has been consolidated into **[PROJECT_STATUS_AND_ROADMAP.md](../../PROJECT_STATUS_AND_ROADMAP.md)** which provides the authoritative project status and development roadmap. This file is maintained for historical reference.
+
 **Version**: 0.2.0-beta  
 **Last Updated**: January 2025  
 **Overall Progress**: Heavy Development - Many Stubs Remain  

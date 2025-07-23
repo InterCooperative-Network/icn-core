@@ -1,5 +1,7 @@
 # ICN Feature Overview (July 2025)
 
+> **📄 CONSOLIDATION NOTICE**: This document has been consolidated into **[PROJECT_STATUS_AND_ROADMAP.md](../PROJECT_STATUS_AND_ROADMAP.md)** which provides the authoritative project status and development roadmap. This file is maintained for historical reference.
+
 **InterCooperative Network (ICN)** is a comprehensive platform for building federated, cooperative digital infrastructure. This document provides a complete overview of all current and planned features, organized by domain and implementation status.
 
 ---
