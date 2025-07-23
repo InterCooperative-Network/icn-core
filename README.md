@@ -389,7 +389,7 @@ The remaining work involves significant **stub replacement** and **feature imple
 - **Worker Cooperative Tools**: Profit sharing, democratic coordination
 - **Climate Action**: Carbon credits, renewable energy sharing, sustainability metrics
 
-**Complete Roadmap**: [docs/planning/ICN_ROADMAP_2025.md](docs/planning/ICN_ROADMAP_2025.md)
+**Complete Roadmap**: [PROJECT_STATUS_AND_ROADMAP.md](PROJECT_STATUS_AND_ROADMAP.md)
 
 ---
 
