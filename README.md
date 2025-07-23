@@ -67,7 +67,7 @@ just dev-wallet     # DID/key management
 ### Documentation Hub 📚
 📖 **[Documentation Index](DOCUMENTATION_INDEX.md)** - Quick navigation guide  
 📚 **[Complete Documentation](docs/README.md)** - Full documentation directory  
-📊 **[Current Status](docs/status/STATUS.md)** - Development progress (many stubs remain)  
+📊 **[Project Status & Roadmap](PROJECT_STATUS_AND_ROADMAP.md)** - Consolidated status and development roadmap  
 🏗️ **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and component overview  
 🔗 **[Complete API Reference](ICN_API_REFERENCE.md)** - All 60+ HTTP endpoints  
 
@@ -414,7 +414,7 @@ We welcome contributions across multiple areas:
 ### Resources
 - **Website**: [intercooperative.network](https://intercooperative.network)
 - **Repository**: [GitHub](https://github.com/InterCooperative/icn-core)
-- **Status Dashboard**: [Current Progress](docs/status/STATUS.md)
+- **Status Dashboard**: [Project Status & Roadmap](PROJECT_STATUS_AND_ROADMAP.md)
 - **License**: [Apache 2.0](LICENSE)
 
 ---

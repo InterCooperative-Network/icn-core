@@ -10,6 +10,7 @@ This directory contains comprehensive documentation for the InterCooperative Net
 - **[API.md](API.md)** - Complete API reference
 - **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** - Developer onboarding and workflows
 - **[GLOSSARY.md](GLOSSARY.md)** - Terminology and definitions
+- **[../PROJECT_STATUS_AND_ROADMAP.md](../PROJECT_STATUS_AND_ROADMAP.md)** - **Consolidated project status and development roadmap**
 
 ### **📚 Organized Documentation**
 
@@ -77,11 +78,11 @@ This directory contains comprehensive documentation for the InterCooperative Net
 1. Start with **[INTRODUCTION.md](INTRODUCTION.md)** for project overview
 2. Read **[DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md)** for development setup
 3. Review **[CONTRIBUTOR_SETUP.md](CONTRIBUTOR_SETUP.md)** for environment setup
-4. Check **[status/STATUS.md](status/STATUS.md)** for current implementation state
+4. Check **[../PROJECT_STATUS_AND_ROADMAP.md](../PROJECT_STATUS_AND_ROADMAP.md)** for current implementation state
 
 #### **For Understanding ICN**
 1. **[ARCHITECTURE.md](ARCHITECTURE.md)** - System design and components
-2. **[ICN_FEATURE_OVERVIEW.md](ICN_FEATURE_OVERVIEW.md)** - Feature overview
+2. **[ICN_FEATURE_OVERVIEW.md](ICN_FEATURE_OVERVIEW.md)** - Legacy feature overview (see PROJECT_STATUS_AND_ROADMAP.md for current)
 3. **[GLOSSARY.md](GLOSSARY.md)** - Key terminology
 4. **[API.md](API.md)** - API reference
 
@@ -101,7 +102,7 @@ This directory contains comprehensive documentation for the InterCooperative Net
 ### **🔍 Finding Information**
 
 **Quick Reference:**
-- **Current Status**: [status/STATUS.md](status/STATUS.md)
+- **Current Status & Roadmap**: [../PROJECT_STATUS_AND_ROADMAP.md](../PROJECT_STATUS_AND_ROADMAP.md)
 - **Getting Started**: [QUICKSTART.md](QUICKSTART.md)
 - **API Reference**: [API.md](API.md)
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)

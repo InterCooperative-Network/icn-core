@@ -326,7 +326,7 @@ The remaining 18-23% completion is primarily **configuration management** and **
 ## Next Steps for Contributors
 
 1. **Understand Current State**: This is production-ready infrastructure, not early-stage development
-2. **Read Implementation Status**: Check `docs/status/STATUS.md` for current 77-82% completion details
+2. **Read Implementation Status**: Check `PROJECT_STATUS_AND_ROADMAP.md` for current development progress and roadmap
 3. **Choose Your Area**: Backend (Rust), Frontend (React/React Native), or Governance (CCL)
 4. **Start with Working Systems**: Build on existing production-ready capabilities
 5. **Think Production Quality**: All contributions should meet production standards

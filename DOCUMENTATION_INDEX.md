@@ -33,16 +33,19 @@
 
 ## 📊 **Current Status & Planning**
 
-### **Implementation Progress**
-- **[docs/status/STATUS.md](docs/status/STATUS.md)** - Overall development progress (many stubs remain)
-- **[docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md](docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md)** - Detailed feature completion matrix
-- **[docs/status/ICN_CORE_CURRENT_STATE_2025.md](docs/status/ICN_CORE_CURRENT_STATE_2025.md)** - Current state report
+### **Project Status & Roadmap**
+- **[PROJECT_STATUS_AND_ROADMAP.md](PROJECT_STATUS_AND_ROADMAP.md)** - **Consolidated project status and development roadmap**
 
-### **Strategic Planning**
-- **[docs/planning/ICN_ROADMAP_2025.md](docs/planning/ICN_ROADMAP_2025.md)** - Complete strategic roadmap
-- **[docs/planning/ICN_NEXT_STEPS_SUMMARY.md](docs/planning/ICN_NEXT_STEPS_SUMMARY.md)** - Immediate next steps
-- **[docs/planning/ROADMAP_SUMMARY.md](docs/planning/ROADMAP_SUMMARY.md)** - Quick roadmap overview
-- **[docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md)** - System completion planning
+### **Historical Status Reports (Archived)**
+- **[docs/status/STATUS.md](docs/status/STATUS.md)** - Legacy overall development progress 
+- **[docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md](docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md)** - Legacy detailed feature completion matrix
+- **[docs/status/ICN_CORE_CURRENT_STATE_2025.md](docs/status/ICN_CORE_CURRENT_STATE_2025.md)** - Legacy current state report
+
+### **Legacy Strategic Planning (Archived)**
+- **[docs/planning/ICN_ROADMAP_2025.md](docs/planning/ICN_ROADMAP_2025.md)** - Legacy strategic roadmap
+- **[docs/planning/ICN_NEXT_STEPS_SUMMARY.md](docs/planning/ICN_NEXT_STEPS_SUMMARY.md)** - Legacy immediate next steps
+- **[docs/planning/ROADMAP_SUMMARY.md](docs/planning/ROADMAP_SUMMARY.md)** - Legacy quick roadmap overview
+- **[docs/SYSTEM_COMPLETENESS_ROADMAP.md](docs/SYSTEM_COMPLETENESS_ROADMAP.md)** - Legacy system completion planning
 
 ### **Phase Progress**
 - **[docs/phases/PHASE_5_COMPLETE_IMPLEMENTATION.md](docs/phases/PHASE_5_COMPLETE_IMPLEMENTATION.md)** - Phase 5 achievements
@@ -242,7 +245,7 @@ just build-all-stack
 | **Use the HTTP API** | [ICN_API_REFERENCE.md](ICN_API_REFERENCE.md) → [crates/icn-api/README.md](crates/icn-api/README.md) |
 | **Work on frontend apps** | [apps/web-ui/README.md](apps/web-ui/README.md) → [packages/ts-sdk/README.md](packages/ts-sdk/README.md) |
 | **Write governance contracts** | [icn-ccl/README.md](icn-ccl/README.md) → [docs/ccl/](docs/ccl/) |
-| **Understand current progress** | [docs/status/STATUS.md](docs/status/STATUS.md) → [docs/planning/](docs/planning/) |
+| **Understand current progress** | [PROJECT_STATUS_AND_ROADMAP.md](PROJECT_STATUS_AND_ROADMAP.md) → [docs/planning/](docs/planning/) |
 | **Contribute to ICN** | [CONTRIBUTING.md](CONTRIBUTING.md) → [docs/DEVELOPER_GUIDE.md](docs/DEVELOPER_GUIDE.md) |
 | **Deploy ICN** | [icn-devnet/README.md](icn-devnet/README.md) → [docs/deployment/](docs/deployment/) |
 | **Troubleshoot issues** | [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md) → [docs/troubleshooting.md](docs/troubleshooting.md) |

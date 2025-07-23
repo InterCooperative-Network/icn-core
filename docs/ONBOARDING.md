@@ -56,7 +56,7 @@ cargo run -p icn-cli -- wizard onboard-federation
 ## Reference Documentation
 
 ### Technical Specifications  
-- 📚 **[Feature Overview](ICN_FEATURE_OVERVIEW.md)** - Complete feature matrix
+- 📚 **[Project Status & Roadmap](../PROJECT_STATUS_AND_ROADMAP.md)** - Complete status and development roadmap
 - 🔄 **[Event Sourcing](EVENT_SOURCING.md)** - Event-driven architecture details
 - 🗃️ **[Glossary](GLOSSARY.md)** - ICN terminology and concepts
 

@@ -1,5 +1,7 @@
 # ICN System Completeness Roadmap
 
+> **📄 CONSOLIDATION NOTICE**: This document has been consolidated into **[PROJECT_STATUS_AND_ROADMAP.md](../PROJECT_STATUS_AND_ROADMAP.md)** which provides the authoritative project status and development roadmap. This file is maintained for historical reference.
+
 This document outlines the remaining gaps and development priorities for completing the InterCooperative Network (ICN) system. Based on the current architecture and implemented features, this roadmap identifies what's needed to transform ICN from a functional MVP into a complete cooperative digital infrastructure platform.
 
 ## Current Status
