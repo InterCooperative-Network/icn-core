@@ -631,7 +631,7 @@ impl JobExecutor for SimpleExecutor {
                 // Fetch metadata block from the DAG store
                 #[cfg(feature = "async")]
                 let meta_bytes = {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.store.lock().await;
                     store
                         .get(&job.manifest_cid)
                         .await
@@ -656,7 +656,7 @@ impl JobExecutor for SimpleExecutor {
                 // Ensure the referenced WASM module exists
                 #[cfg(feature = "async")]
                 {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.store.lock().await;
                     store
                         .get(&wasm_cid)
                         .await
@@ -699,7 +699,7 @@ impl JobExecutor for SimpleExecutor {
 
                 #[cfg(feature = "async")]
                 let manifest_bytes = {
-                    let store = ctx.dag_store.lock().await;
+                    let store = ctx.dag_store.store.lock().await;
                     store
                         .get(&job.manifest_cid)
                         .await
@@ -887,7 +887,7 @@ impl JobExecutor for WasmExecutor {
         );
 
         let wasm_bytes = {
-            let store = self.ctx.dag_store.lock().await;
+            let store = self.ctx.dag_store.store.lock().await;
             let block = store
                 .get(&job.manifest_cid)
                 .await

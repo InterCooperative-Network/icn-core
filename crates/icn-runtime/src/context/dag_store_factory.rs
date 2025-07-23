@@ -10,6 +10,7 @@ use super::dag_store_wrapper::{DagStoreType, DagStoreWrapper};
 use super::stubs::StubDagStore;
 use super::{DagStorageService, DagStoreMutexType};
 use icn_common::CommonError;
+use icn_dag::compat::CompatAsyncStore;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -152,14 +153,16 @@ impl DagStoreFactory {
             #[cfg(feature = "persist-sled")]
             DagStoreBackend::Sled => {
                 let store = icn_dag::sled_store::SledDagStore::new(config.storage_path.clone())?;
-                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                let compat_store = CompatAsyncStore::new(store);
+                let wrapped_store = Arc::new(DagStoreMutexType::new(compat_store));
                 Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::Sled))
             }
 
             #[cfg(feature = "persist-rocksdb")]
             DagStoreBackend::RocksDB => {
                 let store = icn_dag::rocksdb_store::RocksDagStore::new(config.storage_path.clone())?;
-                let wrapped_store = Arc::new(DagStoreMutexType::new(store));
+                let compat_store = CompatAsyncStore::new(store);
+                let wrapped_store = Arc::new(DagStoreMutexType::new(compat_store));
                 Ok(DagStoreWrapper::production(wrapped_store, DagStoreType::RocksDB))
             }
 

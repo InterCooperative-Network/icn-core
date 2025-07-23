@@ -620,6 +620,9 @@ impl RuntimeContextFactory {
             reputation_store: None,
             enable_federation_management: true,
             allow_fallback: false,
+            key_file_path: None,
+            key_passphrase: None,
+            hsm: None,
         };
 
         let context = Self::create(config).await?;

@@ -138,6 +138,19 @@ pub enum CoordinationEvent {
     },
 }
 
+impl CoordinationEvent {
+    /// Extract timestamp from any CoordinationEvent variant
+    pub fn timestamp(&self) -> u64 {
+        match self {
+            CoordinationEvent::OptimizationOpportunity { timestamp, .. } => *timestamp,
+            CoordinationEvent::CrossSystemCorrelation { timestamp, .. } => *timestamp,
+            CoordinationEvent::HealthAnomaly { timestamp, .. } => *timestamp,
+            CoordinationEvent::AutonomousAdaptation { timestamp, .. } => *timestamp,
+            CoordinationEvent::PerformanceMilestone { timestamp, .. } => *timestamp,
+        }
+    }
+}
+
 /// Types of systems in the coordination framework
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SystemType {
@@ -956,7 +969,7 @@ impl ComprehensiveCoordinator {
         
         // Check system resource usage
         let system_info = sysinfo::System::new_all();
-        let cpu_usage = system_info.global_cpu_info().cpu_usage();
+        let cpu_usage = system_info.global_cpu_usage();
         let memory_usage = (system_info.used_memory() as f64 / system_info.total_memory() as f64) * 100.0;
         
         if cpu_usage > 80.0 {
@@ -969,12 +982,18 @@ impl ComprehensiveCoordinator {
         
         // Send health status event
         if !health_issues.is_empty() {
-            let health_event = CoordinationEvent {
-                event_type: CoordinationEventType::SystemHealth,
-                severity: CoordinationSeverity::Warning,
-                details: format!("Health issues detected: {}", health_issues.join(", ")),
+            let health_event = CoordinationEvent::HealthAnomaly {
+                system: SystemType::CrossComponent,
+                anomaly_type: AnomalyType::UnexpectedBehavior {
+                    pattern_description: format!("Health issues detected: {}", health_issues.join(", ")),
+                    deviation_score: 0.8,
+                },
+                severity: 0.8,
+                recommended_actions: vec![RemediationAction::ManualIntervention {
+                    urgency: "Medium".to_string(),
+                    description: "System health monitoring detected issues".to_string(),
+                }],
                 timestamp: _time_provider.unix_seconds(),
-                source: "HealthMonitor".to_string(),
             };
             
             if let Err(e) = _event_tx.send(health_event) {
@@ -994,27 +1013,28 @@ impl ComprehensiveCoordinator {
         // Implement optimization opportunity identification
         log::debug!("[ComprehensiveCoordinator] Identifying optimization opportunities");
         
-        let health_status = _system_health.read().await;
-        let mut opportunities = _optimization_opportunities.write().await;
+        let health_status = _system_health.read().unwrap();
+        let mut opportunities = _optimization_opportunities.write().unwrap();
         
         // Clear existing opportunities that may no longer be relevant
         opportunities.clear();
         
         // Analyze system health for optimization opportunities
-        if health_status.cpu_usage > 70.0 {
+        let cpu_usage = *health_status.resource_utilization.get("cpu").unwrap_or(&0.0);
+        if cpu_usage > 70.0 {
             let opportunity = OptimizationOpportunity {
                 opportunity_id: format!("cpu_optimization_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()),
                 systems: vec![SystemType::SmartRouting],
                 optimization_type: OptimizationType::PerformanceImprovement {
-                    current_metric: health_status.cpu_usage,
+                    current_metric: cpu_usage,
                     target_metric: 60.0,
                 },
-                impact_score: if health_status.cpu_usage > 90.0 { 0.9 } else { 0.7 },
+                impact_score: if cpu_usage > 90.0 { 0.9 } else { 0.7 },
                 actions: vec![
                     OptimizationAction::ParameterAdjustment {
                         system: SystemType::SmartRouting,
                         parameter: "cpu_threshold".to_string(),
-                        current_value: format!("{}", health_status.cpu_usage),
+                        current_value: format!("{}", cpu_usage),
                         new_value: "60.0".to_string(),
                     }
                 ],
@@ -1024,12 +1044,13 @@ impl ComprehensiveCoordinator {
             opportunities.push(opportunity);
         }
         
-        if health_status.memory_usage > 80.0 {
+        let memory_usage = *health_status.resource_utilization.get("memory").unwrap_or(&0.0);
+        if memory_usage > 80.0 {
             let opportunity = OptimizationOpportunity {
                 opportunity_id: format!("memory_optimization_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()),
                 systems: vec![SystemType::ReputationIntegration, SystemType::SmartRouting],
                 optimization_type: OptimizationType::ResourceUtilization {
-                    current_utilization: health_status.memory_usage,
+                    current_utilization: memory_usage,
                     optimal_utilization: 70.0,
                 },
                 impact_score: 0.8,
@@ -1037,7 +1058,7 @@ impl ComprehensiveCoordinator {
                     OptimizationAction::ParameterAdjustment {
                         system: SystemType::ReputationIntegration,
                         parameter: "memory_cache_size".to_string(),
-                        current_value: format!("{}", health_status.memory_usage),
+                        current_value: format!("{}", memory_usage),
                         new_value: "70.0".to_string(),
                     }
                 ],
@@ -1047,12 +1068,13 @@ impl ComprehensiveCoordinator {
             opportunities.push(opportunity);
         }
         
-        if health_status.network_latency > 200.0 {
+        let network_latency = *health_status.resource_utilization.get("network_latency").unwrap_or(&0.0);
+        if network_latency > 200.0 {
             let opportunity = OptimizationOpportunity {
                 opportunity_id: format!("network_optimization_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs()),
                 systems: vec![SystemType::SmartRouting, SystemType::FederationIntegration],
                 optimization_type: OptimizationType::PerformanceImprovement {
-                    current_metric: health_status.network_latency,
+                    current_metric: network_latency,
                     target_metric: 100.0,
                 },
                 impact_score: 0.6,
@@ -1072,12 +1094,20 @@ impl ComprehensiveCoordinator {
         
         // Send optimization event if opportunities were found
         if !opportunities.is_empty() {
-            let optimization_event = CoordinationEvent {
-                event_type: CoordinationEventType::OptimizationOpportunity,
-                severity: CoordinationSeverity::Info,
-                details: format!("Identified {} optimization opportunities", opportunities.len()),
+            let optimization_event = CoordinationEvent::OptimizationOpportunity {
+                system: SystemType::SmartRouting,
+                opportunity_type: OptimizationType::PerformanceImprovement {
+                    current_metric: 200.0,
+                    target_metric: 100.0,
+                },
+                impact_score: 0.6,
+                suggested_actions: vec![OptimizationAction::ParameterAdjustment {
+                    system: SystemType::SmartRouting,
+                    parameter: "route_selection_timeout".to_string(),
+                    current_value: "5000ms".to_string(),
+                    new_value: "2000ms".to_string(),
+                }],
                 timestamp: std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs(),
-                source: "OptimizationIdentifier".to_string(),
             };
             
             if let Err(e) = _event_tx.send(optimization_event) {
@@ -1097,8 +1127,8 @@ impl ComprehensiveCoordinator {
         // Implement basic predictive analysis
         log::debug!("[ComprehensiveCoordinator] Running predictive analysis");
         
-        let performance_metrics = _performance_metrics.read().await;
-        let event_correlation = _event_correlation.read().await;
+        let performance_metrics = _performance_metrics.read().unwrap();
+        let event_correlation = _event_correlation.read().unwrap();
         
         // Analyze performance trends
         let mut trend_predictions = Vec::new();
@@ -1114,7 +1144,7 @@ impl ComprehensiveCoordinator {
                     .collect();
                 
                 if recent_values.len() >= 2 {
-                    let trend = calculate_simple_trend(&recent_values);
+                    let trend = Self::calculate_simple_trend(&recent_values);
                     let projected_value = metric.current_value + (trend * 5.0); // Project 5 steps ahead
                     
                     log::debug!("[PredictiveAnalysis] Metric '{}': current={:.2}, trend={:.3}, projected={:.2}", 
@@ -1152,7 +1182,7 @@ impl ComprehensiveCoordinator {
                 .filter(|event| {
                     // Events from the last hour
                     let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap_or_default().as_secs();
-                    (now - event.timestamp) < 3600
+                    (now - event.timestamp()) < 3600
                 })
                 .collect();
             
@@ -1201,9 +1231,9 @@ impl ComprehensiveCoordinator {
         // Implement basic autonomous adaptation logic
         log::debug!("[ComprehensiveCoordinator] Executing autonomous adaptations");
         
-        let system_health = _system_health.read().await;
-        let opportunities = _optimization_opportunities.read().await;
-        let mut autonomous_actions = _autonomous_actions.write().await;
+        let system_health = _system_health.read().unwrap();
+        let opportunities = _optimization_opportunities.read().unwrap();
+        let mut autonomous_actions = _autonomous_actions.write().unwrap();
         
         // Only execute adaptations if enabled in config
         if !_config.enable_autonomous_adaptation {
@@ -1212,9 +1242,10 @@ impl ComprehensiveCoordinator {
         }
         
         let mut actions_taken = 0;
+        let cpu_usage = *system_health.resource_utilization.get("cpu").unwrap_or(&0.0);
         
         // Implement simple autonomous adaptations for critical situations
-        if system_health.cpu_usage > 95.0 {
+        if cpu_usage > 95.0 {
             let action = AutonomousActionRecord {
                 action_id: format!("auto_cpu_limit_{}", _time_provider.unix_seconds()),
                 action_type: AdaptationType::PerformanceTuning,
@@ -1230,17 +1261,21 @@ impl ComprehensiveCoordinator {
                 result: ActionResult::InProgress,
             };
             
-            log::warn!("[AutonomousAdaptation] CRITICAL CPU usage detected ({}%) - applying automatic throttling", system_health.cpu_usage);
+            log::warn!("[AutonomousAdaptation] CRITICAL CPU usage detected ({}%) - applying automatic throttling", cpu_usage);
             autonomous_actions.push_back(action);
             actions_taken += 1;
             
             // Send event notification
-            let adaptation_event = CoordinationEvent {
-                event_type: CoordinationEventType::AutonomousAdaptation,
-                severity: CoordinationSeverity::Warning,
-                details: format!("Autonomous CPU throttling activated due to {}% usage", system_health.cpu_usage),
+            let adaptation_event = CoordinationEvent::AutonomousAdaptation {
+                adaptation_type: AdaptationType::PerformanceTuning,
+                systems_affected: vec![SystemType::CrossComponent],
+                parameters_changed: {
+                    let mut params = HashMap::new();
+                    params.insert("cpu_throttle".to_string(), format!("Activated due to {}% CPU usage", cpu_usage));
+                    params
+                },
+                expected_impact: 0.7,
                 timestamp: _time_provider.unix_seconds(),
-                source: "AutonomousAdaptation".to_string(),
             };
             
             if let Err(e) = _event_tx.send(adaptation_event) {
@@ -1248,7 +1283,8 @@ impl ComprehensiveCoordinator {
             }
         }
         
-        if system_health.memory_usage > 95.0 {
+        let memory_usage = *system_health.resource_utilization.get("memory").unwrap_or(&0.0);
+        if memory_usage > 95.0 {
             let action = AutonomousActionRecord {
                 action_id: format!("auto_memory_gc_{}", _time_provider.unix_seconds()),
                 action_type: AdaptationType::ResourceOptimization,
@@ -1265,17 +1301,21 @@ impl ComprehensiveCoordinator {
                 result: ActionResult::InProgress,
             };
             
-            log::warn!("[AutonomousAdaptation] CRITICAL memory usage detected ({}%) - forcing garbage collection", system_health.memory_usage);
+            log::warn!("[AutonomousAdaptation] CRITICAL memory usage detected ({}%) - forcing garbage collection", memory_usage);
             autonomous_actions.push_back(action);
             actions_taken += 1;
             
             // Send event notification
-            let adaptation_event = CoordinationEvent {
-                event_type: CoordinationEventType::AutonomousAdaptation,
-                severity: CoordinationSeverity::Warning,
-                details: format!("Autonomous memory cleanup activated due to {}% usage", system_health.memory_usage),
+            let adaptation_event = CoordinationEvent::AutonomousAdaptation {
+                adaptation_type: AdaptationType::ResourceOptimization,
+                systems_affected: vec![SystemType::CrossComponent],
+                parameters_changed: {
+                    let mut params = HashMap::new();
+                    params.insert("memory_cleanup".to_string(), format!("Activated due to {}% memory usage", memory_usage));
+                    params
+                },
+                expected_impact: 0.8,
                 timestamp: _time_provider.unix_seconds(),
-                source: "AutonomousAdaptation".to_string(),
             };
             
             if let Err(e) = _event_tx.send(adaptation_event) {

@@ -12,6 +12,7 @@ use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
 use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
+use downcast_rs::Downcast;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -340,6 +341,9 @@ impl ServiceConfigBuilder {
                         "peer".to_string(),
                         "web".to_string(),
                     ],
+                    enable_intelligent_invalidation: true,
+                    hot_entry_threshold: 5,
+                    cache_optimization_threshold: 0.8,
                 };
 
                 Arc::new(icn_identity::EnhancedDidResolver::new(
@@ -436,7 +440,9 @@ impl ServiceConfig {
         
         // Generate a test identity
         let (_, verifying_key) = generate_ed25519_keypair();
-        let test_identity = icn_identity::did_key_from_verifying_key(&verifying_key);
+        let test_identity_str = icn_identity::did_key_from_verifying_key(&verifying_key);
+        let test_identity = Did::from_str(&test_identity_str)
+            .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
         
         Self::testing(test_identity, Some(1000)) // 1000 initial mana for testing
     }

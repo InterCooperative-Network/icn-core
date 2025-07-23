@@ -115,7 +115,7 @@ use icn_reputation::ReputationStore;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration as StdDuration;
+use std::time::Duration;
 use sysinfo::System;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
 
@@ -164,7 +164,7 @@ impl MeshNetworkService for MeshNetworkServiceType {
     async fn collect_bids_for_job(
         &self,
         job_id: &JobId,
-        duration: StdDuration,
+        duration: Duration,
     ) -> Result<Vec<icn_mesh::MeshJobBid>, HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => s.collect_bids_for_job(job_id, duration).await,
@@ -186,7 +186,7 @@ impl MeshNetworkService for MeshNetworkServiceType {
         &self,
         job_id: &JobId,
         expected_executor: &Did,
-        timeout: StdDuration,
+        timeout: Duration,
     ) -> Result<Option<IdentityExecutionReceipt>, HostAbiError> {
         match self {
             MeshNetworkServiceType::Stub(s) => {
@@ -510,7 +510,7 @@ impl RuntimeContextBuilder {
                     .reputation_store
                     .unwrap_or_else(|| Arc::new(icn_reputation::InMemoryReputationStore::new()));
 
-                RuntimeContext::new(
+                RuntimeContext::new_with_services(
                     current_identity,
                     network_service,
                     signer,
@@ -654,12 +654,13 @@ impl RuntimeContext {
         reputation_store: Arc<dyn icn_reputation::ReputationStore>,
         policy_enforcer: Option<Arc<dyn icn_governance::scoped_policy::ScopedPolicyEnforcer>>,
     ) -> Result<Arc<Self>, CommonError> {
-        Self::new(
+        let dag_store_wrapper = DagStoreWrapper::generic_production(dag_store);
+        Self::new_with_services(
             current_identity,
             network_service,
             signer,
             did_resolver,
-            dag_store,
+            dag_store_wrapper,
             mana_ledger,
             reputation_store,
             policy_enforcer,
@@ -683,12 +684,7 @@ impl RuntimeContext {
         )
     }
 
-    pub fn new_for_testing(
-        current_identity: Did,
-        initial_mana: Option<u64>,
-    ) -> Result<Arc<Self>, CommonError> {
-        Self::new_testing(current_identity, initial_mana)
-    }
+
 
     /// Create a new context with ledger path (convenience method for tests).
     ///
@@ -720,13 +716,14 @@ impl RuntimeContext {
         let system_info = Arc::new(SysinfoSystemInfoProvider);
         let mana_ledger = SimpleManaLedger::new(ledger_path);
 
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+        let dag_store_raw = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
+        let dag_store = DagStoreWrapper::stub(dag_store_raw.clone());
 
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -787,13 +784,14 @@ impl RuntimeContext {
         let mana_ledger = SimpleManaLedger::new(ledger_path);
         let system_info = Arc::new(SysinfoSystemInfoProvider);
 
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+        let dag_store_raw = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
+        let dag_store = DagStoreWrapper::stub(dag_store_raw.clone());
 
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -963,7 +961,9 @@ impl RuntimeContext {
         } else {
             // Generate identity and signer from the same keypair for proper cryptographic matching
             let (signing_key, verifying_key) = generate_ed25519_keypair();
-            let current_identity = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let current_identity_str = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let current_identity = Did::from_str(&current_identity_str)
+                .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
             let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
             (current_identity, signer)
         };
@@ -980,32 +980,19 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         {
             use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-            use std::collections::HashMap;
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
                 bootstrap_peers: vec![], // No bootstrap peers by default
                 enable_mdns: true,
-                identify_info: icn_network::libp2p_service::IdentifyInfo {
-                    protocol_version: "icn/1.0.0".to_string(),
-                    agent_version: format!("icn-core/{}", env!("CARGO_PKG_VERSION")),
-                    public_key: None, // Will be derived from signing key
-                    listen_addresses: vec![],
-                },
-                dht_config: icn_network::libp2p_service::DhtConfig {
-                    enable: true,
-                    bootstrap_peers: vec![],
-                    replication_factor: 3,
-                    query_timeout_seconds: 60,
-                },
-                connection_limits: icn_network::libp2p_service::ConnectionLimits {
-                    max_pending_incoming: 10,
-                    max_pending_outgoing: 15,
-                    max_established_incoming: 50,
-                    max_established_outgoing: 50,
-                    max_established_per_peer: 5,
-                },
-                custom_protocols: HashMap::new(),
+                max_peers: 100,
+                max_peers_per_ip: 5,
+                connection_timeout: Duration::from_secs(30),
+                request_timeout: Duration::from_secs(10),
+                heartbeat_interval: Duration::from_secs(15),
+                bootstrap_interval: Duration::from_secs(300),
+                peer_discovery_interval: Duration::from_secs(60),
+                kademlia_replication_factor: 20,
             };
 
             // Create libp2p network service - this is async but we're in sync context
@@ -1180,7 +1167,9 @@ impl RuntimeContext {
         } else {
             // Generate identity and signer from the same keypair for proper cryptographic matching
             let (signing_key, verifying_key) = generate_ed25519_keypair();
-            let current_identity = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let current_identity_str = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let current_identity = Did::from_str(&current_identity_str)
+                .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
             let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
             (current_identity, signer)
         };
@@ -1197,32 +1186,19 @@ impl RuntimeContext {
         #[cfg(feature = "enable-libp2p")]
         {
             use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
-            use std::collections::HashMap;
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
                 bootstrap_peers: vec![], // No bootstrap peers by default
                 enable_mdns: true,
-                identify_info: icn_network::libp2p_service::IdentifyInfo {
-                    protocol_version: "icn/1.0.0".to_string(),
-                    agent_version: format!("icn-core/{}", env!("CARGO_PKG_VERSION")),
-                    public_key: None, // Will be derived from signing key
-                    listen_addresses: vec![],
-                },
-                dht_config: icn_network::libp2p_service::DhtConfig {
-                    enable: true,
-                    bootstrap_peers: vec![],
-                    replication_factor: 3,
-                    query_timeout_seconds: 60,
-                },
-                connection_limits: icn_network::libp2p_service::ConnectionLimits {
-                    max_pending_incoming: 10,
-                    max_pending_outgoing: 15,
-                    max_established_incoming: 50,
-                    max_established_outgoing: 50,
-                    max_established_per_peer: 5,
-                },
-                custom_protocols: HashMap::new(),
+                max_peers: 100,
+                max_peers_per_ip: 5,
+                connection_timeout: Duration::from_secs(30),
+                request_timeout: Duration::from_secs(10),
+                heartbeat_interval: Duration::from_secs(15),
+                bootstrap_interval: Duration::from_secs(300),
+                peer_discovery_interval: Duration::from_secs(60),
+                kademlia_replication_factor: 20,
             };
 
             let network_service = Arc::new(
@@ -1326,13 +1302,14 @@ impl RuntimeContext {
         std::mem::forget(temp_file);
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
-        let dag_store = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
+        let dag_store_raw = Arc::new(DagStoreMutexType::new(StubDagStore::new()))
             as Arc<DagStoreMutexType<DagStorageService>>;
+        let dag_store = DagStoreWrapper::stub(dag_store_raw.clone());
 
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -1373,11 +1350,11 @@ impl RuntimeContext {
         Ok(ctx)
     }
 
-    /// Create a new context using explicitly provided services.
+    /// Create a new context using explicitly provided services with mesh network focus.
     /// This constructor is primarily for advanced embedding scenarios. Most
     /// callers should use [`RuntimeContext::new`] for a production-ready
     /// context.
-    pub fn new_with_services(
+    pub fn new_with_mesh_services(
         current_identity: Did,
         mesh_network_service: Arc<MeshNetworkServiceType>,
         signer: Arc<dyn Signer>,
@@ -1401,9 +1378,10 @@ impl RuntimeContext {
         let mana_ledger = SimpleManaLedger::new(temp_path);
 
         // Create cross-component coordinator
+        let dag_store_wrapper = DagStoreWrapper::generic_production(dag_store.clone());
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store_wrapper,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -1420,7 +1398,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store,
+            dag_store: dag_store_wrapper,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -1493,9 +1471,10 @@ impl RuntimeContext {
         let system_info = Arc::new(SysinfoSystemInfoProvider);
 
         // Create cross-component coordinator
+        let dag_store_wrapper = DagStoreWrapper::generic_production(dag_store.clone());
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store_wrapper,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -1512,7 +1491,7 @@ impl RuntimeContext {
             mesh_network_service,
             signer,
             did_resolver,
-            dag_store,
+            dag_store: dag_store_wrapper,
             reputation_store,
             trust_engine: Arc::new(TokioMutex::new(TrustPolicyEngine::new())),
             latency_store,
@@ -1549,7 +1528,7 @@ impl RuntimeContext {
         // Create cross-component coordinator
         let cross_component_coordinator = Self::create_cross_component_coordinator(
             mesh_network_service.clone(),
-            dag_store.clone(),
+            &dag_store,
             governance_module.clone(),
             reputation_store.clone(),
             current_identity.clone(),
@@ -1950,7 +1929,7 @@ impl RuntimeContext {
         JOBS_BIDDING_GAUGE.inc();
 
         // 2. Collect bids for a defined period
-        let bidding_duration = StdDuration::from_secs(10); // Configurable
+        let bidding_duration = Duration::from_secs(10); // Configurable
         log::info!(
             "[manage_job_lifecycle] Collecting bids for {} seconds",
             bidding_duration.as_secs()
@@ -2137,7 +2116,7 @@ impl RuntimeContext {
         }
 
         // 10. Wait for execution receipt
-        let receipt_timeout = StdDuration::from_millis(self.default_receipt_wait_ms);
+        let receipt_timeout = Duration::from_millis(self.default_receipt_wait_ms);
         log::info!(
             "[manage_job_lifecycle] Waiting for execution receipt (timeout: {}ms)",
             self.default_receipt_wait_ms
@@ -3232,7 +3211,7 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::NetworkError(format!("Job announcement failed: {}", e)))?;
 
         // Step 2: Collect bids from executors
-        let bid_duration = StdDuration::from_secs(10); // 10 second bidding window
+        let bid_duration = Duration::from_secs(10); // 10 second bidding window
         log::info!(
             "[JobManager] Step 2: Collecting bids for job {:?} ({}s window)",
             job_id,
@@ -3355,7 +3334,7 @@ impl RuntimeContext {
             })?;
 
         // Step 5: Wait for execution receipt
-        let receipt_timeout = StdDuration::from_millis(
+        let receipt_timeout = Duration::from_millis(
             job.max_execution_wait_ms
                 .unwrap_or(ctx.default_receipt_wait_ms),
         );
