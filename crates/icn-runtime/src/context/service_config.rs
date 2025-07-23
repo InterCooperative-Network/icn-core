@@ -166,7 +166,7 @@ impl ServiceConfigBuilder {
         })
     }
 
-    /// Create mesh network service based on environment
+    /// Create mesh network service based on environment and feature flags
     fn create_mesh_network_service(
         &self,
         signer: &Arc<dyn Signer>,
@@ -199,7 +199,7 @@ impl ServiceConfigBuilder {
                 {
                     // For production, require explicit network service since we can't async create here
                     return Err(CommonError::InternalError(
-                        "Production environment requires explicit network service in non-async context".to_string(),
+                        "Production environment requires explicit network service in non-async context. Use RuntimeContext::new_async() or provide explicit network service.".to_string(),
                     ));
                 }
 
@@ -207,7 +207,7 @@ impl ServiceConfigBuilder {
                 #[cfg(not(feature = "enable-libp2p"))]
                 {
                     return Err(CommonError::InternalError(
-                        "Production environment requires either explicit network service or libp2p feature enabled".to_string(),
+                        "Production environment requires either explicit network service or 'enable-libp2p' feature enabled".to_string(),
                     ));
                 }
             }
@@ -217,14 +217,15 @@ impl ServiceConfigBuilder {
                         DefaultMeshNetworkService::new(network_service.clone(), signer.clone()),
                     )))
                 } else {
+                    // In development, fallback to stub if no network service is provided
                     let service =
                         Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
 
-                    // Ensure we're not accidentally using stubs in production
+                    // Ensure we're not accidentally using stubs in production builds
                     #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                     {
                         return Err(CommonError::InternalError(
-                            "Stub services cannot be used in production builds".to_string(),
+                            "Stub services cannot be used in production builds. Enable 'allow-stubs' feature or provide real services.".to_string(),
                         ));
                     }
 
@@ -234,11 +235,11 @@ impl ServiceConfigBuilder {
             ServiceEnvironment::Testing => {
                 let service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
 
-                // Ensure we're not accidentally using stubs in production
+                // Ensure we're not accidentally using stubs in production builds  
                 #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                 {
                     return Err(CommonError::InternalError(
-                        "Stub services cannot be used in production builds".to_string(),
+                        "Stub services cannot be used in production builds. This indicates a misconfiguration.".to_string(),
                     ));
                 }
 
@@ -247,7 +248,7 @@ impl ServiceConfigBuilder {
         }
     }
 
-    /// Create DAG store based on environment
+    /// Create DAG store based on environment and feature flags
     fn create_dag_store(&self) -> Result<DagStoreWrapper, CommonError> {
         match self.environment {
             ServiceEnvironment::Production => {
@@ -257,19 +258,41 @@ impl ServiceConfigBuilder {
                     store_wrapper.validate_for_production()?;
                     Ok(store_wrapper.clone())
                 } else {
-                    // If no explicit store provided, try to create a default production store
-                    // This requires a storage path, which we don't have in this context
-                    Err(CommonError::InternalError(
-                        "DAG store is required for production environment. Use DagStoreFactory::create_production() to create one.".to_string()
-                    ))
+                    // Production builds should fail if no explicit store is provided
+                    #[cfg(feature = "production")]
+                    {
+                        return Err(CommonError::InternalError(
+                            "DAG store is required for production environment. Use ServiceConfigBuilder::with_dag_store() or DagStoreFactory::create_production().".to_string()
+                        ));
+                    }
+                    
+                    // Development builds can auto-create a production store
+                    #[cfg(not(feature = "production"))]
+                    {
+                        // Try to create a default production store in development
+                        log::warn!("No explicit DAG store provided. Creating default persistent store.");
+                        let default_path = std::path::PathBuf::from("./default_dag_store");
+                        DagStoreFactory::create_production(default_path)
+                    }
                 }
             }
             ServiceEnvironment::Development => {
                 if let Some(store_wrapper) = &self.dag_store {
                     Ok(store_wrapper.clone())
                 } else {
-                    // For development, use factory to create a stub store
-                    Ok(DagStoreFactory::create_testing())
+                    // For development, use factory to create appropriate store based on features
+                    #[cfg(any(feature = "persist-sled", feature = "persist-rocksdb"))]
+                    {
+                        // Use persistent storage if available
+                        let default_path = std::path::PathBuf::from("./dev_dag_store");
+                        DagStoreFactory::create_production(default_path)
+                    }
+                    
+                    #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb")))]
+                    {
+                        // Fallback to testing store
+                        Ok(DagStoreFactory::create_testing())
+                    }
                 }
             }
             ServiceEnvironment::Testing => {
