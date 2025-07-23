@@ -1,5 +1,5 @@
 use icn_common::{compute_merkle_cid, DagBlock, Did};
-use icn_dag::{AsyncStorageService, FileDagStore, StorageService, TokioFileDagStore};
+use icn_dag::{FileDagStore, StorageService};
 use tempfile::tempdir;
 
 fn create_block(id: &str) -> DagBlock {

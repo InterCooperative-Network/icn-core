@@ -580,7 +580,7 @@ pub struct SyncStats {
 mod tests {
     use super::*;
     use crate::InMemoryDagStore;
-    use icn_common::{DagLink, compute_merkle_cid};
+    use icn_common::compute_merkle_cid;
 
     fn create_test_block(id: &str) -> DagBlock {
         let data = format!("data for {}", id).into_bytes();

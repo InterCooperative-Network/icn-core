@@ -4,11 +4,11 @@
 //! resolution, and network synchronization scenarios.
 
 use icn_dag::{
-    InMemoryDagStore, 
+    InMemoryDagStore, StorageService,
     conflict_resolution::{ConflictResolver, ConflictResolutionConfig, ResolutionStrategy},
     federation_sync::{FederationSync, FederationSyncConfig, SyncMessage},
 };
-use icn_common::{DagBlock, DagLink, Did, Cid, compute_merkle_cid};
+use icn_common::{DagBlock, DagLink, Did, compute_merkle_cid};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn create_test_block(id: &str, links: Vec<DagLink>) -> DagBlock {
@@ -47,8 +47,8 @@ fn test_federation_sync_complete_workflow() {
     let sync_request = sync_a.initiate_sync_with_peer(node_b_id.clone()).unwrap();
     
     // Verify the sync request message
-    if let SyncMessage::SyncStatusRequest { from_node, .. } = sync_request {
-        assert_eq!(from_node, node_a_id);
+    if let SyncMessage::SyncStatusRequest { ref from_node, .. } = sync_request {
+        assert_eq!(*from_node, node_a_id);
     } else {
         panic!("Expected SyncStatusRequest");
     }
@@ -213,9 +213,9 @@ fn test_delta_sync_request() {
     let delta_request = sync_a.request_delta_sync(node_b_id.clone(), Some(block1.cid.clone())).unwrap();
     
     // Verify the request
-    if let SyncMessage::DeltaSyncRequest { from_node, since_root, max_blocks, .. } = delta_request {
-        assert_eq!(from_node, node_a_id);
-        assert_eq!(since_root, Some(block1.cid.clone()));
+    if let SyncMessage::DeltaSyncRequest { ref from_node, ref since_root, max_blocks, .. } = delta_request {
+        assert_eq!(*from_node, node_a_id);
+        assert_eq!(*since_root, Some(block1.cid.clone()));
         assert_eq!(max_blocks, 100); // Default config value
     } else {
         panic!("Expected DeltaSyncRequest");

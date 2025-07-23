@@ -484,7 +484,7 @@ mod tests {
     #[test]
     fn test_sync_monitor_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let store = SledDagStore::new(temp_dir.path()).unwrap();
+        let store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
         let config = SyncConfig::default();
         let monitor = DagSyncMonitor::new(store, config);
 
