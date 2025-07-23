@@ -3,7 +3,8 @@
 //! This module provides the foundational types and traits for implementing
 //! sophisticated voting mechanisms including ranked choice voting.
 
-use icn_common::{Cid, Did};
+use icn_common::{Cid, Did, DidDocument, Signable};
+use icn_dag::StorageService;
 use std::any::Any;
 use std::time::SystemTime;
 use thiserror::Error;
@@ -157,6 +158,85 @@ pub struct EligibilityRules {
     pub custom_rules: Option<Cid>,
 }
 
+impl EligibilityRules {
+    /// Create basic eligibility rules that accept any valid DID
+    pub fn open_to_all() -> Self {
+        Self {
+            required_credentials: vec![],
+            min_reputation: None,
+            required_federation: None,
+            custom_rules: None,
+        }
+    }
+
+    /// Create eligibility rules requiring federation membership
+    pub fn federation_members_only(federation_id: String) -> Self {
+        Self {
+            required_credentials: vec![],
+            min_reputation: None,
+            required_federation: Some(federation_id),
+            custom_rules: None,
+        }
+    }
+
+    /// Create eligibility rules requiring minimum reputation
+    pub fn reputation_gated(min_score: f64) -> Self {
+        Self {
+            required_credentials: vec![],
+            min_reputation: Some(min_score),
+            required_federation: None,
+            custom_rules: None,
+        }
+    }
+
+    /// Check if the rules have any restrictions
+    pub fn has_restrictions(&self) -> bool {
+        !self.required_credentials.is_empty() 
+            || self.min_reputation.is_some()
+            || self.required_federation.is_some()
+            || self.custom_rules.is_some()
+    }
+
+    /// Validate a voter's DID document against these eligibility rules
+    pub fn validate_voter(&self, voter_did_doc: &DidDocument) -> Result<bool, VotingError> {
+        // Check required credentials (basic implementation)
+        if !self.required_credentials.is_empty() {
+            // TODO: Implement credential verification using icn-identity
+            // This would check if the voter's DID has the required credentials
+            return Err(VotingError::IneligibleVoter(
+                "Credential verification not yet implemented".to_string()
+            ));
+        }
+
+        // Check minimum reputation (requires reputation system integration)
+        if let Some(min_rep) = self.min_reputation {
+            // TODO: Integrate with icn-reputation crate for reputation checks
+            return Err(VotingError::IneligibleVoter(
+                format!("Minimum reputation {} required", min_rep)
+            ));
+        }
+
+        // Check federation membership
+        if let Some(ref _federation_id) = self.required_federation {
+            // TODO: Implement federation membership verification
+            return Err(VotingError::IneligibleVoter(
+                "Federation membership verification not yet implemented".to_string()
+            ));
+        }
+
+        // Check custom rules stored in DAG
+        if self.custom_rules.is_some() {
+            // TODO: Implement custom rule evaluation from DAG storage
+            return Err(VotingError::IneligibleVoter(
+                "Custom rule evaluation not yet implemented".to_string()
+            ));
+        }
+
+        // If no restrictions or all checks pass, voter is eligible
+        Ok(true)
+    }
+}
+
 /// Election configuration and metadata
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -180,7 +260,7 @@ pub struct Election {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RankedChoiceBallot {
     pub ballot_id: BallotId,
-    pub voter_did: Did,
+    pub voter_did: DidDocument,
     pub election_id: ElectionId,
     /// Ordered list of candidate preferences (1st choice, 2nd choice, etc.)
     pub preferences: Vec<CandidateId>,
@@ -192,7 +272,7 @@ impl RankedChoiceBallot {
     /// Create a new ranked choice ballot
     pub fn new(
         ballot_id: BallotId,
-        voter_did: Did,
+        voter_did: DidDocument,
         election_id: ElectionId,
         preferences: Vec<CandidateId>,
         signature: Signature,
@@ -229,6 +309,36 @@ impl RankedChoiceBallot {
     }
 }
 
+impl Signable for RankedChoiceBallot {
+    fn to_signable_bytes(&self) -> Result<Vec<u8>, icn_common::CommonError> {
+        let mut bytes = Vec::new();
+        
+        // Include ballot_id
+        bytes.extend_from_slice(self.ballot_id.0.as_bytes());
+        
+        // Include voter DID (from DID document)
+        bytes.extend_from_slice(self.voter_did.id.to_string().as_bytes());
+        
+        // Include election_id
+        bytes.extend_from_slice(self.election_id.0.as_bytes());
+        
+        // Include preferences in order (critical for ranked choice integrity)
+        for preference in &self.preferences {
+            bytes.extend_from_slice(preference.0.as_bytes());
+            bytes.push(b'\0'); // Separator to prevent ambiguity
+        }
+        
+        // Include timestamp for replay protection
+        let timestamp_nanos = self.timestamp
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_nanos() as u64;
+        bytes.extend_from_slice(&timestamp_nanos.to_le_bytes());
+        
+        Ok(bytes)
+    }
+}
+
 /// Results of a ranked choice voting tally
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -250,9 +360,112 @@ pub struct RankedChoiceRound {
     pub majority_threshold: usize,
 }
 
+/// Service for anchoring ballots in the DAG for permanent storage and verification
+pub struct BallotAnchoringService<S> 
+where 
+    S: StorageService<icn_common::DagBlock>
+{
+    storage: S,
+}
+
+impl<S> BallotAnchoringService<S>
+where 
+    S: StorageService<icn_common::DagBlock>
+{
+    /// Create a new ballot anchoring service with the provided storage backend
+    pub fn new(storage: S) -> Self {
+        Self { storage }
+    }
+
+    /// Anchor a ballot in the DAG for permanent storage
+    pub fn anchor_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<Cid, VotingError> {
+        use icn_common::DagBlock;
+        
+        // Serialize the ballot for storage
+        let ballot_data = serde_json::to_vec(ballot)
+            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
+
+        // Create a DAG block for the ballot
+        let block = DagBlock {
+            cid: Cid::new_v1_sha256(0x71, &ballot_data), // Raw codec for ballot data
+            data: ballot_data,
+            links: vec![], // Ballots are leaf nodes initially
+            timestamp: ballot.timestamp
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            author_did: ballot.voter_did.id.clone(),
+            signature: None, // Ballot has its own signature
+            scope: None,
+        };
+
+        // Store the block in the DAG
+        self.storage.put(&block)
+            .map_err(|e| VotingError::InvalidBallot(format!("Failed to store ballot in DAG: {}", e)))?;
+
+        Ok(block.cid)
+    }
+
+    /// Retrieve a ballot from the DAG by its CID
+    pub fn retrieve_ballot(&self, cid: &Cid) -> Result<Option<RankedChoiceBallot>, VotingError> {
+        let block = self.storage.get(cid)
+            .map_err(|e| VotingError::InvalidBallot(format!("Failed to retrieve from DAG: {}", e)))?;
+
+        match block {
+            Some(dag_block) => {
+                let ballot: RankedChoiceBallot = serde_json::from_slice(&dag_block.data)
+                    .map_err(|e| VotingError::InvalidBallot(format!("Failed to deserialize ballot: {}", e)))?;
+                Ok(Some(ballot))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Create a link between ballots (e.g., for election result aggregation)
+    pub fn link_ballots(&mut self, election_id: &ElectionId, ballot_cids: Vec<Cid>) -> Result<Cid, VotingError> {
+        use icn_common::{DagBlock, DagLink};
+        
+        // Create links to all ballots
+        let links: Vec<DagLink> = ballot_cids.into_iter().map(|cid| DagLink {
+            cid,
+            name: "ballot".to_string(),
+            size: 0, // Size calculation could be improved
+        }).collect();
+
+        // Create metadata for the election result
+        let election_data = serde_json::to_vec(&election_id)
+            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize election ID: {}", e)))?;
+
+        let result_block = DagBlock {
+            cid: Cid::new_v1_sha256(0x71, &election_data),
+            data: election_data,
+            links,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            author_did: Did::new("system", "governance"), // System-generated block
+            signature: None,
+            scope: None,
+        };
+
+        self.storage.put(&result_block)
+            .map_err(|e| VotingError::InvalidBallot(format!("Failed to store election result: {}", e)))?;
+
+        Ok(result_block.cid)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn create_test_did_document() -> DidDocument {
+        DidDocument {
+            id: Did::default(),
+            public_key: vec![0u8; 32], // Mock public key
+        }
+    }
 
     #[test]
     fn test_ballot_id_display() {
@@ -324,7 +537,7 @@ mod tests {
     fn test_ranked_choice_ballot_preferences_validation() {
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
-            voter_did: Did::default(),
+            voter_did: create_test_did_document(),
             election_id: ElectionId("test-election".to_string()),
             preferences: vec![
                 CandidateId("alice".to_string()),
@@ -345,7 +558,7 @@ mod tests {
     fn test_ranked_choice_ballot_duplicate_preferences() {
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
-            voter_did: Did::default(),
+            voter_did: create_test_did_document(),
             election_id: ElectionId("test-election".to_string()),
             preferences: vec![
                 CandidateId("alice".to_string()),
@@ -369,7 +582,7 @@ mod tests {
     fn test_ranked_choice_ballot_choices() {
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
-            voter_did: Did::default(),
+            voter_did: create_test_did_document(),
             election_id: ElectionId("test-election".to_string()),
             preferences: vec![
                 CandidateId("alice".to_string()),
@@ -388,5 +601,110 @@ mod tests {
         assert_eq!(ballot.nth_choice(1), Some(&CandidateId("bob".to_string())));
         assert_eq!(ballot.nth_choice(2), Some(&CandidateId("charlie".to_string())));
         assert_eq!(ballot.nth_choice(3), None);
+    }
+
+    #[test]
+    fn test_ballot_signable_implementation() {
+        let ballot = RankedChoiceBallot {
+            ballot_id: BallotId("test-ballot".to_string()),
+            voter_did: create_test_did_document(),
+            election_id: ElectionId("test-election".to_string()),
+            preferences: vec![
+                CandidateId("alice".to_string()),
+                CandidateId("bob".to_string()),
+            ],
+            timestamp: SystemTime::now(),
+            signature: Signature {
+                algorithm: "ed25519".to_string(),
+                value: vec![0u8; 64],
+            },
+        };
+
+        // Test that ballot can be converted to signable bytes
+        let signable_bytes = ballot.to_signable_bytes();
+        assert!(signable_bytes.is_ok());
+        
+        let bytes = signable_bytes.unwrap();
+        assert!(!bytes.is_empty());
+        
+        // Verify that different ballots produce different signatures
+        let mut ballot2 = ballot.clone();
+        ballot2.preferences = vec![CandidateId("bob".to_string()), CandidateId("alice".to_string())];
+        
+        let bytes2 = ballot2.to_signable_bytes().unwrap();
+        assert_ne!(bytes, bytes2, "Different preference orders should produce different signable bytes");
+    }
+
+    #[cfg(feature = "serde")]
+    #[test] 
+    fn test_ballot_anchoring_service_integration() {
+        use icn_dag::InMemoryDagStore;
+        
+        let storage = InMemoryDagStore::new();
+        let mut anchoring_service = BallotAnchoringService::new(storage);
+        
+        let ballot = RankedChoiceBallot {
+            ballot_id: BallotId("test-ballot".to_string()),
+            voter_did: create_test_did_document(),
+            election_id: ElectionId("test-election".to_string()),
+            preferences: vec![
+                CandidateId("alice".to_string()),
+                CandidateId("bob".to_string()),
+            ],
+            timestamp: SystemTime::now(),
+            signature: Signature {
+                algorithm: "ed25519".to_string(),
+                value: vec![0u8; 64],
+            },
+        };
+
+        // Test ballot anchoring
+        let ballot_cid = anchoring_service.anchor_ballot(&ballot);
+        assert!(ballot_cid.is_ok(), "Ballot anchoring should succeed");
+        
+        let cid = ballot_cid.unwrap();
+        
+        // Test ballot retrieval
+        let retrieved_ballot = anchoring_service.retrieve_ballot(&cid);
+        assert!(retrieved_ballot.is_ok(), "Ballot retrieval should succeed");
+        
+        let retrieved = retrieved_ballot.unwrap();
+        assert!(retrieved.is_some(), "Retrieved ballot should exist");
+        
+        let retrieved_ballot = retrieved.unwrap();
+        assert_eq!(retrieved_ballot.ballot_id, ballot.ballot_id);
+        assert_eq!(retrieved_ballot.election_id, ballot.election_id);
+        assert_eq!(retrieved_ballot.preferences, ballot.preferences);
+    }
+
+    #[test]
+    fn test_eligibility_rules_creation() {
+        let open_rules = EligibilityRules::open_to_all();
+        assert!(!open_rules.has_restrictions());
+
+        let federation_rules = EligibilityRules::federation_members_only("test-federation".to_string());
+        assert!(federation_rules.has_restrictions());
+        assert_eq!(federation_rules.required_federation, Some("test-federation".to_string()));
+
+        let reputation_rules = EligibilityRules::reputation_gated(0.75);
+        assert!(reputation_rules.has_restrictions());
+        assert_eq!(reputation_rules.min_reputation, Some(0.75));
+    }
+
+    #[test]
+    fn test_eligibility_rules_validation() {
+        let open_rules = EligibilityRules::open_to_all();
+        let test_did_doc = create_test_did_document();
+        
+        // Open rules should accept any valid DID document
+        let result = open_rules.validate_voter(&test_did_doc);
+        assert!(result.is_ok());
+        assert!(result.unwrap());
+
+        // Rules with restrictions should indicate they need implementation
+        let reputation_rules = EligibilityRules::reputation_gated(0.5);
+        let result = reputation_rules.validate_voter(&test_did_doc);
+        assert!(result.is_err());
+        assert!(matches!(result, Err(VotingError::IneligibleVoter(_))));
     }
 }

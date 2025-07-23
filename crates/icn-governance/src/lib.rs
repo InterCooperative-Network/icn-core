@@ -12,7 +12,7 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{Cid, CommonError, Did, NodeInfo};
+use icn_common::{Cid, CommonError, Did, DidDocument, NodeInfo};
 #[cfg(feature = "federation")]
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
@@ -44,7 +44,7 @@ pub use automation::{
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 pub use voting::{
-    BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
+    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
     RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
     VotingPeriod, VotingSystem,
 };

@@ -7,7 +7,7 @@ use crate::voting::{
     BallotValidator, CandidateId, Election, RankedChoiceBallot, RankedChoiceResult,
     RankedChoiceRound, VotingError, VotingSystem,
 };
-use icn_common::{Did};
+use icn_common::{Did, DidDocument};
 use icn_identity::DidResolver;
 use std::any::Any;
 use std::collections::{HashMap, HashSet};
@@ -174,14 +174,18 @@ impl RankedChoiceVotingSystem {
     /// Validate voter eligibility using DID resolver
     fn verify_voter_eligibility(
         &self,
-        voter_did: &Did,
+        voter_did_doc: &DidDocument,
         _election: &Election,
     ) -> Result<bool, VotingError> {
         // Check if voter DID can be resolved
-        let _verifying_key = self.did_resolver.resolve(voter_did)
+        let _verifying_key = self.did_resolver.resolve(&voter_did_doc.id)
             .map_err(|e| VotingError::IneligibleVoter(format!("Failed to resolve DID: {}", e)))?;
 
-        // If we got a verifying key, the DID is valid
+        // Verify the DID document public key matches the resolved key
+        // TODO: Implement comprehensive DID document verification
+        // This would verify that the public key in the document matches
+        // the one returned by the resolver
+        
         // For now, we'll implement basic checks - this can be extended
         // TODO: Check election-specific eligibility rules
         // - Check required credentials
@@ -292,16 +296,37 @@ impl BallotValidator for RankedChoiceBallotValidator {
         let ballot = ballot.downcast_ref::<RankedChoiceBallot>()
             .ok_or_else(|| VotingError::InvalidBallot("Not a RankedChoiceBallot".to_string()))?;
 
-        // TODO: Implement signature verification using icn-identity
-        // This would:
-        // 1. Extract the public key from the voter's DID document
-        // 2. Verify the signature covers the ballot content
-        // 3. Ensure the signature algorithm is supported
-
+        // Basic signature presence check
         if ballot.signature.value.is_empty() {
             return Err(VotingError::InvalidSignature);
         }
 
+        // Verify signature algorithm is supported
+        if ballot.signature.algorithm != "ed25519" {
+            return Err(VotingError::InvalidSignature);
+        }
+
+        // Verify signature length for ed25519
+        if ballot.signature.value.len() != 64 {
+            return Err(VotingError::InvalidSignature);
+        }
+
+        // Extract public key from DID document
+        if ballot.voter_did.public_key.len() != 32 {
+            return Err(VotingError::InvalidSignature);
+        }
+
+        // TODO: Complete signature verification with full ballot content
+        // This would create the message to verify by serializing:
+        // - ballot_id
+        // - election_id  
+        // - preferences (in order)
+        // - timestamp
+        // Then verify the signature using the DID document public key
+
+        // For now, we perform basic structural validation
+        // Full cryptographic verification would be implemented here
+        
         Ok(())
     }
 
@@ -311,7 +336,7 @@ impl BallotValidator for RankedChoiceBallotValidator {
 
         let voter_key = format!("{}:{}", 
             ballot.election_id.0, 
-            ballot.voter_did.to_string()
+            ballot.voter_did.id.to_string()
         );
 
         if let Ok(mut submitted) = self.submitted_ballots.lock() {
@@ -329,7 +354,7 @@ impl BallotValidator for RankedChoiceBallotValidator {
 mod tests {
     use super::*;
     use crate::voting::{BallotId, ElectionId, Signature};
-    use icn_common::{CommonError, Did};
+    use icn_common::{CommonError, Did, DidDocument};
     use icn_identity::{DidResolver, KeyDidResolver};
     use std::sync::Arc;
 
@@ -340,7 +365,10 @@ mod tests {
     ) -> RankedChoiceBallot {
         RankedChoiceBallot {
             ballot_id: BallotId(ballot_id.to_string()),
-            voter_did: Did::default(),
+            voter_did: DidDocument {
+                id: Did::default(),
+                public_key: vec![0u8; 32], // Mock public key
+            },
             election_id: ElectionId(election_id.to_string()),
             preferences: preferences.into_iter()
                 .map(|s| CandidateId(s.to_string()))
@@ -405,7 +433,10 @@ mod tests {
 
         let empty_preferences = RankedChoiceBallot {
             ballot_id: BallotId("ballot1".to_string()),
-            voter_did: Did::default(),
+            voter_did: DidDocument {
+                id: Did::default(),
+                public_key: vec![0u8; 32], // Mock public key
+            },
             election_id: ElectionId("election1".to_string()),
             preferences: vec![], // Empty preferences
             timestamp: std::time::SystemTime::now(),
