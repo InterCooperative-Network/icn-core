@@ -161,7 +161,7 @@ impl ServiceConfig {
 ## Files Modified
 
 ### Core Implementation
-- `crates/icn-runtime/src/context/runtime_context.rs` - New constructors and validation
+- `crates/icn-runtime/src/context/runtime_context.rs` - New constructors, validation, and **cryptographic bug fix**
 - `crates/icn-runtime/src/context/service_config.rs` - Enhanced configuration and feature flags
 - `crates/icn-runtime/src/lib.rs` - Updated test helper functions
 
@@ -195,6 +195,10 @@ The implementation has been thoroughly validated through:
 3. **Error Message Testing**: Verification of helpful, actionable error messages
 4. **Migration Examples**: Working code samples for all migration scenarios
 5. **Documentation Validation**: Examples compile and function correctly
+6. **🔒 Cryptographic Testing**: Verification that identity DIDs and signers are properly matched
+   - ✅ Confirmed fixed methods generate working cryptographic pairs
+   - ✅ Verified broken logic fails as expected
+   - ✅ End-to-end signature verification testing
 
 ## Current Status
 
@@ -207,6 +211,19 @@ The implementation has been thoroughly validated through:
 - Feature flag support
 - Comprehensive documentation
 - Backward compatibility
+- **✅ CRITICAL FIX**: Cryptographic bug fix for identity/signer matching
+
+### 🔒 Critical Security Fix Included
+
+**Bug Fixed**: `RuntimeContext::new_with_identity_and_storage` and `new_async_with_identity_and_storage` were generating identity DIDs and signers from different Ed25519 keypairs, causing all signatures to fail verification.
+
+**Impact**: This was a critical security bug that rendered RuntimeContext completely non-functional for any cryptographic operations (receipts, messages, identity proofs).
+
+**Solution**: When `identity` parameter is `None`, both methods now generate the identity DID and signer from the same Ed25519 keypair, ensuring proper cryptographic matching.
+
+**Verification**: Comprehensive test suite confirms that:
+- ✅ Fixed logic: Same keypair → signatures verify correctly
+- ✅ Broken logic detection: Different keypairs → signatures fail (as expected)
 
 **Note**: There are compilation issues in dependent crates (icn-identity) that are unrelated to this implementation. The RuntimeContext changes are complete and isolated from these issues.
 

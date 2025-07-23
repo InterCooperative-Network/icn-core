@@ -119,6 +119,11 @@ The new API provides clear, actionable error messages:
 - `new_testing()` method is deprecated (use `new_for_testing()` instead)
 - Service configuration validates production services by default
 
+### 🔒 Critical Security Fix
+- **FIXED**: `RuntimeContext::new_with_identity_and_storage()` and `new_async_with_identity_and_storage()` now generate cryptographically matched identity DIDs and signers
+- **Impact**: Previously, these methods created non-functional RuntimeContexts where signatures would never verify
+- **Result**: RuntimeContexts created with `identity: None` now have working cryptographic operations
+
 ### Deprecated (Still Work)
 - `RuntimeContext::new_with_stubs()` → Use `RuntimeContext::new_for_testing()`
 - `RuntimeContext::new_with_stubs_and_mana()` → Use `RuntimeContext::new_for_testing()`
@@ -202,6 +207,27 @@ match ctx.validate_production_services() {
 // Check what services are being used
 println!("Mesh network service: {:?}", ctx.mesh_network_service);
 println!("DAG store: {:?}", ctx.dag_store);
+```
+
+### 🔒 Verify Cryptographic Functionality
+```rust
+// Test that identity and signer are properly matched
+async fn test_crypto_functionality(ctx: &RuntimeContext) -> Result<(), Box<dyn std::error::Error>> {
+    use icn_identity::Signer;
+    
+    // Create a test message
+    let test_message = b"test signature verification";
+    
+    // Sign with the context's signer
+    let signature = ctx.signer.sign(test_message)?;
+    
+    // Extract public key from the identity DID and verify
+    let verifying_key = icn_identity::did_key_to_verifying_key(&ctx.current_identity)?;
+    verifying_key.verify(test_message, &signature)?;
+    
+    println!("✅ Cryptographic operations working correctly");
+    Ok(())
+}
 ```
 
 ## Best Practices
