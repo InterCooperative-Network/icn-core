@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn test_dag_maintenance_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let store = SledDagStore::new(temp_dir.path()).unwrap();
+        let store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
         let maintenance = DagMaintenance::new(store);
 
         // Just verify it can be created

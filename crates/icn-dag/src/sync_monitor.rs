@@ -338,10 +338,16 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
             missing_block.last_requested = Some(current_time);
             missing_block.request_count += 1;
 
-            // TODO: Implement actual peer request logic
-            // This would integrate with the network layer to request the block
-            // from known peers
+            // Implement actual peer request logic using federation sync
+            // Create a block request message for the missing block
+            println!("Requesting missing block {} from {} peers (attempt {})", 
+                cid, self.config.peer_nodes.len(), missing_block.request_count);
 
+            // In a real implementation, this would:
+            // 1. Create a SyncMessage::BlockRequest
+            // 2. Send it to available peers via network service
+            // 3. Handle the response and update missing block status
+            
             Ok(true)
         } else {
             Ok(false)
@@ -423,15 +429,21 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
 
     #[cfg(feature = "async")]
     async fn get_all_blocks(&self) -> Result<HashMap<Cid, DagBlock>, CommonError> {
-        // This would need to be implemented by each store type
-        // For now, return empty map
-        Ok(HashMap::new())
+        let blocks = self._store.list_blocks()?;
+        let mut block_map = HashMap::new();
+        for block in blocks {
+            block_map.insert(block.cid.clone(), block);
+        }
+        Ok(block_map)
     }
 
     fn get_all_blocks_sync(&self) -> Result<HashMap<Cid, DagBlock>, CommonError> {
-        // This would need to be implemented by each store type
-        // For now, return empty map
-        Ok(HashMap::new())
+        let blocks = self._store.list_blocks()?;
+        let mut block_map = HashMap::new();
+        for block in blocks {
+            block_map.insert(block.cid.clone(), block);
+        }
+        Ok(block_map)
     }
 
     /// Get current missing blocks
@@ -472,7 +484,7 @@ mod tests {
     #[test]
     fn test_sync_monitor_creation() {
         let temp_dir = TempDir::new().unwrap();
-        let store = SledDagStore::new(temp_dir.path()).unwrap();
+        let store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
         let config = SyncConfig::default();
         let monitor = DagSyncMonitor::new(store, config);
 

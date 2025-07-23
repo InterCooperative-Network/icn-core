@@ -36,6 +36,8 @@ pub mod snapshot;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
 pub mod sync_monitor;
+pub mod conflict_resolution;
+pub mod federation_sync;
 
 /// Metadata associated with a stored DAG block.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
