@@ -2,6 +2,55 @@
 //! 
 //! This module provides the foundational types and traits for implementing
 //! sophisticated voting mechanisms including ranked choice voting.
+//!
+//! # Key Components
+//!
+//! ## Core Traits
+//! - [`VotingSystem`]: Generic interface for voting algorithm implementations
+//! - [`BallotValidator`]: Comprehensive ballot validation (format, signatures, duplicates)
+//!
+//! ## Data Structures  
+//! - [`RankedChoiceBallot`]: Cryptographically-signed ballots with preference ordering
+//! - [`Election`]: Complete election configuration with candidates and eligibility rules
+//! - [`EligibilityRules`]: Configurable voter eligibility requirements
+//!
+//! ## DAG Integration
+//! - [`BallotAnchoringService`]: Permanent ballot storage using content-addressed DAG
+//!
+//! # Examples
+//!
+//! ```rust
+//! use icn_governance::voting::{RankedChoiceBallot, BallotId, CandidateId, EligibilityRules, ElectionId, Signature};
+//! use icn_common::{Did, DidDocument};
+//! use std::time::SystemTime;
+//!
+//! // Create voter eligibility rules
+//! let rules = EligibilityRules::federation_members_only("my-federation".to_string());
+//! assert!(rules.has_restrictions());
+//!
+//! // Create a ballot with ranked preferences
+//! let ballot = RankedChoiceBallot {
+//!     ballot_id: BallotId("ballot-001".to_string()),
+//!     voter_did: DidDocument { 
+//!         id: Did::default(), 
+//!         public_key: vec![0u8; 32] 
+//!     },
+//!     election_id: ElectionId("election-123".to_string()),
+//!     preferences: vec![
+//!         CandidateId("alice".to_string()),
+//!         CandidateId("bob".to_string()),
+//!     ],
+//!     timestamp: SystemTime::now(),
+//!     signature: Signature {
+//!         algorithm: "ed25519".to_string(),
+//!         value: vec![0u8; 64],
+//!     },
+//! };
+//!
+//! // Validate ballot preferences
+//! assert!(ballot.validate_preferences().is_ok());
+//! assert_eq!(ballot.first_choice(), Some(&CandidateId("alice".to_string())));
+//! ```
 
 use icn_common::{Cid, Did, DidDocument, Signable};
 use icn_dag::StorageService;
@@ -361,6 +410,32 @@ pub struct RankedChoiceRound {
 }
 
 /// Service for anchoring ballots in the DAG for permanent storage and verification
+///
+/// This service provides permanent, content-addressed storage for voting ballots
+/// using the ICN DAG infrastructure. All ballots are cryptographically anchored
+/// and can be retrieved and verified at any time.
+///
+/// # Features
+/// - Permanent ballot storage with content addressing
+/// - Ballot integrity verification through DAG structure
+/// - Election result aggregation through ballot linking
+/// - Support for any DAG storage backend implementing `StorageService`
+///
+/// # Examples
+///
+/// ```rust
+/// use icn_governance::voting::BallotAnchoringService;
+/// use icn_dag::InMemoryDagStore;
+///
+/// let storage = InMemoryDagStore::new();
+/// let mut anchoring_service = BallotAnchoringService::new(storage);
+///
+/// // Anchor a ballot and get its CID
+/// // let ballot_cid = anchoring_service.anchor_ballot(&ballot)?;
+///
+/// // Retrieve the ballot later
+/// // let retrieved_ballot = anchoring_service.retrieve_ballot(&ballot_cid)?;
+/// ```
 pub struct BallotAnchoringService<S> 
 where 
     S: StorageService<icn_common::DagBlock>
@@ -378,6 +453,29 @@ where
     }
 
     /// Anchor a ballot in the DAG for permanent storage
+    ///
+    /// This method stores a ballot in the content-addressed DAG, making it
+    /// permanently available and verifiable. The ballot is serialized and
+    /// wrapped in a DAG block with appropriate metadata.
+    ///
+    /// # Arguments
+    /// * `ballot` - The ranked choice ballot to anchor
+    ///
+    /// # Returns
+    /// * `Ok(Cid)` - The content identifier for the anchored ballot
+    /// * `Err(VotingError)` - If serialization or storage fails
+    ///
+    /// # Examples
+    /// ```rust
+    /// # use icn_governance::voting::{BallotAnchoringService, RankedChoiceBallot};
+    /// # use icn_dag::InMemoryDagStore;
+    /// # let storage = InMemoryDagStore::new();
+    /// # let mut service = BallotAnchoringService::new(storage);
+    /// # let ballot = todo!(); // Create ballot
+    /// let cid = service.anchor_ballot(&ballot)?;
+    /// println!("Ballot anchored with CID: {}", cid);
+    /// # Ok::<(), icn_governance::VotingError>(())
+    /// ```
     pub fn anchor_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<Cid, VotingError> {
         use icn_common::DagBlock;
         

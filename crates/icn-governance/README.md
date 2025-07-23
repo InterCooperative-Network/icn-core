@@ -14,8 +14,77 @@ The `icn-governance` crate is responsible for:
 *   **Quorum Logic:** Defining the requirements for a vote to be considered valid (e.g., minimum participation).
 *   **Decision Execution:** Potentially interfacing with other crates to enact decisions once they are approved through governance.
 *   **Role Management:** Managing roles and permissions related to governance participation.
+*   **Ranked Choice Voting:** Advanced voting mechanisms including ranked choice voting with comprehensive ballot validation.
+*   **Ballot Anchoring:** Permanent storage and verification of ballots using the DAG infrastructure.
 
 This crate is essential for the decentralized control and evolution of the ICN.
+
+## Enhanced Voting Primitives
+
+The crate now includes sophisticated voting mechanisms built on core primitives:
+
+### Core Traits
+
+- **`VotingSystem`**: Generic trait for implementing different voting algorithms
+- **`BallotValidator`**: Comprehensive ballot validation including format, signatures, and duplicate detection
+- **`Signable`**: Integration with ICN's cryptographic infrastructure for ballot integrity
+
+### Ranked Choice Voting
+
+- **`RankedChoiceVotingSystem`**: Full implementation of ranked choice voting algorithm
+- **`RankedChoiceBallot`**: Cryptographically-signed ballots with ordered candidate preferences
+- **`RankedChoiceResult`**: Detailed round-by-round election results
+
+### DAG Integration
+
+- **`BallotAnchoringService`**: Permanent ballot storage using content-addressed DAG
+- Ballot retrieval and verification from distributed storage
+- Election result linking and aggregation
+
+### Voter Eligibility
+
+- **`EligibilityRules`**: Configurable voter eligibility with federation, reputation, and credential requirements
+- Integration points for reputation scoring and federation membership
+- Custom rule evaluation from DAG-stored criteria
+
+## Usage Examples
+
+```rust
+use icn_governance::{
+    RankedChoiceVotingSystem, RankedChoiceBallot, BallotAnchoringService,
+    EligibilityRules, Election, BallotId, CandidateId
+};
+use icn_identity::KeyDidResolver;
+use icn_dag::InMemoryDagStore;
+use std::sync::Arc;
+
+// Create voting system with DID resolver
+let did_resolver = Arc::new(KeyDidResolver);
+let voting_system = RankedChoiceVotingSystem::new(did_resolver, 1);
+
+// Create ballot anchoring service with DAG storage
+let dag_storage = InMemoryDagStore::new();
+let mut anchoring_service = BallotAnchoringService::new(dag_storage);
+
+// Create election with configurable eligibility
+let eligibility = EligibilityRules::federation_members_only("my-federation".to_string());
+let election = Election { /* election details */ };
+
+// Create and validate ballot
+let ballot = RankedChoiceBallot::new(
+    BallotId("ballot-001".to_string()),
+    voter_did_document,
+    election.election_id.clone(),
+    vec![CandidateId("alice".to_string()), CandidateId("bob".to_string())],
+    signature,
+);
+
+// Anchor ballot in DAG for permanent storage
+let ballot_cid = anchoring_service.anchor_ballot(&ballot)?;
+
+// Execute ranked choice voting
+let result = voting_system.count_votes(ballots)?;
+```
 
 ## Public API Style
 

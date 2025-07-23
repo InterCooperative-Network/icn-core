@@ -2,6 +2,35 @@
 //! 
 //! This module implements the ranked choice voting algorithm and provides
 //! integration with the broader governance system.
+//!
+//! # Overview
+//!
+//! Ranked choice voting (RCV) allows voters to rank candidates in order of preference.
+//! If no candidate receives a majority of first-choice votes, the candidate with the
+//! fewest votes is eliminated and their votes are redistributed to the next choice
+//! on each ballot. This process continues until a candidate achieves a majority.
+//!
+//! # Key Components
+//!
+//! - [`RankedChoiceVotingSystem`]: Core voting algorithm implementation
+//! - [`RankedChoiceBallotValidator`]: Comprehensive ballot validation with DID verification
+//! - Integration with icn-identity for voter verification
+//! - Support for minimum participation requirements
+//!
+//! # Examples
+//!
+//! ```rust
+//! use icn_governance::ranked_choice::RankedChoiceVotingSystem;
+//! use icn_identity::KeyDidResolver;
+//! use std::sync::Arc;
+//!
+//! // Create voting system with DID resolver and minimum participation
+//! let did_resolver = Arc::new(KeyDidResolver);
+//! let voting_system = RankedChoiceVotingSystem::new(did_resolver, 3);
+//!
+//! // The system will validate voter eligibility and execute RCV algorithm
+//! // let result = voting_system.count_votes(ballots)?;
+//! ```
 
 use crate::voting::{
     BallotValidator, CandidateId, Election, RankedChoiceBallot, RankedChoiceResult,
