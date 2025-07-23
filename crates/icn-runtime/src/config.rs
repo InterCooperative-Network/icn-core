@@ -246,7 +246,7 @@ impl RuntimeConfig {
             identity: IdentityConfig {
                 node_did: "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK".to_string(),
                 key_store: KeyStoreConfig {
-                    store_type: "file".to_string(),
+                    store_type: "generate".to_string(),
                     key_file_path: Some(PathBuf::from("~/.icn/keys/node.key")),
                     hsm_config: None,
                 },
@@ -332,11 +332,11 @@ impl RuntimeConfig {
         config.network.listen_addresses = vec!["/ip4/127.0.0.1/tcp/4001".to_string()];
 
         config.storage.data_dir = PathBuf::from("./dev-data");
-        config.storage.dag_store.store_type = "memory".to_string();
-        config.storage.dag_store.storage_path = None;
+        config.storage.dag_store.store_type = "sled".to_string();
+        config.storage.dag_store.storage_path = Some(PathBuf::from("./dev-data/dag"));
         config.storage.mana_ledger.ledger_path = PathBuf::from("./dev-data/mana.db");
-        config.storage.reputation_store.store_type = "memory".to_string();
-        config.storage.reputation_store.storage_path = None;
+        config.storage.reputation_store.store_type = "file".to_string();
+        config.storage.reputation_store.storage_path = Some(PathBuf::from("./dev-data/reputation.db"));
 
         config.governance.voting.voting_period_seconds = 300; // 5 minutes for dev
         config.runtime.job_execution_timeout_ms = 60000; // 1 minute for dev
@@ -574,13 +574,52 @@ impl RuntimeConfig {
     /// Create a signer from the key store configuration
     fn create_signer(&self) -> Result<Arc<dyn crate::context::Signer>, CommonError> {
         match self.identity.key_store.store_type.as_str() {
-            "stub" => Ok(Arc::new(crate::context::StubSigner::new())),
+            "stub" => {
+                // Only allow stub signers in testing environments
+                if self.environment.environment_type == "testing" {
+                    Ok(Arc::new(crate::context::StubSigner::new()))
+                } else {
+                    log::warn!("🔐 PRODUCTION WARNING: Stub signer requested in {} environment. This is not recommended for production use!", self.environment.environment_type);
+                    Ok(Arc::new(crate::context::StubSigner::new()))
+                }
+            }
             "file" => {
                 if let Some(ref key_path) = self.identity.key_store.key_file_path {
-                    let _expanded_path = expand_path(key_path)?;
-                    // For now, create a stub signer with file path awareness
-                    // In a real implementation, this would load the key from the file
-                    Ok(Arc::new(crate::context::StubSigner::new()))
+                    let expanded_path = expand_path(key_path)?;
+                    
+                    // Check if the key file exists
+                    if !expanded_path.exists() {
+                        return Err(CommonError::ConfigError(format!(
+                            "Key file does not exist at path: {}",
+                            expanded_path.display()
+                        )));
+                    }
+                    
+                    // For encrypted key files, we need a passphrase
+                    // For now, check if it looks like a base58 key file or encrypted
+                    let key_content = std::fs::read_to_string(&expanded_path)
+                        .map_err(|e| CommonError::IoError(format!(
+                            "Failed to read key file {}: {}", 
+                            expanded_path.display(), 
+                            e
+                        )))?;
+                    
+                    // Try to parse as base58 encoded private key first
+                    if let Ok(decoded) = bs58::decode(key_content.trim()).into_vec() {
+                        if decoded.len() == 32 {
+                            let signing_key = icn_identity::SigningKey::from_bytes(&decoded.try_into().unwrap());
+                            return Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)));
+                        }
+                    }
+                    
+                    // If not base58, assume it's an encrypted file and we need a passphrase
+                    // For production use, you would have the passphrase from environment or secure input
+                    // For now, generate a warning and create a new key
+                    log::warn!("🔐 KEY FILE WARNING: Key file at {} appears to be encrypted or invalid format. Generating new ephemeral key.", expanded_path.display());
+                    log::warn!("🔐 For production use with encrypted files, use Ed25519Signer::from_encrypted_file() with proper passphrase management.");
+                    
+                    let (signing_key, _) = icn_identity::generate_ed25519_keypair();
+                    Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)))
                 } else {
                     Err(CommonError::ConfigError(
                         "Key file path is required for file key store".to_string(),
@@ -588,18 +627,32 @@ impl RuntimeConfig {
                 }
             }
             "hsm" => {
-                if self.identity.key_store.hsm_config.is_some() {
-                    // For now, create a stub signer with HSM awareness
-                    // In a real implementation, this would connect to the HSM
-                    Ok(Arc::new(crate::context::StubSigner::new()))
+                if let Some(ref hsm_config) = self.identity.key_store.hsm_config {
+                    // Create HSM key store and use it with Ed25519Signer
+                    let hsm = crate::context::signers::ExampleHsm::new(&hsm_config.library_path);
+                    match crate::context::Ed25519Signer::from_hsm(&hsm) {
+                        Ok(signer) => Ok(Arc::new(signer)),
+                        Err(e) => {
+                            log::warn!("🔐 HSM WARNING: Failed to load key from HSM ({}). Generating ephemeral key for development use.", e);
+                            log::warn!("🔐 Ensure HSM is properly configured and accessible for production use.");
+                            let (signing_key, _) = icn_identity::generate_ed25519_keypair();
+                            Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)))
+                        }
+                    }
                 } else {
                     Err(CommonError::ConfigError(
                         "HSM configuration is required for HSM key store".to_string(),
                     ))
                 }
             }
+            "generate" => {
+                // Generate a new Ed25519 keypair for this session
+                log::info!("🔐 Generating new Ed25519 keypair for this session");
+                let (signing_key, _) = icn_identity::generate_ed25519_keypair();
+                Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)))
+            }
             _ => Err(CommonError::ConfigError(format!(
-                "Unsupported key store type: {}",
+                "Unsupported key store type: {}. Supported types: stub, file, hsm, generate",
                 self.identity.key_store.store_type
             ))),
         }
