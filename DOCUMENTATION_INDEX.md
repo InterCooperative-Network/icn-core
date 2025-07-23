@@ -1,7 +1,15 @@
 # ICN Core Documentation Index
 
 > **Quick Navigation Guide for ICN Core's Comprehensive Documentation**  
-> **Status**: Production-ready infrastructure (77-82% complete)
+> **⚠️ STATUS**: Active development - NOT production ready
+
+---
+
+## 🚧 **Development Status Warning**
+
+**IMPORTANT**: ICN Core is experimental software under heavy development. Many features are stubbed or incomplete. This documentation describes the intended architecture and functionality, but actual implementations may vary significantly.
+
+**For development and research only** - not suitable for production use.
 
 ---
 
@@ -26,8 +34,8 @@
 ## 📊 **Current Status & Planning**
 
 ### **Implementation Progress**
-- **[docs/status/STATUS.md](docs/status/STATUS.md)** - Overall progress (77-82% complete)
-- **[docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md](docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md)** - Detailed completion matrix
+- **[docs/status/STATUS.md](docs/status/STATUS.md)** - Overall development progress (many stubs remain)
+- **[docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md](docs/status/ICN_IMPLEMENTATION_STATUS_MATRIX.md)** - Detailed feature completion matrix
 - **[docs/status/ICN_CORE_CURRENT_STATE_2025.md](docs/status/ICN_CORE_CURRENT_STATE_2025.md)** - Current state report
 
 ### **Strategic Planning**
@@ -241,4 +249,4 @@ just build-all-stack
 
 ---
 
-**ICN Core is production-ready infrastructure for building the cooperative digital economy. This documentation covers the complete system - use the index above to navigate efficiently.** 
+**ICN Core is experimental infrastructure for building the cooperative digital economy. This documentation describes the intended architecture - many implementations remain incomplete.** 

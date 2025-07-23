@@ -1,5 +1,7 @@
 # ICN Core Complete API Reference
 
+> **⚠️ Development Status**: Many API endpoints return mock data or connect to stub implementations. This reference describes the intended API structure, but actual functionality may be limited.
+
 **Base URL:** `http://127.0.0.1:7845`  
 **Version:** 0.2.0-beta  
 **Base Path:** `/api/v1`  
@@ -7,9 +9,11 @@
 
 ---
 
-## 🎯 **API Overview**
+## 🚧 **API Overview**
 
-ICN Core provides a comprehensive HTTP API with **60+ endpoints** covering all aspects of cooperative digital infrastructure. All endpoints support JSON requests/responses and require authentication via API key or bearer token.
+ICN Core provides an **experimental HTTP API** with 60+ endpoint structures covering cooperative digital infrastructure concepts. While endpoints are well-structured, many connect to stub implementations or return mock data.
+
+**Current Reality**: API server starts and handles requests, but backend services may be incomplete. Use for development and testing only.
 
 ### **Authentication**
 ```http
@@ -366,4 +370,4 @@ const jobStatus = await client.mesh.getJobStatus(jobId);
 - **Network**: 3 endpoints
 - **Other**: 8+ endpoints
 
-**All endpoints are production-ready with comprehensive error handling, authentication, and monitoring.**
+**Endpoints are well-structured with good error handling and authentication design. Backend implementations vary in completeness.**

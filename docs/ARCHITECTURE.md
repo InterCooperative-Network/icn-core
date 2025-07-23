@@ -1,10 +1,14 @@
 # ICN Core Architecture
 
+> **⚠️ Development Status**: This document describes the intended architecture. Many components are currently stub implementations or incomplete features.
+
 This document provides a comprehensive overview of the ICN Core architecture, including crate relationships, data flow patterns, and system design principles.
 
 ## Overview
 
 The InterCooperative Network (ICN) Core is designed as a modular, distributed system that enables cooperative digital infrastructure. The architecture follows a layered approach with clear separation of concerns and well-defined interfaces between components.
+
+**Important Note**: While the architecture is well-designed, many implementations are currently stubs or prototypes. Refer to individual crate documentation and look for `todo!()` macros to understand current implementation status.
 
 ## Architecture Principles
 

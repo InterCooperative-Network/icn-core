@@ -1,5 +1,7 @@
 # ICN Node (`icn-node`)
 
+> **⚠️ Development Status**: The ICN node daemon contains many stub services and mock implementations. P2P networking, service integration, and data persistence may be unreliable or incomplete.
+
 This crate provides the main binary for running a long-lived InterCooperative Network (ICN) daemon.
 It integrates various core components to operate a functional ICN node, handling initialization,
 lifecycle, configuration, service hosting, and persistence.

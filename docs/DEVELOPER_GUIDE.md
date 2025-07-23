@@ -1,6 +1,10 @@
 `# ICN Core Developer Guide
 
-This guide provides comprehensive information for developers working on the InterCooperative Network (ICN) Core project. It covers setup, development workflows, testing strategies, and contribution guidelines.
+> **⚠️ Development Status**: ICN Core is experimental software with many stub implementations. This guide helps developers contribute to replacing stubs with real functionality.
+
+This guide provides comprehensive information for developers working on the InterCooperative Network (ICN) Core project. It covers setup, development workflows, testing strategies, and contribution guidelines for an active development project.
+
+**Focus**: The primary development work involves implementing stubbed services and replacing `todo!()` macros with working code.
 
 ## Table of Contents
 

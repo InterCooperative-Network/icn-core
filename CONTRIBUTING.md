@@ -1,21 +1,21 @@
 # Contributing to ICN Core
 
-**Welcome to the InterCooperative Network (ICN) Core!** We're excited that you want to contribute to production-ready infrastructure for the cooperative digital economy.
+**Welcome to the InterCooperative Network (ICN) Core!** We're excited that you want to contribute to **experimental infrastructure** for the cooperative digital economy.
 
 ---
 
-## 🎯 **Current Project State**
+## 🚧 **Current Project State**
 
-ICN Core is **77-82% complete** and in **Phase 5: Operational Excellence**. This is **production-ready infrastructure** with:
+ICN Core is **under heavy development** with **many stub implementations and incomplete features**. This is **experimental software** with:
 
-- ✅ **Working P2P federation** with real libp2p networking
-- ✅ **Cross-node job execution** with cryptographic verification
-- ✅ **Democratic governance** with CCL compilation and voting
-- ✅ **Comprehensive APIs** with 60+ endpoints and TypeScript SDK
-- ✅ **Frontend applications** across Web/Mobile/Desktop platforms
-- ✅ **Zero-knowledge privacy** with credential proofs
+- ⚠️ **P2P networking demonstrations** (some features stubbed)
+- ⚠️ **Job execution prototypes** (security and reliability need work)
+- ⚠️ **Governance foundations** (voting mechanisms partially implemented)
+- ⚠️ **API scaffolding** (many endpoints return mock data)
+- ⚠️ **Frontend applications** (connected to stub backends)
+- ⚠️ **Cryptographic frameworks** (implementations may be incomplete)
 
-**Key Insight**: The remaining work is primarily **configuration management** and **operational polish**, not missing core features.
+**Key Focus**: The primary work involves **replacing stub implementations with real functionality** and **completing TODO items** throughout the codebase.
 
 ---
 
@@ -28,17 +28,17 @@ git clone https://github.com/InterCooperative/icn-core
 cd icn-core
 just setup-all         # Backend + Frontend environment
 
-# Verify everything works
-just validate-all-stack # Complete validation
-just devnet            # Start 3-node federation
+# Verify what currently works (expect some failures)
+just validate-all-stack # Validation may show stub implementations
+just devnet            # Start 3-node federation (may have limitations)
 ```
 
 ### **2. Choose Your Area**
-- **Backend (Rust)**: Crate improvements, API endpoints, performance
-- **Frontend (React/React Native)**: UI applications, TypeScript SDK
-- **Configuration**: Service defaults, production readiness
-- **Documentation**: Guides, examples, API documentation
-- **Operations**: Monitoring, deployment, scale testing
+- **Backend (Rust)**: Replace stub implementations, complete TODO items, fix failing tests
+- **Frontend (React/React Native)**: Connect to real backends, replace mock data
+- **Security**: Implement proper cryptographic operations, harden key management  
+- **Documentation**: Update docs to reflect actual implementation status
+- **Testing**: Add tests for new implementations, improve coverage
 
 ### **3. Essential Reading**
 - **[README.md](README.md)** - Complete project overview
@@ -281,4 +281,4 @@ You're contributing to **production infrastructure** that cooperatives and commu
 
 ---
 
-**Thank you for contributing to production-ready cooperative infrastructure! Together, we're building the foundation of a cooperative digital economy.** 
+**Thank you for contributing to experimental cooperative infrastructure! Together, we're building the foundation of a cooperative digital economy - help us make it real.** 

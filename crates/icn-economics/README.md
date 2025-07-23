@@ -1,5 +1,7 @@
 # ICN Economics Crate
 
+> **⚠️ Development Status**: Economic protocols, mana systems, and ledger management contain stub implementations. Transaction logic and incentive mechanisms need development work.
+
 This crate handles the economic protocols of the InterCooperative Network (ICN).
 
 See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.

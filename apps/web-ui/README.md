@@ -1,5 +1,7 @@
 # ICN Web UI - Federation Dashboard
 
+> **⚠️ Development Status**: This is experimental frontend software. Many features display mock data or connect to stub backend services. Not suitable for production use.
+
 A comprehensive web interface for managing InterCooperative Network (ICN) federations and participating in cooperative governance.
 
 ## Features

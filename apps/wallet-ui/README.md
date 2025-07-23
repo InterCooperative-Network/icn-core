@@ -1,10 +1,14 @@
 # ICN Wallet UI
 
+> **⚠️ Development Status**: This is experimental wallet software with incomplete security implementations. DO NOT use for real keys or valuable assets. For development and testing only.
+
 Cross-platform DID and key management interface for the InterCooperative Network.
 
 ## Overview
 
-The ICN Wallet is a secure, cross-platform application for managing decentralized identities (DIDs), private keys, and interacting with the ICN. It provides a user-friendly interface for wallet creation, DID registration, and network interactions.
+The ICN Wallet is a **prototype** application for managing decentralized identities (DIDs), private keys, and interacting with the ICN. It provides a user-friendly interface for wallet creation, DID registration, and network interactions.
+
+**Security Warning**: This wallet is not production-ready. Private key storage, cryptographic implementations, and security measures are incomplete or stubbed.
 
 ## Technology Stack
 

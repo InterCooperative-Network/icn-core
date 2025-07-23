@@ -1,25 +1,46 @@
-# ICN Core v0.2 – Production-Ready Cooperative Infrastructure
+# ICN Core v0.2 – Cooperative Infrastructure in Active Development
 
-> **Building the complete infrastructure for a cooperative digital economy**
+> **⚠️ DEVELOPMENT STATUS: This project is actively under development and NOT production ready**
 
-ICN Core is the **production-ready** reference implementation of the InterCooperative Network (ICN) protocol, written in Rust with comprehensive frontend applications. It provides **77-82% complete** infrastructure for federations, cooperatives, and communities to coordinate democratically without relying on traditional centralized systems.
+ICN Core is the **experimental** reference implementation of the InterCooperative Network (ICN) protocol, written in Rust with comprehensive frontend applications. It provides **early-stage** infrastructure for federations, cooperatives, and communities to coordinate democratically without relying on traditional centralized systems.
 
 **Mission**: Replace every major function of the state and corporation with programmable, federated, democratic infrastructure—built for actual human needs and scalable solidarity.
 
-**Current Status**: This is **not a prototype** - it's working infrastructure with real P2P networking, cross-node job execution, and comprehensive governance/economic systems.
+**Current Status**: This is **heavy development software** with many core features stubbed or incomplete. While it demonstrates working P2P networking, cross-node job execution, and governance/economic systems, it should **NOT be used in production environments**.
+
+## 🚧 Development Status Warning
+
+**IMPORTANT**: ICN Core is under active development with many stub implementations and incomplete features. Key limitations include:
+
+- **Stub services**: Many core services use placeholder implementations that need real functionality
+- **Security**: Cryptographic implementations may not be production-hardened
+- **Data persistence**: Storage backends may have bugs or incomplete features
+- **Network stability**: P2P networking may be unreliable in some configurations
+- **API stability**: APIs and data formats are subject to breaking changes
+
+**Use only for:**
+- Development and testing
+- Research and experimentation
+- Contributing to the project
+
+**DO NOT use for:**
+- Production applications
+- Real economic transactions
+- Critical governance decisions
+- Any system where data loss or security issues would cause harm
 
 ---
 
 ## 🚀 Quick Start
 
-### Try ICN in 10 Minutes
+### Try ICN in 10 Minutes (Development Only)
 ```bash
 # Clone and build
 git clone https://github.com/InterCooperative/icn-core
 cd icn-core
 just setup && just build
 
-# Start a node
+# Start a development node
 cargo run --bin icn-node
 
 # In another terminal, try the CLI
@@ -46,7 +67,7 @@ just dev-wallet     # DID/key management
 ### Documentation Hub 📚
 📖 **[Documentation Index](DOCUMENTATION_INDEX.md)** - Quick navigation guide  
 📚 **[Complete Documentation](docs/README.md)** - Full documentation directory  
-📊 **[Current Status](docs/status/STATUS.md)** - Implementation progress (77-82% complete)  
+📊 **[Current Status](docs/status/STATUS.md)** - Development progress (many stubs remain)  
 🏗️ **[Architecture Guide](docs/ARCHITECTURE.md)** - System design and component overview  
 🔗 **[Complete API Reference](ICN_API_REFERENCE.md)** - All 60+ HTTP endpoints  
 
@@ -54,29 +75,29 @@ just dev-wallet     # DID/key management
 
 ## 🎯 What ICN Provides (Current State)
 
-### **Production-Ready Platform** (77-82% Complete)
-✅ **Multi-node P2P federation** with automatic peer discovery and real libp2p networking  
-✅ **Cross-node job execution** with cryptographic verification and real WASM execution  
-✅ **Democratic governance** with programmable CCL policies and proposal/voting system  
-✅ **Economic coordination** with mana-based resource management and multiple storage backends  
-✅ **Federated identity** with DID-based authentication and zero-knowledge credential proofs  
-✅ **Comprehensive HTTP API** with 60+ endpoints and TypeScript SDK generation  
-✅ **Complete frontend ecosystem** with 4 applications across Web/Mobile/Desktop platforms  
-✅ **Production security** with Ed25519 signatures, encrypted key storage, and HSM support  
+### **Experimental Platform** (Under Heavy Development)
+⚠️ **Multi-node P2P networking** with basic connectivity (advanced features need work)  
+⚠️ **Job execution framework** with basic structure (scheduling algorithms stubbed)  
+⚠️ **Governance foundations** with UI and data models (voting mechanisms incomplete)  
+⚠️ **Economic concepts** with mana framework (transaction logic needs implementation)  
+⚠️ **Identity architecture** with DID structures (key management needs security review)  
+⚠️ **HTTP API scaffolding** with 60+ endpoint structures (many return mock data)  
+⚠️ **Frontend applications** built and running (connected to stub backend services)  
+⚠️ **Security frameworks** designed (cryptographic implementations may be incomplete)  
 
-### **Real Capabilities (Working Today)**
-- **Shared Computing**: Mesh job execution across federation members with bidding and selection
-- **Democratic Governance**: Proposal creation, voting, delegation, and automatic policy execution
-- **Economic Systems**: Mana regeneration, resource accounting, token management, economic policies
-- **Federated Identity**: Complete DID lifecycle, credential issuance/verification, ZK proofs
-- **Persistent History**: Content-addressed DAG storage with multiple database backends
-- **Developer Experience**: CLI tools, SDK, comprehensive APIs, containerized testing environment
-- **Cooperative Features**: Registry, trust relationships, capability discovery, member management
+### **Development Capabilities (What's Demonstrable)**
+- **Development Environment**: Multi-node devnet setup with containerized networking
+- **API Framework**: HTTP server that handles requests and basic routing  
+- **Database Integration**: Connection to multiple storage backends (data models may be incomplete)
+- **Frontend Development**: Working UI applications with good UX (backend integration varies)
+- **CLI Tooling**: Command-line interface for basic operations (some commands stubbed)
+- **Configuration**: Service configuration system for development workflows
 
-### **Zero-Knowledge Privacy Systems**
-ICN includes a complete ZK proof system for privacy-preserving operations:
-- **Age Verification**: Prove age > 18 without revealing birth year
-- **Membership Proofs**: Prove cooperative membership without revealing details
+### **Architectural Frameworks**
+ICN includes well-designed architectural foundations for:
+- **Privacy Systems**: ZK proof frameworks designed (implementation completeness varies)
+- **Economic Models**: Mana-based resource concepts (needs transaction logic)
+- **Governance Models**: Proposal/voting structures (decision execution incomplete)
 - **Reputation Thresholds**: Prove reputation levels without disclosing exact scores
 - **Credential Disclosure**: Selective revelation of credential attributes
 - **Batch Verification**: Efficient verification of multiple proofs
@@ -100,22 +121,22 @@ ICN Core is organized as a comprehensive platform with backend infrastructure, f
 - **`icn-dag`** – Content-addressed storage (PostgreSQL, RocksDB, SQLite, Sled backends)
 - **`icn-zk`** – Zero-knowledge circuits for privacy-preserving credential proofs
 
-#### **Governance & Economics (82% Complete)**
-- **`icn-governance`** – Proposal engine, voting mechanisms, CCL compilation
-- **`icn-economics`** – Mana accounting, regeneration, economic policy enforcement
-- **`icn-reputation`** – Trust scoring, contribution tracking, reputation algorithms
-- **`icn-eventstore`** – Event sourcing utilities for complete audit trails
+#### **Governance & Economics (Early Development)**
+- **`icn-governance`** – Proposal structures, basic voting UI (voting algorithms need work)
+- **`icn-economics`** – Mana concepts, basic accounting framework (transaction logic incomplete)
+- **`icn-reputation`** – Trust scoring foundations (algorithms may be stubbed)
+- **`icn-eventstore`** – Event sourcing scaffolding (persistence may be incomplete)
 
-#### **Networking & Computation (78% Complete)**
-- **`icn-network`** – P2P networking with libp2p (Gossipsub, Kademlia DHT)
-- **`icn-mesh`** – Distributed job scheduling, bidding, execution across nodes
+#### **Networking & Computation (Basic Functionality)**
+- **`icn-network`** – P2P networking basics with libp2p (advanced features need work)
+- **`icn-mesh`** – Job scheduling framework (bidding algorithms and execution largely stubbed)
 
-#### **Developer Tools & SDKs (90% Complete)**
-- **`icn-cli`** – Command-line interface for all operations (federation, jobs, governance)
-- **`icn-node`** – Main daemon binary with Axum HTTP server
-- **`icn-sdk`** – High-level Rust SDK for HTTP API interactions
-- **`icn-templates`** – Governance template management system
-- **`job-audit`** – Job auditing and compliance functionality
+#### **Developer Tools & SDKs (Scaffolding Complete)**
+- **`icn-cli`** – Command-line interface structure (some commands return mock data)
+- **`icn-node`** – Main daemon binary with HTTP server (backend services may be stubbed)
+- **`icn-sdk`** – HTTP client SDK (connects to potentially stubbed endpoints)
+- **`icn-templates`** – Template management system (functionality may be incomplete)
+- **`job-audit`** – Job auditing framework (compliance logic needs implementation)
 
 ### **Frontend Applications**
 
@@ -245,18 +266,18 @@ just build-frontend
 
 ---
 
-## 🌐 Production-Ready API & Integration
+## 🚧 Development API & Integration
 
-### **Comprehensive HTTP API (60+ Endpoints)**
+### **HTTP API Framework (60+ Endpoint Structures)**
 
-ICN provides a complete REST API covering all functionality:
+ICN provides a well-structured REST API framework covering intended functionality:
 
-- **Governance** (8 endpoints): Proposals, voting, delegation, execution
-- **Identity** (11 endpoints): Credentials, ZK proofs, DID management
-- **Mesh Computing** (12 endpoints): Job lifecycle, progress, streaming
-- **Federation** (8 endpoints): Peer management, trust, coordination
-- **Cooperative** (7 endpoints): Registry, discovery, capabilities
-- **Storage** (8 endpoints): DAG operations, content addressing
+- **Governance** (8 endpoints): Proposal structures, voting UI (backend logic incomplete)
+- **Identity** (11 endpoints): Credential frameworks, DID structures (security needs review)
+- **Mesh Computing** (12 endpoints): Job interfaces, status tracking (execution may be stubbed)
+- **Federation** (8 endpoints): Peer structures, trust frameworks (algorithms need work)
+- **Cooperative** (7 endpoints): Registry concepts, discovery frameworks (features incomplete)
+- **Storage** (8 endpoints): DAG interfaces, content addressing (persistence may be limited)
 - **Economics** (6 endpoints): Mana, transactions, reputation
 - **System** (5+ endpoints): Health, metrics, monitoring
 
@@ -300,63 +321,63 @@ Real-time event subscriptions (planned):
 
 ## 📊 Current Implementation Status
 
-### **Overall Progress: 77-82% Complete**
+### **Overall Progress: Heavy Development - Many Stubs Remain**
 
-| Domain | Complete | Partial | Not Started | Progress |
-|--------|----------|---------|-------------|----------|
-| **Foundation** | 9/9 | 0/9 | 0/9 | **100%** |
-| **Mesh Computing** | 7/9 | 2/9 | 0/9 | **78%** |
-| **Governance** | 9/11 | 2/11 | 0/11 | **82%** |
-| **Economics** | 8/12 | 1/12 | 3/12 | **67%** |
-| **Security** | 7/9 | 2/9 | 0/9 | **78%** |
-| **Networking** | 6/8 | 1/8 | 1/8 | **75%** |
-| **Storage** | 5/7 | 1/7 | 1/7 | **71%** |
-| **Frontend** | 3/4 | 1/4 | 0/4 | **75%** |
+| Domain | Working | Partial | Stub/TODO | Progress |
+|--------|---------|---------|-----------|----------|
+| **Foundation** | 3/9 | 4/9 | 2/9 | **~40%** |
+| **Mesh Computing** | 2/9 | 3/9 | 4/9 | **~30%** |
+| **Governance** | 2/11 | 4/11 | 5/11 | **~25%** |
+| **Economics** | 1/12 | 3/12 | 8/12 | **~20%** |
+| **Security** | 2/9 | 3/9 | 4/9 | **~30%** |
+| **Networking** | 3/8 | 2/8 | 3/8 | **~40%** |
+| **Storage** | 2/7 | 2/7 | 3/7 | **~35%** |
+| **Frontend** | 4/4 | 0/4 | 0/4 | **UI: 100%** |
 
-### **Production-Ready Features ✅**
+### **Development Features ⚠️**
 
-- **Multi-node P2P federation** with real libp2p networking
-- **Cross-node job execution** verified across multiple nodes
-- **Democratic governance** with CCL compilation and voting
-- **Economic systems** with mana regeneration and multiple backends
-- **Identity management** with DID authentication and ZK proofs
-- **Comprehensive APIs** with authentication and monitoring
-- **Frontend applications** for all major use cases
-- **Development tools** with CLI, SDK, and testing environment
+- **P2P networking basics** with libp2p integration (advanced features need work)
+- **Job execution framework** with basic structure (scheduling algorithms stubbed)
+- **Governance foundations** with UI and data models (voting mechanisms incomplete)
+- **Economic concepts** with mana framework (transaction logic needs implementation)
+- **Identity architecture** with DID structures (security implementations need review)
+- **API scaffolding** with comprehensive endpoint structures (many return mock data)
+- **Frontend applications** fully built and functional (connected to potentially stubbed backends)
+- **Development environment** with good tooling and testing setup
 
 ---
 
-## 🎭 Current Phase: Operational Excellence
+## 🔨 Current Phase: Core Implementation
 
-**Phase**: 5 (Production-Grade Core) - **77% Complete**  
-**Focus**: Configuration management, scale testing, operational readiness
+**Phase**: 3 (Core Development) - **Heavy Development**  
+**Focus**: Replace stub implementations, complete TODO items, implement real functionality
 
-### **Key Insight: Configuration, Not Missing Features**
-The remaining 23% is primarily **configuration management** and **operational polish**, not missing core functionality. Production services exist and work - they need to be configured correctly by default.
+### **Key Reality: Implementation, Not Just Configuration**
+The remaining work involves significant **stub replacement** and **feature implementation**, not just configuration. While the architecture is well-designed, many services need real implementations.
 
-### **Current Capabilities**
-- **Real federation networking** with 3+ nodes verified
-- **Cross-node mesh computing** with job execution and receipts
-- **Complete governance system** with proposals, voting, and execution
-- **Economic resource management** with mana and reputation systems
-- **Comprehensive developer tools** and documentation
+### **Current Development Status**
+- **Basic federation networking** with limited functionality (needs algorithm work)
+- **Job execution framework** with stub scheduling (bidding and execution need implementation)
+- **Governance UI and structures** with incomplete voting (decision logic needs work)
+- **Economic framework** with basic concepts (transaction processing incomplete)
+- **Excellent development tooling** and documentation (this part is genuinely good)
 
-### **Immediate Priorities**
-- [ ] Complete service configuration management
-- [ ] Scale testing to 10+ node federations
-- [ ] Production monitoring and alerting
-- [ ] Complete frontend application development
-- [ ] Cross-platform mobile app deployment
+### **Immediate Development Priorities**
+- [ ] Replace stub implementations with real algorithms
+- [ ] Complete voting and governance decision mechanisms  
+- [ ] Implement proper economic transaction processing
+- [ ] Security review and hardening of cryptographic operations
+- [ ] Add comprehensive testing for new implementations
 
 ---
 
 ## 🔮 Strategic Roadmap
 
-### **Completed Phases**
-- **Phase 1-4**: Foundation, networking, mesh computing, HTTP API ✅
-- **Phase 5** (Current): Production readiness and configuration management
+### **Completed Foundation Work**
+- **Phase 1-2**: Architecture design, crate structure, development environment ✅
+- **Phase 3** (Current): Core implementation and stub replacement
 
-### **Next Phases**
+### **Upcoming Development Phases**
 - **Phase 6** (Q2 2025): Advanced governance patterns, ZK proof expansion
 - **Phase 7** (Q3 2025): Cross-federation protocols, cooperative banking
 - **Phase 8** (Q4 2025-Q2 2026): Application ecosystem, mainstream adoption
@@ -398,21 +419,21 @@ We welcome contributions across multiple areas:
 
 ---
 
-## 🏆 Recognition
+## 🔧 Development Recognition
 
-**ICN Core represents one of the most complete implementations of cooperative digital infrastructure ever created.** 
+**ICN Core represents a significant architectural achievement for cooperative digital infrastructure.** 
 
-Key achievements:
-- **Production-ready P2P networking** with real libp2p integration
-- **Working cross-node computation** with verified mesh job execution
-- **Complete governance system** with programmable democratic policies
-- **Comprehensive API ecosystem** with 60+ endpoints and TypeScript SDK
-- **Cross-platform frontend applications** for Web, iOS, Android, and Desktop
-- **Advanced privacy features** with zero-knowledge credential proofs
-- **Developer-first experience** with extensive tooling and documentation
+Key architectural accomplishments:
+- **Well-designed P2P networking** with solid libp2p integration foundation
+- **Thoughtful job execution framework** with good architectural patterns (needs algorithm implementation)
+- **Comprehensive governance structure** with extensible policy framework (voting logic needs completion)
+- **Complete API design** with 60+ well-structured endpoints (backend implementations vary)
+- **Excellent frontend applications** for Web, iOS, Android, and Desktop (great UX, some stub backends)
+- **Privacy-ready architecture** with ZK framework designed (implementation completeness varies)
+- **Outstanding developer experience** with excellent tooling and documentation
 
-This is not a prototype or proof-of-concept - it's **working infrastructure for building the cooperative digital economy.**
+This is **experimental infrastructure with great potential** - the architecture is solid, but significant implementation work remains.
 
 ---
 
-**ICN Core: Production-ready infrastructure for building the cooperative digital economy. [Get started today](docs/beginner/README.md).**
+**ICN Core: Experimental cooperative infrastructure under active development. [Help us build it](CONTRIBUTING.md).**

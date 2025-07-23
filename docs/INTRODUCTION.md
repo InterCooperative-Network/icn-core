@@ -4,13 +4,21 @@
 
 ---
 
+## ⚠️ Development Status
+
+**IMPORTANT**: ICN Core is experimental software under active development. This documentation describes our vision and intended functionality, but many features are currently stubbed or incomplete. 
+
+**This is NOT production-ready software.** Use only for development, research, and experimentation.
+
+---
+
 ## A New Foundation for Human Coordination
 
 Welcome to ICN Core—the reference implementation of a vision that seemed impossible just a few years ago: **truly democratic, federated digital infrastructure that serves human needs instead of extracting from them.**
 
-This isn't another blockchain project promising future wealth. This isn't a corporate platform optimizing for engagement and data extraction. This is something fundamentally different: **production-ready infrastructure for a cooperative digital economy.**
+This isn't another blockchain project promising future wealth. This isn't a corporate platform optimizing for engagement and data extraction. This is something fundamentally different: **experimental infrastructure for a cooperative digital economy.**
 
-If you've ever wondered what the internet might look like if it had been built by and for communities instead of corporations, you're looking at the answer.
+If you've ever wondered what the internet might look like if it had been built by and for communities instead of corporations, you're looking at our attempt to answer that question.
 
 ---
 

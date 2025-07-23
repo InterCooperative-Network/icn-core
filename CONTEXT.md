@@ -1,9 +1,15 @@
 # ICN Core – Complete Project Context
 
-## Purpose
-`icn-core` is the **production-ready Rust workspace** for the InterCooperative Network (ICN). It provides **77-82% complete** deterministic libraries and comprehensive frontend applications for the federated infrastructure stack that supports cooperative, post‑capitalist coordination and enables autonomous federated systems without relying on traditional state or corporate structures.
+## ⚠️ Development Status
 
-**Current Status**: This is **not a prototype** - it's working infrastructure with real P2P networking, cross-node job execution, comprehensive governance/economic systems, and complete frontend applications.
+**IMPORTANT**: ICN Core is experimental software under heavy development with many stub implementations and incomplete features. This documentation describes our intended architecture and capabilities, but actual functionality may be limited or unstable.
+
+**Use only for development, research, and experimentation - NOT for production.**
+
+## Purpose
+`icn-core` is the **experimental Rust workspace** for the InterCooperative Network (ICN). It provides **early-stage** deterministic libraries and comprehensive frontend applications for the federated infrastructure stack that supports cooperative, post‑capitalist coordination and enables autonomous federated systems without relying on traditional state or corporate structures.
+
+**Current Status**: This is **active development software** with working P2P networking demonstrations, job execution prototypes, governance/economic system foundations, and frontend application scaffolding.
 
 ## ICN Mission & Philosophy
 
@@ -23,11 +29,13 @@
 - **Post-Capitalist Coordination**: Tools for economic organization beyond market mechanisms
 - **Collective Liberation**: Technology infrastructure for universal human flourishing
 
-## Current State: Production-Ready Infrastructure
+## Current State: Development Infrastructure
 
 ### **What Works Today (Current Capabilities)**
 
-#### **Multi-Node P2P Federation ✅**
+**Note**: Many features listed below may be stub implementations or incomplete. See individual crate documentation for actual implementation status.
+
+#### **Multi-Node P2P Federation ⚠️ (In Development)**
 - Real libp2p networking with Gossipsub messaging and Kademlia DHT
 - Automatic peer discovery and federation bootstrap
 - Cross-federation coordination and trust establishment

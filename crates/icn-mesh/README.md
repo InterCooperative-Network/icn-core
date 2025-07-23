@@ -1,5 +1,7 @@
 # ICN Mesh Crate
 
+> **⚠️ Development Status**: Many mesh networking features are stub implementations. Job orchestration, scheduling, and bidding algorithms need significant development work.
+
 This crate focuses on job orchestration, scheduling, and execution within the InterCooperative Network (ICN) mesh network.
 
 See [CONTEXT.md](../../CONTEXT.md) for ICN Core design philosophy and crate roles.
