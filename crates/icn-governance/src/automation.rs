@@ -1180,6 +1180,8 @@ pub enum AutomationVotingResult {
 mod tests {
     use super::*;
     use icn_common::SystemTimeProvider;
+    use crate::{Proposal, ProposalId, ProposalType, ProposalStatus};
+    use std::collections::HashMap;
 
     #[test]
     fn test_governance_automation_config() {
@@ -1191,7 +1193,7 @@ mod tests {
 
     #[test]
     fn test_vote_weight_calculation() {
-        let weight = VoteWeight {
+        let weight = AutomationVoteWeight {
             base_weight: 1.0,
             reputation_multiplier: 1.5,
             total_weight: 1.5,
@@ -1205,8 +1207,22 @@ mod tests {
 
     #[test]
     fn test_voting_status_calculation() {
+        let proposal = Proposal {
+            id: ProposalId("test-proposal".to_string()),
+            proposer: Did::default(),
+            proposal_type: ProposalType::GenericText("Test proposal".to_string()),
+            description: "Test description".to_string(),
+            created_at: 0,
+            voting_deadline: 3600,
+            status: ProposalStatus::VotingOpen,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+            votes: HashMap::new(),
+        };
+        
         let mut state = ProposalAutomationState {
-            proposal: Proposal::default(),
+            proposal,
             submitted_at: Instant::now(),
             voting_status: VotingStatus {
                 eligible_voters: 10,
