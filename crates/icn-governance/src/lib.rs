@@ -32,7 +32,9 @@ pub mod automation;
 pub mod budgeting;
 pub mod federation_governance;
 pub mod metrics;
+pub mod ranked_choice;
 pub mod scoped_policy;
+pub mod voting;
 
 pub use automation::{
     AutomationVoteWeight, AutomationVotingResult, EnforcementAction, ExecutionResult,
@@ -40,6 +42,12 @@ pub use automation::{
     GovernanceEvent as AutomationGovernanceEvent, ReminderType,
 };
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
+pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
+pub use voting::{
+    BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
+    RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
+    VotingPeriod, VotingSystem,
+};
 
 /// Trait for governance execution hooks.
 ///
