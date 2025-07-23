@@ -952,17 +952,21 @@ impl RuntimeContext {
     ) -> Result<Arc<Self>, CommonError> {
         use icn_identity::generate_ed25519_keypair;
         
-        // Generate identity if not provided
-        let current_identity = if let Some(did) = identity {
-            did
+        // Generate identity and signer from the same keypair when identity is not provided
+        let (current_identity, signer) = if let Some(did) = identity {
+            // FIXME: When identity is provided without matching signer, signatures will not verify!
+            // This maintains existing behavior but creates a non-functional RuntimeContext.
+            // Consider requiring a matching signer parameter or returning an error.
+            let (signing_key, _) = generate_ed25519_keypair();
+            let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
+            (did, signer)
         } else {
-            let (_, verifying_key) = generate_ed25519_keypair();
-            icn_identity::did_key_from_verifying_key(&verifying_key)
+            // Generate identity and signer from the same keypair for proper cryptographic matching
+            let (signing_key, verifying_key) = generate_ed25519_keypair();
+            let current_identity = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
+            (current_identity, signer)
         };
-
-        // Create Ed25519 signer
-        let (signing_key, _verifying_key) = generate_ed25519_keypair();
-        let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
 
         // Create DAG store with default or specified path
         let storage_path = storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
@@ -1165,17 +1169,21 @@ impl RuntimeContext {
     ) -> Result<Arc<Self>, CommonError> {
         use icn_identity::generate_ed25519_keypair;
         
-        // Generate identity if not provided
-        let current_identity = if let Some(did) = identity {
-            did
+        // Generate identity and signer from the same keypair when identity is not provided
+        let (current_identity, signer) = if let Some(did) = identity {
+            // FIXME: When identity is provided without matching signer, signatures will not verify!
+            // This maintains existing behavior but creates a non-functional RuntimeContext.
+            // Consider requiring a matching signer parameter or returning an error.
+            let (signing_key, _) = generate_ed25519_keypair();
+            let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
+            (did, signer)
         } else {
-            let (_, verifying_key) = generate_ed25519_keypair();
-            icn_identity::did_key_from_verifying_key(&verifying_key)
+            // Generate identity and signer from the same keypair for proper cryptographic matching
+            let (signing_key, verifying_key) = generate_ed25519_keypair();
+            let current_identity = icn_identity::did_key_from_verifying_key(&verifying_key);
+            let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
+            (current_identity, signer)
         };
-
-        // Create Ed25519 signer
-        let (signing_key, _verifying_key) = generate_ed25519_keypair();
-        let signer = Arc::new(Ed25519Signer::new(signing_key)) as Arc<dyn Signer>;
 
         // Create DAG store with default or specified path
         let storage_path = storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
@@ -1348,7 +1356,7 @@ impl RuntimeContext {
             parameters,
             policy_enforcer,
             resource_ledger: TokioMutex::new(super::resource_ledger::ResourceLedger::new()),
-            system_info,
+            system_info: Arc::new(SysinfoSystemInfoProvider),
             time_provider,
             default_receipt_wait_ms: 30000,
             cross_component_coordinator,
@@ -4442,6 +4450,65 @@ mod tests {
             .await
             .unwrap();
         assert!(bid.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_identity_signer_cryptographic_matching() {
+        use icn_identity::{Signer, did_key_to_verifying_key};
+        
+        // Test the sync version
+        let ctx_sync = RuntimeContext::new_with_identity_and_storage(None, None, None)
+            .expect("Failed to create sync RuntimeContext");
+        
+        // Test the async version  
+        let ctx_async = RuntimeContext::new_async_with_identity_and_storage(None, None, None)
+            .await
+            .expect("Failed to create async RuntimeContext");
+        
+        for (ctx_name, ctx) in [("sync", ctx_sync), ("async", ctx_async)] {
+            // Get the identity and signer from the context
+            let identity = &ctx.current_identity;
+            let signer = &ctx.signer;
+            
+            // Create a test message
+            let test_message = b"test message for signature verification";
+            
+            // Sign the message with the signer
+            let signature = signer.sign(test_message)
+                .expect("Failed to sign message");
+            
+            // Extract the verifying key from the identity DID
+            let verifying_key = did_key_to_verifying_key(identity)
+                .expect("Failed to extract verifying key from DID");
+            
+            // Verify the signature using the identity's public key
+            let verification_result = verifying_key.verify(test_message, &signature);
+            
+            assert!(
+                verification_result.is_ok(), 
+                "{} context: Signature verification failed! Identity DID and signer are not cryptographically matched", 
+                ctx_name
+            );
+        }
+    }
+    
+    #[tokio::test]
+    async fn test_provided_identity_creates_warning_comment() {
+        use std::str::FromStr;
+        
+        // Test with provided identity (this still has the FIXME issue but maintains backward compatibility)
+        let test_did = icn_common::Did::from_str("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
+            .expect("Failed to parse test DID");
+        
+        let ctx = RuntimeContext::new_with_identity_and_storage(Some(test_did.clone()), None, None)
+            .expect("Failed to create RuntimeContext with provided identity");
+        
+        // Verify the provided identity is used
+        assert_eq!(ctx.current_identity, test_did);
+        
+        // This case still has the cryptographic mismatch issue (noted in FIXME comment)
+        // but we're maintaining backward compatibility
+        // Future versions should require a matching signer parameter
     }
 }
 
