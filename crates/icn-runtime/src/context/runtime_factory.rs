@@ -380,7 +380,7 @@ impl RuntimeContextFactory {
         let signer = Arc::new(super::signers::StubSigner::new());
 
         // Create in-memory DAG store
-        let dag_store = Self::create_dag_store(RuntimeEnvironment::Testing, None)?;
+        let _dag_store = Self::create_dag_store(RuntimeEnvironment::Testing, None)?;
 
         // Create temporary mana ledger
         let temp_file = tempfile::NamedTempFile::new().map_err(|e| {
@@ -402,7 +402,7 @@ impl RuntimeContextFactory {
         let _reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
 
         // Use the existing testing method which handles all the setup
-        RuntimeContext::new_testing(config.identity, config.initial_mana)
+        RuntimeContext::new_for_testing(config.identity, config.initial_mana)
     }
 
     /// Create an integration testing runtime context

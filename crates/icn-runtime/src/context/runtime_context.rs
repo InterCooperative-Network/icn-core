@@ -540,7 +540,7 @@ impl RuntimeContextBuilder {
                 )
             }
             EnvironmentType::Testing => {
-                RuntimeContext::new_testing(current_identity, self.initial_mana)
+                RuntimeContext::new_for_testing(current_identity, self.initial_mana)
             }
         }
     }

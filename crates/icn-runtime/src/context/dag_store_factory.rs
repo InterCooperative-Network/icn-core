@@ -137,7 +137,14 @@ impl DagStoreConfig {
             DagStoreBackend::Stub => Err(CommonError::InternalError(
                 "❌ PRODUCTION ERROR: Stub DAG store cannot be used in production contexts. Use a persistent backend like Sled, RocksDB, SQLite, or PostgreSQL.".to_string()
             )),
-            _ => Ok(())
+            #[cfg(feature = "persist-sled")]
+            DagStoreBackend::Sled => Ok(()),
+            #[cfg(feature = "persist-rocksdb")]
+            DagStoreBackend::RocksDB => Ok(()),
+            #[cfg(feature = "persist-sqlite")]
+            DagStoreBackend::SQLite => Ok(()),
+            #[cfg(feature = "persist-postgres")]
+            DagStoreBackend::PostgreSQL => Ok(()),
         }
     }
 }
@@ -195,26 +202,7 @@ impl DagStoreFactory {
                 Ok(DagStoreWrapper::stub(wrapped_store))
             }
 
-            // Handle disabled features
-            #[cfg(not(feature = "persist-sled"))]
-            DagStoreBackend::Sled => Err(CommonError::ConfigError(
-                "Sled backend not available. Enable 'persist-sled' feature.".to_string()
-            )),
 
-            #[cfg(not(feature = "persist-rocksdb"))]
-            DagStoreBackend::RocksDB => Err(CommonError::ConfigError(
-                "RocksDB backend not available. Enable 'persist-rocksdb' feature.".to_string()
-            )),
-
-            #[cfg(not(feature = "persist-sqlite"))]
-            DagStoreBackend::SQLite => Err(CommonError::ConfigError(
-                "SQLite backend not available. Enable 'persist-sqlite' feature.".to_string()
-            )),
-
-            #[cfg(not(feature = "persist-postgres"))]
-            DagStoreBackend::PostgreSQL => Err(CommonError::ConfigError(
-                "PostgreSQL backend not available. Enable 'persist-postgres' feature.".to_string()
-            )),
         }
     }
 
@@ -239,6 +227,7 @@ impl DagStoreFactory {
 
     /// List available backends based on enabled features
     pub fn available_backends() -> Vec<DagStoreBackend> {
+        #[allow(unused_mut)]
         let mut backends = vec![DagStoreBackend::Stub];
 
         #[cfg(feature = "persist-sled")]
