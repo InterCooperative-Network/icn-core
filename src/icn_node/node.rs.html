@@ -1293,7 +1293,7 @@
 <a href=#1293 id=1293 data-nosnippet>1293</a>    <span class="kw">let </span>config = Arc::new(TokioMutex::new(NodeConfig::default()));
 <a href=#1294 id=1294 data-nosnippet>1294</a>
 <a href=#1295 id=1295 data-nosnippet>1295</a>    <span class="comment">// Initialize cooperative registry using the context's DAG store
-<a href=#1296 id=1296 data-nosnippet>1296</a>    </span><span class="kw">let </span>cooperative_registry = Arc::new(CooperativeRegistry::new(ctx.dag_store.clone()));
+<a href=#1296 id=1296 data-nosnippet>1296</a>    </span><span class="kw">let </span>cooperative_registry = Arc::new(CooperativeRegistry::new(ctx.dag_store.store.clone()));
 <a href=#1297 id=1297 data-nosnippet>1297</a>
 <a href=#1298 id=1298 data-nosnippet>1298</a>    <span class="kw">let </span>app_state = AppState {
 <a href=#1299 id=1299 data-nosnippet>1299</a>        runtime_context: ctx.clone(),
@@ -1692,7 +1692,7 @@
 <a href=#1692 id=1692 data-nosnippet>1692</a>    }
 <a href=#1693 id=1693 data-nosnippet>1693</a>
 <a href=#1694 id=1694 data-nosnippet>1694</a>    <span class="comment">// Initialize cooperative registry
-<a href=#1695 id=1695 data-nosnippet>1695</a>    </span><span class="kw">let </span>cooperative_registry = Arc::new(CooperativeRegistry::new(rt_ctx.dag_store.clone()));
+<a href=#1695 id=1695 data-nosnippet>1695</a>    </span><span class="kw">let </span>cooperative_registry = Arc::new(CooperativeRegistry::new(rt_ctx.dag_store.store.clone()));
 <a href=#1696 id=1696 data-nosnippet>1696</a>
 <a href=#1697 id=1697 data-nosnippet>1697</a>    <span class="kw">let </span>app_state = AppState {
 <a href=#1698 id=1698 data-nosnippet>1698</a>        runtime_context: rt_ctx.clone(),
@@ -1968,7 +1968,7 @@
 <a href=#1968 id=1968 data-nosnippet>1968</a>    <span class="kw">let </span><span class="kw-2">mut </span>overall_status = <span class="string">"OK"</span>;
 <a href=#1969 id=1969 data-nosnippet>1969</a>
 <a href=#1970 id=1970 data-nosnippet>1970</a>    <span class="comment">// Check DAG store health
-<a href=#1971 id=1971 data-nosnippet>1971</a>    </span><span class="kw">match </span>state.runtime_context.dag_store.try_lock() {
+<a href=#1971 id=1971 data-nosnippet>1971</a>    </span><span class="kw">match </span>state.runtime_context.dag_store.store.try_lock() {
 <a href=#1972 id=1972 data-nosnippet>1972</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; checks.dag_store = <span class="string">"OK"</span>.to_string(),
 <a href=#1973 id=1973 data-nosnippet>1973</a>        <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; {
 <a href=#1974 id=1974 data-nosnippet>1974</a>            checks.dag_store = <span class="string">"BUSY"</span>.to_string();
@@ -2031,7 +2031,7 @@
 <a href=#2031 id=2031 data-nosnippet>2031</a>    };
 <a href=#2032 id=2032 data-nosnippet>2032</a>
 <a href=#2033 id=2033 data-nosnippet>2033</a>    <span class="comment">// Check if DAG store is accessible
-<a href=#2034 id=2034 data-nosnippet>2034</a>    </span>checks.dag_store_available = state.runtime_context.dag_store.try_lock().is_ok();
+<a href=#2034 id=2034 data-nosnippet>2034</a>    </span>checks.dag_store_available = state.runtime_context.dag_store.store.try_lock().is_ok();
 <a href=#2035 id=2035 data-nosnippet>2035</a>
 <a href=#2036 id=2036 data-nosnippet>2036</a>    <span class="comment">// Check if mana ledger is working
 <a href=#2037 id=2037 data-nosnippet>2037</a>    </span><span class="kw">let </span>test_did = icn_common::Did::new(<span class="string">"key"</span>, <span class="string">"readiness_test"</span>);
@@ -2225,7 +2225,7 @@
 <a href=#2225 id=2225 data-nosnippet>2225</a>        }
 <a href=#2226 id=2226 data-nosnippet>2226</a>    };
 <a href=#2227 id=2227 data-nosnippet>2227</a>    <span class="kw">match </span>icn_api::submit_dag_block(
-<a href=#2228 id=2228 data-nosnippet>2228</a>        state.runtime_context.dag_store.clone(),
+<a href=#2228 id=2228 data-nosnippet>2228</a>        state.runtime_context.dag_store.store.clone(),
 <a href=#2229 id=2229 data-nosnippet>2229</a>        block_json,
 <a href=#2230 id=2230 data-nosnippet>2230</a>        state.runtime_context.policy_enforcer.clone(),
 <a href=#2231 id=2231 data-nosnippet>2231</a>        state.runtime_context.current_identity.clone(),
@@ -2258,7 +2258,7 @@
 <a href=#2258 id=2258 data-nosnippet>2258</a>            .into_response();
 <a href=#2259 id=2259 data-nosnippet>2259</a>        }
 <a href=#2260 id=2260 data-nosnippet>2260</a>    };
-<a href=#2261 id=2261 data-nosnippet>2261</a>    <span class="kw">let </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2261 id=2261 data-nosnippet>2261</a>    <span class="kw">let </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2262 id=2262 data-nosnippet>2262</a>    <span class="kw">match </span>store.get(<span class="kw-2">&amp;</span>cid_to_get).<span class="kw">await </span>{
 <a href=#2263 id=2263 data-nosnippet>2263</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(block)) =&gt; (StatusCode::OK, Json(block.data)).into_response(),
 <a href=#2264 id=2264 data-nosnippet>2264</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; map_rust_error_to_json_response(<span class="string">"Block not found"</span>, StatusCode::NOT_FOUND)
@@ -2299,7 +2299,7 @@
 <a href=#2299 id=2299 data-nosnippet>2299</a>
 <a href=#2300 id=2300 data-nosnippet>2300</a>    <span class="comment">// Get metadata synchronously
 <a href=#2301 id=2301 data-nosnippet>2301</a>    </span><span class="kw">let </span>metadata_result: <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;icn_dag::DagBlockMetadata&gt;, CommonError&gt; = {
-<a href=#2302 id=2302 data-nosnippet>2302</a>        <span class="kw">let </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2302 id=2302 data-nosnippet>2302</a>        <span class="kw">let </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2303 id=2303 data-nosnippet>2303</a>        <span class="kw">match </span>store.get(<span class="kw-2">&amp;</span>cid).<span class="kw">await </span>{
 <a href=#2304 id=2304 data-nosnippet>2304</a>            <span class="prelude-val">Ok</span>(block_opt) =&gt; <span class="prelude-val">Ok</span>(block_opt.map(|b| icn_dag::metadata_from_block(<span class="kw-2">&amp;</span>b))),
 <a href=#2305 id=2305 data-nosnippet>2305</a>            <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(<span class="kw">match </span>e {
@@ -2335,7 +2335,7 @@
 <a href=#2335 id=2335 data-nosnippet>2335</a><span class="doccomment">/// GET /dag/root – Retrieve the current DAG root CID.
 <a href=#2336 id=2336 data-nosnippet>2336</a>/// Clients can compare this value across peers for synchronization.
 <a href=#2337 id=2337 data-nosnippet>2337</a></span><span class="kw">async fn </span>dag_root_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#2338 id=2338 data-nosnippet>2338</a>    <span class="kw">let </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2338 id=2338 data-nosnippet>2338</a>    <span class="kw">let </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2339 id=2339 data-nosnippet>2339</a>    <span class="kw">match </span>icn_dag::current_root(<span class="kw-2">&amp;*</span>store).<span class="kw">await </span>{
 <a href=#2340 id=2340 data-nosnippet>2340</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(cid)) =&gt; (StatusCode::OK, Json(cid.to_string())).into_response(),
 <a href=#2341 id=2341 data-nosnippet>2341</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; (StatusCode::OK, Json(String::new())).into_response(),
@@ -2386,7 +2386,7 @@
 <a href=#2386 id=2386 data-nosnippet>2386</a>            .into_response();
 <a href=#2387 id=2387 data-nosnippet>2387</a>        }
 <a href=#2388 id=2388 data-nosnippet>2388</a>    };
-<a href=#2389 id=2389 data-nosnippet>2389</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2389 id=2389 data-nosnippet>2389</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2390 id=2390 data-nosnippet>2390</a>    <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = store.pin_block(<span class="kw-2">&amp;</span>cid).<span class="kw">await </span>{
 <a href=#2391 id=2391 data-nosnippet>2391</a>        <span class="kw">return </span>map_rust_error_to_json_response(
 <a href=#2392 id=2392 data-nosnippet>2392</a>            <span class="macro">format!</span>(<span class="string">"Pin error: {e}"</span>),
@@ -2419,7 +2419,7 @@
 <a href=#2419 id=2419 data-nosnippet>2419</a>            .into_response();
 <a href=#2420 id=2420 data-nosnippet>2420</a>        }
 <a href=#2421 id=2421 data-nosnippet>2421</a>    };
-<a href=#2422 id=2422 data-nosnippet>2422</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2422 id=2422 data-nosnippet>2422</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2423 id=2423 data-nosnippet>2423</a>    <span class="kw">match </span>store.unpin_block(<span class="kw-2">&amp;</span>cid).<span class="kw">await </span>{
 <a href=#2424 id=2424 data-nosnippet>2424</a>        <span class="prelude-val">Ok</span>(()) =&gt; (StatusCode::OK, Json(cid)).into_response(),
 <a href=#2425 id=2425 data-nosnippet>2425</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
@@ -2433,7 +2433,7 @@
 <a href=#2433 id=2433 data-nosnippet>2433</a><span class="comment">// POST /dag/prune – Remove expired blocks
 <a href=#2434 id=2434 data-nosnippet>2434</a></span><span class="kw">async fn </span>dag_prune_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
 <a href=#2435 id=2435 data-nosnippet>2435</a>    <span class="kw">let </span>now = state.runtime_context.time_provider.unix_seconds();
-<a href=#2436 id=2436 data-nosnippet>2436</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.lock().<span class="kw">await</span>;
+<a href=#2436 id=2436 data-nosnippet>2436</a>    <span class="kw">let </span><span class="kw-2">mut </span>store = state.runtime_context.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#2437 id=2437 data-nosnippet>2437</a>    <span class="kw">match </span>store.prune_expired(now).<span class="kw">await </span>{
 <a href=#2438 id=2438 data-nosnippet>2438</a>        <span class="prelude-val">Ok</span>(removed) =&gt; (
 <a href=#2439 id=2439 data-nosnippet>2439</a>            StatusCode::OK,
@@ -2533,7 +2533,7 @@
 <a href=#2533 id=2533 data-nosnippet>2533</a>    };
 <a href=#2534 id=2534 data-nosnippet>2534</a>
 <a href=#2535 id=2535 data-nosnippet>2535</a>    <span class="kw">match </span>icn_api::submit_dag_block(
-<a href=#2536 id=2536 data-nosnippet>2536</a>        state.runtime_context.dag_store.clone(),
+<a href=#2536 id=2536 data-nosnippet>2536</a>        state.runtime_context.dag_store.store.clone(),
 <a href=#2537 id=2537 data-nosnippet>2537</a>        block_json,
 <a href=#2538 id=2538 data-nosnippet>2538</a>        state.runtime_context.policy_enforcer.clone(),
 <a href=#2539 id=2539 data-nosnippet>2539</a>        state.runtime_context.current_identity.clone(),
@@ -2612,7 +2612,7 @@
 <a href=#2612 id=2612 data-nosnippet>2612</a>        }
 <a href=#2613 id=2613 data-nosnippet>2613</a>    };
 <a href=#2614 id=2614 data-nosnippet>2614</a>
-<a href=#2615 id=2615 data-nosnippet>2615</a>    <span class="kw">match </span>query_data(state.runtime_context.dag_store.clone(), cid_json).<span class="kw">await </span>{
+<a href=#2615 id=2615 data-nosnippet>2615</a>    <span class="kw">match </span>query_data(state.runtime_context.dag_store.store.clone(), cid_json).<span class="kw">await </span>{
 <a href=#2616 id=2616 data-nosnippet>2616</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(block)) =&gt; (StatusCode::OK, Json(block)).into_response(),
 <a href=#2617 id=2617 data-nosnippet>2617</a>        <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; map_rust_error_to_json_response(<span class="string">"Block not found"</span>, StatusCode::NOT_FOUND)
 <a href=#2618 id=2618 data-nosnippet>2618</a>            .into_response(),
