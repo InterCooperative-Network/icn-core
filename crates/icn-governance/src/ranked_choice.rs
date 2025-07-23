@@ -45,18 +45,24 @@ impl RankedChoiceVotingSystem {
             ballot.validate_preferences()?;
         }
 
+        // Collect all candidates from all ballots to track total candidates in election
+        let all_candidates: HashSet<CandidateId> = ballots
+            .iter()
+            .flat_map(|ballot| ballot.preferences.iter())
+            .cloned()
+            .collect();
+
         let mut rounds = Vec::new();
-        let mut active_ballots = ballots.clone();
+        let active_ballots = ballots.clone();
         let mut eliminated_candidates = HashSet::new();
-        let exhausted_ballots = 0;
         let mut round_number = 1;
 
         loop {
-            // Count first-choice votes for each active candidate
-            let vote_counts = self.count_first_choices(&active_ballots, &eliminated_candidates);
+            // Count first-choice votes for each active candidate and track exhausted ballots
+            let (vote_counts, exhausted_ballots) = self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
             
-            // Calculate majority threshold (50% + 1)
-            let active_ballot_count = active_ballots.len() - exhausted_ballots;
+            // Calculate majority threshold based on non-exhausted ballots (50% + 1)
+            let active_ballot_count = total_ballots - exhausted_ballots;
             let majority_threshold = (active_ballot_count / 2) + 1;
 
             // Check for majority winner
@@ -91,9 +97,6 @@ impl RankedChoiceVotingSystem {
                 let vote_counts_for_storage = vote_counts.clone();
                 eliminated_candidates.insert(eliminated.clone());
                 
-                // Remove eliminated candidate from all ballots and update preferences
-                self.redistribute_votes(&mut active_ballots, &eliminated, &eliminated_candidates);
-                
                 rounds.push(RankedChoiceRound {
                     round_number,
                     vote_counts: vote_counts_for_storage,
@@ -104,7 +107,8 @@ impl RankedChoiceVotingSystem {
                 round_number += 1;
 
                 // Check if we have exhausted all candidates except one
-                if eliminated_candidates.len() >= vote_counts.len() - 1 {
+                // Use all_candidates.len() instead of vote_counts.len() to avoid premature termination
+                if eliminated_candidates.len() >= all_candidates.len() - 1 {
                     break;
                 }
             } else {
@@ -113,7 +117,7 @@ impl RankedChoiceVotingSystem {
         }
 
         // If we exit the loop without a majority winner, return the candidate with most votes
-        let final_counts = self.count_first_choices(&active_ballots, &eliminated_candidates);
+        let (final_counts, exhausted_ballots) = self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
         let winner = final_counts.iter()
             .max_by(|a, b| a.1.cmp(b.1))
             .map(|(k, _)| k.clone());
@@ -127,37 +131,44 @@ impl RankedChoiceVotingSystem {
         })
     }
 
-    /// Count first-choice votes for active candidates
+    /// Count first-choice votes for active candidates and return exhausted ballot count
+    fn count_first_choices_with_exhausted(
+        &self,
+        ballots: &[RankedChoiceBallot],
+        eliminated_candidates: &HashSet<CandidateId>,
+    ) -> (HashMap<CandidateId, usize>, usize) {
+        let mut counts = HashMap::new();
+        let mut exhausted_ballots = 0;
+
+        for ballot in ballots {
+            let mut found_valid_preference = false;
+            
+            // Find the first preference that hasn't been eliminated
+            for candidate_id in &ballot.preferences {
+                if !eliminated_candidates.contains(candidate_id) {
+                    *counts.entry(candidate_id.clone()).or_insert(0) += 1;
+                    found_valid_preference = true;
+                    break; // Only count the first valid preference
+                }
+            }
+            
+            // If no valid preference found, this ballot is exhausted
+            if !found_valid_preference {
+                exhausted_ballots += 1;
+            }
+        }
+
+        (counts, exhausted_ballots)
+    }
+
+    /// Count first-choice votes for active candidates (legacy method for compatibility)
     fn count_first_choices(
         &self,
         ballots: &[RankedChoiceBallot],
         eliminated_candidates: &HashSet<CandidateId>,
     ) -> HashMap<CandidateId, usize> {
-        let mut counts = HashMap::new();
-
-        for ballot in ballots {
-            // Find the first preference that hasn't been eliminated
-            for candidate_id in &ballot.preferences {
-                if !eliminated_candidates.contains(candidate_id) {
-                    *counts.entry(candidate_id.clone()).or_insert(0) += 1;
-                    break; // Only count the first valid preference
-                }
-            }
-        }
-
+        let (counts, _) = self.count_first_choices_with_exhausted(ballots, eliminated_candidates);
         counts
-    }
-
-    /// Redistribute votes by removing eliminated candidate from preferences
-    fn redistribute_votes(
-        &self,
-        _ballots: &mut [RankedChoiceBallot],
-        _eliminated: &CandidateId,
-        _eliminated_candidates: &HashSet<CandidateId>,
-    ) {
-        // In ranked choice voting, we don't need to modify the ballots themselves
-        // since we only look at the first non-eliminated preference in each ballot
-        // The elimination logic is handled in count_first_choices
     }
 
     /// Validate voter eligibility using DID resolver
