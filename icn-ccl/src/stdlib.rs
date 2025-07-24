@@ -183,6 +183,186 @@ impl StdLibrary {
             description: "Check if a user has a specific permission".to_string(),
             category: StdCategory::Governance,
         });
+
+        // === LIQUID DEMOCRACY PRIMITIVES ===
+        
+        self.register_function(StdFunction {
+            name: "create_delegation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // delegator
+                TypeAnnotationNode::Did,    // delegate
+                TypeAnnotationNode::String, // scope (topic/category)
+                TypeAnnotationNode::Integer, // weight (0-100)
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Create a liquid democracy delegation for a specific scope".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "revoke_delegation".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // delegator
+                TypeAnnotationNode::Did,    // delegate
+                TypeAnnotationNode::String, // scope
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Revoke a liquid democracy delegation".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "get_delegation_chain".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // original_voter
+                TypeAnnotationNode::String, // scope
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did)),
+            description: "Get the complete delegation chain for a voter in a scope".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "resolve_delegated_vote".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // voter
+                TypeAnnotationNode::String, // proposal_id
+                TypeAnnotationNode::String, // scope
+            ],
+            return_type: TypeAnnotationNode::Did,
+            description: "Resolve who will cast the final vote through delegation chain".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "calculate_delegated_power".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,    // delegate
+                TypeAnnotationNode::String, // scope
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate total voting power accumulated through delegations".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        // === QUADRATIC VOTING PRIMITIVES ===
+
+        self.register_function(StdFunction {
+            name: "quadratic_vote_cost".to_string(),
+            params: vec![
+                TypeAnnotationNode::Integer, // votes to allocate
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate quadratic voting cost (votes squared)".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "submit_quadratic_vote".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,     // voter
+                TypeAnnotationNode::String,  // proposal_id
+                TypeAnnotationNode::Integer, // vote_allocation
+                TypeAnnotationNode::Integer, // credits_spent
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Submit a quadratic vote with specified allocation and credit cost".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "calculate_quadratic_result".to_string(),
+            params: vec![
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // vote allocations
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate final quadratic voting result from all allocations".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        // === WEIGHTED VOTING PRIMITIVES ===
+
+        self.register_function(StdFunction {
+            name: "calculate_reputation_weight".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,     // voter
+                TypeAnnotationNode::String,  // reputation_category
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate voting weight based on reputation in specific category".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "calculate_stake_weight".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,     // voter
+                TypeAnnotationNode::String,  // token_class
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate voting weight based on token stake".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "submit_weighted_vote".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,     // voter
+                TypeAnnotationNode::String,  // proposal_id
+                TypeAnnotationNode::Vote,    // vote_choice
+                TypeAnnotationNode::Integer, // calculated_weight
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Submit a weighted vote with pre-calculated voting power".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        // === MULTI-STAGE PROPOSAL WORKFLOWS ===
+
+        self.register_function(StdFunction {
+            name: "create_multi_stage_proposal".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // title
+                TypeAnnotationNode::String, // description
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // stage_names
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // stage_durations
+            ],
+            return_type: TypeAnnotationNode::String, // proposal_id
+            description: "Create a proposal with multiple sequential voting stages".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "advance_proposal_stage".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // proposal_id
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Advance proposal to next stage if current stage passed".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "get_proposal_stage".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // proposal_id
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get current stage number of multi-stage proposal".to_string(),
+            category: StdCategory::Governance,
+        });
+
+        self.register_function(StdFunction {
+            name: "schedule_automated_execution".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // proposal_id
+                TypeAnnotationNode::Custom("Timestamp".to_string()), // execution_time
+                TypeAnnotationNode::String, // execution_function
+            ],
+            return_type: TypeAnnotationNode::String, // execution_id
+            description: "Schedule automated execution of proposal if it passes all stages".to_string(),
+            category: StdCategory::Governance,
+        });
     }
 
     /// Register economic/financial functions
@@ -496,6 +676,175 @@ impl StdLibrary {
             ],
             return_type: TypeAnnotationNode::Bool,
             description: "Verify if token operation is allowed under scoping rules and transferability constraints".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        // === BUDGET MANAGEMENT PRIMITIVES ===
+
+        self.register_function(StdFunction {
+            name: "create_budget".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,  // budget_name
+                TypeAnnotationNode::Integer, // total_amount
+                TypeAnnotationNode::String,  // token_class
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // category_names
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // category_allocations
+            ],
+            return_type: TypeAnnotationNode::String, // budget_id
+            description: "Create a new budget with categorized allocations".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "allocate_budget_funds".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,  // budget_id
+                TypeAnnotationNode::String,  // category
+                TypeAnnotationNode::Did,     // recipient
+                TypeAnnotationNode::Integer, // amount
+                TypeAnnotationNode::String,  // purpose
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Allocate funds from a budget category to a recipient".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "get_budget_balance".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // budget_id
+                TypeAnnotationNode::String, // category
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Get remaining balance in a budget category".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "transfer_between_categories".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,  // budget_id
+                TypeAnnotationNode::String,  // from_category
+                TypeAnnotationNode::String,  // to_category
+                TypeAnnotationNode::Integer, // amount
+                TypeAnnotationNode::Did,     // authorizer
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Transfer funds between budget categories with authorization".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        // === SURPLUS/DIVIDEND DISTRIBUTION PRIMITIVES ===
+
+        self.register_function(StdFunction {
+            name: "calculate_surplus".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // treasury_id
+                TypeAnnotationNode::String, // period ("monthly", "quarterly", "annual")
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate surplus amount available for distribution".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "distribute_dividends".to_string(),
+            params: vec![
+                TypeAnnotationNode::Integer, // total_surplus
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did)), // members
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // member_shares
+                TypeAnnotationNode::String, // distribution_method ("equal", "proportional", "quadratic")
+            ],
+            return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // amounts
+            description: "Calculate and distribute dividends to members based on shares".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "create_dividend_pool".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,  // pool_name
+                TypeAnnotationNode::Integer, // initial_amount
+                TypeAnnotationNode::String,  // token_class
+                TypeAnnotationNode::String,  // distribution_criteria
+            ],
+            return_type: TypeAnnotationNode::String, // pool_id
+            description: "Create a dividend pool for surplus distribution".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "calculate_member_dividend".to_string(),
+            params: vec![
+                TypeAnnotationNode::Did,     // member
+                TypeAnnotationNode::String,  // pool_id
+                TypeAnnotationNode::Integer, // total_pool_amount
+                TypeAnnotationNode::String,  // calculation_method
+            ],
+            return_type: TypeAnnotationNode::Integer,
+            description: "Calculate individual member dividend from pool".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "execute_dividend_payment".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // pool_id
+                TypeAnnotationNode::Did,    // member
+                TypeAnnotationNode::Integer, // amount
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Execute payment of calculated dividend to member".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        // === COOPERATIVE TREASURY MANAGEMENT ===
+
+        self.register_function(StdFunction {
+            name: "create_treasury".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // cooperative_id
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // token_classes
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Did)), // signatories
+                TypeAnnotationNode::Integer, // required_signatures
+            ],
+            return_type: TypeAnnotationNode::String, // treasury_id
+            description: "Create a multi-signature cooperative treasury".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "propose_treasury_spending".to_string(),
+            params: vec![
+                TypeAnnotationNode::String,  // treasury_id
+                TypeAnnotationNode::Did,     // recipient
+                TypeAnnotationNode::Integer, // amount
+                TypeAnnotationNode::String,  // token_class
+                TypeAnnotationNode::String,  // purpose
+            ],
+            return_type: TypeAnnotationNode::String, // proposal_id
+            description: "Propose spending from cooperative treasury".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "sign_treasury_proposal".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // proposal_id
+                TypeAnnotationNode::Did,    // signatory
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Sign approval for treasury spending proposal".to_string(),
+            category: StdCategory::Economics,
+        });
+
+        self.register_function(StdFunction {
+            name: "execute_treasury_spending".to_string(),
+            params: vec![
+                TypeAnnotationNode::String, // proposal_id
+            ],
+            return_type: TypeAnnotationNode::Bool,
+            description: "Execute treasury spending once required signatures obtained".to_string(),
             category: StdCategory::Economics,
         });
     }

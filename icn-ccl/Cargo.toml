@@ -119,6 +119,14 @@ name = "test_struct_instantiation"
 path = "test_struct_instantiation.rs"
 
 [[bin]]
+name = "test_advanced_democracy"
+path = "test_advanced_democracy.rs"
+
+[[bin]]
+name = "test_simple_democracy"
+path = "test_simple_democracy.rs"
+
+[[bin]]
 name = "ultimate_governance_contract"
 path = "ultimate_governance_contract.rs"
 
