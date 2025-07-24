@@ -15,7 +15,8 @@ use std::hash::Hash;
 /// Elements are uniquely identified by both their value and a unique tag
 /// (timestamp + node ID). An element is considered present in the set if
 /// there exists at least one add operation that hasn't been removed.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound = "T: CRDTValue + Eq + Hash")]
 pub struct ORSet<T> 
 where 
     T: CRDTValue + Eq + Hash
@@ -24,8 +25,10 @@ where
     id: String,
     /// Map from elements to sets of unique tags representing additions.
     added: HashMap<T, HashSet<ElementTag>>,
-    /// Map from elements to sets of unique tags representing removals.
-    removed: HashMap<T, HashSet<ElementTag>>,
+    /// Map from remove tags to (element, add_tag) pairs they remove.
+    /// This allows remove operations to have their own timestamps while
+    /// still tracking which specific add operations they're removing.
+    removed: HashMap<ElementTag, (T, ElementTag)>,
     /// Vector clock for causality tracking.
     vector_clock: VectorClock,
     /// Counter for generating unique tags within this node.
@@ -46,16 +49,17 @@ pub struct ElementTag {
 }
 
 /// Operations that can be applied to an OR-Set.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound = "T: CRDTValue + Eq + Hash")]
 pub enum ORSetOperation<T> 
 where 
     T: CRDTValue + Eq + Hash
 {
     /// Add an element to the set with the given tag.
     Add { element: T, tag: ElementTag },
-    /// Remove an element from the set with the given tag.
-    /// The tag must correspond to a previously observed add operation.
-    Remove { element: T, tag: ElementTag },
+    /// Remove an element from the set with the given remove_tag.
+    /// The remove_tag is a new timestamp representing when the removal occurred.
+    Remove { element: T, remove_tag: ElementTag, add_tag: ElementTag },
 }
 
 impl<T> ORSet<T> 
@@ -79,13 +83,16 @@ where
     /// that doesn't have a corresponding remove tag.
     pub fn contains(&self, element: &T) -> bool {
         if let Some(add_tags) = self.added.get(element) {
-            if let Some(remove_tags) = self.removed.get(element) {
-                // Element is present if there are adds not covered by removes
-                add_tags.iter().any(|tag| !remove_tags.contains(tag))
-            } else {
-                // Element has adds but no removes
-                !add_tags.is_empty()
+            // Find all add tags that have been removed
+            let mut removed_add_tags = HashSet::new();
+            for (element_removed, add_tag_removed) in self.removed.values() {
+                if element_removed == element {
+                    removed_add_tags.insert(add_tag_removed);
+                }
             }
+            
+            // Element is present if there are adds not covered by removes
+            add_tags.iter().any(|tag| !removed_add_tags.contains(tag))
         } else {
             // Element has never been added
             false
@@ -137,21 +144,42 @@ where
     /// Remove an element from the set.
     /// 
     /// This will remove all currently present instances of the element
-    /// by adding remove tags that reference all current add tags.
+    /// by creating new remove operations with fresh timestamps that reference
+    /// all current add tags.
     pub fn remove(&mut self, element: &T) -> Vec<ElementTag> {
         let mut removed_tags = Vec::new();
         
         if let Some(add_tags) = self.added.get(element) {
-            let current_remove_tags = self.removed.get(element).cloned().unwrap_or_default();
-            
-            // Create remove entries that reference each add tag that hasn't been removed yet
-            for add_tag in add_tags {
-                if !current_remove_tags.contains(add_tag) {
-                    // In OR-Set, we store the add_tag itself as the remove tag
-                    // This means we're marking this specific add operation as removed
-                    self.removed.entry(element.clone()).or_insert_with(HashSet::new).insert(add_tag.clone());
-                    removed_tags.push(add_tag.clone());
+            // Find all add tags that haven't been removed yet
+            let mut already_removed_add_tags = HashSet::new();
+            for (element_removed, add_tag_removed) in self.removed.values() {
+                if element_removed == element {
+                    already_removed_add_tags.insert(add_tag_removed);
                 }
+            }
+            
+            // Collect add tags to remove (to avoid borrow checker issues)
+            let tags_to_remove: Vec<_> = add_tags
+                .iter()
+                .filter(|add_tag| !already_removed_add_tags.contains(add_tag))
+                .cloned()
+                .collect();
+            
+            // Create new remove operations for each unremoved add tag
+            for add_tag in tags_to_remove {
+                // Generate a new timestamp for this remove operation
+                self.tag_counter += 1;
+                self.vector_clock.increment(&self.node_id);
+                
+                let remove_tag = ElementTag {
+                    node_id: self.node_id.clone(),
+                    timestamp: self.vector_clock.get(&self.node_id),
+                    sequence: self.tag_counter,
+                };
+                
+                // Store the remove operation
+                self.removed.insert(remove_tag.clone(), (element.clone(), add_tag));
+                removed_tags.push(remove_tag);
             }
         }
         
@@ -160,17 +188,30 @@ where
     
     /// Remove a specific tagged instance of an element.
     /// 
-    /// This removes only the instance corresponding to the given add tag.
+    /// This removes only the instance corresponding to the given add tag
+    /// by creating a new remove operation with a fresh timestamp.
     pub fn remove_tag(&mut self, element: &T, add_tag: &ElementTag) -> Option<ElementTag> {
         // Check if the add tag exists
         if let Some(add_tags) = self.added.get(element) {
             if add_tags.contains(add_tag) {
                 // Check if not already removed
-                let remove_tags = self.removed.get(element).cloned().unwrap_or_default();
-                if !remove_tags.contains(add_tag) {
-                    // In OR-Set, we mark the specific add_tag as removed
-                    self.removed.entry(element.clone()).or_insert_with(HashSet::new).insert(add_tag.clone());
-                    return Some(add_tag.clone());
+                let already_removed = self.removed.values()
+                    .any(|(elem, removed_add_tag)| elem == element && removed_add_tag == add_tag);
+                
+                if !already_removed {
+                    // Generate a new timestamp for this remove operation
+                    self.tag_counter += 1;
+                    self.vector_clock.increment(&self.node_id);
+                    
+                    let remove_tag = ElementTag {
+                        node_id: self.node_id.clone(),
+                        timestamp: self.vector_clock.get(&self.node_id),
+                        sequence: self.tag_counter,
+                    };
+                    
+                    // Store the remove operation
+                    self.removed.insert(remove_tag.clone(), (element.clone(), add_tag.clone()));
+                    return Some(remove_tag);
                 }
             }
         }
@@ -185,7 +226,15 @@ where
     
     /// Get all remove tags for an element.
     pub fn get_remove_tags(&self, element: &T) -> HashSet<ElementTag> {
-        self.removed.get(element).cloned().unwrap_or_default()
+        self.removed.iter()
+            .filter_map(|(remove_tag, (elem, _add_tag))| {
+                if elem == element {
+                    Some(remove_tag.clone())
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
     
     /// Get all elements that have ever been added (including removed ones).
@@ -203,7 +252,7 @@ where
         let total_known = self.all_known_elements().len();
         let currently_present = self.size();
         let total_add_operations = self.added.values().map(|tags| tags.len()).sum::<usize>();
-        let total_remove_operations = self.removed.values().map(|tags| tags.len()).sum::<usize>();
+        let total_remove_operations = self.removed.len();
         
         ORSetStats {
             current_size: currently_present as u64,
@@ -224,10 +273,8 @@ where
             }
         }
         
-        for tags in self.removed.values() {
-            for tag in tags {
-                nodes.insert(tag.node_id.clone());
-            }
+        for remove_tag in self.removed.keys() {
+            nodes.insert(remove_tag.node_id.clone());
         }
         
         nodes
@@ -251,16 +298,16 @@ where
             }
         }
         
-        // Find remove operations - in our implementation, removes are the same as add tags
-        // So we look for removed tags that correspond to adds newer than other_clock
-        for (element, remove_tags) in &self.removed {
-            for remove_tag in remove_tags {
-                if other_clock.get(&remove_tag.node_id) < remove_tag.timestamp {
-                    remove_ops.push(ORSetOperation::Remove {
-                        element: element.clone(),
-                        tag: remove_tag.clone(),
-                    });
-                }
+        // Find remove operations newer than other_clock
+        // Now remove operations have their own timestamps, so we can properly
+        // filter based on when the remove operation actually occurred
+        for (remove_tag, (element, add_tag)) in &self.removed {
+            if other_clock.get(&remove_tag.node_id) < remove_tag.timestamp {
+                remove_ops.push(ORSetOperation::Remove {
+                    element: element.clone(),
+                    remove_tag: remove_tag.clone(),
+                    add_tag: add_tag.clone(),
+                });
             }
         }
         
@@ -283,9 +330,8 @@ where
         }
         
         // Merge all remove operations
-        for (element, other_tags) in &other.removed {
-            let current_tags = self.removed.entry(element.clone()).or_insert_with(HashSet::new);
-            current_tags.extend(other_tags.clone());
+        for (remove_tag, (element, add_tag)) in &other.removed {
+            self.removed.insert(remove_tag.clone(), (element.clone(), add_tag.clone()));
         }
         
         // Merge vector clocks
@@ -308,13 +354,13 @@ where
                 
                 Ok(())
             },
-            ORSetOperation::Remove { element, tag } => {
-                self.removed.entry(element).or_insert_with(HashSet::new).insert(tag.clone());
+            ORSetOperation::Remove { element, remove_tag, add_tag } => {
+                self.removed.insert(remove_tag.clone(), (element, add_tag));
                 
-                // Update vector clock based on the tag's timestamp
-                let current_time = self.vector_clock.get(&tag.node_id);
-                if tag.timestamp > current_time {
-                    self.vector_clock.set(tag.node_id.clone(), tag.timestamp);
+                // Update vector clock based on the remove_tag's timestamp
+                let current_time = self.vector_clock.get(&remove_tag.node_id);
+                if remove_tag.timestamp > current_time {
+                    self.vector_clock.set(remove_tag.node_id.clone(), remove_tag.timestamp);
                 }
                 
                 Ok(())
@@ -373,7 +419,8 @@ where
 {}
 
 /// Delta containing operations for efficient synchronization.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound = "T: CRDTValue + Eq + Hash")]
 pub struct ORSetDelta<T> 
 where 
     T: CRDTValue + Eq + Hash
@@ -589,7 +636,8 @@ mod tests {
         
         let remove_op = ORSetOperation::Remove {
             element: "alice".to_string(),
-            tag: tag.clone(),
+            remove_tag: tag.clone(),
+            add_tag: tag.clone(),
         };
         
         set.apply_operation(remove_op).unwrap();
@@ -689,14 +737,19 @@ mod tests {
         set.remove(&"bob".to_string());
         
         let delta = set.delta_since(&old_clock);
-        assert_eq!(delta.operations.len(), 1); // Only the new add operation
+        assert_eq!(delta.operations.len(), 2); // Both new add and remove operations
         
         // Check that operations are for new changes
         let has_charlie_add = delta.operations.iter().any(|op| {
             matches!(op, ORSetOperation::Add { element, .. } if element == &"charlie".to_string())
         });
         
+        let has_bob_remove = delta.operations.iter().any(|op| {
+            matches!(op, ORSetOperation::Remove { element, .. } if element == &"bob".to_string())
+        });
+        
         assert!(has_charlie_add);
+        assert!(has_bob_remove);
     }
     
     #[test]
