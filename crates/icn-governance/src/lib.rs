@@ -31,10 +31,14 @@ use serde::{Deserialize, Serialize};
 pub mod automation;
 pub mod budgeting;
 pub mod federation_governance;
+//pub mod federation_sync;
 pub mod metrics;
 pub mod ranked_choice;
 pub mod scoped_policy;
 pub mod voting;
+
+#[cfg(test)]
+mod integration_tests;
 
 pub use automation::{
     AutomationVoteWeight, AutomationVotingResult, EnforcementAction, ExecutionResult,
