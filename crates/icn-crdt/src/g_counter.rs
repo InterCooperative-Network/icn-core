@@ -347,7 +347,7 @@ mod tests {
         counter.increment(&node_a(), 15).unwrap();
         counter.increment(&node_b(), 25).unwrap();
         
-        let json_value = counter.get_total();
+        let json_value = counter.value();
         assert_eq!(json_value["total"], 40);
         
         let contributions = &json_value["contributions"];

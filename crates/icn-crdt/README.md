@@ -39,20 +39,23 @@ This crate integrates with:
 ## Usage
 
 ```rust
-use icn_crdt::{GCounter, PNCounter, ORSet, LWWRegister, VectorClock};
+use icn_crdt::{GCounter, PNCounter, ORSet, VectorClock, NodeId};
 use icn_common::Did;
+use std::str::FromStr;
 
 // Mana balance tracking
-let mut mana_counter = PNCounter::new("node1".to_string());
-mana_counter.increment(100); // Earn mana
-mana_counter.decrement(30);  // Spend mana
+let node_id = NodeId::new("node1".to_string());
+let mut mana_counter = PNCounter::new("mana_balance".to_string());
+mana_counter.increment(&node_id, 100).unwrap(); // Earn mana
+mana_counter.decrement(&node_id, 30).unwrap();  // Spend mana
 
 // Group membership
-let mut members = ORSet::new("node1".to_string());
-let alice = Did::from_str("did:key:alice")?;
+let mut members = ORSet::new("group_members".to_string(), node_id.clone());
+let alice = Did::from_str("did:key:alice").unwrap();
 members.add(alice.clone());
 
 // Merge states from different nodes
-let other_members = ORSet::new("node2".to_string());
+let other_node = NodeId::new("node2".to_string());
+let other_members = ORSet::new("group_members".to_string(), other_node);
 members.merge(&other_members);
 ```

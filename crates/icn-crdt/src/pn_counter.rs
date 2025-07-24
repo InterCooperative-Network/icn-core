@@ -196,7 +196,7 @@ impl PNCounter {
             .unwrap_or(0);
         
         PNCounterStats {
-            current_value: self.value(),
+            current_value: self.get_total(),
             total_increments: self.increment_counter.get_total(),
             total_decrements: self.decrement_counter.get_total(),
             total_activity: self.total_activity(),
@@ -327,15 +327,15 @@ mod tests {
     #[test]
     fn test_pncounter_with_initial_value() {
         let counter_pos = PNCounter::with_initial_value("test".to_string(), node_a(), 42);
-        assert_eq!(counter_pos.value(), 42);
+        assert_eq!(counter_pos.get_total(), 42);
         assert_eq!(counter_pos.get_node_value(&node_a()), 42);
         
         let counter_neg = PNCounter::with_initial_value("test".to_string(), node_b(), -30);
-        assert_eq!(counter_neg.value(), -30);
+        assert_eq!(counter_neg.get_total(), -30);
         assert_eq!(counter_neg.get_node_value(&node_b()), -30);
         
         let counter_zero = PNCounter::with_initial_value("test".to_string(), node_c(), 0);
-        assert_eq!(counter_zero.value(), 0);
+        assert_eq!(counter_zero.get_total(), 0);
     }
     
     #[test]
@@ -430,7 +430,7 @@ mod tests {
         // node_b: 10 - 0 = 10  
         // node_c: 25 - 0 = 25
         // Total: 12 + 10 + 25 = 47
-        assert_eq!(counter1.value(), 47);
+        assert_eq!(counter1.get_total(), 47);
         assert_eq!(counter1.get_node_value(&node_a()), 12);
         assert_eq!(counter1.get_node_value(&node_b()), 10);
         assert_eq!(counter1.get_node_value(&node_c()), 25);
@@ -443,10 +443,10 @@ mod tests {
         counter1.decrement(&node_b(), 5).unwrap();
         
         let counter2 = counter1.clone();
-        let original_value = counter1.value();
+        let original_value = counter1.get_total();
         
         counter1.merge(&counter2);
-        assert_eq!(counter1.value(), original_value);
+        assert_eq!(counter1.get_total(), original_value);
     }
     
     #[test]
@@ -468,7 +468,7 @@ mod tests {
         // counter2.merge(counter1_copy)
         counter2.merge(&counter1_copy);
         
-        assert_eq!(counter1.value(), counter2.value());
+        assert_eq!(counter1.get_total(), counter2.get_total());
         assert_eq!(counter1.node_contributions(), counter2.node_contributions());
     }
     
@@ -556,7 +556,7 @@ mod tests {
         counter.increment(&node_a(), 25).unwrap();
         counter.decrement(&node_b(), 10).unwrap();
         
-        let json_value = counter.get_total();
+        let json_value = counter.value();
         assert_eq!(json_value["current_value"], 15);
         assert_eq!(json_value["total_increments"], 25);
         assert_eq!(json_value["total_decrements"], 10);
