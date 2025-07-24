@@ -10,6 +10,7 @@ anyhow = "1.0"
 thiserror = "2.0"
 serde = { version = "1.0", features = ["derive"] }
 icn-common = { path = "../icn-common" }
+icn-crdt = { path = "../icn-crdt" }
 icn-dag = { path = "../icn-dag", features = ["async"] }
 dashmap = "5"
 chrono = { version = "0.4", features = ["serde"] }

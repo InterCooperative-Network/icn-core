@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod automation;
 pub mod budgeting;
+pub mod crdt_proposal_state;
 pub mod federation_governance;
 //pub mod federation_sync;
 pub mod metrics;
@@ -46,6 +47,11 @@ pub use automation::{
     GovernanceEvent as AutomationGovernanceEvent, ReminderType,
 };
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
+pub use crdt_proposal_state::{
+    CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,
+    ProposalInfo, ProposalMetadata, ProposalStatus as CRDTProposalStatus, Vote as CRDTVote,
+    VoteDecision, VoteTally,
+};
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 pub use voting::{
     BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
