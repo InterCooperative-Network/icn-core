@@ -39,7 +39,7 @@ where
 
 /// Operations that can be applied to a CRDT Map.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "K: CRDTValue + Eq + Hash + Serialize + for<'a> Deserialize<'a>, V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>, V::Operation: Serialize + for<'a> Deserialize<'a>")]
+#[serde(bound = "K: CRDTValue + Eq + Hash + std::fmt::Debug + Serialize + for<'a> Deserialize<'a>, V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>, V::Operation: std::fmt::Debug + Serialize + for<'a> Deserialize<'a>")]
 pub enum CRDTMapOperation<K, V> 
 where 
     K: CRDTValue + Eq + Hash + std::fmt::Debug,
@@ -271,7 +271,10 @@ where
     }
     
     /// Create a delta containing only operations newer than the given vector clock.
-    pub fn delta_since(&self, other_clock: &VectorClock) -> CRDTMapDelta<K, V> {
+    pub fn delta_since(&self, other_clock: &VectorClock) -> CRDTMapDelta<K, V> 
+    where
+        V::Operation: std::fmt::Debug + Serialize + for<'a> Deserialize<'a>
+    {
         let mut operations = Vec::new();
         
         // Find entries that are newer
@@ -322,7 +325,10 @@ where
     }
     
     /// Merge a delta into this map.
-    pub fn apply_delta(&mut self, delta: CRDTMapDelta<K, V>) -> CRDTResult<()> {
+    pub fn apply_delta(&mut self, delta: CRDTMapDelta<K, V>) -> CRDTResult<()> 
+    where
+        V::Operation: std::fmt::Debug + Serialize + for<'a> Deserialize<'a>
+    {
         for operation in delta.operations {
             self.apply_operation(operation)?;
         }
@@ -415,7 +421,8 @@ where
 impl<K, V> CausalCRDT for CRDTMap<K, V> 
 where 
     K: CRDTValue + Eq + Hash + std::fmt::Debug,
-    V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>
+    V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>,
+    V::Operation: std::fmt::Debug + Serialize + for<'a> Deserialize<'a>
 {
     fn vector_clock(&self) -> &VectorClock {
         &self.vector_clock
@@ -455,7 +462,7 @@ where
 
 /// Delta containing operations for efficient synchronization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound = "K: CRDTValue + Eq + Hash + Serialize + for<'a> Deserialize<'a>, V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>, V::Operation: Serialize + for<'a> Deserialize<'a>")]
+#[serde(bound = "K: CRDTValue + Eq + Hash + std::fmt::Debug + Serialize + for<'a> Deserialize<'a>, V: CRDT + Clone + Serialize + for<'a> Deserialize<'a>, V::Operation: std::fmt::Debug + Serialize + for<'a> Deserialize<'a>")]
 pub struct CRDTMapDelta<K, V> 
 where 
     K: CRDTValue + Eq + Hash + std::fmt::Debug,

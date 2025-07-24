@@ -47,7 +47,7 @@ impl Default for GossipConfig {
 }
 
 /// Represents a peer in the gossip network.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PeerInfo {
     /// Unique identifier for the peer.
     pub node_id: NodeId,

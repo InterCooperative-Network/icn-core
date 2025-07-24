@@ -58,7 +58,7 @@ where
 }
 
 /// Metadata about a write operation for debugging and auditing.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WriteMetadata {
     /// When the write occurred.
     pub timestamp: u64,
@@ -437,6 +437,10 @@ mod tests {
         assert_eq!(register.get(), Some(&"second_value".to_string()));
         assert_eq!(register.get_timestamp(), 2);
         
+        // Simulate a write from node_b that happens after seeing node_a's writes
+        // In a real system, node_b would have synchronized its vector clock
+        register.advance_clock(&node_b()); // sync with node_a's clock
+        register.advance_clock(&node_b()); // advance to be newer
         register.write("third_value".to_string(), node_b()).unwrap();
         assert_eq!(register.get(), Some(&"third_value".to_string()));
         assert!(register.was_written_by(&node_b()));
