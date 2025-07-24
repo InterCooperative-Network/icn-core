@@ -486,7 +486,7 @@
 <a href=#486 id=486 data-nosnippet>486</a>    <span class="attr">#[test]
 <a href=#487 id=487 data-nosnippet>487</a>    </span><span class="kw">fn </span>test_snapshot_manager_creation() {
 <a href=#488 id=488 data-nosnippet>488</a>        <span class="kw">let </span>temp_dir = TempDir::new().unwrap();
-<a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">let </span>store = SledDagStore::new(temp_dir.path()).unwrap();
+<a href=#489 id=489 data-nosnippet>489</a>        <span class="kw">let </span>store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
 <a href=#490 id=490 data-nosnippet>490</a>        <span class="kw">let </span>snapshots = DagSnapshots::new(store);
 <a href=#491 id=491 data-nosnippet>491</a>
 <a href=#492 id=492 data-nosnippet>492</a>        <span class="comment">// Just verify it can be created

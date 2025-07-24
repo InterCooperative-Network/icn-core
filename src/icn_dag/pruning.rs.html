@@ -339,7 +339,7 @@
 <a href=#339 id=339 data-nosnippet>339</a>    <span class="attr">#[test]
 <a href=#340 id=340 data-nosnippet>340</a>    </span><span class="kw">fn </span>test_dag_maintenance_creation() {
 <a href=#341 id=341 data-nosnippet>341</a>        <span class="kw">let </span>temp_dir = TempDir::new().unwrap();
-<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>store = SledDagStore::new(temp_dir.path()).unwrap();
+<a href=#342 id=342 data-nosnippet>342</a>        <span class="kw">let </span>store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
 <a href=#343 id=343 data-nosnippet>343</a>        <span class="kw">let </span>maintenance = DagMaintenance::new(store);
 <a href=#344 id=344 data-nosnippet>344</a>
 <a href=#345 id=345 data-nosnippet>345</a>        <span class="comment">// Just verify it can be created
