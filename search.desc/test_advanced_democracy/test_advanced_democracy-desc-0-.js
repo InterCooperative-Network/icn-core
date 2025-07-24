@@ -1,0 +1,1 @@
+searchState.loadedDescShard("test_advanced_democracy", 0, "")
