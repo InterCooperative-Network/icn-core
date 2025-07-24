@@ -91,6 +91,8 @@ struct SyncState {
     pending_requests: HashMap<ProposalId, u64>,
     /// Failed sync attempts
     failed_syncs: HashMap<FederationId, Vec<SyncFailure>>,
+    /// Mapping from proposal ID to federation ID
+    proposal_federations: HashMap<ProposalId, FederationId>,
 }
 
 /// Record of a failed synchronization attempt
@@ -163,8 +165,28 @@ impl FederationSyncCoordinator {
         let mut federations = self.federations.write().await;
         if federations.remove(federation_id).is_some() {
             log::info!("Left federation: {}", federation_id.as_str());
+            
+            // Clean up proposal mappings for this federation
+            {
+                let mut sync_state = self.sync_state.write().await;
+                sync_state.proposal_federations.retain(|_, fid| fid != federation_id);
+                sync_state.last_sync_times.remove(federation_id);
+                sync_state.failed_syncs.remove(federation_id);
+            }
         }
         Ok(())
+    }
+
+    /// Get the federation ID for a given proposal
+    async fn get_proposal_federation(&self, proposal_id: &ProposalId) -> Option<FederationId> {
+        let sync_state = self.sync_state.read().await;
+        sync_state.proposal_federations.get(proposal_id).cloned()
+    }
+
+    /// Record proposal-to-federation mapping
+    async fn record_proposal_federation(&self, proposal_id: ProposalId, federation_id: FederationId) {
+        let mut sync_state = self.sync_state.write().await;
+        sync_state.proposal_federations.insert(proposal_id, federation_id);
     }
 
     /// Submit a new proposal and broadcast to federation
@@ -220,6 +242,9 @@ impl FederationSyncCoordinator {
         // Broadcast to federation members
         self.broadcast_proposal_announcement(fed_proposal).await?;
 
+        // Record the proposal-to-federation mapping
+        self.record_proposal_federation(proposal_id.clone(), federation_id).await;
+
         Ok(proposal_id)
     }
 
@@ -230,8 +255,11 @@ impl FederationSyncCoordinator {
         proposal_id: ProposalId,
         vote: bool,
     ) -> Result<(), CommonError> {
-        // Get federation ID for this proposal (simulate - we'll use a default for now)
-        let federation_id = FederationId::new("default-federation".to_string());
+        // Get federation ID for this proposal
+        let federation_id = self.get_proposal_federation(&proposal_id).await
+            .ok_or_else(|| CommonError::ResourceNotFound(
+                format!("Proposal {} is not associated with any federation", proposal_id)
+            ))?;
 
         // Cast vote locally
         {
@@ -408,6 +436,9 @@ impl FederationSyncCoordinator {
                 return Err(e);
             }
         }
+
+        // Update the proposal-to-federation mapping
+        self.record_proposal_federation(proposal.id.clone(), proposal.federation.clone()).await;
 
         log::info!("Received federated proposal: {}", proposal.id);
         Ok(())
@@ -620,5 +651,68 @@ mod tests {
         let engine = governance_engine.read().await;
         let stored_proposal = engine.get_proposal(&proposal.id).unwrap();
         assert!(stored_proposal.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_cast_federated_vote_with_proper_federation_lookup() {
+        let governance_engine = Arc::new(RwLock::new(GovernanceModule::new()));
+        let node_identity = Did::new("key", "test-node");
+
+        #[cfg(not(feature = "federation"))]
+        let coordinator = FederationSyncCoordinator::new(governance_engine.clone(), node_identity);
+
+        let proposal_id = ProposalId("test-proposal".to_string());
+        let federation_id = FederationId::new("test-federation".to_string());
+        let voter = Did::new("key", "voter");
+
+        // First record a proposal-federation mapping
+        coordinator.record_proposal_federation(proposal_id.clone(), federation_id.clone()).await;
+
+        // Create a proposal in the governance engine to vote on
+        let submission = crate::ProposalSubmission {
+            proposer: voter.clone(),
+            proposal_type: crate::ProposalType::GenericText("Test proposal".to_string()),
+            description: "Test proposal content".to_string(),
+            duration_secs: 3600,
+            quorum: None,
+            threshold: None,
+            content_cid: None,
+        };
+
+        {
+            let mut engine = governance_engine.write().await;
+            // Manually insert the proposal with our specific ID
+            let proposal = crate::Proposal {
+                id: proposal_id.clone(),
+                proposer: voter.clone(),
+                proposal_type: crate::ProposalType::GenericText("Test proposal".to_string()),
+                description: "Test proposal content".to_string(),
+                created_at: 1234567890,
+                voting_deadline: 1234567890 + 3600,
+                status: crate::ProposalStatus::VotingOpen,
+                votes: HashMap::new(),
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            };
+            engine.insert_external_proposal(proposal).unwrap();
+        }
+
+        // Verify federation ID lookup works correctly
+        let looked_up_federation = coordinator.get_proposal_federation(&proposal_id).await;
+        assert_eq!(looked_up_federation, Some(federation_id));
+
+        // Test that cast_federated_vote now works with proper federation lookup
+        let result = coordinator.cast_federated_vote(voter, proposal_id.clone(), true).await;
+        assert!(result.is_ok(), "cast_federated_vote should succeed with proper federation mapping");
+
+        // Test error case: voting on proposal not in any federation
+        let unknown_proposal = ProposalId("unknown-proposal".to_string());
+        let result = coordinator.cast_federated_vote(Did::new("key", "voter2"), unknown_proposal, false).await;
+        assert!(result.is_err(), "cast_federated_vote should fail for proposal not in any federation");
+        
+        if let Err(error) = result {
+            assert!(error.to_string().contains("not associated with any federation"));
+        }
     }
 }
