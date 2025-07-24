@@ -5,9 +5,9 @@
 //! delta synchronization, conflict resolution, and epidemic-style propagation.
 
 use crate::{NodeId, VectorClock, CRDT, CRDTError, CRDTResult, OperationMetadata};
+use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::time::{SystemTime, UNIX_EPOCH};
 use tokio::sync::{mpsc, Mutex, RwLock};
 use std::sync::Arc;
 
@@ -162,6 +162,8 @@ pub struct CRDTSynchronizer {
     operation_sender: mpsc::UnboundedSender<GossipOperation>,
     /// Sequence counter for messages.
     message_sequence: Arc<Mutex<u64>>,
+    /// Time provider for deterministic timestamps.
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 impl CRDTSynchronizer {
@@ -170,6 +172,7 @@ impl CRDTSynchronizer {
         node_id: NodeId,
         config: GossipConfig,
         transport: Arc<dyn GossipTransport>,
+        time_provider: Arc<dyn TimeProvider>,
     ) -> (Self, mpsc::UnboundedReceiver<GossipOperation>) {
         let (operation_sender, operation_receiver) = mpsc::unbounded_channel();
         
@@ -183,6 +186,7 @@ impl CRDTSynchronizer {
             stats: Arc::new(Mutex::new(GossipStats::default())),
             operation_sender,
             message_sequence: Arc::new(Mutex::new(0)),
+            time_provider,
         };
         
         (synchronizer, operation_receiver)
@@ -361,7 +365,7 @@ impl CRDTSynchronizer {
             sender_clock: clock.clone(),
             operations,
             sequence: seq,
-            timestamp: current_timestamp(),
+            timestamp: current_timestamp_from_provider(&self.time_provider),
         })
     }
     
@@ -372,7 +376,7 @@ impl CRDTSynchronizer {
             let mut peers = self.peers.write().await;
             if let Some(peer_info) = peers.get_mut(&peer.node_id) {
                 peer_info.last_known_clock = response.responder_clock.clone();
-                peer_info.last_seen = current_timestamp();
+                peer_info.last_seen = current_timestamp_from_provider(&self.time_provider);
             }
         }
         
@@ -394,7 +398,7 @@ impl CRDTSynchronizer {
     /// Clean up old operations from the buffer.
     async fn cleanup_operation_buffer(&self) {
         let mut buffer = self.operation_buffer.lock().await;
-        let current_time = current_timestamp();
+        let current_time = current_timestamp_from_provider(&self.time_provider);
         let ttl_ms = self.config.operation_buffer_ttl_seconds * 1000;
         
         // Remove operations older than TTL
@@ -421,7 +425,7 @@ impl CRDTSynchronizer {
             if let Some(peer_info) = peers.get_mut(&peer.node_id) {
                 peer_info.is_reachable = is_reachable;
                 if is_reachable {
-                    peer_info.last_seen = current_timestamp();
+                    peer_info.last_seen = current_timestamp_from_provider(&self.time_provider);
                 }
             }
         }
@@ -492,12 +496,9 @@ impl Default for GossipStats {
     }
 }
 
-/// Get current timestamp in milliseconds since Unix epoch.
-fn current_timestamp() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
+/// Get current timestamp in seconds since Unix epoch.
+fn current_timestamp_from_provider(time_provider: &Arc<dyn TimeProvider>) -> u64 {
+    time_provider.unix_seconds()
 }
 
 /// Helper trait for serializing CRDT operations for gossip.
@@ -576,7 +577,7 @@ mod tests {
                 node_id: NodeId::new("discovered_peer".to_string()),
                 address: "127.0.0.1:8080".to_string(),
                 last_known_clock: VectorClock::new(),
-                last_seen: current_timestamp(),
+                last_seen: 42, // Fixed timestamp for testing
                 is_reachable: true,
             }]
         }
@@ -587,8 +588,9 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport);
+        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport, time_provider);
         
         assert_eq!(synchronizer.node_id, node_id);
         assert_eq!(synchronizer.get_peers().await.len(), 0);
@@ -599,14 +601,15 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport);
+        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport, time_provider);
         
         let peer = PeerInfo {
             node_id: NodeId::new("peer1".to_string()),
             address: "127.0.0.1:8080".to_string(),
             last_known_clock: VectorClock::new(),
-            last_seen: current_timestamp(),
+            last_seen: 42, // Fixed timestamp for testing
             is_reachable: true,
         };
         
@@ -622,13 +625,14 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, mut receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport);
+        let (synchronizer, mut receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport, time_provider);
         
         let operation = GossipOperation {
             crdt_id: "test_crdt".to_string(),
             operation_data: vec![1, 2, 3],
-            metadata: OperationMetadata::new(node_id, VectorClock::new(), current_timestamp()),
+            metadata: OperationMetadata::new(node_id, VectorClock::new(), 42), // Fixed timestamp for testing
             crdt_type: "test".to_string(),
         };
         
@@ -645,13 +649,14 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport);
+        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id.clone(), config, transport, time_provider);
         
         let operation = GossipOperation {
             crdt_id: "test_crdt".to_string(),
             operation_data: vec![1, 2, 3],
-            metadata: OperationMetadata::new(node_id.clone(), VectorClock::new(), current_timestamp()),
+            metadata: OperationMetadata::new(node_id.clone(), VectorClock::new(), 42), // Fixed timestamp for testing
             crdt_type: "test".to_string(),
         };
         
@@ -668,8 +673,9 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport);
+        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport, time_provider);
         
         let discovered_count = synchronizer.discover_peers().await.unwrap();
         assert_eq!(discovered_count, 1);
@@ -684,8 +690,9 @@ mod tests {
         let node_id = NodeId::new("test_node".to_string());
         let config = GossipConfig::default();
         let transport = Arc::new(MockTransport::new());
+        let time_provider = Arc::new(icn_common::FixedTimeProvider::new(42));
         
-        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport);
+        let (synchronizer, _receiver) = CRDTSynchronizer::new(node_id, config, transport, time_provider);
         
         let stats = synchronizer.get_stats().await;
         assert_eq!(stats.total_rounds, 0);

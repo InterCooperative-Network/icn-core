@@ -5,7 +5,7 @@
 //! a combination of LWW-Registers for proposal metadata and CRDT Maps for votes
 //! to enable concurrent proposal management and voting without conflicts.
 
-use icn_common::{CommonError, Did};
+use icn_common::{CommonError, Did, TimeProvider};
 use icn_crdt::{CRDTMap, LWWRegister, NodeId, CRDT, CRDTValue};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -25,6 +25,8 @@ pub struct CRDTProposalState {
     proposal_map: Arc<RwLock<CRDTMap<String, ProposalCRDT>>>,
     /// Configuration for proposal state management.
     config: CRDTProposalStateConfig,
+    /// Time provider for deterministic timestamps.
+    time_provider: Arc<dyn TimeProvider>,
 }
 
 /// Individual proposal state using CRDTs.
@@ -314,7 +316,7 @@ impl CRDT for ProposalCRDT {
 
 impl CRDTProposalState {
     /// Create a new CRDT proposal state manager with the given configuration.
-    pub fn new(config: CRDTProposalStateConfig) -> Self {
+    pub fn new(config: CRDTProposalStateConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
         let node_id = NodeId::new(config.node_id.clone());
         let proposal_map = CRDTMap::new("governance_proposals".to_string());
         
@@ -322,15 +324,16 @@ impl CRDTProposalState {
             node_id,
             proposal_map: Arc::new(RwLock::new(proposal_map)),
             config,
+            time_provider,
         }
     }
     
     /// Create a new CRDT proposal state manager with a specific node ID.
-    pub fn with_node_id(node_id: String) -> Self {
+    pub fn with_node_id(node_id: String, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self::new(CRDTProposalStateConfig {
             node_id,
             ..Default::default()
-        })
+        }, time_provider)
     }
     
     /// Get the node ID for this proposal state manager instance.
@@ -386,10 +389,7 @@ impl CRDTProposalState {
             }
         }
         
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let current_time = self.time_provider.unix_seconds();
         
         let voting_deadline = custom_deadline.unwrap_or(current_time + self.config.default_voting_duration);
         let required_quorum = custom_quorum.unwrap_or(self.config.default_quorum);
@@ -437,10 +437,7 @@ impl CRDTProposalState {
             )));
         }
         
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let current_time = self.time_provider.unix_seconds();
         
         // Check if proposal is still open for voting
         let proposal_info = self.get_proposal_info(proposal_id)?;
@@ -498,10 +495,7 @@ impl CRDTProposalState {
         let mut proposal_crdt = self.get_proposal_crdt(proposal_id)?;
         let mut metadata = proposal_crdt.get_metadata().clone();
         metadata.status = new_status;
-        metadata.updated_at = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        metadata.updated_at = self.time_provider.unix_seconds();
         
         proposal_crdt.update_metadata(metadata, self.node_id.clone())?;
         self.update_proposal_crdt(proposal_id, proposal_crdt)?;
@@ -541,10 +535,7 @@ impl CRDTProposalState {
         
         let is_approved = match metadata.status {
             ProposalStatus::Open => {
-                let current_time = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
+                let current_time = self.time_provider.unix_seconds();
                 
                 if current_time > metadata.voting_deadline {
                     Some(has_quorum && proposal_crdt.is_approved(metadata.required_approval))
@@ -617,10 +608,7 @@ impl CRDTProposalState {
             return Ok(Vec::new());
         }
         
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let current_time = self.time_provider.unix_seconds();
         
         let mut expired_proposals = Vec::new();
         
@@ -722,6 +710,7 @@ impl Clone for CRDTProposalState {
             node_id: self.node_id.clone(),
             proposal_map: self.proposal_map.clone(),
             config: self.config.clone(),
+            time_provider: self.time_provider.clone(),
         }
     }
 }
@@ -732,6 +721,7 @@ impl std::fmt::Debug for CRDTProposalState {
             .field("node_id", &self.node_id)
             .field("proposal_map", &"<CRDTMap>")
             .field("config", &self.config)
+            .field("time_provider", &"<TimeProvider>")
             .finish()
     }
 }
@@ -754,22 +744,23 @@ mod tests {
     }
     
     fn current_timestamp() -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
+        1640995200 // Fixed timestamp for deterministic testing (2022-01-01)
+    }
+    
+    fn test_time_provider() -> Arc<dyn TimeProvider> {
+        Arc::new(icn_common::FixedTimeProvider::new(current_timestamp()))
     }
     
     #[test]
     fn test_crdt_proposal_state_creation() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         assert_eq!(state.node_id().as_str(), "test_node");
         assert_eq!(state.get_all_proposals().len(), 0);
     }
     
     #[test]
     fn test_create_proposal() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         let result = state.create_proposal(
             "proposal_1".to_string(),
@@ -792,7 +783,7 @@ mod tests {
     
     #[test]
     fn test_duplicate_proposal_creation() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal(
             "proposal_1".to_string(),
@@ -819,7 +810,7 @@ mod tests {
     
     #[test]
     fn test_cast_vote() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal(
             "proposal_1".to_string(),
@@ -848,7 +839,7 @@ mod tests {
     
     #[test]
     fn test_proposal_quorum_and_approval() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal(
             "proposal_1".to_string(),
@@ -878,7 +869,7 @@ mod tests {
     
     #[test]
     fn test_vote_on_expired_proposal() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal(
             "proposal_1".to_string(),
@@ -896,7 +887,7 @@ mod tests {
     
     #[test]
     fn test_update_proposal_status() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal(
             "proposal_1".to_string(),
@@ -917,7 +908,7 @@ mod tests {
     
     #[test]
     fn test_get_proposals_by_status() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal("proposal_1".to_string(), "P1".to_string(), "D1".to_string(), alice_did(), None, None, None).unwrap();
         state.create_proposal("proposal_2".to_string(), "P2".to_string(), "D2".to_string(), bob_did(), None, None, None).unwrap();
@@ -936,7 +927,7 @@ mod tests {
     
     #[test]
     fn test_get_proposals_by_proposer() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal("proposal_1".to_string(), "P1".to_string(), "D1".to_string(), alice_did(), None, None, None).unwrap();
         state.create_proposal("proposal_2".to_string(), "P2".to_string(), "D2".to_string(), alice_did(), None, None, None).unwrap();
@@ -951,8 +942,8 @@ mod tests {
     
     #[test]
     fn test_merge_proposal_states() {
-        let state1 = CRDTProposalState::with_node_id("node1".to_string());
-        let state2 = CRDTProposalState::with_node_id("node2".to_string());
+        let state1 = CRDTProposalState::with_node_id("node1".to_string(), test_time_provider());
+        let state2 = CRDTProposalState::with_node_id("node2".to_string(), test_time_provider());
         
         // Create proposals on different nodes
         state1.create_proposal("proposal_1".to_string(), "P1".to_string(), "D1".to_string(), alice_did(), None, None, None).unwrap();
@@ -988,7 +979,7 @@ mod tests {
     
     #[test]
     fn test_proposal_stats() {
-        let state = CRDTProposalState::with_node_id("test_node".to_string());
+        let state = CRDTProposalState::with_node_id("test_node".to_string(), test_time_provider());
         
         state.create_proposal("proposal_1".to_string(), "P1".to_string(), "D1".to_string(), alice_did(), None, None, None).unwrap();
         state.create_proposal("proposal_2".to_string(), "P2".to_string(), "D2".to_string(), bob_did(), None, None, None).unwrap();
@@ -1014,7 +1005,7 @@ mod tests {
         config.node_id = "test_node".to_string();
         config.max_proposals_per_proposer = 2;
         
-        let state = CRDTProposalState::new(config);
+        let state = CRDTProposalState::new(config, test_time_provider());
         
         // First two proposals should succeed
         state.create_proposal("proposal_1".to_string(), "P1".to_string(), "D1".to_string(), alice_did(), None, None, None).unwrap();
