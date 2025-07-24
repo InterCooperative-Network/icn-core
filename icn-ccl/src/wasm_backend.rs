@@ -1030,6 +1030,72 @@ impl WasmBackend {
         fn_indices.insert("calculate_surplus".to_string(), next_index);
         next_index += 1;
 
+        // Add more essential functions for comprehensive testing
+        let ty_get_budget_balance = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // budget_id, category
+            vec![ValType::I32], // remaining balance
+        );
+        imports.import(
+            "icn",
+            "host_get_budget_balance",
+            wasm_encoder::EntityType::Function(ty_get_budget_balance),
+        );
+        fn_indices.insert("get_budget_balance".to_string(), next_index);
+        next_index += 1;
+
+        let ty_create_dividend_pool = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // name, amount, token_class, criteria
+            vec![ValType::I32], // pool_id
+        );
+        imports.import(
+            "icn",
+            "host_create_dividend_pool",
+            wasm_encoder::EntityType::Function(ty_create_dividend_pool),
+        );
+        fn_indices.insert("create_dividend_pool".to_string(), next_index);
+        next_index += 1;
+
+        let ty_allocate_budget_funds = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, category, recipient, amount, purpose
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_allocate_budget_funds",
+            wasm_encoder::EntityType::Function(ty_allocate_budget_funds),
+        );
+        fn_indices.insert("allocate_budget_funds".to_string(), next_index);
+        next_index += 1;
+
+        let ty_transfer_between_categories = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, from_cat, to_cat, amount, auth
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_transfer_between_categories",
+            wasm_encoder::EntityType::Function(ty_transfer_between_categories),
+        );
+        fn_indices.insert("transfer_between_categories".to_string(), next_index);
+        next_index += 1;
+
+        let ty_execute_dividend_payment = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // pool_id, member, amount
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_execute_dividend_payment",
+            wasm_encoder::EntityType::Function(ty_execute_dividend_payment),
+        );
+        fn_indices.insert("execute_dividend_payment".to_string(), next_index);
+        next_index += 1;
+
         // Pre-register all user-defined functions before processing AST
         // This allows forward references to work correctly
         let user_functions = self.collect_user_functions(ast)?;

@@ -127,6 +127,14 @@ name = "test_simple_democracy"
 path = "test_simple_democracy.rs"
 
 [[bin]]
+name = "test_focused_democracy"
+path = "test_focused_democracy.rs"
+
+[[bin]]
+name = "test_comprehensive_governance"
+path = "test_comprehensive_governance.rs"
+
+[[bin]]
 name = "ultimate_governance_contract"
 path = "ultimate_governance_contract.rs"
 
