@@ -39,7 +39,7 @@ This crate integrates with:
 ## Usage
 
 ```rust
-use icn_crdt::{GCounter, PNCounter, ORSet, VectorClock, NodeId};
+use icn_crdt::{GCounter, PNCounter, ORSet, VectorClock, NodeId, CRDT};
 use icn_common::Did;
 use std::str::FromStr;
 

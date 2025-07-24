@@ -20,6 +20,7 @@ pub use sqlite_store::SqliteReputationStore;
 pub mod rocksdb_store;
 #[cfg(feature = "persist-rocksdb")]
 pub use rocksdb_store::RocksdbReputationStore;
+pub mod crdt_store;
 pub mod metrics;
 
 // Trust Graph modules for advanced trust calculation and pathfinding
@@ -33,6 +34,7 @@ pub mod trust_pathfinding;
 pub mod integration;
 
 // Re-export key types for convenient access
+pub use crdt_store::{CRDTReputationConfig, CRDTReputationStats, CRDTReputationStore};
 pub use integration::{
     ExecutionQuality, ReputationBasedExecutorSelection, ReputationEvent,
     ReputationIntegrationConfig, ReputationIntegrationEngine, ReputationIntegrationStats,

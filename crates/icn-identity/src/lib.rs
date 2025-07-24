@@ -82,6 +82,10 @@ pub use federation_integration::{
     FederationEvent, FederationIntegrationConfig, FederationIntegrationEngine,
     FederationIntegrationStats, ResourceType, SharingTerms,
 };
+pub mod crdt_group_membership;
+pub use crdt_group_membership::{
+    CRDTGroupMembership, CRDTGroupMembershipConfig, CRDTGroupMembershipStats, GroupInfo,
+};
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

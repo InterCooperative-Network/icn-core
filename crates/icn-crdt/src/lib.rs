@@ -15,11 +15,17 @@ pub mod g_counter;
 pub mod pn_counter;
 pub mod or_set;
 pub mod vector_clock;
+pub mod lww_register;
+pub mod crdt_map;
+pub mod gossip;
 
 pub use g_counter::GCounter;
 pub use pn_counter::PNCounter;
 pub use or_set::ORSet;
 pub use vector_clock::VectorClock;
+pub use lww_register::LWWRegister;
+pub use crdt_map::CRDTMap;
+pub use gossip::{CRDTSynchronizer, GossipConfig, GossipTransport, GossipSerializable};
 
 /// Unique identifier for a node in the CRDT network.
 /// This should be stable across restarts and unique across all nodes.

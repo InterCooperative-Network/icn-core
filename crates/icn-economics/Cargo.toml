@@ -12,6 +12,7 @@ icn-common = { path = "../icn-common" }
 icn-reputation = { path = "../icn-reputation" }
 icn-eventstore = { path = "../icn-eventstore" }
 icn-dag = { path = "../icn-dag" }
+icn-crdt = { path = "../icn-crdt" }
 serde = { version = "1.0", features = ["derive"] }
 tokio = { version = "1", features = ["sync"] } # For Mutex, RwLock if needed async
 thiserror = "2.0" # Added thiserror
