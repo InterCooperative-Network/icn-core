@@ -230,6 +230,18 @@ pub enum CommonError {
     /// Duplicate or replayed message detected
     #[error("Duplicate message")]
     DuplicateMessage,
+
+    /// Lock acquisition failure
+    #[error("Lock error: {0}")]
+    LockError(String),
+
+    /// CRDT operation error
+    #[error("CRDT error: {0}")]
+    CRDTError(String),
+
+    /// Insufficient funds for operation
+    #[error("Insufficient funds: {0}")]
+    InsufficientFunds(String),
 }
 
 /// Trait for types that can produce a canonical byte representation for

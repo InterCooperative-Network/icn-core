@@ -18,6 +18,7 @@ use log::{debug, info};
 use serde::{Deserialize, Serialize};
 pub mod explorer;
 pub mod ledger;
+pub mod crdt_ledger;
 pub mod marketplace;
 pub mod metrics;
 pub mod mutual_aid;
@@ -32,6 +33,7 @@ pub use automation::{
     EconomicHealthMetrics,
 };
 pub use explorer::{FlowStats, LedgerExplorer};
+pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use ledger::FileResourceLedger;
 pub use ledger::{
     FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
