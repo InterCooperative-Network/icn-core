@@ -1,0 +1,1 @@
+import '@icn/i18n/src/config'

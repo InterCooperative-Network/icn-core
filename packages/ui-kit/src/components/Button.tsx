@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button as TamaguiButton, ButtonProps as TamaguiButtonProps } from '@tamagui/button'
 import { styled } from '@tamagui/core'
+import { createLoadingProps, AriaProps } from '@icn/i18n'
 
 // Extended button with ICN-specific styling
 const StyledButton = styled(TamaguiButton, {
@@ -56,25 +57,34 @@ const StyledButton = styled(TamaguiButton, {
   },
 })
 
-export interface ICNButtonProps extends TamaguiButtonProps {
+export interface ICNButtonProps extends TamaguiButtonProps, AriaProps {
   variant?: 'primary' | 'secondary' | 'ghost' | 'danger'
   size?: 'sm' | 'md' | 'lg'
   loading?: boolean
+  loadingText?: string
 }
 
 export const Button: React.FC<ICNButtonProps> = ({ 
   children, 
   loading = false, 
+  loadingText,
   disabled,
+  'aria-label': ariaLabel,
   ...props 
 }) => {
+  const loadingProps = createLoadingProps(loading, loadingText)
+  
   return (
     <StyledButton 
       {...props}
+      {...loadingProps}
       disabled={disabled || loading}
       opacity={loading ? 0.7 : 1}
+      aria-label={ariaLabel || (loading ? loadingText || 'Loading' : undefined)}
+      role="button"
+      tabIndex={disabled || loading ? -1 : 0}
     >
-      {loading ? 'Loading...' : children}
+      {loading ? (loadingText || 'Loading...') : children}
     </StyledButton>
   )
 }

@@ -1,0 +1,45 @@
+{
+  "languageSwitcher": {
+    "label": "Switch language",
+    "switchTo": "Switch to {{language}}"
+  },
+  "buttons": {
+    "loading": "Loading, please wait",
+    "submit": "Submit form",
+    "cancel": "Cancel action",
+    "delete": "Delete item",
+    "edit": "Edit item",
+    "save": "Save changes"
+  },
+  "forms": {
+    "required": "This field is required",
+    "invalid": "This field is invalid",
+    "validationError": "Please fix the errors below"
+  },
+  "modals": {
+    "close": "Close dialog",
+    "title": "Dialog"
+  },
+  "tables": {
+    "sortAscending": "Sort ascending",
+    "sortDescending": "Sort descending",
+    "noSort": "No sorting applied"
+  },
+  "navigation": {
+    "breadcrumb": "Breadcrumb navigation",
+    "pagination": "Pagination navigation",
+    "tabs": "Tab navigation"
+  },
+  "status": {
+    "success": "Success",
+    "error": "Error", 
+    "warning": "Warning",
+    "info": "Information"
+  },
+  "announcements": {
+    "pageLoaded": "Page loaded successfully",
+    "actionCompleted": "Action completed",
+    "formSubmitted": "Form submitted successfully",
+    "errorOccurred": "An error occurred"
+  }
+}

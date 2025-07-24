@@ -1,0 +1,27 @@
+{
+  "brand": "ICN Federation",
+  "menu": {
+    "demo": "Demo",
+    "dashboard": "Dashboard",
+    "federation": "Federation",
+    "governance": "Governance",
+    "cooperatives": "Cooperatives",
+    "meshJobs": "Mesh Jobs",
+    "settings": "Settings"
+  },
+  "status": {
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "network": "Network",
+    "did": "DID"
+  },
+  "mobileMenu": {
+    "open": "Open mobile menu",
+    "close": "Close mobile menu"
+  },
+  "accessibility": {
+    "skipToContent": "Skip to main content",
+    "mainNavigation": "Main navigation",
+    "currentPage": "Current page"
+  }
+}

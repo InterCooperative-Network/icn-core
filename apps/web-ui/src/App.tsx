@@ -1,6 +1,7 @@
 import React from 'react'
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
 import { ICNProvider } from '@icn/ts-sdk'
+import { I18NProvider } from '@icn/i18n'
 import { FederationProvider } from './contexts/FederationContext'
 import { GovernanceProvider } from './contexts/GovernanceContext'
 import { Dashboard } from './components/Dashboard'
@@ -10,6 +11,7 @@ import { GovernancePage } from './pages/GovernancePage'
 import { CooperativesPage } from './pages/CooperativesPage'
 import { DemoPage } from './pages/DemoPage'
 import { JobsPage } from './pages/JobsPage'
+import './i18n'
 import './index.css'
 
 function App() {
@@ -19,29 +21,31 @@ function App() {
   }
 
   return (
-    <ICNProvider options={icnOptions}>
-      <FederationProvider>
-        <GovernanceProvider>
-          <Router>
-            <div className="min-h-screen bg-gray-50">
-              <Navigation />
-              <main className="container mx-auto px-4 py-8">
-                <Routes>
-                  <Route path="/" element={<DemoPage />} />
-                  <Route path="/demo" element={<DemoPage />} />
-                  <Route path="/dashboard" element={<Dashboard />} />
-                  <Route path="/federation" element={<FederationPage />} />
-                  <Route path="/governance" element={<GovernancePage />} />
-                  <Route path="/cooperatives" element={<CooperativesPage />} />
-                  <Route path="/jobs" element={<JobsPage />} />
-                  <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
-                </Routes>
-              </main>
-            </div>
-          </Router>
-        </GovernanceProvider>
-      </FederationProvider>
-    </ICNProvider>
+    <I18NProvider>
+      <ICNProvider options={icnOptions}>
+        <FederationProvider>
+          <GovernanceProvider>
+            <Router>
+              <div className="min-h-screen bg-gray-50">
+                <Navigation />
+                <main className="container mx-auto px-4 py-8">
+                  <Routes>
+                    <Route path="/" element={<DemoPage />} />
+                    <Route path="/demo" element={<DemoPage />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/federation" element={<FederationPage />} />
+                    <Route path="/governance" element={<GovernancePage />} />
+                    <Route path="/cooperatives" element={<CooperativesPage />} />
+                    <Route path="/jobs" element={<JobsPage />} />
+                    <Route path="/settings" element={<div>Settings (Coming Soon)</div>} />
+                  </Routes>
+                </main>
+              </div>
+            </Router>
+          </GovernanceProvider>
+        </FederationProvider>
+      </ICNProvider>
+    </I18NProvider>
   )
 }
 

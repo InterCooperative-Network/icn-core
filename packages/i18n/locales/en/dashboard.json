@@ -1,0 +1,57 @@
+{
+  "title": "Federation Dashboard",
+  "subtitle": "Monitor and manage your cooperative federation",
+  "metrics": {
+    "totalCooperatives": "Total Cooperatives",
+    "totalMembers": "Total Members",
+    "activeProposals": "Active Proposals",
+    "networkPeers": "Network Peers",
+    "activeInFederation": "Active in federation",
+    "acrossAllCooperatives": "Across all cooperatives",
+    "totalProposals": "{{count}} total proposals",
+    "connectedPeers": "Connected peers"
+  },
+  "health": {
+    "title": "Federation Health",
+    "overall": "Overall Health",
+    "network": "Network Connectivity",
+    "governance": "Governance Activity"
+  },
+  "cooperatives": {
+    "title": "Active Cooperatives",
+    "members": "{{count}} members",
+    "reputation": "{{score}}% reputation",
+    "noCooperatives": "No cooperatives found"
+  },
+  "proposals": {
+    "title": "Recent Proposals",
+    "noProposals": "No proposals found"
+  },
+  "systemInfo": {
+    "title": "System Information",
+    "nodeInfo": {
+      "title": "Node Information",
+      "name": "Name",
+      "version": "Version",
+      "did": "DID",
+      "noInfo": "No node information available"
+    },
+    "networkStatus": {
+      "title": "Network Status",
+      "status": "Status",
+      "peers": "Peers",
+      "blockHeight": "Block Height",
+      "noStatus": "No network status available"
+    },
+    "dagStatus": {
+      "title": "DAG Status",
+      "blocks": "Blocks",
+      "sync": "Sync",
+      "noStatus": "No DAG status available"
+    }
+  },
+  "errors": {
+    "general": "Error",
+    "loadingFailed": "Failed to load data"
+  }
+}
