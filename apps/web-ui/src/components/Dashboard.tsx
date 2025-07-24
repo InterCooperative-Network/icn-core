@@ -2,6 +2,7 @@ import React from 'react'
 import { useFederation } from '../contexts/FederationContext'
 import { useGovernance } from '../contexts/GovernanceContext'
 import { FederationUtils, GovernanceUtils, ICNUtils } from '@icn/ts-sdk'
+import { useTranslation } from '@icn/i18n'
 
 interface StatCardProps {
   title: string
@@ -88,6 +89,8 @@ export function Dashboard() {
     error: governanceError
   } = useGovernance()
 
+  const { t } = useTranslation('dashboard')
+
   const error = federationError || governanceError
 
   // Calculate health scores
@@ -97,19 +100,23 @@ export function Dashboard() {
     Math.min((metadata.governance.activeProposals / Math.max(metadata.governance.totalProposals, 1)) * 100, 100) : 0
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" id="main-content">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-900">Federation Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
         <p className="text-gray-600 mt-2">
-          Monitor and manage your cooperative federation
+          {t('subtitle')}
         </p>
       </div>
 
       {/* Error Banner */}
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-          <p className="font-medium">Error</p>
+        <div 
+          className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md"
+          role="alert"
+          aria-live="polite"
+        >
+          <p className="font-medium">{t('errors.general')}</p>
           <p className="text-sm">{error}</p>
         </div>
       )}
@@ -117,30 +124,30 @@ export function Dashboard() {
       {/* Key Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
-          title="Total Cooperatives"
+          title={t('metrics.totalCooperatives')}
           value={metadata?.totalCooperatives || 0}
-          subtitle="Active in federation"
+          subtitle={t('metrics.activeInFederation')}
           status="success"
           loading={loading.cooperatives}
         />
         <StatCard
-          title="Total Members"
+          title={t('metrics.totalMembers')}
           value={metadata?.totalMembers || 0}
-          subtitle="Across all cooperatives"
+          subtitle={t('metrics.acrossAllCooperatives')}
           status="info"
           loading={loading.cooperatives}
         />
         <StatCard
-          title="Active Proposals"
+          title={t('metrics.activeProposals')}
           value={activeProposals.length}
-          subtitle={`${proposals.length} total proposals`}
+          subtitle={t('metrics.totalProposals', { count: proposals.length })}
           status="warning"
           loading={governanceLoading.proposals}
         />
         <StatCard
-          title="Network Peers"
+          title={t('metrics.networkPeers')}
           value={federationStatus?.peer_count || 0}
-          subtitle="Connected peers"
+          subtitle={t('metrics.connectedPeers')}
           status={federationStatus?.peer_count ? 'success' : 'error'}
           loading={loading.federationStatus}
         />
@@ -148,20 +155,20 @@ export function Dashboard() {
 
       {/* Health Indicators */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Federation Health</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('health.title')}</h2>
         <div className="space-y-4">
-          <HealthIndicator health={overallHealth} label="Overall Health" />
-          <HealthIndicator health={networkHealth} label="Network Connectivity" />
-          <HealthIndicator health={governanceHealth} label="Governance Activity" />
+          <HealthIndicator health={overallHealth} label={t('health.overall')} />
+          <HealthIndicator health={networkHealth} label={t('health.network')} />
+          <HealthIndicator health={governanceHealth} label={t('health.governance')} />
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Cooperatives */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Active Cooperatives</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('cooperatives.title')}</h2>
           {loading.cooperatives ? (
-            <div className="space-y-4">
+            <div className="space-y-4" aria-label={t('common.loading', 'Loading')}>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -176,7 +183,7 @@ export function Dashboard() {
                   <div>
                     <p className="font-medium text-gray-900">{coop.name}</p>
                     <p className="text-sm text-gray-600">
-                      {coop.memberCount} members • {coop.reputation}% reputation
+                      {t('cooperatives.members', { count: coop.memberCount })} • {t('cooperatives.reputation', { score: coop.reputation })}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -194,15 +201,15 @@ export function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">No cooperatives found</p>
+            <p className="text-gray-500 text-center py-8">{t('cooperatives.noCooperatives')}</p>
           )}
         </div>
 
         {/* Recent Proposals */}
         <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Recent Proposals</h2>
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('proposals.title')}</h2>
           {governanceLoading.proposals ? (
-            <div className="space-y-4">
+            <div className="space-y-4" aria-label={t('common.loading', 'Loading')}>
               {[1, 2, 3].map((i) => (
                 <div key={i} className="animate-pulse">
                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -242,39 +249,39 @@ export function Dashboard() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">No proposals found</p>
+            <p className="text-gray-500 text-center py-8">{t('proposals.noProposals')}</p>
           )}
         </div>
       </div>
 
       {/* System Information */}
       <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">System Information</h2>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('systemInfo.title')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div>
-            <h3 className="font-medium text-gray-900 mb-2">Node Information</h3>
+            <h3 className="font-medium text-gray-900 mb-2">{t('systemInfo.nodeInfo.title')}</h3>
             {loading.nodeInfo ? (
-              <div className="animate-pulse space-y-2">
+              <div className="animate-pulse space-y-2" aria-label={t('common.loading', 'Loading')}>
                 <div className="h-3 bg-gray-200 rounded w-full"></div>
                 <div className="h-3 bg-gray-200 rounded w-3/4"></div>
               </div>
             ) : nodeInfo ? (
               <div className="text-sm text-gray-600 space-y-1">
-                <p><span className="font-medium">Name:</span> {nodeInfo.name}</p>
-                <p><span className="font-medium">Version:</span> {nodeInfo.version}</p>
-                <p><span className="font-medium">DID:</span> {nodeInfo.did}</p>
+                <p><span className="font-medium">{t('systemInfo.nodeInfo.name')}:</span> {nodeInfo.name}</p>
+                <p><span className="font-medium">{t('systemInfo.nodeInfo.version')}:</span> {nodeInfo.version}</p>
+                <p><span className="font-medium">{t('systemInfo.nodeInfo.did')}:</span> {nodeInfo.did}</p>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No node information available</p>
+              <p className="text-gray-500 text-sm">{t('systemInfo.nodeInfo.noInfo')}</p>
             )}
           </div>
           
           <div>
-            <h3 className="font-medium text-gray-900 mb-2">Network Status</h3>
+            <h3 className="font-medium text-gray-900 mb-2">{t('systemInfo.networkStatus.title')}</h3>
             {nodeStatus ? (
               <div className="text-sm text-gray-600 space-y-1">
                 <p>
-                  <span className="font-medium">Status:</span>{' '}
+                  <span className="font-medium">{t('systemInfo.networkStatus.status')}:</span>{' '}
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       nodeStatus.is_online
@@ -282,24 +289,24 @@ export function Dashboard() {
                         : 'bg-red-100 text-red-800'
                     }`}
                   >
-                    {nodeStatus.is_online ? 'Online' : 'Offline'}
+                    {nodeStatus.is_online ? t('status.online', 'Online') : t('status.offline', 'Offline')}
                   </span>
                 </p>
-                <p><span className="font-medium">Peers:</span> {nodeStatus.peer_count}</p>
-                <p><span className="font-medium">Block Height:</span> {nodeStatus.current_block_height}</p>
+                <p><span className="font-medium">{t('systemInfo.networkStatus.peers')}:</span> {nodeStatus.peer_count}</p>
+                <p><span className="font-medium">{t('systemInfo.networkStatus.blockHeight')}:</span> {nodeStatus.current_block_height}</p>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No network status available</p>
+              <p className="text-gray-500 text-sm">{t('systemInfo.networkStatus.noStatus')}</p>
             )}
           </div>
 
           <div>
-            <h3 className="font-medium text-gray-900 mb-2">DAG Status</h3>
+            <h3 className="font-medium text-gray-900 mb-2">{t('systemInfo.dagStatus.title')}</h3>
             {metadata?.dag ? (
               <div className="text-sm text-gray-600 space-y-1">
-                <p><span className="font-medium">Blocks:</span> {metadata.dag.blockCount.toLocaleString()}</p>
+                <p><span className="font-medium">{t('systemInfo.dagStatus.blocks')}:</span> {metadata.dag.blockCount.toLocaleString()}</p>
                 <p>
-                  <span className="font-medium">Sync:</span>{' '}
+                  <span className="font-medium">{t('systemInfo.dagStatus.sync')}:</span>{' '}
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                       metadata.dag.syncStatus === 'synced'
@@ -314,7 +321,7 @@ export function Dashboard() {
                 </p>
               </div>
             ) : (
-              <p className="text-gray-500 text-sm">No DAG status available</p>
+              <p className="text-gray-500 text-sm">{t('systemInfo.dagStatus.noStatus')}</p>
             )}
           </div>
         </div>

@@ -1,8 +1,11 @@
 import React from 'react'
+import { useTranslation, LanguageSwitcher } from '@icn/i18n'
 
 export function DemoPage() {
+  const { t } = useTranslation('navigation')
+  
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" id="main-content">
       <div className="text-center">
         <h1 className="text-4xl font-bold text-gray-900 mb-4">
           ICN Federation Dashboard Demo
@@ -12,6 +15,100 @@ export function DemoPage() {
           The interface provides comprehensive tools for managing cooperative federations and participating 
           in democratic governance.
         </p>
+      </div>
+
+      {/* Internationalization and Accessibility Demo */}
+      <div className="card">
+        <div className="card-header">
+          <h2 className="text-xl font-semibold text-gray-900">🌍 Internationalization & Accessibility</h2>
+          <p className="text-gray-600 text-sm mt-1">
+            ICN Core now supports multiple languages and follows accessibility best practices
+          </p>
+        </div>
+        <div className="card-body space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">🗣️ Language Support</h3>
+              <ul className="space-y-2 text-sm text-gray-600 mb-4">
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  English (default) - Complete coverage
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Spanish - Español - Complete coverage
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2">🚧</span>
+                  French, German, Chinese - Coming soon
+                </li>
+                <li className="flex items-start">
+                  <span className="text-blue-500 mr-2">🚧</span>
+                  Arabic, Hebrew - RTL support ready
+                </li>
+              </ul>
+              
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium text-blue-900 text-sm mb-2">Try Language Switching</h4>
+                <p className="text-blue-700 text-xs mb-3">
+                  Switch between English and Spanish to see the interface change
+                </p>
+                <LanguageSwitcher variant="buttons" className="justify-center" />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="font-semibold text-gray-900 mb-3">♿ Accessibility Features</h3>
+              <ul className="space-y-2 text-sm text-gray-600">
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Screen reader support with ARIA labels
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Keyboard navigation throughout the app
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Skip-to-content links for faster navigation
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Focus management and visual indicators
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Loading states with screen reader announcements
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Error messages with accessibility support
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Semantic HTML and proper heading structure
+                </li>
+                <li className="flex items-start">
+                  <span className="text-green-500 mr-2">✓</span>
+                  Mobile accessibility with TalkBack/VoiceOver
+                </li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <div className="flex">
+              <div className="text-green-600 mr-3">📱</div>
+              <div>
+                <p className="text-green-800 text-sm font-medium mb-2">Accessibility Testing</p>
+                <p className="text-green-700 text-xs">
+                  Try navigating with just your keyboard (Tab, Enter, Escape keys), or test with a screen reader like NVDA, JAWS, or VoiceOver. 
+                  The interface is designed to be fully functional for users with disabilities.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Features Overview */}

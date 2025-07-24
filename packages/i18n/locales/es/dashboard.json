@@ -1,0 +1,57 @@
+{
+  "title": "Panel de la Federación",
+  "subtitle": "Monitorea y gestiona tu federación cooperativa",
+  "metrics": {
+    "totalCooperatives": "Total de Cooperativas",
+    "totalMembers": "Total de Miembros",
+    "activeProposals": "Propuestas Activas",
+    "networkPeers": "Pares de Red",
+    "activeInFederation": "Activos en la federación",
+    "acrossAllCooperatives": "En todas las cooperativas",
+    "totalProposals": "{{count}} propuestas totales",
+    "connectedPeers": "Pares conectados"
+  },
+  "health": {
+    "title": "Salud de la Federación",
+    "overall": "Salud General",
+    "network": "Conectividad de Red",
+    "governance": "Actividad de Gobernanza"
+  },
+  "cooperatives": {
+    "title": "Cooperativas Activas",
+    "members": "{{count}} miembros",
+    "reputation": "{{score}}% reputación",
+    "noCooperatives": "No se encontraron cooperativas"
+  },
+  "proposals": {
+    "title": "Propuestas Recientes",
+    "noProposals": "No se encontraron propuestas"
+  },
+  "systemInfo": {
+    "title": "Información del Sistema",
+    "nodeInfo": {
+      "title": "Información del Nodo",
+      "name": "Nombre",
+      "version": "Versión",
+      "did": "DID",
+      "noInfo": "No hay información del nodo disponible"
+    },
+    "networkStatus": {
+      "title": "Estado de la Red",
+      "status": "Estado",
+      "peers": "Pares",
+      "blockHeight": "Altura del Bloque",
+      "noStatus": "No hay estado de red disponible"
+    },
+    "dagStatus": {
+      "title": "Estado del DAG",
+      "blocks": "Bloques",
+      "sync": "Sincronización",
+      "noStatus": "No hay estado de DAG disponible"
+    }
+  },
+  "errors": {
+    "general": "Error",
+    "loadingFailed": "Error al cargar datos"
+  }
+}

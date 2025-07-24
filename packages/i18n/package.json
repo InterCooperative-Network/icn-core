@@ -1,13 +1,14 @@
 {
-  "name": "@icn/ui-kit",
+  "name": "@icn/i18n",
   "version": "0.1.0",
-  "description": "Shared UI components for ICN cross-platform applications",
+  "description": "Internationalization support for ICN applications",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "files": [
     "dist/**/*",
     "src/**/*",
+    "locales/**/*",
     "README.md"
   ],
   "scripts": {
@@ -20,25 +21,15 @@
   },
   "peerDependencies": {
     "react": ">=18.0.0",
-    "react-native": ">=0.70.0",
-    "@tamagui/core": "^1.70.0",
-    "@tamagui/config": "^1.70.0",
-    "@icn/i18n": "workspace:*"
+    "i18next": ">=23.0.0",
+    "react-i18next": ">=13.0.0"
   },
   "dependencies": {
-    "@tamagui/animations-react-native": "^1.70.0",
-    "@tamagui/button": "^1.70.0",
-    "@tamagui/card": "^1.70.0",
-    "@tamagui/form": "^1.70.0",
-    "@tamagui/input": "^1.70.0",
-    "@tamagui/text": "^1.70.0",
-    "@tamagui/theme": "^1.70.0",
-    "@tamagui/tokens": "^1.70.0",
-    "@tamagui/stacks": "^1.70.0"
+    "i18next-browser-languagedetector": "^7.2.0",
+    "i18next-http-backend": "^2.4.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
-    "@types/react-native": "^0.72.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
     "eslint": "^8.50.0",
@@ -51,12 +42,12 @@
   },
   "keywords": [
     "icn",
-    "ui",
-    "components",
-    "tamagui",
-    "react-native",
-    "cross-platform"
+    "i18n",
+    "internationalization",
+    "localization",
+    "translation",
+    "react"
   ],
   "author": "ICN Core Contributors",
   "license": "Apache-2.0"
-} 
+}

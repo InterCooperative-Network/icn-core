@@ -1,0 +1,27 @@
+{
+  "brand": "Federación ICN",
+  "menu": {
+    "demo": "Demo",
+    "dashboard": "Panel",
+    "federation": "Federación",
+    "governance": "Gobernanza",
+    "cooperatives": "Cooperativas",
+    "meshJobs": "Trabajos de Malla",
+    "settings": "Configuración"
+  },
+  "status": {
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "network": "Red",
+    "did": "DID"
+  },
+  "mobileMenu": {
+    "open": "Abrir menú móvil",
+    "close": "Cerrar menú móvil"
+  },
+  "accessibility": {
+    "skipToContent": "Saltar al contenido principal",
+    "mainNavigation": "Navegación principal",
+    "currentPage": "Página actual"
+  }
+}
