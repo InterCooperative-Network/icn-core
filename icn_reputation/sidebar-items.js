@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["integration","metrics","sled_store","trust_aggregation","trust_calculation","trust_decay","trust_graph","trust_pathfinding"],"struct":["CompatAsyncReputationStore","InMemoryReputationStore"],"trait":["AsyncReputationStore","ReputationStore"]};
+window.SIDEBAR_ITEMS = {"mod":["crdt_store","integration","metrics","sled_store","trust_aggregation","trust_calculation","trust_decay","trust_graph","trust_pathfinding"],"struct":["CompatAsyncReputationStore","InMemoryReputationStore"],"trait":["AsyncReputationStore","ReputationStore"]};

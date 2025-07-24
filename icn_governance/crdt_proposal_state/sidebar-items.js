@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ProposalStatus","VoteDecision"],"struct":["CRDTProposalState","CRDTProposalStateConfig","CRDTProposalStateStats","ProposalCRDT","ProposalInfo","ProposalMetadata","Vote","VoteTally"]};

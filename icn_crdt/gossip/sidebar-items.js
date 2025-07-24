@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["CRDTSynchronizer","GossipConfig","GossipMessage","GossipOperation","GossipResponse","GossipStats","PeerInfo"],"trait":["GossipSerializable","GossipTransport"]};

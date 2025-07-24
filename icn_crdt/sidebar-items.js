@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["CRDTError"],"mod":["g_counter","or_set","pn_counter","vector_clock"],"struct":["CRDTConfig","CRDTOperation","CRDTStats","NodeId","OperationMetadata"],"trait":["CRDT","CRDTValue","CausalCRDT","ObservableCRDT"],"type":["CRDTResult"]};
+window.SIDEBAR_ITEMS = {"enum":["CRDTError"],"mod":["crdt_map","g_counter","gossip","lww_register","or_set","pn_counter","vector_clock"],"struct":["CRDTConfig","CRDTOperation","CRDTStats","NodeId","OperationMetadata"],"trait":["CRDT","CRDTValue","CausalCRDT","ObservableCRDT"],"type":["CRDTResult"]};
