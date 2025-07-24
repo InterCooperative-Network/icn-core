@@ -1,0 +1,18 @@
+// Test multiple advanced democracy functions
+fn test_democracy_basics() -> Integer {
+    let voter = did:key:z6MkTest1;
+    let delegate = did:key:z6MkTest2;
+    
+    // Test liquid democracy
+    let delegation_result = create_delegation(voter, delegate, "budget", 100);
+    let power = calculate_delegated_power(delegate, "budget");
+    
+    // Test quadratic voting
+    let cost = quadratic_vote_cost(5);
+    
+    return delegation_result + power + cost;
+}
+
+fn run() -> Integer {
+    return test_democracy_basics();
+}

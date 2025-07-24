@@ -1,0 +1,120 @@
+// Comprehensive Cooperative Governance Contract
+// Demonstrates advanced democracy and economic primitives
+
+// Liquid Democracy: Expert Delegation System
+fn setup_expert_delegation() -> Integer {
+    let member = did:key:z6MkMember1;
+    let budget_expert = did:key:z6MkBudgetExpert;
+    let tech_expert = did:key:z6MkTechExpert;
+    
+    // Delegate budget decisions to budget expert
+    create_delegation(member, budget_expert, "budget", 100);
+    
+    // Delegate technical decisions to tech expert  
+    create_delegation(member, tech_expert, "technology", 100);
+    
+    // Calculate accumulated voting power
+    let budget_power = calculate_delegated_power(budget_expert, "budget");
+    let tech_power = calculate_delegated_power(tech_expert, "technology");
+    
+    return budget_power + tech_power;
+}
+
+// Quadratic Voting: Anti-Plutocracy System
+fn test_quadratic_voting_system() -> Integer {
+    let voter1 = did:key:z6MkVoter1;
+    let voter2 = did:key:z6MkVoter2;
+    
+    // Voter 1 wants to allocate 3 votes (costs 9 credits)
+    let cost1 = quadratic_vote_cost(3);
+    
+    // Voter 2 wants to allocate 6 votes (costs 36 credits)  
+    let cost2 = quadratic_vote_cost(6);
+    
+    // Quadratic cost prevents vote buying
+    // 6 votes costs 4x more than 3 votes
+    return cost1 + cost2; // Should return 9 + 36 = 45
+}
+
+// Cooperative Budget Management
+fn cooperative_budget_demo() -> Integer {
+    let categories = ["operations", "development", "community"];
+    let allocations = [40000, 30000, 20000]; // 90k total budget
+    
+    // Create quarterly budget
+    let budget_id = create_budget(
+        "Q1_2024_Cooperative_Budget",
+        90000,
+        "cooperative_token",
+        categories,
+        allocations
+    );
+    
+    // Allocate operations funds
+    allocate_budget_funds(
+        budget_id,
+        "operations", 
+        did:key:z6MkOperationsManager,
+        15000,
+        "Office_rent_and_utilities"
+    );
+    
+    // Check remaining operations balance
+    let ops_balance = get_budget_balance(budget_id, "operations");
+    
+    // Transfer excess community funds to development
+    transfer_between_categories(
+        budget_id,
+        "community",
+        "development", 
+        5000,
+        did:key:z6MkTreasurer
+    );
+    
+    return ops_balance; // Should return 25000 (40000 - 15000)
+}
+
+// Surplus Distribution System
+fn surplus_distribution_demo() -> Integer {
+    // Calculate quarterly surplus
+    let surplus = calculate_surplus("main_treasury", "quarterly");
+    
+    // Create dividend pool for member distribution
+    let pool_id = create_dividend_pool(
+        "Q1_2024_Member_Dividends",
+        surplus,
+        "cooperative_token",
+        "equal_distribution"
+    );
+    
+    // Execute dividend payment to a member
+    execute_dividend_payment(
+        pool_id, 
+        did:key:z6MkMember1, 
+        1500
+    );
+    
+    return surplus;
+}
+
+// Complete Governance Workflow
+fn complete_governance_workflow() -> Integer {
+    // 1. Setup liquid democracy with expert delegation
+    let delegation_power = setup_expert_delegation();
+    
+    // 2. Test quadratic voting for fair resource allocation
+    let voting_costs = test_quadratic_voting_system();
+    
+    // 3. Manage cooperative budget with transparency
+    let budget_balance = cooperative_budget_demo();
+    
+    // 4. Distribute surplus fairly among members
+    let distributed_surplus = surplus_distribution_demo();
+    
+    // Return combined results demonstrating full integration
+    return delegation_power + voting_costs + budget_balance + distributed_surplus;
+}
+
+fn run() -> Integer {
+    return complete_governance_workflow();
+}

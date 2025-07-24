@@ -1,0 +1,197 @@
+// Advanced Democracy and Economic Primitives Test
+// This demonstrates the sophisticated governance capabilities of CCL
+
+fn test_liquid_democracy() -> Integer {
+    let voter = did:key:z6MkTest1;
+    let delegate = did:key:z6MkTest2;
+    let final_delegate = did:key:z6MkTest3;
+    
+    // Create a delegation chain
+    create_delegation(voter, delegate, "budget", 100);
+    create_delegation(delegate, final_delegate, "budget", 80);
+    
+    // Resolve the final vote
+    let final_voter = resolve_delegated_vote(voter, "proposal_123", "budget");
+    let delegated_power = calculate_delegated_power(final_delegate, "budget");
+    
+    return delegated_power;
+}
+
+fn test_quadratic_voting() -> Integer {
+    let voter = did:key:z6MkVoter1;
+    
+    // Calculate cost for allocating 5 votes (should be 25 credits)
+    let cost = quadratic_vote_cost(5);
+    
+    // Submit quadratic vote
+    submit_quadratic_vote(voter, "proposal_456", 5, cost);
+    
+    // Calculate result from multiple allocations
+    let allocations = [5, 3, -2, 4]; // Some negative votes
+    let result = calculate_quadratic_result(allocations);
+    
+    return result;
+}
+
+fn test_weighted_voting() -> Integer {
+    let voter = did:key:z6MkMember1;
+    
+    // Calculate different types of voting weight
+    let reputation_weight = calculate_reputation_weight(voter, "governance");
+    let stake_weight = calculate_stake_weight(voter, "cooperative_token");
+    
+    // Submit weighted vote
+    submit_weighted_vote(voter, "proposal_789", "approve", reputation_weight + stake_weight);
+    
+    return reputation_weight + stake_weight;
+}
+
+fn test_multi_stage_proposals() -> String {
+    let stages = ["discussion", "preliminary_vote", "final_vote"];
+    let durations = [7, 3, 2]; // days
+    
+    // Create multi-stage proposal
+    let proposal_id = create_multi_stage_proposal(
+        "Budget Allocation 2024",
+        "Allocate funds for cooperative operations",
+        stages,
+        durations
+    );
+    
+    // Advance through stages
+    advance_proposal_stage(proposal_id);
+    let current_stage = get_proposal_stage(proposal_id);
+    
+    // Schedule automated execution
+    let execution_id = schedule_automated_execution(
+        proposal_id,
+        2024-12-31T23:59:59Z,
+        "execute_budget_allocation"
+    );
+    
+    return proposal_id;
+}
+
+fn test_budget_management() -> Integer {
+    let categories = ["operations", "development", "marketing"];
+    let allocations = [50000, 30000, 20000]; // 100k total budget
+    
+    // Create budget
+    let budget_id = create_budget(
+        "Q4_2024_Budget",
+        100000,
+        "cooperative_token",
+        categories,
+        allocations
+    );
+    
+    // Allocate funds
+    allocate_budget_funds(
+        budget_id,
+        "operations",
+        did:key:z6MkOperations,
+        15000,
+        "Office rent and utilities"
+    );
+    
+    // Check remaining balance
+    let remaining = get_budget_balance(budget_id, "operations");
+    
+    // Transfer between categories
+    transfer_between_categories(
+        budget_id,
+        "marketing",
+        "development",
+        5000,
+        did:key:z6MkTreasurer
+    );
+    
+    return remaining;
+}
+
+fn test_dividend_distribution() -> Integer {
+    let members = [
+        did:key:z6MkMember1,
+        did:key:z6MkMember2, 
+        did:key:z6MkMember3
+    ];
+    let shares = [40, 35, 25]; // Percentage shares
+    
+    // Calculate surplus
+    let surplus = calculate_surplus("treasury_main", "quarterly");
+    
+    // Create dividend pool
+    let pool_id = create_dividend_pool(
+        "Q4_2024_Dividends",
+        surplus,
+        "cooperative_token",
+        "proportional_shares"
+    );
+    
+    // Distribute dividends
+    let dividend_amounts = distribute_dividends(surplus, members, shares, "proportional");
+    
+    // Calculate individual dividend
+    let member_dividend = calculate_member_dividend(
+        members[0],
+        pool_id,
+        surplus,
+        "proportional"
+    );
+    
+    // Execute payment
+    execute_dividend_payment(pool_id, members[0], member_dividend);
+    
+    return member_dividend;
+}
+
+fn test_treasury_management() -> String {
+    let signatories = [
+        did:key:z6MkTreasurer1,
+        did:key:z6MkTreasurer2,
+        did:key:z6MkTreasurer3
+    ];
+    let token_classes = ["cooperative_token"];
+    
+    // Create treasury
+    let treasury_id = create_treasury(
+        "cooperative_main",
+        token_classes,
+        signatories,
+        2 // require 2 of 3 signatures
+    );
+    
+    // Propose spending
+    let proposal_id = propose_treasury_spending(
+        treasury_id,
+        did:key:z6MkSupplier,
+        25000,
+        "cooperative_token",
+        "Equipment purchase"
+    );
+    
+    // Get signatures
+    sign_treasury_proposal(proposal_id, signatories[0]);
+    sign_treasury_proposal(proposal_id, signatories[1]);
+    
+    // Execute spending
+    execute_treasury_spending(proposal_id);
+    
+    return proposal_id;
+}
+
+fn run() -> Integer {
+    // Test all advanced democracy features
+    let liquid_result = test_liquid_democracy();
+    let quadratic_result = test_quadratic_voting();
+    let weighted_result = test_weighted_voting();
+    let budget_result = test_budget_management();
+    let dividend_result = test_dividend_distribution();
+    
+    // Test workflow features
+    let proposal_id = test_multi_stage_proposals();
+    let treasury_proposal = test_treasury_management();
+    
+    // Return combined results
+    return liquid_result + quadratic_result + weighted_result + budget_result + dividend_result;
+}

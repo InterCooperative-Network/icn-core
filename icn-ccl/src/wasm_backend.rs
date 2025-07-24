@@ -950,6 +950,152 @@ impl WasmBackend {
         fn_indices.insert("host_verify_cooperative_membership".to_string(), next_index);
         next_index += 1;
 
+        // === LIQUID DEMOCRACY FUNCTIONS ===
+        
+        let ty_create_delegation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // delegator, delegate, scope, weight
+            vec![ValType::I32], // success bool
+        );
+        imports.import(
+            "icn",
+            "host_create_delegation",
+            wasm_encoder::EntityType::Function(ty_create_delegation),
+        );
+        fn_indices.insert("create_delegation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_revoke_delegation = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // delegator, delegate, scope
+            vec![ValType::I32], // success bool
+        );
+        imports.import(
+            "icn",
+            "host_revoke_delegation",
+            wasm_encoder::EntityType::Function(ty_revoke_delegation),
+        );
+        fn_indices.insert("revoke_delegation".to_string(), next_index);
+        next_index += 1;
+
+        let ty_calculate_delegated_power = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // delegate, scope
+            vec![ValType::I32], // total power
+        );
+        imports.import(
+            "icn",
+            "host_calculate_delegated_power",
+            wasm_encoder::EntityType::Function(ty_calculate_delegated_power),
+        );
+        fn_indices.insert("calculate_delegated_power".to_string(), next_index);
+        next_index += 1;
+
+        let ty_quadratic_vote_cost = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // votes to allocate
+            vec![ValType::I32], // cost (votes squared)
+        );
+        imports.import(
+            "icn",
+            "host_quadratic_vote_cost",
+            wasm_encoder::EntityType::Function(ty_quadratic_vote_cost),
+        );
+        fn_indices.insert("quadratic_vote_cost".to_string(), next_index);
+        next_index += 1;
+
+        let ty_create_budget = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // name, amount, token_class, categories, allocations
+            vec![ValType::I32], // budget_id
+        );
+        imports.import(
+            "icn",
+            "host_create_budget",
+            wasm_encoder::EntityType::Function(ty_create_budget),
+        );
+        fn_indices.insert("create_budget".to_string(), next_index);
+        next_index += 1;
+
+        let ty_calculate_surplus = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // treasury_id, period
+            vec![ValType::I32], // surplus amount
+        );
+        imports.import(
+            "icn",
+            "host_calculate_surplus",
+            wasm_encoder::EntityType::Function(ty_calculate_surplus),
+        );
+        fn_indices.insert("calculate_surplus".to_string(), next_index);
+        next_index += 1;
+
+        // Add more essential functions for comprehensive testing
+        let ty_get_budget_balance = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // budget_id, category
+            vec![ValType::I32], // remaining balance
+        );
+        imports.import(
+            "icn",
+            "host_get_budget_balance",
+            wasm_encoder::EntityType::Function(ty_get_budget_balance),
+        );
+        fn_indices.insert("get_budget_balance".to_string(), next_index);
+        next_index += 1;
+
+        let ty_create_dividend_pool = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // name, amount, token_class, criteria
+            vec![ValType::I32], // pool_id
+        );
+        imports.import(
+            "icn",
+            "host_create_dividend_pool",
+            wasm_encoder::EntityType::Function(ty_create_dividend_pool),
+        );
+        fn_indices.insert("create_dividend_pool".to_string(), next_index);
+        next_index += 1;
+
+        let ty_allocate_budget_funds = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, category, recipient, amount, purpose
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_allocate_budget_funds",
+            wasm_encoder::EntityType::Function(ty_allocate_budget_funds),
+        );
+        fn_indices.insert("allocate_budget_funds".to_string(), next_index);
+        next_index += 1;
+
+        let ty_transfer_between_categories = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, from_cat, to_cat, amount, auth
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_transfer_between_categories",
+            wasm_encoder::EntityType::Function(ty_transfer_between_categories),
+        );
+        fn_indices.insert("transfer_between_categories".to_string(), next_index);
+        next_index += 1;
+
+        let ty_execute_dividend_payment = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // pool_id, member, amount
+            vec![ValType::I32], // success
+        );
+        imports.import(
+            "icn",
+            "host_execute_dividend_payment",
+            wasm_encoder::EntityType::Function(ty_execute_dividend_payment),
+        );
+        fn_indices.insert("execute_dividend_payment".to_string(), next_index);
+        next_index += 1;
+
         // Pre-register all user-defined functions before processing AST
         // This allows forward references to work correctly
         let user_functions = self.collect_user_functions(ast)?;

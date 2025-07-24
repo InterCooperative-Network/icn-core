@@ -1,0 +1,15 @@
+// Simple test for advanced democracy functions
+fn run() -> Integer {
+    // Test a simple liquid democracy function
+    let voter = did:key:z6MkTest1;
+    let delegate = did:key:z6MkTest2;
+    
+    // Try creating a delegation
+    let result = create_delegation(voter, delegate, "budget", 100);
+    
+    if result > 0 {
+        return 1;
+    } else {
+        return 0;
+    }
+}
