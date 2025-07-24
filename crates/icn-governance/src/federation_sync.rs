@@ -10,6 +10,8 @@ use icn_common::{CommonError, Did};
 use icn_identity::{FederationId, TrustContext};
 #[cfg(feature = "federation")]
 use icn_network::{NetworkService, PeerId};
+#[cfg(not(feature = "federation"))]
+use icn_network::PeerId;
 #[cfg(feature = "federation")]
 use icn_protocol::{MessagePayload, ProtocolMessage};
 use serde::{Deserialize, Serialize};

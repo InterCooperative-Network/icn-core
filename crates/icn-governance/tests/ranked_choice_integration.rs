@@ -5,7 +5,7 @@ use icn_governance::{
     RankedChoiceBallot, RankedChoiceBallotValidator, RankedChoiceVotingSystem, Signature,
     VotingError, VotingPeriod, VotingSystem,
 };
-use icn_common::{Did, DidDocument};
+use icn_common::{Did, DidDocument, Signable};
 use icn_identity::KeyDidResolver;
 use std::sync::Arc;
 use std::time::SystemTime;
