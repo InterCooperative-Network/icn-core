@@ -47,12 +47,10 @@ fn get_word_at_position(text: &str, position: Position) -> Option<String> {
     let line = lines[position.line as usize];
     let char_pos = position.character as usize;
     
-    if char_pos > line.len() {
-        return None;
-    }
-    
     // Find word boundaries
     let chars: Vec<char> = line.chars().collect();
+    
+    // Check bounds using character count, not byte count
     if char_pos >= chars.len() {
         return None;
     }

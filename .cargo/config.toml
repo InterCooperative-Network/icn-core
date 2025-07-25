@@ -6,6 +6,8 @@ target-dir = "target"
 # Set Clang as the C++ compiler for RocksDB builds
 CXX = "clang++"
 CC = "clang"
+# Increase stack size to prevent rustc segfaults during compilation
+RUST_MIN_STACK = "16777216"
 
 [target.x86_64-unknown-linux-gnu]
 linker = "clang"

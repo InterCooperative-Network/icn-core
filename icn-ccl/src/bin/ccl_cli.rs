@@ -144,16 +144,19 @@ fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), Cc
     // Compile the contract
     let (wasm_bytes, metadata) = compile_ccl_file_to_wasm(&file)?;
 
+    // Get file stem safely
+    let file_stem = file.file_stem()
+        .and_then(|s| s.to_str())
+        .ok_or_else(|| CclError::IoError(format!("Invalid file path: {}", file.display())))?;
+
     // Write WASM output
-    let wasm_path = output.join(format!("{}.wasm", 
-        file.file_stem().unwrap().to_string_lossy()));
+    let wasm_path = output.join(format!("{}.wasm", file_stem));
     std::fs::write(&wasm_path, wasm_bytes).map_err(|e| {
         CclError::IoError(format!("Failed to write WASM file: {}", e))
     })?;
 
     // Write metadata
-    let meta_path = output.join(format!("{}.json", 
-        file.file_stem().unwrap().to_string_lossy()));
+    let meta_path = output.join(format!("{}.json", file_stem));
     let meta_json = serde_json::to_string_pretty(&metadata).map_err(|e| {
         CclError::IoError(format!("Failed to serialize metadata: {}", e))
     })?;
@@ -167,8 +170,7 @@ fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), Cc
 
     // Generate debug info if requested
     if debug {
-        let debug_path = output.join(format!("{}.debug.json", 
-            file.file_stem().unwrap().to_string_lossy()));
+        let debug_path = output.join(format!("{}.debug.json", file_stem));
         cli_commands::generate_debug_info(&file, &wasm_path, &debug_path)?;
     }
 

@@ -247,7 +247,7 @@ async fn test_enhanced_voting_primitives_integration() {
     let mut ballot_cids = Vec::new();
     for ballot in &ballots {
         let cid = anchoring_service.anchor_ballot(ballot).unwrap();
-        ballot_cids.push(cid);
+        ballot_cids.push(cid.clone());
         
         // Verify ballot can be retrieved
         let retrieved = anchoring_service.retrieve_ballot(&cid).unwrap();
@@ -260,12 +260,12 @@ async fn test_enhanced_voting_primitives_integration() {
 
     // Test linking ballots for election result
     let election_result_cid = anchoring_service
-        .link_ballots(&election.election_id, ballot_cids)
+        .link_ballots(&election.election_id, ballot_cids.clone())
         .unwrap();
     assert!(!election_result_cid.to_string().is_empty());
 
     // Test ranked choice voting execution
-    let voting_result = voting_system.count_votes(ballots).unwrap();
+    let voting_result = voting_system.count_votes(ballots.clone()).unwrap();
     
     // Verify comprehensive results
     assert_eq!(voting_result.total_ballots, 5);

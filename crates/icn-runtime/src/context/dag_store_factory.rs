@@ -178,7 +178,7 @@ impl DagStoreFactory {
             #[cfg(feature = "persist-rocksdb")]
             DagStoreBackend::RocksDB => {
                 log::info!("🗄️ Creating RocksDB DAG store at: {}", config.storage_path.display());
-                match icn_dag::rocksdb_store::RocksDbDagStore::new(config.storage_path.clone()) {
+                match icn_dag::rocksdb_store::RocksDagStore::new(config.storage_path.clone()) {
                     Ok(store) => {
                         // Wrap the synchronous RocksDbDagStore in a CompatAsyncStore
                         let async_store = icn_dag::CompatAsyncStore::new(store);

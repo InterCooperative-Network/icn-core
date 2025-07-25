@@ -22,7 +22,7 @@ function activate(context) {
     const file = editor.document.fileName;
     const terminal = vscode.window.createTerminal('CCL Compile');
     terminal.show(true);
-    terminal.sendText(`cargo run -p icn-ccl --bin ccl-lsp --quiet -- compile "${file}"`);
+    terminal.sendText(`cargo run -p icn-ccl --bin ccl-cli --quiet -- compile "${file}"`);
   });
 
   const debugCmd = vscode.commands.registerCommand('icn-ccl.debug', () => {
@@ -57,7 +57,7 @@ function activate(context) {
         vscode.TaskScope.Workspace,
         'Compile Current CCL',
         'ccl',
-        new vscode.ShellExecution(`cargo run -p icn-ccl --quiet -- compile "${file}"`)
+        new vscode.ShellExecution(`cargo run -p icn-ccl --bin ccl-cli --quiet -- compile "${file}"`)
       );
       return [task];
     },
