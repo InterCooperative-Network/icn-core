@@ -1,9 +1,85 @@
 {
   "scopeName": "source.ccl",
+  "name": "CCL (Cooperative Contract Language)",
+  "fileTypes": ["ccl"],
   "patterns": [
-    {"match": "\\b(fn|rule|when|then|allow|deny|charge|let|if|else|while|return)\\b", "name": "keyword.control.ccl"},
-    {"match": "\\b(true|false)\\b", "name": "constant.language.ccl"},
-    {"match": "\"[^\"]*\"", "name": "string.quoted.double.ccl"},
-    {"match": "//.*$", "name": "comment.line.ccl"}
-  ]
+    {"include": "#comments"},
+    {"include": "#strings"},
+    {"include": "#numbers"},
+    {"include": "#keywords"},
+    {"include": "#types"},
+    {"include": "#governance"},
+    {"include": "#operators"},
+    {"include": "#functions"},
+    {"include": "#constants"}
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {"match": "//.*$", "name": "comment.line.double-slash.ccl"},
+        {"begin": "/\\*", "end": "\\*/", "name": "comment.block.ccl"}
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {"begin": "\"", "end": "\"", "name": "string.quoted.double.ccl", "patterns": [{"match": "\\\\.", "name": "constant.character.escape.ccl"}]},
+        {"begin": "'", "end": "'", "name": "string.quoted.single.ccl", "patterns": [{"match": "\\\\.", "name": "constant.character.escape.ccl"}]}
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {"match": "\\b\\d+\\.\\d+\\b", "name": "constant.numeric.float.ccl"},
+        {"match": "\\b\\d+\\b", "name": "constant.numeric.integer.ccl"},
+        {"match": "\\b0x[0-9a-fA-F]+\\b", "name": "constant.numeric.hex.ccl"}
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {"match": "\\b(contract|proposal|role|policy|state|function|fn)\\b", "name": "keyword.declaration.ccl"},
+        {"match": "\\b(if|else|while|for|match|return|break|continue)\\b", "name": "keyword.control.ccl"},
+        {"match": "\\b(let|mut|const|static)\\b", "name": "keyword.other.ccl"},
+        {"match": "\\b(import|export|use|as|mod|pub)\\b", "name": "keyword.import.ccl"},
+        {"match": "\\b(enum|struct|trait|impl)\\b", "name": "keyword.type.ccl"}
+      ]
+    },
+    "types": {
+      "patterns": [
+        {"match": "\\b(u32|u64|i32|i64|f32|f64|bool|string|address|bytes)\\b", "name": "storage.type.primitive.ccl"},
+        {"match": "\\b(duration|timestamp|did|cid|mana|Amount|Balance)\\b", "name": "storage.type.ccl"},
+        {"match": "\\b(Array|Map|Set|Option|Result)\\b", "name": "storage.type.generic.ccl"}
+      ]
+    },
+    "governance": {
+      "patterns": [
+        {"match": "\\b(vote|execute|delegate|withdraw|deposit|transfer)\\b", "name": "keyword.governance.action.ccl"},
+        {"match": "\\b(approve|reject|abstain|quorum|threshold|deadline)\\b", "name": "keyword.governance.voting.ccl"},
+        {"match": "\\b(member|admin|owner|treasurer|secretary)\\b", "name": "keyword.governance.role.ccl"},
+        {"match": "\\b(budget|allocation|dividend|fee|penalty)\\b", "name": "keyword.governance.economic.ccl"}
+      ]
+    },
+    "operators": {
+      "patterns": [
+        {"match": "\\+|\\-|\\*|\\/|%", "name": "keyword.operator.arithmetic.ccl"},
+        {"match": "==|!=|<|>|<=|>=", "name": "keyword.operator.comparison.ccl"},
+        {"match": "&&|\\|\\||!", "name": "keyword.operator.logical.ccl"},
+        {"match": "=|\\+=|\\-=|\\*=|\\/=", "name": "keyword.operator.assignment.ccl"},
+        {"match": "\\.|::|->|<-", "name": "keyword.operator.access.ccl"}
+      ]
+    },
+    "functions": {
+      "patterns": [
+        {"match": "\\b(log|require|assert|panic)\\b", "name": "support.function.builtin.ccl"},
+        {"match": "\\b(hash|verify_signature|encode_json|decode_json)\\b", "name": "support.function.crypto.ccl"},
+        {"match": "\\b(balance|transfer|mint|burn)\\b", "name": "support.function.economic.ccl"},
+        {"match": "\\b(now|current_timestamp|days|hours|minutes)\\b", "name": "support.function.time.ccl"},
+        {"match": "\\b(get_caller|get_contract|get_block_number)\\b", "name": "support.function.context.ccl"}
+      ]
+    },
+    "constants": {
+      "patterns": [
+        {"match": "\\b(true|false|null|this|self)\\b", "name": "constant.language.ccl"},
+        {"match": "\\b[A-Z][A-Z0-9_]*\\b", "name": "constant.other.ccl"}
+      ]
+    }
+  }
 }
