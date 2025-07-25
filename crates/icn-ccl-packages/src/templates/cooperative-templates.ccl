@@ -1,0 +1,33 @@
+// Cooperative Templates
+// Ready-to-use governance patterns
+
+fn simple_cooperative_proposal(title: String, description: String) -> String {
+    let proposal_id = create_proposal(title, description, "standard");
+    // Set default parameters for cooperative voting
+    return proposal_id;
+}
+
+fn member_onboarding(new_member: did:key:*, sponsor: did:key:*) -> Bool {
+    // Check if sponsor has permission
+    if !has_role(sponsor, "member") {
+        return false;
+    }
+    
+    // Assign member role
+    return assign_role(new_member, "member");
+}
+
+fn quarterly_dividend_distribution(treasury_id: String) -> Bool {
+    let surplus = calculate_surplus(treasury_id, "quarterly");
+    if surplus <= 0 {
+        return false;
+    }
+    
+    // Get all members
+    // This would be implemented with actual member registry
+    let members = [did:key:z6MkMember1, did:key:z6MkMember2];
+    let shares = [1, 1]; // Equal shares
+    
+    let amounts = distribute_dividends(surplus, members, shares, "equal");
+    return true;
+}

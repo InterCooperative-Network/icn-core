@@ -30,6 +30,18 @@
       {
         "command": "icn-ccl.compile",
         "title": "Compile CCL File"
+      },
+      {
+        "command": "icn-ccl.debug",
+        "title": "Debug CCL Contract"
+      },
+      {
+        "command": "icn-ccl.package.init",
+        "title": "Initialize CCL Package"
+      },
+      {
+        "command": "icn-ccl.package.install",
+        "title": "Install CCL Package"
       }
     ],
     "taskDefinitions": [
@@ -43,6 +55,26 @@
           }
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "ICN CCL Tools",
+      "properties": {
+        "icn-ccl.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CCL Language Server Protocol support"
+        },
+        "icn-ccl.debugger.enabled": {
+          "type": "boolean", 
+          "default": true,
+          "description": "Enable CCL contract debugging"
+        },
+        "icn-ccl.packages.registry": {
+          "type": "string",
+          "default": "https://registry.icn.coop/packages",
+          "description": "CCL package registry URL"
+        }
+      }
+    }
   }
 }

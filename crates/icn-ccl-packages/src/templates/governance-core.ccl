@@ -1,0 +1,21 @@
+// Core Governance Primitives
+// Provides basic proposal and voting functionality
+
+fn create_standard_proposal(title: String, description: String, voting_period: Integer) -> String {
+    let proposal_id = create_proposal(title, description, "standard");
+    // Set voting period and other parameters
+    return proposal_id;
+}
+
+fn conduct_simple_vote(proposal_id: String, voter: did:key:*, choice: String) -> Bool {
+    return vote_on_proposal(proposal_id, choice, voter);
+}
+
+fn execute_passed_proposal(proposal_id: String) -> Bool {
+    return execute_proposal(proposal_id);
+}
+
+fn check_quorum(proposal_id: String, total_members: Integer) -> Bool {
+    // Implementation would check if quorum is met
+    return true;
+}

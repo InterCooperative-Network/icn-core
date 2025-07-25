@@ -1,0 +1,22 @@
+// Liquid Democracy Implementation
+// Provides delegation and transitive voting
+
+fn delegate_vote(delegator: did:key:*, delegate: did:key:*, scope: String, weight: Integer) -> Integer {
+    return create_delegation(delegator, delegate, scope, weight);
+}
+
+fn revoke_my_delegation(delegate: did:key:*, scope: String) -> Bool {
+    return revoke_delegation(caller(), delegate, scope);
+}
+
+fn find_final_voter(original_voter: did:key:*, proposal_id: String, scope: String) -> did:key:* {
+    return resolve_delegated_vote(original_voter, proposal_id, scope);
+}
+
+fn get_my_voting_power(scope: String) -> Integer {
+    return calculate_delegated_power(caller(), scope);
+}
+
+fn trace_delegation_path(voter: did:key:*, scope: String) -> Array<did:key:*> {
+    return get_delegation_chain(voter, scope);
+}

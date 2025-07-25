@@ -1,0 +1,20 @@
+// Quadratic Voting Implementation
+// Provides fair voting with diminishing returns
+
+fn calculate_vote_cost(votes: Integer) -> Integer {
+    return quadratic_vote_cost(votes);
+}
+
+fn cast_quadratic_vote(proposal_id: String, allocation: Integer) -> Bool {
+    let cost = quadratic_vote_cost(allocation);
+    return submit_quadratic_vote(caller(), proposal_id, allocation, cost);
+}
+
+fn calculate_final_result(all_allocations: Array<Integer>) -> Integer {
+    return calculate_quadratic_result(all_allocations);
+}
+
+fn get_remaining_credits(voter: did:key:*) -> Integer {
+    // Implementation would track remaining quadratic voting credits
+    return 100; // Placeholder
+}
