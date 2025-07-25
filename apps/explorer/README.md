@@ -60,6 +60,12 @@ ICN Explorer is a web-based interface for browsing and visualizing ICN network a
 - ✅ Address and DID lookup
 - ✅ Cross-reference navigation
 
+### Recent Updates
+- **CRDT Real-Time Sync** for DAG and job views across open sessions
+- **Advanced Governance Features** surfaced from the core system for historical analysis
+- **Updated API Integrations** targeting ICN Node v0.7 for data retrieval
+- **Accessibility Additions** including high-contrast mode and keyboard shortcuts
+
 ## Development
 
 ### Start Development Server

@@ -51,6 +51,12 @@ The ICN Wallet is a **prototype** application for managing decentralized identit
 - ✅ Local storage encryption
 - ✅ Secure communication
 
+### Recent Updates
+- **CRDT Real-Time Sync** to keep wallet data consistent across devices
+- **Advanced Governance Features** including multi-sig voting and proposal tracking
+- **Updated API Integrations** with ICN Node v0.7 for identity and transaction APIs
+- **Accessibility Additions** like improved contrast and screen reader support
+
 ## Installation
 
 ```bash
