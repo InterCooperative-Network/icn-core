@@ -157,11 +157,21 @@ impl MigrationEngine {
 
         let mut migrated_content = content.to_string();
 
-        // Apply migration rules in order
-        for rule in &self.rules {
-            if rule.from_version <= *from_version && rule.to_version <= *to_version {
-                migrated_content = self.apply_rule(&migrated_content, rule)?;
-            }
+        // Find all applicable rules for the migration path
+        let mut applicable_rules: Vec<&MigrationRule> = self.rules
+            .iter()
+            .filter(|rule| {
+                // Rule is applicable if it's part of the migration path
+                rule.from_version >= *from_version && rule.to_version <= *to_version
+            })
+            .collect();
+
+        // Sort rules by from_version to ensure proper sequential application
+        applicable_rules.sort_by(|a, b| a.from_version.cmp(&b.from_version));
+
+        // Apply migration rules in version order
+        for rule in applicable_rules {
+            migrated_content = self.apply_rule(&migrated_content, rule)?;
         }
 
         // Add version comment at the top
@@ -217,7 +227,7 @@ impl MigrationEngine {
         };
 
         for rule in &self.rules {
-            if rule.from_version <= *from_version && rule.to_version <= *to_version {
+            if rule.from_version >= *from_version && rule.to_version <= *to_version {
                 report.applicable_rules.push(rule.clone());
                 
                 // Estimate number of changes
@@ -436,7 +446,46 @@ mod tests {
             &CclVersion::new(0, 2, 0)
         ).unwrap();
         
+        // Should replace 'rule' keyword with 'policy'
         assert!(migrated.contains("policy"));
-        assert!(!migrated.contains("rule"));
+        assert!(migrated.starts_with("// CCL Version: 0.2.0\npolicy"));
+        
+        // Should convert when-then to if-block syntax
+        assert!(migrated.contains("if true { log(\"test\") }"));
+        assert!(!migrated.contains("when true then"));
+    }
+
+    #[test]
+    fn test_multi_version_migration() {
+        let mut engine = MigrationEngine::new();
+        
+        // Add a rule for 0.2.0 -> 0.3.0 migration
+        engine.add_rule(MigrationRule {
+            from_version: CclVersion::new(0, 2, 0),
+            to_version: CclVersion::new(0, 3, 0),
+            rule_type: MigrationRuleType::KeywordReplace,
+            pattern: "require_payment".to_string(),
+            replacement: "charge_mana".to_string(),
+            description: "Update require_payment() to charge_mana()".to_string(),
+        });
+        
+        // Test content with both old (0.1.0) and intermediate (0.2.0) syntax
+        let content = "rule test_rule when true then charge(100)";
+        
+        // Migrate from 0.1.0 to 0.3.0 (should apply rules from 0.1.0->0.2.0 AND 0.2.0->0.3.0)
+        let migrated = engine.migrate(
+            content, 
+            &CclVersion::new(0, 1, 0), 
+            &CclVersion::new(0, 3, 0)
+        ).unwrap();
+        
+        // Should have applied both migration steps:
+        // 1. rule -> policy (0.1.0 -> 0.2.0)
+        // 2. charge() -> require_payment() (0.1.0 -> 0.2.0) 
+        // 3. require_payment -> charge_mana (0.2.0 -> 0.3.0)
+        assert!(migrated.contains("policy"));
+        assert!(!migrated.contains("rule test_rule"));
+        assert!(migrated.contains("charge_mana"));
+        assert!(!migrated.contains("charge("));
     }
 }
