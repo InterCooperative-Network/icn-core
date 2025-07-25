@@ -49,6 +49,8 @@ async fn delegate_and_revoke_flow() {
         quorum: None,
         threshold: None,
         body: None,
+        credential_proof: None,
+        revocation_proof: None,
     };
     let resp = client
         .post(format!("http://{addr}/governance/submit"))
@@ -80,6 +82,8 @@ async fn delegate_and_revoke_flow() {
         voter_did: node_did.to_string(),
         proposal_id: pid.clone(),
         vote_option: "yes".into(),
+        credential_proof: None,
+        revocation_proof: None,
     };
     let vresp = client
         .post(format!("http://{addr}/governance/vote"))
@@ -121,6 +125,8 @@ async fn delegate_and_revoke_flow() {
         quorum: None,
         threshold: None,
         body: None,
+        credential_proof: None,
+        revocation_proof: None,
     };
     let resp2 = client
         .post(format!("http://{addr}/governance/submit"))
@@ -147,6 +153,8 @@ async fn delegate_and_revoke_flow() {
         voter_did: node_did.to_string(),
         proposal_id: pid2.clone(),
         vote_option: "yes".into(),
+        credential_proof: None,
+        revocation_proof: None,
     };
     client
         .post(format!("http://{addr}/governance/vote"))

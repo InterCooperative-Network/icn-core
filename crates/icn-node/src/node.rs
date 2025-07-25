@@ -4591,7 +4591,7 @@ mod tests {
         use icn_runtime::executor::WasmExecutor;
 
         let (app, ctx) =
-            app_router_with_options(None, None, None, None, None, None, None, None, None, None)
+            app_router_with_options(RuntimeMode::Testing, None, None, None, None, None, None, None, None, None, None)
                 .await;
 
         // Compile a tiny CCL contract

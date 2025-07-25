@@ -1,7 +1,7 @@
 use icn_common::Did;
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{score_bid, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy};
+use icn_mesh::{score_bid, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy, NoOpCapabilityChecker};
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -135,6 +135,7 @@ fn resource_weight_affects_score() {
     latency.set_latency(fast.clone(), 5);
     latency.set_latency(slow.clone(), 50);
 
+    let capability_checker = NoOpCapabilityChecker;
     let fast_score = score_bid(
         &bid_fast,
         &spec,
@@ -142,6 +143,7 @@ fn resource_weight_affects_score() {
         &rep_store,
         ledger.get_balance(&fast),
         latency.get_latency(&fast),
+        &capability_checker,
     );
     let slow_score = score_bid(
         &bid_slow,
@@ -150,6 +152,7 @@ fn resource_weight_affects_score() {
         &rep_store,
         ledger.get_balance(&slow),
         latency.get_latency(&slow),
+        &capability_checker,
     );
     assert!(fast_score > slow_score);
 }
