@@ -175,6 +175,7 @@
 
 ### **Performance & Metrics**
 - **[docs/metrics/](docs/metrics/)** - Performance monitoring and metrics
+- **[docs/performance/](docs/performance/)** - Tuning guides and throughput benchmarks
 - **[docs/observability/](docs/observability/)** - System observability patterns
 
 ---
