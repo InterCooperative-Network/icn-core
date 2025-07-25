@@ -203,8 +203,16 @@ name = "test_ultimate_basic"
 path = "test_ultimate_basic.rs"
 
 [[bin]]
+name = "ccl-cli"
+path = "src/bin/ccl_cli.rs"
+
+[[bin]]
 name = "demo_ccl_improvements_success"
 path = "demo_ccl_improvements_success.rs"
+
+[[bin]]
+name = "ccl-lsp"
+path = "src/bin/ccl_lsp.rs"
 
 # Additional test files found
 [[bin]]
@@ -241,6 +249,14 @@ wasmparser = "0.121"
 # HTTP client for job spec generator
 reqwest = { workspace = true, features = ["blocking"] }
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
+
+# LSP server dependencies
+tower-lsp = "0.20"
+tokio = { version = "1.0", features = ["full"] }
+url = "2.0"
+env_logger = "0.11"
+toml = "0.8"
+clap = { version = "4.0", features = ["derive"] }
 
 # Dependency for icn-common if metadata uses Did, Cid etc.
 icn-common = { path = "../crates/icn-common" } # Adjust path as necessary

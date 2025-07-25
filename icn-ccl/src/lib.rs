@@ -8,12 +8,16 @@
 #![allow(clippy::len_zero)]
 
 pub mod ast;
+pub mod cli;
+pub mod cli_commands;
+pub mod debugger;
 pub mod error;
 // pub mod grammar; // If ccl.pest is directly included or re-exported - REMOVING THIS
-pub mod cli;
 pub mod governance_std;
+pub mod lsp;
 pub mod metadata;
 pub mod optimizer;
+pub mod package;
 pub mod parser;
 pub mod semantic_analyzer;
 pub mod stdlib;

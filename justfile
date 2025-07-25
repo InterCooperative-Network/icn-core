@@ -201,3 +201,55 @@ validate-all-stack:
 build-all-stack:
     just build-all-features
     just build-frontend
+
+# CCL Developer Tooling Commands
+
+# Start CCL Language Server for IDE integration
+ccl-lsp:
+    cargo run -p icn-ccl --bin ccl-lsp
+
+# Create a new CCL package
+ccl-init name author:
+    @echo "Creating new CCL package: {{name}}"
+    cargo run -p icn-ccl --bin ccl-cli -- package init {{name}} --author "{{author}}"
+
+# Install CCL package dependencies  
+ccl-install:
+    @echo "Installing CCL dependencies..."
+    cargo run -p icn-ccl --bin ccl-cli -- package install
+
+# Add a CCL dependency
+ccl-add-dep name version:
+    @echo "Adding CCL dependency: {{name}} = {{version}}"
+    cargo run -p icn-ccl --bin ccl-cli -- package add {{name}} {{version}}
+
+# Compile CCL contract with debug info
+ccl-compile-debug file:
+    @echo "Compiling CCL contract with debug info: {{file}}"
+    cargo run -p icn-ccl --bin ccl-cli -- compile {{file}} --debug
+
+# Start CCL debugger
+ccl-debug file:
+    @echo "Starting CCL debugger for: {{file}}"
+    cargo run -p icn-ccl --bin ccl-cli -- debug {{file}}
+
+# Format CCL files
+ccl-format:
+    @echo "Formatting CCL files..."
+    find . -name "*.ccl" -exec cargo run -p icn-ccl --bin ccl-cli -- format {} \;
+
+# Lint CCL files
+ccl-lint:
+    @echo "Linting CCL files..."
+    find . -name "*.ccl" -exec cargo run -p icn-ccl --bin ccl-cli -- lint {} \;
+
+# Run CCL contract tests
+ccl-test:
+    @echo "Running CCL contract tests..."
+    cargo test -p icn-ccl
+
+# Install CCL tooling globally
+install-ccl-tools:
+    cargo install --path icn-ccl --bin ccl-lsp
+    cargo install --path icn-ccl --bin ccl-cli
+    @echo "✅ CCL tools installed globally"
