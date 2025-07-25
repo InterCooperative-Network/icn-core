@@ -1,13 +1,13 @@
-# .github/workflows/copilot-setup-steps.yml
 name: "Copilot Setup Steps"
 
 on:
-  workflow_call:
+  workflow_call:  # This is triggered by GitHub Copilot agent
 
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -15,52 +15,44 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang cmake pkg-config libssl-dev lldb librocksdb-dev
+          sudo apt-get install -y \
+            clang cmake pkg-config libssl-dev lldb librocksdb-dev
 
-      - name: Install Rust toolchain
+      - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
           components: rustfmt, clippy
 
-      - name: Setup Node.js
+      - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'yarn'
+          cache: 'pnpm'
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v3
-        with:
-          version: 9
-
-      - name: Install JavaScript dependencies (pnpm/yarn/npm)
+      - name: Enable and prepare Corepack (for pnpm)
         run: |
-          if [ -f "pnpm-workspace.yaml" ]; then
-            echo "Detected pnpm workspace"
-            pnpm install
-          elif [ -f "yarn.lock" ]; then
-            echo "Detected yarn.lock"
-            yarn install --immutable
-          elif [ -f "package-lock.json" ]; then
-            echo "Detected package-lock.json"
-            npm ci
-          else
-            echo "No JS package manager config found, skipping"
-          fi
+          corepack enable
+          corepack prepare pnpm@8.0.0 --activate
+
+      - name: Install TypeScript/JavaScript dependencies with pnpm
+        run: pnpm install
 
       - name: Fetch Rust dependencies
         run: cargo fetch
 
-      - name: Show tool versions
+      - name: Show tool versions for debugging
         run: |
-          echo "Rust:"
-          rustc --version && cargo --version
-          echo "Node:"
-          node --version && npm --version || true
-          echo "pnpm:"
-          pnpm --version || true
-          echo "yarn:"
-          yarn --version || true
-          echo "Clang:"
+          echo "✅ Rust:"
+          rustc --version
+          cargo --version
+
+          echo "✅ Node:"
+          node --version
+          npm --version || true
+
+          echo "✅ pnpm:"
+          pnpm --version
+
+          echo "✅ clang:"
           clang --version || true
