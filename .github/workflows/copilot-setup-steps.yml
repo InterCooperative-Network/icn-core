@@ -1,0 +1,74 @@
+# .github/workflows/copilot-setup-steps.yml
+name: "Copilot Setup Steps"
+
+on:
+  workflow_call: # Runs only when called by Copilot agent
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # System dependencies for Rust crates (including RocksDB, Clang, etc.)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake pkg-config libssl-dev lldb librocksdb-dev
+
+      # Setup Rust toolchain
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # Setup Node.js (for apps/web frontends and tooling)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      # (Optional) Setup pnpm if used
+      - name: Setup pnpm
+        if: exists('pnpm-workspace.yaml')
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      # Install workspace dependencies for JS/TS apps and packages
+      - name: Install JS dependencies
+        run: |
+          if [ -f "pnpm-workspace.yaml" ]; then
+            pnpm install
+          elif [ -f "yarn.lock" ]; then
+            yarn install --immutable
+          elif [ -f "package-lock.json" ]; then
+            npm ci
+          fi
+
+      # Install Rust dependencies (fetch and cache for speed)
+      - name: Cargo fetch
+        run: cargo fetch
+
+      # Print tool versions for debugging
+      - name: Show tool versions
+        run: |
+          rustc --version
+          cargo --version
+          node --version
+          npm --version || true
+          pnpm --version || true
+          yarn --version || true
+          clang --version
+
+      # (Optional) Prepare database for tests (if needed)
+      # - name: Start services
+      #   run: |
+      #     # Example: docker-compose up -d
+      #     echo "No DB needed unless you want integration test coverage."
+
+    # Optionally configure outputs/env for later jobs if needed
