@@ -1,0 +1,28 @@
+// Economic Primitives
+// Budget management and surplus distribution
+
+fn setup_cooperative_budget(name: String, total: Integer) -> String {
+    let categories = ["operations", "development", "community", "reserve"];
+    let allocations = [total * 40 / 100, total * 25 / 100, total * 25 / 100, total * 10 / 100];
+    return create_budget(name, total, "cooperative_token", categories, allocations);
+}
+
+fn allocate_funds(budget_id: String, category: String, recipient: did:key:*, amount: Integer, purpose: String) -> Bool {
+    return allocate_budget_funds(budget_id, category, recipient, amount, purpose);
+}
+
+fn calculate_available_surplus(treasury_id: String) -> Integer {
+    return calculate_surplus(treasury_id, "quarterly");
+}
+
+fn distribute_to_members(surplus: Integer, members: Array<did:key:*>) -> Bool {
+    let equal_shares = [];
+    let i = 0;
+    while i < array_len(members) {
+        array_push(equal_shares, 1);
+        i = i + 1;
+    }
+    
+    let amounts = distribute_dividends(surplus, members, equal_shares, "equal");
+    return true;
+}

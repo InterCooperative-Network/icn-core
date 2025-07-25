@@ -19,6 +19,9 @@ pub mod semantic_analyzer;
 pub mod stdlib;
 pub mod wasm_backend; // Expose functions for CLI layer
 
+#[cfg(test)]
+mod test_features;
+
 pub use error::CclError;
 pub use metadata::ContractMetadata;
 pub use stdlib::StdLibrary as StandardLibrary;

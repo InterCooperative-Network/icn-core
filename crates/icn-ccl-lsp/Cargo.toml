@@ -1,0 +1,20 @@
+[package]
+name = "icn-ccl-lsp"
+version = "0.2.0"
+edition = "2021"
+description = "Language Server Protocol (LSP) implementation for CCL"
+authors = ["ICN Team"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tower-lsp = "0.20"
+env_logger = "0.11"
+icn-ccl = { path = "../../icn-ccl" }
+icn-common = { path = "../icn-common" }
+
+[[bin]]
+name = "icn-ccl-lsp"
+path = "src/main.rs"
