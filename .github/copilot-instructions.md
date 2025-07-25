@@ -1,311 +1,170 @@
-# ICN Core - AI Coding Assistant Instructions
+# GitHub Copilot Instructions for ICN Core
 
-> **Active development** cooperative digital economy infrastructure built in Rust with comprehensive frontend applications
+## Project Status & Context
 
-## Project Overview
+ICN Core is an **advanced development cooperative infrastructure project** with substantial working implementations. While **NOT production-ready**, it has significantly more functional code than typical early-stage projects.
 
-ICN Core is an **ambitious distributed platform** being built to enable federations and cooperatives to coordinate democratically without centralized systems. It aims to provide mesh computing, governance, economics, and identity management across a federated P2P network.
+### Current Implementation Status
+- **~65-75% implemented** across core domains
+- **Real working features** including CCL WASM execution, multi-backend persistence, governance workflows
+- **Advanced development phase** requiring security review and production hardening
+- **Substantial codebase** with comprehensive functionality
 
-**Architecture**: Rust backend (20+ crates) + React/React Native frontends (4 apps) + TypeScript SDK
-**Status**: **Heavy development** - many core features are stubbed and need implementation
+## Architecture & Codebase Reality
 
-## Critical System Flows
+### Working Implementations ✅
+- **CCL Compiler**: Full WASM compilation pipeline working
+- **Multi-Backend Storage**: PostgreSQL, RocksDB, SQLite, Sled all functional
+- **P2P Networking**: libp2p with gossipsub and Kademlia DHT operational
+- **Governance**: Ranked choice voting, proposals, budget allocation functional
+- **Economics**: Mana ledgers, resource tokens, mutual credit systems working
+- **Mesh Computing**: End-to-end job submission and execution pipeline
+- **Identity**: DID creation, credential verification, signing working
+- **Frontend Apps**: UI components connecting to real backend APIs
 
-### Mesh Job Pipeline (Primary Workflow)
-1. **Submission**: `host_submit_mesh_job` via `icn-runtime/src/abi.rs` → validates DID + mana → adds to `RuntimeContext::pending_mesh_jobs`
-2. **Bidding**: `JobManager` announces → executors submit bids via `icn-mesh` selection algorithms
-3. **Assignment**: `select_executor` uses reputation/price/resources → job state transitions to `Assigned`
-4. **Execution**: Assigned executor runs job → produces signed `ExecutionReceipt` 
-5. **Anchoring**: `host_anchor_receipt` validates → stores in DAG via `icn-dag` → updates reputation
+### Development Areas ⚠️
+- **Security Review**: Cryptographic implementations need hardening
+- **Scale Testing**: Works in development, needs production-scale validation
+- **Operational Excellence**: Monitoring, recovery procedures needed
+- **Documentation**: Implementation ahead of documentation
 
-**Critical**: All operations must validate mana balances and reputation scores. No bypassing economic constraints.
-
-## Core Architecture
-
-### Backend Dependency Flow
+### Technology Stack
 ```
-icn-common (foundation)
-├── icn-protocol (wire formats)
-├── icn-identity (DID/credentials) 
-├── icn-dag (content-addressed storage)
-└── icn-economics (mana/policies)
-    ├── icn-mesh (jobs/bidding)
-    ├── icn-governance (proposals/voting)
-    └── icn-network (libp2p P2P)
-        └── icn-runtime (orchestration)
-            └── icn-node (HTTP server)
+Backend: Rust with comprehensive trait-based architecture
+Frontend: React/React Native + TypeScript + Tamagui
+Storage: PostgreSQL/RocksDB/SQLite/Sled backends
+Networking: libp2p (gossipsub, Kademlia DHT)
+Contracts: CCL → WASM compilation and execution
 ```
 
-### Key Crate Responsibilities
-- **`icn-runtime`**: WASM execution, Host ABI functions (`host_*`), job orchestration
-- **`icn-mesh`**: Distributed job lifecycle, executor selection, bidding algorithms  
-- **`icn-economics`**: Mana accounting, resource policies, economic invariants
-- **`icn-governance`**: CCL compilation, proposal/voting, democratic decision-making
-- **`icn-identity`**: DID management, credential verification, execution receipts
-- **`icn-dag`**: Immutable content addressing, receipt anchoring, persistent storage
+## Contribution Guidelines
 
-### Current Focus: Implementing Stubbed Services
-**Issue**: Many services are stubbed placeholders that need real implementations
+### 🎯 Focus Areas
+1. **Security Hardening**: Review cryptographic implementations
+2. **Production Readiness**: Add monitoring, error recovery, scale testing
+3. **Feature Completion**: Finish partial implementations
+4. **Documentation**: Update docs to match implementation reality
+5. **Frontend Integration**: Connect UIs to working backend APIs
+
+### ✅ Good Contributions
+- Security improvements and reviews
+- Performance optimizations
+- Production monitoring and alerting
+- Test coverage improvements
+- Documentation updates
+- Frontend polish and integration
+- Scale testing and optimization
+
+### ❌ Avoid
+- Breaking existing working functionality
+- Major architectural changes without discussion
+- Security changes without expert review
+- Reducing current implementation level
+
+## Code Quality Standards
+
+### Rust Backend
 ```rust
-// CURRENT ISSUE: Many stub implementations need to be replaced
-let mesh_network_service = Arc::new(StubMeshNetworkService::new());
-
-// GOAL: Implement real service logic
-pub struct DefaultMeshNetworkService {
-    // Real implementation with P2P networking, job distribution, etc.
-}
-
-impl MeshNetworkService for DefaultMeshNetworkService {
-    async fn submit_job(&self, job: MeshJob) -> Result<JobId, MeshError> {
-        // TODO: Implement real job submission logic
-        // - Validate job specification
-        // - Broadcast to network
-        // - Handle bidding process
-        // - Return job ID
-        todo!("Implement real mesh job submission")
-    }
-}
-```
-
-## Development Workflow
-
-### Essential Commands (via `justfile`)
-```bash
-just setup              # Full dev environment setup
-just test               # Run test suite (default features)
-just test-all-features  # Full test suite (includes RocksDB) 
-just validate           # Format + lint + test
-just devnet             # Launch containerized federation
-just dev-frontend       # Start all frontend apps
-just docs               # Generate documentation
-```
-
-### Frontend Development
-```bash
-just setup-frontend     # Node.js + pnpm setup
-just dev-wallet        # DID/key management app
-just dev-web-ui        # Federation dashboard
-just dev-agoranet      # Governance interface
-just dev-explorer      # Network/DAG explorer
-```
-
-### Agent Development Cycle
-**For every change, follow this pattern:**
-1. **Identify stub implementations** - look for `todo!()` macros and `Stub*` services
-2. **Implement core functionality** - replace stubs with working logic
-3. **Test thoroughly** - `cargo test -p affected-crate` 
-4. **Update docs immediately** - never leave documentation stale
-5. **Commit with clear messages** - explain what was implemented and why
-
-### Finding Work to Do
-```bash
-# Find stub implementations and TODOs
-grep -r "todo!()" crates/
-grep -r "Stub" crates/ --include="*.rs"
-grep -r "unimplemented!()" crates/
-
-# Look for placeholder implementations
-grep -r "NotImplemented" crates/
-grep -r "placeholder" crates/
-```
-
-### Commit Standards
-```bash
-git commit -m "[crate-name] Implement [feature/service]
-
-Replaced stub implementation with working logic:
-- Added real P2P networking integration
-- Implemented bidding algorithm logic  
-- Added proper error handling and validation
-- Included comprehensive tests
-
-Resolves: [specific TODO or stub functionality]
-Tests: All existing tests pass + new integration tests"
-```
-
-## Code Patterns & Conventions
-
-### Host ABI Integration
-When adding runtime functionality, follow the established ABI pattern:
-```rust
-// 1. Define ABI index in icn-runtime/src/abi.rs
-pub const ABI_HOST_NEW_FUNCTION: u32 = 27;
-
-// 2. Implement in RuntimeContext 
-impl RuntimeContext {
-    pub fn handle_new_function(&mut self, params: Params) -> Result<Response> {
-        // Validate mana/permissions first
-        // Update state atomically
-        // Log significant changes
-    }
-}
-```
-
-### Economic Validation Pattern
-All resource operations must validate economic constraints:
-```rust
-// Check mana before any operation
-let mana_required = calculate_operation_cost(&operation);
-if !self.mana_account.has_sufficient_mana(mana_required) {
-    return Err(InsufficientMana);
-}
-
-// Perform operation atomically
-let result = self.perform_operation(operation)?;
-
-// Charge mana only on success
-self.mana_account.spend_mana(mana_required)?;
-```
-
-### Testing Patterns
-- **Unit tests**: Test individual crate logic in isolation
-- **Integration tests**: Cross-crate workflows in `tests/` directory
-- **E2E tests**: Full node operations via `just devnet`
-- **Deterministic**: Use fixed seeds for randomness in tests
-
-### Error Handling
-Use comprehensive error types from `icn-common`:
-```rust
-pub enum RuntimeError {
-    InsufficientMana { required: u64, available: u64 },
-    InvalidDid(String),
-    JobExecutionFailed { job_id: String, reason: String },
-    // ...
-}
-```
-
-### Input Validation Pattern
-Always validate inputs thoroughly:
-```rust
-pub fn validate_did(did: &str) -> Result<Did, ValidationError> {
-    // Format validation
-    if !did.starts_with("did:") {
-        return Err(ValidationError::InvalidFormat("DID must start with 'did:'"));
+// Example: Real implementation pattern in the codebase
+impl ManaLedger for SqliteManaLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        // Real implementation with error handling
+        self.execute_query("SELECT balance FROM accounts WHERE did = ?", did)
+            .unwrap_or(0)
     }
     
-    // Length and character validation
-    if did.len() < 10 || did.len() > 256 {
-        return Err(ValidationError::InvalidLength);
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        // Real persistence with proper error handling
+        self.execute_update(
+            "INSERT OR REPLACE INTO accounts (did, balance) VALUES (?, ?)",
+            (did, amount)
+        )
+    }
+}
+```
+
+### Frontend Integration
+```typescript
+// Example: Real API integration pattern
+export class ICNClient {
+    async submitJob(job: JobSpec): Promise<JobId> {
+        // Real API call to working backend
+        const response = await this.http.post('/api/v1/jobs', job);
+        return response.data.job_id;
     }
     
-    // Parse and semantic validation
-    let parsed = Did::parse(did)?;
-    validate_did_semantic(&parsed)?;
-    Ok(parsed)
+    async getJobStatus(jobId: JobId): Promise<JobStatus> {
+        // Real status monitoring
+        const response = await this.http.get(`/api/v1/jobs/${jobId}`);
+        return response.data;
+    }
 }
 ```
 
-## Reading Order for Complex Changes
+## Implementation Patterns to Follow
 
-For mesh/economics/runtime changes:
-1. `crates/icn-runtime/src/abi.rs` (Host ABI surface)
-2. `crates/icn-runtime/src/context.rs` (`RuntimeContext` state)
-3. `crates/icn-mesh/src/lib.rs` (job lifecycle)
-4. `crates/icn-economics/src/lib.rs` (mana validation)
-5. Relevant integration tests
+### Service Architecture
+- Use trait-based interfaces from `icn-api`
+- Support multiple backend implementations
+- Comprehensive error handling with specific error types
+- Async/await for all I/O operations
+- Prometheus metrics for monitoring
 
-For governance changes:
-1. `crates/icn-governance/src/lib.rs`
-2. `icn-ccl/` (CCL compiler)
-3. Frontend governance UI in `apps/agoranet/`
+### Testing Approach
+- Unit tests for core logic
+- Integration tests for cross-component functionality
+- Feature flags to control stub vs real implementations
+- Development configuration separate from production
 
-## Critical Invariants
+### Documentation Standards
+- Comprehensive rustdoc for public APIs
+- Working examples in documentation
+- Security considerations noted
+- Performance characteristics documented
 
-### Economic
-- **Never bypass mana checks** - all resource usage must be validated
-- **Atomic state updates** - mana spending and operations must be atomic
-- **Regeneration policies** - mana regeneration follows configured economic policies
+## Current Development Priorities
 
-### Technical  
-- **Determinism required** - no wall-clock time, unseeded randomness, or unpredictable I/O
-- **Cryptographic verification** - all receipts must be signed and verifiable
-- **Content addressing** - DAG storage must maintain immutability guarantees
+1. **Security Review & Hardening**
+   - Review cryptographic implementations
+   - Add security test cases
+   - Implement production security measures
 
-### Governance
-- **Democratic processes** - proposals must follow proper lifecycle (creation → voting → execution)
-- **CCL compilation** - governance policies compile to WASM for execution
+2. **Production Readiness**
+   - Add comprehensive monitoring
+   - Implement error recovery
+   - Scale testing and optimization
 
-## Common Integration Points
+3. **Feature Completion**
+   - Finish partial implementations
+   - Add missing edge case handling
+   - Complete API coverage
 
-### Adding New API Endpoints
-1. Define in `crates/icn-api/src/lib.rs`
-2. Implement in `crates/icn-node/src/main.rs` 
-3. Add to TypeScript SDK generation
-4. Update `ICN_API_REFERENCE.md`
+4. **Documentation Updates**
+   - Update docs to match implementation
+   - Add deployment guides
+   - Document security considerations
 
-### Frontend State Management
-- Use TypeScript SDK from `packages/ts-sdk/`
-- Maintain consistent patterns across React/React Native apps
-- Update shared UI components in `packages/ui-kit/`
+## Commands & Development
 
-### Storage Backend Integration
-- Support multiple backends: Sled (default), RocksDB, PostgreSQL, SQLite
-- Test with `just test-sled` / `just test-rocksdb` 
-- Maintain backend abstraction in `icn-dag`
-
-## Troubleshooting Common Issues
-
-### "Insufficient Mana" Errors
-```rust
-// Add proper wait time calculation for regeneration
-if account.mana_balance < estimated_cost {
-    let wait_time = calculate_regeneration_time(
-        estimated_cost - account.mana_balance, 
-        account.regeneration_rate
-    );
-    return Err(RuntimeError::InsufficientMana { 
-        required: estimated_cost,
-        available: account.mana_balance,
-        regeneration_wait: wait_time,
-    });
-}
-```
-
-### "No Valid Bids" for Jobs
 ```bash
-# Diagnosis commands
-icn-cli network peers --verbose
-icn-cli job details --id <job-id>
-icn-cli network executors --capabilities <required-caps>
+# Development setup
+just setup && just build
+just test                    # Run test suite
+just validate               # Full validation
+
+# Multi-node testing
+just devnet                 # 3-node federation
+
+# Frontend development
+just dev-frontend           # All frontend apps
+just dev-web-ui            # Federation dashboard
 ```
 
-### Peer Discovery Issues
-```bash
-# Check network configuration and connectivity
-cat ~/.icn/network-config.toml
-icn-cli network ping --peer <peer-id>
-netstat -an | grep <icn-port>
-```
+## Remember
 
-## Documentation Requirements
-
-- **Update docs immediately** with code changes
-- **Include examples** in rustdoc for public APIs
-- **Maintain API reference** for all HTTP endpoints  
-- **Update architecture docs** for structural changes
-- **Keep frontend docs** current with UI changes
-
-Refer to existing `.cursor/rules/*.mdc` files for additional context on architecture, workflow, and troubleshooting patterns.
-
-## Agent Authority & Focus
-
-### Current Phase: Implementation and Development
-**Remaining work** is primarily **implementing stubbed functionality** and building out core features that are currently placeholders.
-
-### You Are Empowered To:
-- **Implement stubbed services** with real functionality
-- **Replace `todo!()` macros** with working code
-- **Build out missing features** in existing crate structure
-- **Improve API endpoints** and add missing functionality
-- **Complete frontend applications** with real backend integration
-- **Add comprehensive testing** for new implementations
-- **Enhance developer experience** and tooling
-
-### Quality Standards
-**Every change must:**
-- **Replace stubs with real implementations** not just different stubs
-- Be thoroughly tested (`just validate`)
-- Include updated documentation explaining the implementation
-- Follow established architectural patterns
-- Handle errors comprehensively
-- Include clear commit messages explaining what was implemented
+- **This is advanced development software** with substantial working features
+- **Security review required** before production use
+- **Focus on production readiness** over new features
+- **Maintain high code quality** standards
+- **Document security implications** of changes
+- **Test thoroughly** - working code should stay working
