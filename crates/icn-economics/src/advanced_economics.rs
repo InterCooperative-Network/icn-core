@@ -55,7 +55,7 @@ pub struct BudgetProposal {
 }
 
 /// Status of budget allocation proposals
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum BudgetProposalStatus {
     Pending,
     UnderReview,
@@ -183,60 +183,65 @@ impl BudgetManager {
         proposal_id: &str,
         executor: Did,
     ) -> Result<BudgetAllocation, CommonError> {
-        if let Some(proposal) = self
+        // First, find and validate the proposal
+        let proposal_index = self
             .allocation_proposals
-            .iter_mut()
-            .find(|p| p.id == proposal_id)
-        {
-            if proposal.status != BudgetProposalStatus::Approved {
-                return Err(CommonError::PolicyDenied(
-                    "Proposal not approved for execution".to_string(),
-                ));
-            }
+            .iter()
+            .position(|p| p.id == proposal_id)
+            .ok_or_else(|| {
+                CommonError::ResourceNotFound(
+                    "Budget proposal not found".to_string(),
+                )
+            })?;
 
-            if proposal.amount > self.remaining_budget() {
-                return Err(CommonError::PolicyDenied(
-                    "Insufficient remaining budget".to_string(),
-                ));
-            }
-
-            let allocation = BudgetAllocation {
-                proposal_id: proposal_id.to_string(),
-                category: proposal.category.clone(),
-                amount: proposal.amount,
-                recipient: proposal.recipient.clone(),
-                purpose: proposal.purpose.clone(),
-                allocated_at: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
-                executor,
-            };
-
-            // Update budget tracking
-            self.allocated_budget += proposal.amount;
-            *self
-                .budget_allocations
-                .entry(proposal.category.clone())
-                .or_insert(0) += proposal.amount;
-
-            // Mark proposal as executed
-            proposal.status = BudgetProposalStatus::Executed;
-
-            // Store allocation history
-            self.allocation_history.push_back(allocation.clone());
-
-            // Keep only recent history (last 100 allocations)
-            if self.allocation_history.len() > 100 {
-                self.allocation_history.pop_front();
-            }
-
-            Ok(allocation)
-        } else {
-            Err(CommonError::ResourceNotFound(
-                "Budget proposal not found".to_string(),
-            ))
+        let proposal = &self.allocation_proposals[proposal_index];
+        
+        if proposal.status != BudgetProposalStatus::Approved {
+            return Err(CommonError::PolicyDenied(
+                "Proposal not approved for execution".to_string(),
+            ));
         }
+
+        let remaining = self.remaining_budget();
+        if proposal.amount > remaining {
+            return Err(CommonError::PolicyDenied(
+                "Insufficient remaining budget".to_string(),
+            ));
+        }
+
+        // Now create allocation and update the proposal
+        let allocation = BudgetAllocation {
+            proposal_id: proposal_id.to_string(),
+            category: proposal.category.clone(),
+            amount: proposal.amount,
+            recipient: proposal.recipient.clone(),
+            purpose: proposal.purpose.clone(),
+            allocated_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs(),
+            executor,
+        };
+
+        // Update budget tracking
+        self.allocated_budget += proposal.amount;
+        *self
+            .budget_allocations
+            .entry(proposal.category.clone())
+            .or_insert(0) += proposal.amount;
+
+        // Mark proposal as executed
+        self.allocation_proposals[proposal_index].status = BudgetProposalStatus::Executed;
+
+        // Store allocation history
+        self.allocation_history.push_back(allocation.clone());
+
+        // Keep only recent history (last 100 allocations)
+        if self.allocation_history.len() > 100 {
+            self.allocation_history.pop_front();
+        }
+
+        Ok(allocation)
     }
 
     /// Get remaining budget
@@ -300,7 +305,7 @@ pub enum DistributionCriteria {
     ProportionalToStake,
     ReputationWeighted,
     TimeBasedWeighted,
-    Custom(Box<dyn Fn(&Did, &MemberEligibility) -> f64 + Send + Sync>),
+    Custom(String), // Just store a description for custom logic
 }
 
 /// Member eligibility for dividends
@@ -408,22 +413,11 @@ impl DividendDistributor {
                     }
                 }
             }
-            DistributionCriteria::Custom(calc_fn) => {
-                let mut total_weight = 0.0;
-                let mut weights = HashMap::new();
-
-                // Calculate individual weights
-                for (member, eligibility) in &self.eligible_members {
-                    let weight = calc_fn(member, eligibility);
-                    weights.insert(member.clone(), weight);
-                    total_weight += weight;
-                }
-
-                // Convert to shares
-                if total_weight > 0.0 {
-                    for (member, weight) in weights {
-                        shares.insert(member, weight / total_weight);
-                    }
+            DistributionCriteria::Custom(_description) => {
+                // For custom logic, use equal shares as fallback
+                let share = 1.0 / self.eligible_members.len() as f64;
+                for member in self.eligible_members.keys() {
+                    shares.insert(member.clone(), share);
                 }
             }
         }
@@ -432,9 +426,9 @@ impl DividendDistributor {
     }
 
     /// Distribute dividends to eligible members
-    pub fn distribute_dividends<L: ManaLedger>(
+    pub fn distribute_dividends(
         &mut self,
-        ledger: &L,
+        ledger: &dyn ManaLedger,
         amount: Option<u64>,
     ) -> Result<DividendDistribution, CommonError> {
         let distribution_amount = amount.unwrap_or(self.total_surplus);
@@ -654,7 +648,7 @@ impl EconomicPolicyEngine {
     pub fn execute_policy(
         &mut self,
         policy_name: &str,
-        budget_manager: &mut BudgetManager,
+        _budget_manager: &mut BudgetManager,
         dividend_distributor: &mut DividendDistributor,
         ledger: &dyn ManaLedger,
     ) -> Result<PolicyExecution, CommonError> {

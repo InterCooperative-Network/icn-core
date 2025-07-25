@@ -142,7 +142,7 @@ impl LiquidDemocracy {
     pub fn get_delegators(&self, delegate: &Did) -> Vec<Did> {
         self.delegations
             .iter()
-            .filter_map(|(delegator, del)| {
+            .filter_map(|(delegator, _del)| {
                 if self.resolve_delegation(delegator) == *delegate {
                     Some(delegator.clone())
                 } else {
@@ -329,7 +329,7 @@ pub enum TransitionCondition {
     ThresholdMet,
     AllActionscomplete,
     ManualTrigger,
-    Custom(Box<dyn Fn(&ProposalStage) -> bool + Send + Sync>),
+    Custom(String), // Just store description for custom logic
 }
 
 impl MultiStageProposal {
