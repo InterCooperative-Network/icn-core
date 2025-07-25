@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["CURRENT_CCL_VERSION"],"enum":["MigrationRuleType"],"fn":["convert_from_javascript","convert_from_solidity","migrate_file"],"struct":["CclVersion","MigrationEngine","MigrationReport","MigrationRule"]};

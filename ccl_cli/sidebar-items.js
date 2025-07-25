@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["Commands","PackageCommands"],"fn":["compile_command","debug_command","format_command","lint_command","main","run_command"],"struct":["Cli"]};
+window.SIDEBAR_ITEMS = {"enum":["Commands","MigrationCommands","PackageCommands"],"fn":["analyze_syntax_patterns","compile_command","debug_command","format_command","lint_command","main","migration_convert_command","migration_detect_command","migration_upgrade_command","run_command"],"struct":["Cli"]};
