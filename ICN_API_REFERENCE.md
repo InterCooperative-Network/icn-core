@@ -15,15 +15,19 @@ ICN Core provides an **experimental HTTP API** with 60+ endpoint structures cove
 
 **Current Reality**: API server starts and handles requests, but backend services may be incomplete. Use for development and testing only.
 
-### **Authentication**
+### **Authentication & Identity**
+ICN currently supports **API key** and **Bearer token** authentication. DID-based
+tokens signed with Ed25519 keys are **partially implemented** and considered
+experimental.
+
 ```http
-# API Key
+# API Key (stable)
 x-api-key: your-api-key
 
-# Bearer Token  
+# Bearer Token (stable)
 Authorization: Bearer your-token
 
-# DID-based (Planned)
+# DID-based (experimental)
 Authorization: DID did:example:123... <signature>
 ```
 
@@ -55,10 +59,18 @@ Authorization: DID did:example:123... <signature>
 | `/governance/revoke` | POST | Revoke delegation | ✅ |
 | `/governance/close` | POST | Close voting on proposal | ✅ |
 | `/governance/execute` | POST | Execute approved proposal | ✅ |
+| `/governance/vote/ranked` | POST | Ranked-choice vote submission | ✅ |
+| `/governance/vote/weighted` | POST | Weighted vote submission | ✅ |
+| `/governance/vote/batch` | POST | Submit multiple votes at once | ✅ |
+| `/governance/ballot/open` | POST | Open advanced ballot | ✅ |
+| `/governance/ballot/close` | POST | Close advanced ballot | ✅ |
 
 ---
 
 ### **Identity & Credentials (10 endpoints)**
+The identity subsystem uses DID documents and verifiable credentials. Most
+endpoints are functional, though advanced credential revocation and selective
+disclosure flows are still under active development.
 
 | Endpoint | Method | Description | Status |
 |----------|--------|-------------|--------|
@@ -94,6 +106,19 @@ Authorization: DID did:example:123... <signature>
 
 ---
 
+### **Developer Tooling (6 endpoints)**
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/ccl/lsp/connect` | POST | Connect IDE to CCL LSP server | ✅ |
+| `/ccl/debug/start` | POST | Start CCL debugger session | ✅ |
+| `/ccl/debug/step` | POST | Step debugger execution | ✅ |
+| `/ccl/debug/stop` | POST | Stop debugger session | ✅ |
+| `/ccl/packages/install` | POST | Install package dependencies | ✅ |
+| `/ccl/packages/publish` | POST | Publish CCL package | ✅ |
+
+---
+
 ### **Federation Management (8 endpoints)**
 
 | Endpoint | Method | Description | Status |
@@ -105,6 +130,8 @@ Authorization: DID did:example:123... <signature>
 | `/federation/status` | GET | Federation status | ✅ |
 | `/federation/init` | POST | Initialize federation | ✅ |
 | `/federation/sync` | POST | Synchronize federation state | ✅ |
+| `/federation/dag/sync` | POST | Synchronize federation DAG | ✅ |
+| `/federation/dag/status` | GET | Federation DAG sync status | ✅ |
 
 ---
 
@@ -137,6 +164,18 @@ Authorization: DID did:example:123... <signature>
 
 ---
 
+### **CRDT Synchronization (5 endpoints)**
+
+| Endpoint | Method | Description | Status |
+|----------|--------|-------------|--------|
+| `/crdt/state` | GET | Get current CRDT state snapshot | ✅ |
+| `/crdt/delta` | POST | Submit CRDT delta updates | ✅ |
+| `/crdt/history` | GET | Retrieve CRDT delta history | ✅ |
+| `/crdt/sync` | POST | Trigger immediate CRDT sync | ✅ |
+| `/crdt/peer/{peer_id}` | POST | Exchange state with peer | ✅ |
+
+---
+
 ### **Network Operations (3 endpoints)**
 
 | Endpoint | Method | Description | Status |
@@ -157,6 +196,9 @@ Authorization: DID did:example:123... <signature>
 | `/transaction/submit` | POST | Submit transaction | ✅ |
 | `/resources/event` | POST | Submit resource event | ✅ |
 | `/resources/ledger` | GET | Get resource ledger | ✅ |
+| `/transaction/{tx_id}` | GET | Get transaction by ID | ✅ |
+| `/transaction/history/{did}` | GET | Transaction history for DID | ✅ |
+| `/transaction/proof` | POST | Generate transaction proof | ✅ |
 
 ---
 
@@ -167,6 +209,8 @@ Authorization: DID did:example:123... <signature>
 | `/circuits/register` | POST | Register ZK circuit | ✅ |
 | `/circuits/{slug}/{version}` | GET | Get circuit by version | ✅ |
 | `/circuits/{slug}` | GET | List circuit versions | ✅ |
+| `/zk/generate` | POST | Generate generic ZK proof | ✅ |
+| `/zk/verify` | POST | Verify generic ZK proof | ✅ |
 
 ---
 
@@ -359,15 +403,19 @@ const jobStatus = await client.mesh.getJobStatus(jobId);
 
 ## 📊 **API Statistics**
 
-- **Total Endpoints**: 60+
-- **Governance**: 8 endpoints
-- **Identity**: 11 endpoints  
+- **Total Endpoints**: 90+
+- **Governance**: 13 endpoints
+- **Identity**: 11 endpoints
 - **Mesh Computing**: 12 endpoints
-- **Federation**: 8 endpoints
+- **Federation**: 10 endpoints
 - **Cooperative**: 7 endpoints
 - **Storage**: 8 endpoints
 - **System**: 5 endpoints
 - **Network**: 3 endpoints
+- **Account & Economics**: 8 endpoints
+- **Zero-Knowledge**: 5 endpoints
+- **Developer Tooling**: 6 endpoints
+- **CRDT Sync**: 5 endpoints
 - **Other**: 8+ endpoints
 
 **Endpoints are well-structured with good error handling and authentication design. Backend implementations vary in completeness.**
