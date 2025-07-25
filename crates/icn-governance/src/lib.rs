@@ -66,7 +66,7 @@ pub use voting::{
 pub use advanced_democracy::{
     AdvancedGovernanceModule, LiquidDemocracy, QuadraticVoting, QuadraticVote, QuadraticTally,
     MultiStageProposal, ProposalStage, StageAction, WeightedVoting, WeightedTally,
-    DistributionCriteria, TransitionCondition, WeightCalculation,
+    TransitionCondition, WeightCalculation,
 };
 
 /// Trait for governance execution hooks.
