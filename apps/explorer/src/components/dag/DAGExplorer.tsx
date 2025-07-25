@@ -336,7 +336,7 @@ export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps)
           <button
             onClick={() => {
               setShowDetails(!showDetails)
-              announceToScreenReader(showDetails ? 'Details panel hidden' : 'Details panel shown')
+              announceToScreenReader(showDetails ? t('controls.detailsPanelHidden') : t('controls.detailsPanelShown'))
             }}
             className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
             aria-label={t('controls.toggleDetails')}

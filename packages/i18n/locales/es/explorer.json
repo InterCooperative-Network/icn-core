@@ -14,7 +14,9 @@
     "zoomIn": "Ampliar",
     "zoomOut": "Reducir",
     "resetZoom": "Restablecer zoom",
-    "toggleDetails": "Alternar panel de detalles"
+    "toggleDetails": "Alternar panel de detalles",
+    "detailsPanelShown": "Panel de detalles mostrado",
+    "detailsPanelHidden": "Panel de detalles oculto"
   },
   "dag": {
     "noBlocks": "No hay bloques DAG disponibles",

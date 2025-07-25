@@ -14,7 +14,9 @@
     "zoomIn": "Zoomer",
     "zoomOut": "Dézoomer",
     "resetZoom": "Réinitialiser le zoom",
-    "toggleDetails": "Basculer le panneau de détails"
+    "toggleDetails": "Basculer le panneau de détails",
+    "detailsPanelShown": "Panneau de détails affiché",
+    "detailsPanelHidden": "Panneau de détails masqué"
   },
   "dag": {
     "noBlocks": "Aucun bloc DAG disponible",

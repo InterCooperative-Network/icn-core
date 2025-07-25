@@ -14,7 +14,9 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "resetZoom": "Reset zoom",
-    "toggleDetails": "Toggle details panel"
+    "toggleDetails": "Toggle details panel",
+    "detailsPanelShown": "Details panel shown",
+    "detailsPanelHidden": "Details panel hidden"
   },
   "dag": {
     "noBlocks": "No DAG blocks available",
