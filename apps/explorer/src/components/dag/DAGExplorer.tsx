@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react'
 import * as d3 from 'd3'
 import { ChevronDownIcon, ChevronRightIcon, PlayIcon, PauseIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { useTranslation } from 'react-i18next'
+import { announceToScreenReader } from '@icn/i18n'
 import type { DAGData } from '../../hooks/useRealtimeData'
 
 interface DAGExplorerProps {
@@ -30,6 +32,7 @@ interface DAGLink {
 }
 
 export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps) {
+  const { t } = useTranslation('explorer')
   const svgRef = useRef<SVGSVGElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   
@@ -71,6 +74,15 @@ export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps)
     return { nodes, links }
   }, [])
 
+  // Announce connection status changes to screen readers
+  useEffect(() => {
+    if (isConnected) {
+      announceToScreenReader(t('status.connected'))
+    } else {
+      announceToScreenReader(t('status.disconnected'), 'assertive')
+    }
+  }, [isConnected, t])
+
   // Initialize and update D3 visualization
   useEffect(() => {
     if (!svgRef.current || !containerRef.current || !data || isPaused) return
@@ -91,7 +103,7 @@ export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps)
         .attr('y', height / 2)
         .attr('text-anchor', 'middle')
         .attr('class', 'fill-gray-400 text-lg')
-        .text('No DAG blocks available')
+        .text(t('dag.noBlocks'))
       return
     }
     
@@ -276,18 +288,21 @@ export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps)
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center space-x-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            DAG Explorer
-          </h2>
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+            {t('title')}
+          </h1>
           
           <div className="flex items-center space-x-2">
-            <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            <div 
+              className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`}
+              aria-label={isConnected ? t('status.connected') : t('status.disconnected')}
+            />
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              {isConnected ? 'Connected' : 'Disconnected'}
+              {isConnected ? t('status.connected') : t('status.disconnected')}
             </span>
             {isRealtime && (
               <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-                Real-time
+                {t('status.realtime')}
               </span>
             )}
           </div>
@@ -298,23 +313,35 @@ export function DAGExplorer({ data, isConnected, isRealtime }: DAGExplorerProps)
             <MagnifyingGlassIcon className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search blocks..."
+              placeholder={t('controls.searchPlaceholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700"
+              aria-label={t('controls.search')}
             />
           </div>
-          
+
           <button
-            onClick={() => setIsPaused(!isPaused)}
+            onClick={() => {
+              setIsPaused(!isPaused)
+              announceToScreenReader(isPaused ? t('controls.resume') : t('controls.pause'))
+            }}
             className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            aria-label={isPaused ? t('controls.resume') : t('controls.pause')}
+            title={isPaused ? t('controls.resume') : t('controls.pause')}
           >
             {isPaused ? <PlayIcon className="w-5 h-5" /> : <PauseIcon className="w-5 h-5" />}
           </button>
           
           <button
-            onClick={() => setShowDetails(!showDetails)}
+            onClick={() => {
+              setShowDetails(!showDetails)
+              announceToScreenReader(showDetails ? 'Details panel hidden' : 'Details panel shown')
+            }}
             className="p-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            aria-label={t('controls.toggleDetails')}
+            title={t('controls.toggleDetails')}
+            aria-expanded={showDetails}
           >
             {showDetails ? <ChevronDownIcon className="w-5 h-5" /> : <ChevronRightIcon className="w-5 h-5" />}
           </button>

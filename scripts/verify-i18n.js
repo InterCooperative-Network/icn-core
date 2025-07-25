@@ -159,14 +159,35 @@ for (const app of apps) {
   }
 }
 
+// Test 5: Check documentation exists
+console.log('\n📚 Checking documentation files...');
+let docIssues = 0;
+
+const requiredDocs = [
+  'docs/I18N_AND_ACCESSIBILITY.md',
+  'docs/ACCESSIBILITY_AUDIT.md', 
+  'docs/LANGUAGE_ADDITION_GUIDE.md'
+];
+
+for (const docPath of requiredDocs) {
+  const fullPath = path.join(__dirname, '..', docPath);
+  if (fs.existsSync(fullPath)) {
+    console.log(`✓ ${docPath} exists`);
+  } else {
+    console.log(`✗ ${docPath} missing`);
+    docIssues++;
+  }
+}
+
 // Summary
 console.log('\n📊 Test Summary:');
 console.log(`Missing files: ${missingFiles}`);
 console.log(`Invalid JSON files: ${invalidFiles}`);
 console.log(`Inconsistent translation keys: ${inconsistentKeys}`);
 console.log(`Configuration issues: ${configIssues}`);
+console.log(`Documentation issues: ${docIssues}`);
 
-const totalIssues = missingFiles + invalidFiles + inconsistentKeys + configIssues;
+const totalIssues = missingFiles + invalidFiles + inconsistentKeys + configIssues + docIssues;
 
 if (totalIssues === 0) {
   console.log('\n🎉 All tests passed! i18n implementation looks good.');
