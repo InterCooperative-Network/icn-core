@@ -47,6 +47,12 @@ AgoraNet is ICN's democratic governance platform, providing tools for proposal c
 - ✅ Event calendar
 - ✅ Meeting coordination
 
+### Recent Updates
+- **CRDT Real-Time Sync** for proposals and deliberation notes across devices
+- **Advanced Governance Features** including dynamic quorum rules and multi-level delegation
+- **Updated API Integrations** with ICN Node v0.7 for job management and identity verification
+- **Accessibility Additions** such as screen reader navigation and improved color contrast
+
 ## Development
 
 ### Start Development Server
