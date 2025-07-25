@@ -47,14 +47,14 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
                     │ (wire formats)  │
                     └─────────────────┘
                              │
-              ┌──────────────┼──────────────┐
-              │              │              │
-     ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-     │ icn-identity│ │   icn-dag   │ │icn-economics│
-     │ (DIDs, VCs) │ │ (storage)   │ │ (mana, $)   │
-     └─────────────┘ └─────────────┘ └─────────────┘
-              │              │              │
-              └──────────────┼──────────────┘
+              ┌──────────────┬──────────────┬──────────────┐
+              │              │              │              │
+     ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+     │ icn-identity│ │   icn-dag   │ │  icn-crdt   │ │icn-economics│
+     │ (DIDs, VCs) │ │ (storage)   │ │   (sync)    │ │ (mana, $)   │
+     └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘
+              │              │              │              │
+              └──────────────┴──────────────┴──────────────┘
                              │
               ┌──────────────┼──────────────┐
               │              │              │
@@ -150,6 +150,19 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 
 **Dependencies**: `icn-common`, `icn-identity`
 
+#### `icn-crdt`
+**Purpose**: CRDT-based real-time synchronization modules
+**Key Components**:
+- G-Counter, PN-Counter, OR-Set, LWW-Register
+- Vector clocks and gossip-based replication
+
+**Integration Points**:
+- DAG storage for operation logs
+- Network layer for state exchange
+- Runtime host functions for contract access
+
+**Dependencies**: `icn-common`, `icn-dag`, `icn-network`
+
 #### `icn-economics`
 **Purpose**: Economic policy and mana management
 **Key Components**:
@@ -179,6 +192,14 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 - Proposal types (parameter changes, upgrades, etc.)
 - Persistent storage of decisions
 - Federation synchronization
+- Advanced democracy primitives (ranked choice, quadratic, delegated)
+
+**Governance Workflow**:
+1. Proposal submission and validation
+2. Community review period
+3. Voting period with chosen method
+4. Challenge window for disputes
+5. On-chain execution and federation sync
 
 **Dependencies**: `icn-common`, `icn-identity`, `icn-economics`, `icn-dag`
 
@@ -325,6 +346,21 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 
 **Dependencies**: All crates
 
+## Developer Tooling Architecture
+
+> **Development Status**: Tooling features are usable but still evolving.
+
+### Components
+- **`ccl-lsp`** – Language Server Protocol implementation for CCL
+- **`ccl-debug`** – Source-level WASM debugger
+- **`ccl-package`** – Package manager for reusable governance modules
+
+### Tooling Flow
+
+```
+IDE/Editor → ccl-lsp → ccl-debug → ccl-package
+```
+
 ## Data Flow Patterns
 
 ### 1. Job Submission Flow
@@ -425,6 +461,18 @@ Federation A           Federation B
 │    Node A4  │       │    Node B4  │
 │    Node A5  │       │    Node B5  │
 └─────────────┘       └─────────────┘
+```
+
+### Federation DAG Synchronization Protocol
+
+This protocol exchanges DAG roots between federated nodes and transfers missing
+blocks. CRDT merges ensure deterministic convergence.
+
+```text
+Node A DAG ── Sync Request ──> Node B DAG
+         └── Missing Blocks <──┘
+                 ▲
+                 └─ CRDT Merge
 ```
 
 ## Security Architecture
