@@ -39,3 +39,14 @@ When the team receives a security bug report, they will assign it to a primary h
 We aim to handle disclosures responsibly and will coordinate with you on the timing of public announcements.
 
 We appreciate your help in keeping ICN Core secure. 
+## Federation Security Protocols and Key Management
+
+Federated deployments rely on libp2p for encrypted transport and DID-based authentication. Each node should store its private keys in a secure hardware module or encrypted keystore. Rotate federation signing keys on a regular schedule and distribute the updated public keys to all peers via the existing federation discovery channels.
+
+## Zero-Knowledge Proof Security Implications
+
+Zero-knowledge circuits are used for selective disclosure and contract verification. Ensure that proof generation happens in a trusted execution environment and that verification keys are distributed over authenticated channels. Compromised proving keys can lead to forged proofs and network instability.
+
+## CRDT Conflict Resolution Impacts on Security
+
+CRDT-based data synchronization protects against data loss but can hide malicious updates if conflict rules are not audited. Monitor merge events and maintain an audit log of state transitions. Regularly verify that the CRDT state matches the intended policy outcomes.
