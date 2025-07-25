@@ -2,8 +2,10 @@ import React from 'react'
 import { StatusBar } from 'expo-status-bar'
 import { TamaguiProvider, Theme } from '@tamagui/core'
 import { ICNProvider } from '@icn/ts-sdk'
+import { I18NProvider, useTranslation } from '@icn/i18n'
 import { Button, VStack, Heading, Body, icnConfig } from '@icn/ui-kit'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
+import './i18n' // Initialize i18n
 
 export default function App() {
   const icnOptions = {
@@ -15,10 +17,12 @@ export default function App() {
     <SafeAreaProvider>
       <TamaguiProvider config={icnConfig}>
         <Theme name="light_icn">
-          <ICNProvider options={icnOptions}>
-            <WalletScreen />
-            <StatusBar style="auto" />
-          </ICNProvider>
+          <I18NProvider>
+            <ICNProvider options={icnOptions}>
+              <WalletScreen />
+              <StatusBar style="auto" />
+            </ICNProvider>
+          </I18NProvider>
         </Theme>
       </TamaguiProvider>
     </SafeAreaProvider>
@@ -26,6 +30,8 @@ export default function App() {
 }
 
 function WalletScreen() {
+  const { t } = useTranslation('wallet')
+  
   return (
     <VStack 
       flex={1} 
@@ -34,27 +40,27 @@ function WalletScreen() {
       padding="$4" 
       space="$4"
     >
-      <Heading>ICN Wallet</Heading>
+      <Heading>{t('title')}</Heading>
       <Body textAlign="center">
-        Secure DID and key management for the InterCooperative Network
+        {t('subtitle')}
       </Body>
       
       <VStack space="$3" width="100%" maxWidth={300}>
         <Button variant="primary" size="lg">
-          Create New Wallet
+          {t('actions.createWallet')}
         </Button>
         
         <Button variant="secondary" size="lg">
-          Import Existing Wallet
+          {t('actions.importWallet')}
         </Button>
         
         <Button variant="ghost" size="md">
-          Connect to Node
+          {t('actions.connectNode')}
         </Button>
       </VStack>
       
       <Body fontSize="$2" color="$gray10" textAlign="center">
-        Version 0.1.0 • Cross-platform DID wallet
+        {t('version', { version: '0.1.0' })} • {t('description')}
       </Body>
     </VStack>
   )

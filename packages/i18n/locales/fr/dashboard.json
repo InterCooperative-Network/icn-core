@@ -1,0 +1,57 @@
+{
+  "title": "Tableau de bord de la fédération",
+  "subtitle": "Surveillez et gérez votre fédération coopérative",
+  "metrics": {
+    "totalCooperatives": "Total des coopératives",
+    "totalMembers": "Total des membres",
+    "activeProposals": "Propositions actives",
+    "networkPeers": "Pairs du réseau",
+    "activeInFederation": "Actives dans la fédération",
+    "acrossAllCooperatives": "À travers toutes les coopératives",
+    "totalProposals": "{{count}} propositions au total",
+    "connectedPeers": "Pairs connectés"
+  },
+  "health": {
+    "title": "Santé de la fédération",
+    "overall": "Santé générale",
+    "network": "Connectivité réseau",
+    "governance": "Activité de gouvernance"
+  },
+  "cooperatives": {
+    "title": "Coopératives actives",
+    "members": "{{count}} membres",
+    "reputation": "{{score}}% de réputation",
+    "noCooperatives": "Aucune coopérative trouvée"
+  },
+  "proposals": {
+    "title": "Propositions récentes",
+    "noProposals": "Aucune proposition trouvée"
+  },
+  "systemInfo": {
+    "title": "Informations système",
+    "nodeInfo": {
+      "title": "Informations du nœud",
+      "name": "Nom",
+      "version": "Version",
+      "did": "DID",
+      "noInfo": "Aucune information de nœud disponible"
+    },
+    "networkStatus": {
+      "title": "État du réseau",
+      "status": "État",
+      "peers": "Pairs",
+      "blockHeight": "Hauteur de bloc",
+      "noStatus": "Aucun état de réseau disponible"
+    },
+    "dagStatus": {
+      "title": "État DAG",
+      "blocks": "Blocs",
+      "sync": "Synchronisation",
+      "noStatus": "Aucun état DAG disponible"
+    }
+  },
+  "errors": {
+    "general": "Erreur",
+    "loadingFailed": "Échec du chargement des données"
+  }
+}

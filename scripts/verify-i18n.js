@@ -12,8 +12,8 @@ console.log('🌍 Testing ICN i18n Implementation...\n');
 
 // Test 1: Check that language files exist
 console.log('📁 Checking language files...');
-const languages = ['en', 'es'];
-const namespaces = ['common', 'navigation', 'dashboard', 'accessibility'];
+const languages = ['en', 'es', 'fr'];
+const namespaces = ['common', 'navigation', 'dashboard', 'accessibility', 'explorer', 'wallet'];
 
 let missingFiles = 0;
 
@@ -49,51 +49,41 @@ for (const lang of languages) {
   }
 }
 
-// Test 3: Check for translation key consistency
+// Test 3: Check for translation key consistency across all languages
 console.log('\n🔄 Checking translation key consistency...');
 let inconsistentKeys = 0;
 
-const enTranslations = {};
-const esTranslations = {};
+const translations = {};
 
-// Load English translations (reference)
-for (const ns of namespaces) {
-  const filePath = path.join(__dirname, '..', 'packages', 'i18n', 'locales', 'en', `${ns}.json`);
-  if (fs.existsSync(filePath)) {
-    try {
-      enTranslations[ns] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    } catch (error) {
-      console.log(`✗ Could not load en/${ns}.json`);
+// Load all translations
+for (const lang of languages) {
+  translations[lang] = {};
+  for (const ns of namespaces) {
+    const filePath = path.join(__dirname, '..', 'packages', 'i18n', 'locales', lang, `${ns}.json`);
+    if (fs.existsSync(filePath)) {
+      try {
+        translations[lang][ns] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      } catch (error) {
+        console.log(`✗ Could not load ${lang}/${ns}.json`);
+      }
     }
   }
 }
 
-// Load Spanish translations
-for (const ns of namespaces) {
-  const filePath = path.join(__dirname, '..', 'packages', 'i18n', 'locales', 'es', `${ns}.json`);
-  if (fs.existsSync(filePath)) {
-    try {
-      esTranslations[ns] = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    } catch (error) {
-      console.log(`✗ Could not load es/${ns}.json`);
-    }
-  }
-}
-
-// Check key consistency
-function checkKeys(obj1, obj2, path = '') {
+// Check key consistency against English (reference language)
+function checkKeys(obj1, obj2, path = '', lang = '') {
   for (const key in obj1) {
     const currentPath = path ? `${path}.${key}` : key;
     if (typeof obj1[key] === 'object' && obj1[key] !== null) {
       if (typeof obj2[key] === 'object' && obj2[key] !== null) {
-        checkKeys(obj1[key], obj2[key], currentPath);
+        checkKeys(obj1[key], obj2[key], currentPath, lang);
       } else {
-        console.log(`✗ Missing nested key in Spanish: ${currentPath}`);
+        console.log(`✗ Missing nested key in ${lang}: ${currentPath}`);
         inconsistentKeys++;
       }
     } else {
       if (!(key in obj2)) {
-        console.log(`✗ Missing key in Spanish: ${currentPath}`);
+        console.log(`✗ Missing key in ${lang}: ${currentPath}`);
         inconsistentKeys++;
       }
     }
@@ -101,9 +91,13 @@ function checkKeys(obj1, obj2, path = '') {
 }
 
 for (const ns of namespaces) {
-  if (enTranslations[ns] && esTranslations[ns]) {
+  if (translations['en'][ns]) {
     console.log(`Checking keys for namespace: ${ns}`);
-    checkKeys(enTranslations[ns], esTranslations[ns]);
+    for (const lang of languages) {
+      if (lang !== 'en' && translations[lang][ns]) {
+        checkKeys(translations['en'][ns], translations[lang][ns], '', lang);
+      }
+    }
   }
 }
 
@@ -111,11 +105,16 @@ for (const ns of namespaces) {
 console.log('\n📦 Checking package configurations...');
 let configIssues = 0;
 
-const i18nPackagePath = path.join(__dirname, '..', 'packages', 'i18n', 'package.json');
-const webUiPackagePath = path.join(__dirname, '..', 'apps', 'web-ui', 'package.json');
+const packagePaths = {
+  'i18n': path.join(__dirname, '..', 'packages', 'i18n', 'package.json'),
+  'web-ui': path.join(__dirname, '..', 'apps', 'web-ui', 'package.json'),
+  'explorer': path.join(__dirname, '..', 'apps', 'explorer', 'package.json'),
+  'wallet-ui': path.join(__dirname, '..', 'apps', 'wallet-ui', 'package.json')
+};
 
+// Check i18n package
 try {
-  const i18nPkg = JSON.parse(fs.readFileSync(i18nPackagePath, 'utf8'));
+  const i18nPkg = JSON.parse(fs.readFileSync(packagePaths['i18n'], 'utf8'));
   
   if (i18nPkg.name === '@icn/i18n') {
     console.log('✓ i18n package name is correct');
@@ -135,25 +134,29 @@ try {
   configIssues++;
 }
 
-try {
-  const webUiPkg = JSON.parse(fs.readFileSync(webUiPackagePath, 'utf8'));
-  
-  if (webUiPkg.dependencies && webUiPkg.dependencies['@icn/i18n']) {
-    console.log('✓ web-ui depends on @icn/i18n');
-  } else {
-    console.log('✗ web-ui missing @icn/i18n dependency');
-    configIssues++;
-  }
+// Check app packages
+const apps = ['web-ui', 'explorer', 'wallet-ui'];
+for (const app of apps) {
+  try {
+    const appPkg = JSON.parse(fs.readFileSync(packagePaths[app], 'utf8'));
+    
+    if (appPkg.dependencies && appPkg.dependencies['@icn/i18n']) {
+      console.log(`✓ ${app} depends on @icn/i18n`);
+    } else {
+      console.log(`✗ ${app} missing @icn/i18n dependency`);
+      configIssues++;
+    }
 
-  if (webUiPkg.dependencies && webUiPkg.dependencies['react-i18next']) {
-    console.log('✓ web-ui has react-i18next dependency');
-  } else {
-    console.log('✗ web-ui missing react-i18next dependency');
+    if (appPkg.dependencies && appPkg.dependencies['react-i18next']) {
+      console.log(`✓ ${app} has react-i18next dependency`);
+    } else {
+      console.log(`✗ ${app} missing react-i18next dependency`);
+      configIssues++;
+    }
+  } catch (error) {
+    console.log(`✗ Could not read ${app} package.json`);
     configIssues++;
   }
-} catch (error) {
-  console.log('✗ Could not read web-ui package.json');
-  configIssues++;
 }
 
 // Summary

@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@icn/ts-sdk": "workspace:*",
+    "@icn/i18n": "workspace:*",
     "@headlessui/react": "^1.7.0",
     "@heroicons/react": "^2.0.0",
     "react": "^18.2.0",
@@ -24,7 +25,9 @@
     "d3": "^7.8.0",
     "@types/d3": "^7.4.0",
     "clsx": "^2.0.0",
-    "tailwind-merge": "^1.14.0"
+    "tailwind-merge": "^1.14.0",
+    "i18next": "^23.7.0",
+    "react-i18next": "^13.5.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.0",
