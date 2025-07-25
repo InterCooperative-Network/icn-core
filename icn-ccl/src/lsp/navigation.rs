@@ -23,16 +23,18 @@ pub fn goto_definition(doc_state: &DocumentState, position: Position) -> Option<
 /// Find all references to a symbol
 pub fn find_references(doc_state: &DocumentState, position: Position) -> Vec<Location> {
     // Get the word at the cursor position
-    let _word = get_word_at_position(&doc_state.text, position)?;
-    
-    // TODO: Implement find references by analyzing the AST
-    // This would involve:
-    // 1. Finding the symbol at the cursor position
-    // 2. Searching the entire AST for references to this symbol
-    // 3. Converting all found locations to LSP Locations
-    
-    // For now, return empty list (no references found)
-    Vec::new()
+    if let Some(_word) = get_word_at_position(&doc_state.text, position) {
+        // TODO: Implement find references by analyzing the AST
+        // This would involve:
+        // 1. Finding the symbol at the cursor position
+        // 2. Searching the entire AST for references to this symbol
+        // 3. Converting all found locations to LSP Locations
+        
+        // For now, return empty list (no references found)
+        Vec::new()
+    } else {
+        Vec::new()
+    }
 }
 
 /// Extract the word at a given position in the text

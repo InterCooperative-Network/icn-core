@@ -2,8 +2,8 @@
 //! CCL package registry for sharing governance patterns and modules
 
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use super::manifest::{Author, Metadata};
+use sha2::{Digest, Sha256};
 
 /// Package information in the registry
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -142,7 +142,7 @@ impl Registry {
             .map_err(|e| RegistryError::NetworkError(e.to_string()))?;
 
         // Verify checksum
-        let actual_checksum = sha2::Sha256::digest(&bytes);
+        let actual_checksum = Sha256::digest(&bytes);
         let expected_checksum = hex::decode(&package_info.checksum)
             .map_err(|e| RegistryError::ParseError(format!("Invalid checksum: {}", e)))?;
 

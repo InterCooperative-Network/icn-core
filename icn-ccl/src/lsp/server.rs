@@ -12,7 +12,7 @@ use url::Url;
 use crate::{
     ast::AstNode,
     error::CclError,
-    parser::{parse_ccl_source, CclParser},
+    parser::parse_ccl_source,
     semantic_analyzer::SemanticAnalyzer,
 };
 

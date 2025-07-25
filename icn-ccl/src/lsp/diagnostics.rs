@@ -31,32 +31,27 @@ fn error_to_diagnostic(error: &CclError, severity: DiagnosticSeverity) -> Diagno
         CclError::SemanticError(msg) => {
             (msg.clone(), create_default_range())
         }
-        CclError::TypeMismatch { expected, found, location: _ } => {
-            (format!("Type mismatch: expected {}, found {}", expected, found), create_default_range())
+        CclError::TypeMismatch { expected, found, line } => {
+            (format!("Type mismatch: expected {}, found {}", expected, found), 
+             create_range_for_line(*line))
         }
-        CclError::UndefinedVariable { name, location: _ } => {
-            (format!("Undefined variable: {}", name), create_default_range())
+        CclError::UndefinedVariableError { variable } => {
+            (format!("Undefined variable: {}", variable), create_default_range())
         }
-        CclError::UndefinedFunction { name, location: _ } => {
-            (format!("Undefined function: {}", name), create_default_range())
+        CclError::UndefinedFunctionError { function } => {
+            (format!("Undefined function: {}", function), create_default_range())
         }
-        CclError::UndefinedType { name, location: _ } => {
-            (format!("Undefined type: {}", name), create_default_range())
+        CclError::ArgumentCountMismatchError { function, expected, found } => {
+            (format!("Invalid arity: function '{}' expected {} arguments, found {}", function, expected, found), create_default_range())
         }
-        CclError::DuplicateDefinition { name, location: _ } => {
-            (format!("Duplicate definition: {}", name), create_default_range())
+        CclError::ImmutableAssignmentError { variable } => {
+            (format!("Cannot assign to immutable variable: {}", variable), create_default_range())
         }
-        CclError::InvalidArity { expected, found, location: _ } => {
-            (format!("Invalid arity: expected {} arguments, found {}", expected, found), create_default_range())
+        CclError::InvalidBinaryOperationError { left_type, operator, right_type } => {
+            (format!("Invalid operation '{:?}' between types '{:?}' and '{:?}'", operator, left_type, right_type), create_default_range())
         }
-        CclError::ImmutableAssignment { name, location: _ } => {
-            (format!("Cannot assign to immutable variable: {}", name), create_default_range())
-        }
-        CclError::InvalidOperation { operation, type_name, location: _ } => {
-            (format!("Invalid operation '{}' for type '{}'", operation, type_name), create_default_range())
-        }
-        CclError::CircularDependency { names } => {
-            (format!("Circular dependency detected: {}", names.join(" -> ")), create_default_range())
+        CclError::CircularDependency { cycle } => {
+            (format!("Circular dependency detected: {}", cycle), create_default_range())
         }
         _ => {
             (format!("{}", error), create_default_range())
@@ -81,6 +76,14 @@ fn create_default_range() -> Range {
     Range {
         start: Position { line: 0, character: 0 },
         end: Position { line: 0, character: 0 },
+    }
+}
+
+/// Create a range for a specific line
+fn create_range_for_line(line: usize) -> Range {
+    Range {
+        start: Position { line: line.saturating_sub(1) as u32, character: 0 },
+        end: Position { line: line.saturating_sub(1) as u32, character: 100 },
     }
 }
 

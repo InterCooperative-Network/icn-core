@@ -168,7 +168,7 @@ impl DependencyResolver {
     /// Check for version conflicts in resolved dependencies
     pub fn check_conflicts(&self, resolved: &[ResolvedDependency]) -> Result<(), ResolverError> {
         let flattened = self.flatten_dependencies(resolved);
-        let mut versions = HashMap::new();
+        let mut versions: HashMap<String, String> = HashMap::new();
 
         for dep in flattened {
             if let Some(existing_version) = versions.get(&dep.name) {

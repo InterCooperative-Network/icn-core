@@ -7,7 +7,7 @@ use crate::{
     error::CclError,
 };
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 /// Initialize a new CCL package
 pub fn init_package(
