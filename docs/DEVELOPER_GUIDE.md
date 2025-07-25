@@ -1,6 +1,6 @@
-`# ICN Core Developer Guide
+# ICN Core Developer Guide
 
-> **⚠️ Development Status**: ICN Core is experimental software with many stub implementations. This guide helps developers contribute to replacing stubs with real functionality.
+> **⚠️ Development Status**: ICN Core now starts with production service defaults but remains under active development.
 
 This guide provides comprehensive information for developers working on the InterCooperative Network (ICN) Core project. It covers setup, development workflows, testing strategies, and contribution guidelines for an active development project.
 
@@ -285,6 +285,17 @@ just test-e2e
 # Run specific E2E test
 cargo test --test e2e_mesh_jobs
 ```
+
+#### Federation DAG Sync Testing
+
+Verify cross-node DAG synchronization using the devnet:
+
+```bash
+just devnet                              # start federation environment
+./scripts/run_p2p_dag_tests.sh --verbose # run DAG sync tests
+```
+
+Successful runs show blocks propagating across nodes and confirm the federation DAG stays in sync.
 
 ### Testing Best Practices
 
@@ -662,6 +673,31 @@ cargo outdated
 ```bash
 just test-all
 just test-e2e
+```
+
+### CCL Developer Tooling
+
+Use these `justfile` commands when working with Cooperative Contract Language (CCL):
+
+```bash
+just ccl-lsp                 # start the CCL language server
+just ccl-init <name> <author> # create a new CCL package
+just ccl-install             # install CCL dependencies
+just ccl-add-dep <name> <ver> # add a dependency
+just ccl-compile-debug <file> # compile a contract with debug info
+just ccl-debug <file>        # launch the debugger
+just ccl-format              # format *.ccl files
+just ccl-lint                # lint CCL code
+just ccl-test                # run CCL tests
+just install-ccl-tools       # install CLI tools globally
+```
+
+### CRDT Testing
+
+Run Conflict-free Replicated Data Type tests with:
+
+```bash
+just test-crdt
 ```
 
 ### Working with Features
