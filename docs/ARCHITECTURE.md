@@ -85,9 +85,21 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
               └──────────────┼──────────────┘
                              │
                     ┌─────────────────┐
-                    │      icn-zk     │
-                    │ (zero-knowledge)│
-                    └─────────────────┘
+                   │      icn-zk     │
+                   │ (zero-knowledge)│
+                   └─────────────────┘
+                            │
+                   ┌─────────────────┐
+                   │    icn-ccl      │
+                   │   (compiler)    │
+                   └─────────────────┘
+                            │
+             ┌──────────────┬──────────────┬──────────────┐
+             │              │              │
+    ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+    │  ccl-lsp    │ │  ccl-debug  │ │ ccl-package │
+    │   (LSP)     │ │  (debugger) │ │ (packages)  │
+    └─────────────┘ └─────────────┘ └─────────────┘
 ```
 
 ## Core Components
@@ -156,6 +168,11 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 - G-Counter, PN-Counter, OR-Set, LWW-Register
 - Vector clocks and gossip-based replication
 
+##### Real-Time Sync Modules
+- Operation logs replicated via CRDT primitives
+- Automatic conflict resolution across peers
+- Tight integration with DAG storage for deterministic history
+
 **Integration Points**:
 - DAG storage for operation logs
 - Network layer for state exchange
@@ -192,9 +209,13 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 - Proposal types (parameter changes, upgrades, etc.)
 - Persistent storage of decisions
 - Federation synchronization
-- Advanced democracy primitives (ranked choice, quadratic, delegated)
 
-**Governance Workflow**:
+##### Advanced Democracy Primitives
+- Ranked choice voting
+- Quadratic voting mechanisms
+- Delegated and liquid democracy models
+
+##### Governance Workflow
 1. Proposal submission and validation
 2. Community review period
 3. Voting period with chosen method
@@ -351,14 +372,25 @@ The InterCooperative Network (ICN) Core is designed as a modular, distributed sy
 > **Development Status**: Tooling features are usable but still evolving.
 
 ### Components
-- **`ccl-lsp`** – Language Server Protocol implementation for CCL
-- **`ccl-debug`** – Source-level WASM debugger
-- **`ccl-package`** – Package manager for reusable governance modules
+- **`ccl-lsp`** – Language Server Protocol server providing diagnostics,
+  completion, and navigation for CCL contracts.
+- **`ccl-debug`** – Source-level WASM debugger with step execution and
+  variable inspection.
+- **`ccl-package`** – Package manager for sharing and reusing governance and
+  automation modules.
 
 ### Tooling Flow
 
 ```
-IDE/Editor → ccl-lsp → ccl-debug → ccl-package
+IDE/Editor
+    ↓
+ccl-lsp
+    ↓
+ccl-debug
+    ↓
+ccl-package
+    ↓
+icn-runtime → icn-network
 ```
 
 ## Data Flow Patterns
@@ -465,8 +497,10 @@ Federation A           Federation B
 
 ### Federation DAG Synchronization Protocol
 
-This protocol exchanges DAG roots between federated nodes and transfers missing
-blocks. CRDT merges ensure deterministic convergence.
+Nodes periodically exchange DAG roots between federated peers and transfer any
+missing blocks. Each block contains CRDT operations so that merges are
+deterministic and order independent. This mechanism keeps all members of a
+federation in sync without centralized coordination.
 
 ```text
 Node A DAG ── Sync Request ──> Node B DAG
