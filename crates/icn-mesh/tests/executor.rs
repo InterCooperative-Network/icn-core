@@ -1,7 +1,7 @@
 use icn_common::Did;
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy};
+use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy, NoOpCapabilityChecker};
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -113,6 +113,7 @@ fn executor_selection_prefers_reputation() {
     latency.set_latency(high.clone(), 5);
     latency.set_latency(low.clone(), 15);
     let spec = JobSpec::default();
+    let capability_checker = NoOpCapabilityChecker;
     let selected = select_executor(
         &job_id,
         &spec,
@@ -121,6 +122,7 @@ fn executor_selection_prefers_reputation() {
         &rep_store,
         &ledger,
         &latency,
+        &capability_checker,
     );
     assert_eq!(selected.unwrap(), high);
 }

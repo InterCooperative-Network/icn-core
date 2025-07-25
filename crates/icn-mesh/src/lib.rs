@@ -1530,7 +1530,6 @@ mod tests {
             &ledger,
             &latency,
             &capability_checker,
-            &capability_checker,
         );
 
         assert_eq!(selected.unwrap(), high);
@@ -1583,7 +1582,6 @@ mod tests {
         latency.set_latency(a.clone(), 15);
         latency.set_latency(b.clone(), 5);
         let spec = JobSpec::default();
-        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &spec,
@@ -1592,8 +1590,6 @@ mod tests {
             &rep_store,
             &ledger,
             &latency,
-            &capability_checker,
-            &capability_checker,
             &capability_checker,
         );
 
