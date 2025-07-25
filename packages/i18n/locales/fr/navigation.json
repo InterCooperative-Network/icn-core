@@ -1,0 +1,27 @@
+{
+  "brand": "Fédération ICN",
+  "menu": {
+    "demo": "Démo",
+    "dashboard": "Tableau de bord",
+    "federation": "Fédération",
+    "governance": "Gouvernance",
+    "cooperatives": "Coopératives",
+    "meshJobs": "Tâches de réseau",
+    "settings": "Paramètres"
+  },
+  "status": {
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "network": "Réseau",
+    "did": "DID"
+  },
+  "mobileMenu": {
+    "open": "Ouvrir le menu mobile",
+    "close": "Fermer le menu mobile"
+  },
+  "accessibility": {
+    "skipToContent": "Aller au contenu principal",
+    "mainNavigation": "Navigation principale",
+    "currentPage": "Page actuelle"
+  }
+}

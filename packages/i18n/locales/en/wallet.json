@@ -1,0 +1,46 @@
+{
+  "title": "ICN Wallet",
+  "subtitle": "Secure DID and key management for the InterCooperative Network",
+  "version": "Version {{version}}",
+  "description": "Cross-platform DID wallet",
+  "actions": {
+    "createWallet": "Create New Wallet",
+    "importWallet": "Import Existing Wallet",
+    "connectNode": "Connect to Node",
+    "unlockWallet": "Unlock Wallet",
+    "lockWallet": "Lock Wallet",
+    "sendTransaction": "Send Transaction",
+    "receiveTransaction": "Receive",
+    "viewHistory": "Transaction History"
+  },
+  "security": {
+    "enterPassword": "Enter password",
+    "confirmPassword": "Confirm password",
+    "createPassword": "Create a secure password",
+    "biometric": "Use biometric authentication",
+    "secureStorage": "Secure storage enabled"
+  },
+  "wallet": {
+    "balance": "Balance",
+    "address": "Address", 
+    "did": "DID",
+    "keys": "Keys",
+    "credentials": "Credentials",
+    "noWallet": "No wallet found",
+    "walletLocked": "Wallet is locked"
+  },
+  "network": {
+    "status": "Network Status",
+    "endpoint": "Node Endpoint",
+    "connecting": "Connecting...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "testConnection": "Test Connection"
+  },
+  "errors": {
+    "invalidPassword": "Invalid password",
+    "connectionFailed": "Connection failed",
+    "walletCreationFailed": "Failed to create wallet",
+    "importFailed": "Failed to import wallet"
+  }
+}
