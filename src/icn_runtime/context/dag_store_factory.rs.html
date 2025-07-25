@@ -178,7 +178,7 @@
 <a href=#178 id=178 data-nosnippet>178</a>            <span class="attr">#[cfg(feature = <span class="string">"persist-rocksdb"</span>)]
 <a href=#179 id=179 data-nosnippet>179</a>            </span>DagStoreBackend::RocksDB =&gt; {
 <a href=#180 id=180 data-nosnippet>180</a>                <span class="macro">log::info!</span>(<span class="string">"🗄️ Creating RocksDB DAG store at: {}"</span>, config.storage_path.display());
-<a href=#181 id=181 data-nosnippet>181</a>                <span class="kw">match </span>icn_dag::rocksdb_store::RocksDbDagStore::new(config.storage_path.clone()) {
+<a href=#181 id=181 data-nosnippet>181</a>                <span class="kw">match </span>icn_dag::rocksdb_store::RocksDagStore::new(config.storage_path.clone()) {
 <a href=#182 id=182 data-nosnippet>182</a>                    <span class="prelude-val">Ok</span>(store) =&gt; {
 <a href=#183 id=183 data-nosnippet>183</a>                        <span class="comment">// Wrap the synchronous RocksDbDagStore in a CompatAsyncStore
 <a href=#184 id=184 data-nosnippet>184</a>                        </span><span class="kw">let </span>async_store = icn_dag::CompatAsyncStore::new(store);
