@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["create_location","create_range","find_references","goto_definition","text_position_to_lsp"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["Author","BuildConfig","Dependency","Metadata","PackageInfo","PackageManifest","VersionReq"]};

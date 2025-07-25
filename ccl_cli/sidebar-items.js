@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Commands","PackageCommands"],"fn":["compile_command","debug_command","format_command","lint_command","main","run_command"],"struct":["Cli"]};
