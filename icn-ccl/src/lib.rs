@@ -19,9 +19,22 @@ pub mod semantic_analyzer;
 pub mod stdlib;
 pub mod wasm_backend; // Expose functions for CLI layer
 
+// Developer tooling modules
+pub mod lsp_server;
+pub mod debugger;
+pub mod package_manager;
+
 pub use error::CclError;
 pub use metadata::ContractMetadata;
 pub use stdlib::StdLibrary as StandardLibrary;
+
+// Re-export developer tooling
+pub use debugger::{CclDebugger, DebugEvent, DebugSession, DebuggerState, create_console_debugger};
+pub use lsp_server::{CclLanguageServer, start_lsp_server, create_lsp_service};
+pub use package_manager::{
+    CclPackageManager, GovernancePattern, GovernancePatternType, Package, PackageInfo,
+    PackageRegistry, create_test_package_manager,
+};
 
 /// Compiles a CCL source string into WASM bytecode and metadata.
 pub fn compile_ccl_source_to_wasm(source: &str) -> Result<(Vec<u8>, ContractMetadata), CclError> {

@@ -206,6 +206,19 @@ path = "test_ultimate_basic.rs"
 name = "demo_ccl_improvements_success"
 path = "demo_ccl_improvements_success.rs"
 
+# Developer tooling binaries
+[[bin]]
+name = "ccl-lsp"
+path = "src/bin/ccl-lsp.rs"
+
+[[bin]]
+name = "ccl-debug"
+path = "src/bin/ccl-debug.rs"
+
+[[bin]]
+name = "ccl-package"
+path = "src/bin/ccl-package.rs"
+
 # Additional test files found
 [[bin]]
 name = "test_budgeting_fix"
@@ -241,6 +254,16 @@ wasmparser = "0.121"
 # HTTP client for job spec generator
 reqwest = { workspace = true, features = ["blocking"] }
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
+
+# LSP dependencies
+tower-lsp = "0.20"
+tokio = { version = "1.0", features = ["full"] }
+dashmap = "6.1"
+env_logger = "0.11"
+dirs = "5.0"
+
+# Debugger dependencies
+wasmtime = { version = "15", features = ["async"] }
 
 # Dependency for icn-common if metadata uses Did, Cid etc.
 icn-common = { path = "../crates/icn-common" } # Adjust path as necessary

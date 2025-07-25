@@ -383,7 +383,7 @@ impl SemanticAnalyzer {
     /// Analyze function body (second pass after all signatures are registered)
     fn analyze_function_body(
         &mut self,
-        name: &str,
+        _name: &str,
         type_parameters: &[crate::ast::TypeParameterNode],
         parameters: &[ParameterNode],
         return_type: Option<&TypeExprNode>,

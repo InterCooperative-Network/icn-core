@@ -28,6 +28,9 @@ pub mod time_banking;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
+
+// Advanced economic features
+pub mod advanced_economics;
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
@@ -59,6 +62,14 @@ pub use mutual_credit::{
 pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS};
 pub use time_banking::{
     InMemoryTimeBankingStore, TimeBankingStore, TimeRecord, TimeRecordStatus, WorkStatistics,
+};
+
+// Advanced economics exports
+pub use advanced_economics::{
+    AdvancedEconomicGovernance, BudgetManager, BudgetCategory, BudgetProposal, BudgetProposalStatus,
+    BudgetAllocation, DividendDistributor, DistributionCriteria, MemberEligibility, DividendDistribution,
+    EconomicPolicyEngine, EconomicPolicy, PolicyTrigger, PolicyAction, PolicyExecution,
+    FiscalPeriod,
 };
 
 #[cfg(test)]

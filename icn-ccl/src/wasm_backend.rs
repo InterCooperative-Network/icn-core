@@ -4867,7 +4867,7 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             Ok(ValType::I64)
         }
         TypeAnnotationNode::Option(_) | TypeAnnotationNode::Result { .. } => Ok(ValType::I64),
-        TypeAnnotationNode::Custom(name) => {
+        TypeAnnotationNode::Custom(_name) => {
             // Custom types (structs, enums) are represented as pointers in WASM
             // This includes user-defined structs like ReputationProposal, ReputationVote, etc.
             Ok(ValType::I32)
