@@ -86,6 +86,8 @@
 #### **Networking & Computation (78% Complete)**
 - **[crates/icn-network/README.md](crates/icn-network/README.md)** - P2P networking with libp2p
 - **[crates/icn-mesh/README.md](crates/icn-mesh/README.md)** - Distributed job execution
+- **[docs/synchronization/CRDT_SYNC.md](docs/synchronization/CRDT_SYNC.md)** - Real-time CRDT sync
+- **[docs/federation/DAG_SYNC_PROTOCOL.md](docs/federation/DAG_SYNC_PROTOCOL.md)** - Federation DAG sync protocol
 
 #### **Developer Tools & SDKs (90% Complete)**
 - **[crates/icn-cli/README.md](crates/icn-cli/README.md)** - Command-line interface
@@ -93,6 +95,7 @@
 - **[crates/icn-sdk/README.md](crates/icn-sdk/README.md)** - High-level Rust SDK
 - **[crates/icn-templates/README.md](crates/icn-templates/README.md)** - Template management
 - **[crates/job-audit/README.md](crates/job-audit/README.md)** - Job auditing
+- **[docs/developer_tools/CCL_LSP.md](docs/developer_tools/CCL_LSP.md)** - CCL language server
 
 ---
 
@@ -110,6 +113,7 @@
 - **[packages/ui-kit/README.md](packages/ui-kit/README.md)** - Cross-platform component library
 - **[packages/ts-sdk/README.md](packages/ts-sdk/README.md)** - TypeScript SDK
 - **[packages/ccl-visual-editor/README.md](packages/ccl-visual-editor/README.md)** - Visual contract editor
+- **[docs/i18n/README.md](docs/i18n/README.md)** - Internationalization guide
 
 ---
 
@@ -125,6 +129,7 @@
 - **[docs/ccl/ccl_wasm_tasks.md](docs/ccl/ccl_wasm_tasks.md)** - CCL WASM backend implementation
 - **[docs/ccl/ccl_visual_editor_plan.md](docs/ccl/ccl_visual_editor_plan.md)** - Visual editor plan
 - **[docs/CCL_INTEGRATION_SUMMARY.md](docs/CCL_INTEGRATION_SUMMARY.md)** - CCL integration status
+- **[docs/governance/ADVANCED_VOTING.md](docs/governance/ADVANCED_VOTING.md)** - Ranked choice and quadratic voting
 
 ---
 
@@ -153,6 +158,7 @@
 
 ### **Security & Validation**
 - **[docs/SECURITY.md](docs/SECURITY.md)** - Security patterns and validation
+- **[docs/security/ZKP_INTEGRATION.md](docs/security/ZKP_INTEGRATION.md)** - Zero-knowledge proof flows
 - **[docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md)** - Comprehensive troubleshooting
 
 ---
