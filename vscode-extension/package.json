@@ -1,8 +1,8 @@
 {
   "name": "icn-ccl-tools",
   "displayName": "ICN CCL Tools",
-  "description": "Syntax highlighting and build tasks for Cooperative Contract Language (CCL)",
-  "version": "0.1.0",
+  "description": "Language Server and development tools for Cooperative Contract Language (CCL)",
+  "version": "0.2.0",
   "publisher": "icn",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Programming Languages"],
@@ -30,6 +30,18 @@
       {
         "command": "icn-ccl.compile",
         "title": "Compile CCL File"
+      },
+      {
+        "command": "icn-ccl.debug",
+        "title": "Debug CCL Contract"
+      },
+      {
+        "command": "icn-ccl.package.init",
+        "title": "Initialize CCL Package"
+      },
+      {
+        "command": "icn-ccl.package.install",
+        "title": "Install CCL Dependencies"
       }
     ],
     "taskDefinitions": [
@@ -43,6 +55,35 @@
           }
         }
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "CCL Configuration",
+      "properties": {
+        "ccl.lsp.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CCL Language Server"
+        },
+        "ccl.lsp.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to CCL LSP server binary (auto-detected if empty)"
+        },
+        "ccl.compile.outputDir": {
+          "type": "string",
+          "default": "./target/ccl",
+          "description": "Output directory for compiled CCL contracts"
+        },
+        "ccl.debug.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable CCL debugging support"
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.0"
   }
 }
