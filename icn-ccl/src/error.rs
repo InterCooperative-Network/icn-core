@@ -30,6 +30,12 @@ pub enum CclError {
     #[error("Internal compiler error: {0}")]
     InternalCompilerError(String),
 
+    #[error("Compilation error: {0}")]
+    CompilationError(String),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(String),
+
     // Advanced error types for better debugging
     #[error("Undefined symbol: {symbol} at line {line}, column {column}")]
     UndefinedSymbol {

@@ -38,6 +38,9 @@ pub mod ranked_choice;
 pub mod scoped_policy;
 pub mod voting;
 
+// Advanced democracy features
+pub mod advanced_democracy;
+
 #[cfg(test)]
 mod integration_tests;
 
@@ -57,6 +60,13 @@ pub use voting::{
     BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
     RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
     VotingPeriod, VotingSystem,
+};
+
+// Advanced democracy exports
+pub use advanced_democracy::{
+    AdvancedGovernanceModule, LiquidDemocracy, QuadraticVoting, QuadraticVote, QuadraticTally,
+    MultiStageProposal, ProposalStage, StageAction, WeightedVoting, WeightedTally,
+    DistributionCriteria, TransitionCondition, WeightCalculation,
 };
 
 /// Trait for governance execution hooks.
