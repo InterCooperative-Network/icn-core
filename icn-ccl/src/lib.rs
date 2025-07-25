@@ -16,6 +16,7 @@ pub mod error;
 pub mod governance_std;
 pub mod lsp;
 pub mod metadata;
+pub mod migration; // New migration tooling
 pub mod optimizer;
 pub mod package;
 pub mod parser;
