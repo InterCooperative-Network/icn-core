@@ -1,0 +1,42 @@
+{
+  "title": "Explorateur DAG",
+  "status": {
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "realtime": "Temps réel",
+    "paused": "En pause"
+  },
+  "controls": {
+    "pause": "Suspendre les mises à jour",
+    "resume": "Reprendre les mises à jour",
+    "search": "Rechercher des blocs",
+    "searchPlaceholder": "Rechercher par CID ou auteur...",
+    "zoomIn": "Zoomer",
+    "zoomOut": "Dézoomer",
+    "resetZoom": "Réinitialiser le zoom",
+    "toggleDetails": "Basculer le panneau de détails",
+    "detailsPanelShown": "Panneau de détails affiché",
+    "detailsPanelHidden": "Panneau de détails masqué"
+  },
+  "dag": {
+    "noBlocks": "Aucun bloc DAG disponible",
+    "blockCount": "{{count}} blocs",
+    "linkCount": "{{count}} liens",
+    "selectedBlock": "Bloc sélectionné"
+  },
+  "blockDetails": {
+    "cid": "CID",
+    "size": "Taille",
+    "links": "Liens", 
+    "age": "Âge",
+    "author": "Auteur",
+    "timestamp": "Horodatage",
+    "data": "Données",
+    "noSelection": "Sélectionnez un bloc pour voir les détails"
+  },
+  "network": {
+    "peers": "Pairs du réseau",
+    "jobs": "Tâches actives",
+    "blocks": "Blocs DAG"
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "languageSwitcher": {
+    "label": "Changer de langue",
+    "switchTo": "Passer au {{language}}"
+  },
+  "buttons": {
+    "loading": "Chargement, veuillez patienter",
+    "submit": "Soumettre le formulaire",
+    "cancel": "Annuler l'action",
+    "delete": "Supprimer l'élément",
+    "edit": "Modifier l'élément",
+    "save": "Enregistrer les modifications"
+  },
+  "forms": {
+    "required": "Ce champ est obligatoire",
+    "invalid": "Ce champ est invalide",
+    "validationError": "Veuillez corriger les erreurs ci-dessous"
+  },
+  "modals": {
+    "close": "Fermer la boîte de dialogue",
+    "title": "Boîte de dialogue"
+  },
+  "tables": {
+    "sortAscending": "Trier par ordre croissant",
+    "sortDescending": "Trier par ordre décroissant",
+    "noSort": "Aucun tri appliqué"
+  },
+  "navigation": {
+    "breadcrumb": "Navigation par fil d'Ariane",
+    "pagination": "Navigation de pagination",
+    "tabs": "Navigation par onglets"
+  },
+  "status": {
+    "success": "Succès",
+    "error": "Erreur", 
+    "warning": "Avertissement",
+    "info": "Information"
+  },
+  "announcements": {
+    "pageLoaded": "Page chargée avec succès",
+    "actionCompleted": "Action terminée",
+    "formSubmitted": "Formulaire soumis avec succès",
+    "errorOccurred": "Une erreur s'est produite"
+  }
+}

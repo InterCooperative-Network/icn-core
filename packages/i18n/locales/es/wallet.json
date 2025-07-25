@@ -1,0 +1,46 @@
+{
+  "title": "Billetera ICN",
+  "subtitle": "Gestión segura de DID y claves para la Red InterCooperativa",
+  "version": "Versión {{version}}",
+  "description": "Billetera DID multiplataforma",
+  "actions": {
+    "createWallet": "Crear nueva billetera",
+    "importWallet": "Importar billetera existente",
+    "connectNode": "Conectar al nodo",
+    "unlockWallet": "Desbloquear billetera",
+    "lockWallet": "Bloquear billetera",
+    "sendTransaction": "Enviar transacción",
+    "receiveTransaction": "Recibir",
+    "viewHistory": "Historial de transacciones"
+  },
+  "security": {
+    "enterPassword": "Ingrese contraseña",
+    "confirmPassword": "Confirme contraseña",
+    "createPassword": "Cree una contraseña segura",
+    "biometric": "Usar autenticación biométrica",
+    "secureStorage": "Almacenamiento seguro habilitado"
+  },
+  "wallet": {
+    "balance": "Saldo",
+    "address": "Dirección", 
+    "did": "DID",
+    "keys": "Claves",
+    "credentials": "Credenciales",
+    "noWallet": "No se encontró billetera",
+    "walletLocked": "La billetera está bloqueada"
+  },
+  "network": {
+    "status": "Estado de la red",
+    "endpoint": "Punto final del nodo",
+    "connecting": "Conectando...",
+    "connected": "Conectado",
+    "disconnected": "Desconectado",
+    "testConnection": "Probar conexión"
+  },
+  "errors": {
+    "invalidPassword": "Contraseña inválida",
+    "connectionFailed": "Falló la conexión",
+    "walletCreationFailed": "Falló la creación de billetera",
+    "importFailed": "Falló la importación de billetera"
+  }
+}

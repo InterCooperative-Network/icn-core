@@ -32,6 +32,7 @@ The ICN Core now supports multiple languages and follows accessibility best prac
 |----------|------|--------|----------|
 | English  | `en` | ✅ Complete | 100% |
 | Spanish  | `es` | ✅ Complete | 100% |
+| French   | `fr` | ✅ Complete | 100% |
 
 ## Implementation Details
 
@@ -67,6 +68,8 @@ packages/i18n/
 2. **`navigation`**: Navigation menu items and brand name
 3. **`dashboard`**: Dashboard-specific content and metrics
 4. **`accessibility`**: Accessibility labels and screen reader text
+5. **`explorer`**: DAG Explorer interface and network monitoring
+6. **`wallet`**: Wallet interface, security, and transaction features
 
 ### Components Updated
 

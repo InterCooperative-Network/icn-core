@@ -1,6 +1,8 @@
 import React from 'react'
 import { Input as TamaguiInput, InputProps as TamaguiInputProps } from '@tamagui/input'
+import { Text } from '@tamagui/text'
 import { styled } from '@tamagui/core'
+import { createFieldProps, generateId, AriaProps } from '@icn/i18n'
 
 const StyledInput = styled(TamaguiInput, {
   name: 'ICNInput',
@@ -43,31 +45,67 @@ const StyledInput = styled(TamaguiInput, {
   },
 })
 
-export interface ICNInputProps extends TamaguiInputProps {
+export interface ICNInputProps extends TamaguiInputProps, AriaProps {
   size?: 'sm' | 'md' | 'lg'
   error?: boolean
   label?: string
   helperText?: string
+  errorText?: string
+  id?: string
 }
 
 export const Input: React.FC<ICNInputProps> = ({ 
   label,
   helperText,
+  errorText,
   error,
+  id: providedId,
+  'aria-label': ariaLabel,
   ...props 
 }) => {
+  const id = providedId || generateId('input')
+  const fieldProps = createFieldProps(id, label, error ? errorText : undefined, helperText)
+  
   return (
     <>
       {label && (
-        <TamaguiInput.Label color={error ? '$red10' : '$gray11'}>
+        <Text
+          id={`${id}-label`}
+          as="label"
+          htmlFor={id}
+          color={error ? '$red10' : '$gray11'}
+          fontSize="$3"
+          marginBottom="$1"
+        >
           {label}
-        </TamaguiInput.Label>
+        </Text>
       )}
-      <StyledInput {...props} error={error} />
-      {helperText && (
-        <TamaguiInput.HelperText color={error ? '$red10' : '$gray10'}>
+      <StyledInput 
+        {...props}
+        {...fieldProps}
+        error={error}
+        aria-label={ariaLabel || label}
+      />
+      {helperText && !error && (
+        <Text
+          id={`${id}-description`}
+          color="$gray10"
+          fontSize="$2"
+          marginTop="$1"
+        >
           {helperText}
-        </TamaguiInput.HelperText>
+        </Text>
+      )}
+      {error && errorText && (
+        <Text
+          id={`${id}-error`}
+          color="$red10"
+          fontSize="$2"
+          marginTop="$1"
+          role="alert"
+        >
+          {errorText}
+        </Text>
       )}
     </>
   )

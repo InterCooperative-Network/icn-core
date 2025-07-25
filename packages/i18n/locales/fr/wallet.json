@@ -1,0 +1,46 @@
+{
+  "title": "Portefeuille ICN",
+  "subtitle": "Gestion sécurisée des DID et clés pour le Réseau InterCoopératif",
+  "version": "Version {{version}}",
+  "description": "Portefeuille DID multi-plateforme",
+  "actions": {
+    "createWallet": "Créer un nouveau portefeuille",
+    "importWallet": "Importer un portefeuille existant",
+    "connectNode": "Se connecter au nœud",
+    "unlockWallet": "Déverrouiller le portefeuille",
+    "lockWallet": "Verrouiller le portefeuille",
+    "sendTransaction": "Envoyer une transaction",
+    "receiveTransaction": "Recevoir",
+    "viewHistory": "Historique des transactions"
+  },
+  "security": {
+    "enterPassword": "Entrez le mot de passe",
+    "confirmPassword": "Confirmez le mot de passe",
+    "createPassword": "Créez un mot de passe sécurisé",
+    "biometric": "Utiliser l'authentification biométrique",
+    "secureStorage": "Stockage sécurisé activé"
+  },
+  "wallet": {
+    "balance": "Solde",
+    "address": "Adresse", 
+    "did": "DID",
+    "keys": "Clés",
+    "credentials": "Justificatifs",
+    "noWallet": "Aucun portefeuille trouvé",
+    "walletLocked": "Le portefeuille est verrouillé"
+  },
+  "network": {
+    "status": "État du réseau",
+    "endpoint": "Point de terminaison du nœud",
+    "connecting": "Connexion en cours...",
+    "connected": "Connecté",
+    "disconnected": "Déconnecté",
+    "testConnection": "Tester la connexion"
+  },
+  "errors": {
+    "invalidPassword": "Mot de passe invalide",
+    "connectionFailed": "Échec de la connexion",
+    "walletCreationFailed": "Échec de la création du portefeuille",
+    "importFailed": "Échec de l'importation du portefeuille"
+  }
+}
