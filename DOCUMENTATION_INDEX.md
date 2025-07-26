@@ -35,6 +35,13 @@
 
 ### **Project Status & Roadmap**
 - **[PROJECT_STATUS_AND_ROADMAP.md](PROJECT_STATUS_AND_ROADMAP.md)** - **Consolidated project status and development roadmap**
+- **[docs/COMMUNICATION_PROCESS.md](docs/COMMUNICATION_PROCESS.md)** - **Regular update schedule and communication guidelines**
+
+### **Design Decisions & RFCs**
+- **[docs/rfc/README.md](docs/rfc/README.md)** - **Request for Comments (RFC) process for major design decisions**
+- **[docs/rfc/rfc-001-governance-scaling.md](docs/rfc/rfc-001-governance-scaling.md)** - Governance and federated scaling architecture
+- **[docs/rfc/rfc-002-core-vs-ccl-boundaries.md](docs/rfc/rfc-002-core-vs-ccl-boundaries.md)** - Core protocol vs CCL contract boundaries
+- **[docs/rfc/rfc-003-tokenomics-design.md](docs/rfc/rfc-003-tokenomics-design.md)** - Tokenomics and economic system design
 
 ### **Historical Status Reports (Archived)**
 - **[docs/status/STATUS.md](docs/status/STATUS.md)** - Legacy overall development progress 
