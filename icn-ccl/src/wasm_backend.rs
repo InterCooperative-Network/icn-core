@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 44; // 6 original + 38 new functions (11 economics + 15 identity + 11 DAG + 1 time)
+const IMPORT_COUNT: u32 = 54; // 6 original + 48 new functions (11 economics + 15 identity + 11 DAG + 1 time + 10 governance)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
@@ -991,6 +991,32 @@ impl WasmBackend {
         fn_indices.insert("calculate_delegated_power".to_string(), next_index);
         next_index += 1;
 
+        let ty_get_delegation_chain = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // original_voter, scope
+            vec![ValType::I32], // array pointer to delegation chain
+        );
+        imports.import(
+            "icn",
+            "host_get_delegation_chain",
+            wasm_encoder::EntityType::Function(ty_get_delegation_chain),
+        );
+        fn_indices.insert("get_delegation_chain".to_string(), next_index);
+        next_index += 1;
+
+        let ty_resolve_delegated_vote = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, scope
+            vec![ValType::I32], // final voter DID
+        );
+        imports.import(
+            "icn",
+            "host_resolve_delegated_vote",
+            wasm_encoder::EntityType::Function(ty_resolve_delegated_vote),
+        );
+        fn_indices.insert("resolve_delegated_vote".to_string(), next_index);
+        next_index += 1;
+
         let ty_quadratic_vote_cost = types.len() as u32;
         types.ty().function(
             vec![ValType::I32], // votes to allocate
@@ -1002,6 +1028,114 @@ impl WasmBackend {
             wasm_encoder::EntityType::Function(ty_quadratic_vote_cost),
         );
         fn_indices.insert("quadratic_vote_cost".to_string(), next_index);
+        next_index += 1;
+
+        let ty_submit_quadratic_vote = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, vote_allocation, credits_spent
+            vec![ValType::I32], // success bool
+        );
+        imports.import(
+            "icn",
+            "host_submit_quadratic_vote",
+            wasm_encoder::EntityType::Function(ty_submit_quadratic_vote),
+        );
+        fn_indices.insert("submit_quadratic_vote".to_string(), next_index);
+        next_index += 1;
+
+        let ty_calculate_quadratic_result = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // array pointer to vote allocations
+            vec![ValType::I32], // final result
+        );
+        imports.import(
+            "icn",
+            "host_calculate_quadratic_result",
+            wasm_encoder::EntityType::Function(ty_calculate_quadratic_result),
+        );
+        fn_indices.insert("calculate_quadratic_result".to_string(), next_index);
+        next_index += 1;
+
+        // === WEIGHTED VOTING PRIMITIVES ===
+
+        let ty_calculate_reputation_weight = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // voter, reputation_category
+            vec![ValType::I32], // calculated weight
+        );
+        imports.import(
+            "icn",
+            "host_calculate_reputation_weight",
+            wasm_encoder::EntityType::Function(ty_calculate_reputation_weight),
+        );
+        fn_indices.insert("calculate_reputation_weight".to_string(), next_index);
+        next_index += 1;
+
+        let ty_calculate_stake_weight = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32], // voter, token_class
+            vec![ValType::I32], // calculated weight
+        );
+        imports.import(
+            "icn",
+            "host_calculate_stake_weight",
+            wasm_encoder::EntityType::Function(ty_calculate_stake_weight),
+        );
+        fn_indices.insert("calculate_stake_weight".to_string(), next_index);
+        next_index += 1;
+
+        let ty_submit_weighted_vote = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, vote_choice, calculated_weight
+            vec![ValType::I32], // success bool
+        );
+        imports.import(
+            "icn",
+            "host_submit_weighted_vote",
+            wasm_encoder::EntityType::Function(ty_submit_weighted_vote),
+        );
+        fn_indices.insert("submit_weighted_vote".to_string(), next_index);
+        next_index += 1;
+
+        // === MULTI-STAGE PROPOSAL WORKFLOWS ===
+
+        let ty_create_multi_stage_proposal = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // title, description, stage_names, stage_durations
+            vec![ValType::I32], // proposal_id
+        );
+        imports.import(
+            "icn",
+            "host_create_multi_stage_proposal",
+            wasm_encoder::EntityType::Function(ty_create_multi_stage_proposal),
+        );
+        fn_indices.insert("create_multi_stage_proposal".to_string(), next_index);
+        next_index += 1;
+
+        let ty_advance_proposal_stage = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // proposal_id
+            vec![ValType::I32], // success bool
+        );
+        imports.import(
+            "icn",
+            "host_advance_proposal_stage",
+            wasm_encoder::EntityType::Function(ty_advance_proposal_stage),
+        );
+        fn_indices.insert("advance_proposal_stage".to_string(), next_index);
+        next_index += 1;
+
+        let ty_get_proposal_stage = types.len() as u32;
+        types.ty().function(
+            vec![ValType::I32], // proposal_id
+            vec![ValType::I32], // current stage number
+        );
+        imports.import(
+            "icn",
+            "host_get_proposal_stage",
+            wasm_encoder::EntityType::Function(ty_get_proposal_stage),
+        );
+        fn_indices.insert("get_proposal_stage".to_string(), next_index);
         next_index += 1;
 
         let ty_create_budget = types.len() as u32;

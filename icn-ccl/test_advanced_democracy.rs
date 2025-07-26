@@ -8,7 +8,7 @@ fn main() {
     println!("🎯 Testing sophisticated cooperative governance features...");
     println!();
 
-    let test_path = PathBuf::from("/tmp/advanced_democracy_test.ccl");
+    let test_path = PathBuf::from("advanced_democracy_test.ccl");
 
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
