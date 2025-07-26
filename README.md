@@ -324,7 +324,15 @@ pub enum RuntimeError {
 ### Community Resources
 - **Repository**: [GitHub](https://github.com/InterCooperative/icn-core)
 - **Documentation**: [DOCUMENTATION_INDEX.md](DOCUMENTATION_INDEX.md)
+- **Communication Process**: [docs/COMMUNICATION_PROCESS.md](docs/COMMUNICATION_PROCESS.md) - Regular updates and RFC discussions
+- **Design Decisions**: [docs/rfc/README.md](docs/rfc/README.md) - Request for Comments process
 - **License**: [Apache 2.0](LICENSE)
+
+### Stay Updated
+- **Monthly Status Updates**: Follow GitHub Discussions for project progress
+- **Quarterly Roadmap Reviews**: Major roadmap and priority updates  
+- **RFC Discussions**: Participate in design decisions for major changes
+- **GitHub Issues & Discussions**: Bug reports, feature requests, and community discussion
 
 ---
 
