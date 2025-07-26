@@ -54,7 +54,7 @@ impl LocalEnv {
     }
 }
 
-const IMPORT_COUNT: u32 = 44; // 6 original + 38 new functions (11 economics + 15 identity + 11 DAG + 1 time)
+const IMPORT_COUNT: u32 = 54; // 6 original + 48 new functions (11 economics + 15 identity + 11 DAG + 1 time + 10 governance)
 
 pub struct WasmBackend {
     data: wasm_encoder::DataSection,
