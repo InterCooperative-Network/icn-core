@@ -306,7 +306,7 @@ pub trait NetworkService: Send + Sync + Debug + DowncastSync + 'static {
     /// `/icn/service/<id>` to avoid collisions between components.
     async fn store_record(&self, key: String, value: Vec<u8>) -> Result<(), MeshNetworkError>;
 
-    /// Retrieve a record previously stored via [`store_record`].
+    /// Retrieve a record previously stored via [`NetworkService::store_record`].
     /// Keys use the `/icn/service/<id>` format.
     async fn get_record(&self, key: String) -> Result<Option<Vec<u8>>, MeshNetworkError>;
     /// Connect to a peer at the given multiaddress.

@@ -1,52 +1,397 @@
 # Frontend-Backend Integration Guide
 
-This document outlines the integration between ICN frontend applications and backend APIs, including testing procedures and troubleshooting.
+> **Comprehensive guide for integrating ICN frontend applications with backend APIs**
 
-## Overview
+This document provides detailed integration instructions for ICN's ~60+ HTTP endpoints, TypeScript SDK usage, and cross-platform development patterns.
 
-The ICN ecosystem consists of multiple frontend applications that communicate with backend node APIs through a standardized TypeScript SDK.
+## 📖 Overview
 
-### Frontend Applications
+The ICN ecosystem provides a comprehensive full-stack development platform with multiple frontend applications connecting to production-grade backend services.
 
-1. **Web UI** (`apps/web-ui`) - Federation and cooperative management dashboard
-2. **Wallet UI** (`apps/wallet-ui`) - Personal DID and asset management
-3. **Agoranet** (`apps/agoranet`) - Decentralized social and economic platform  
-4. **Explorer** (`apps/explorer`) - Blockchain and DAG explorer
+### 🎯 Integration Architecture
 
-### Backend APIs
+```
+┌─────────────────────────────────────────────────────────────┐
+│                 Frontend Applications                       │
+├─────────────┬─────────────┬─────────────┬─────────────────┤
+│   Web UI    │  Wallet UI  │  Agoranet   │    Explorer     │
+│ (Dashboard) │ (Identity)  │(Governance) │  (DAG/Data)     │
+└─────────────┴─────────────┴─────────────┴─────────────────┘
+             │               │               │
+┌────────────▼───────────────▼───────────────▼─────────────────┐
+│                   TypeScript SDK                              │
+│              (@icn/ts-sdk - Shared Client)                   │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+┌─────────────────────────▼─────────────────────────────────────┐
+│                   ICN Node HTTP API                          │
+│                    (~60+ Endpoints)                          │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+┌─────────────────────────▼─────────────────────────────────────┐
+│              Backend Services & Storage                      │
+│ (Governance, Mesh, Identity, DAG, Economics, P2P)           │
+└───────────────────────────────────────────────────────────────┘
+```
 
-- **ICN Node** (`crates/icn-node`) - Main node server with REST APIs
-- **API Crate** (`crates/icn-api`) - Service traits and implementations
-- **Client SDK** (`crates/icn-api/client-sdk`) - Generated TypeScript client
+### 📱 Frontend Applications
 
-## API Integration Points
+| Application | Technology | Purpose | Integration Level |
+|-------------|------------|---------|------------------|
+| **Web UI** | React + TypeScript | Federation management dashboard | ~70% complete |
+| **Wallet UI** | React Native + Tamagui | Cross-platform DID/asset management | ~60% complete |
+| **Agoranet** | React Native + Tamagui | Governance & social platform | ~55% complete |
+| **Explorer** | React + TypeScript | DAG and network data browser | ~65% complete |
 
-### 1. System Information
+### 🔧 Backend Integration
 
-**Endpoints:**
-- `GET /system/info` - Node version and basic information
-- `GET /system/status` - Node operational status and metrics
+- **60+ HTTP Endpoints** - Complete REST API coverage
+- **Real-time Updates** - WebSocket support for live data
+- **Authentication** - API key and bearer token support
+- **Error Handling** - Comprehensive error types and recovery
+- **Circuit Breakers** - Built-in resilience patterns
 
-**Frontend Usage:**
+## 🚀 Quick Start Integration
+
+### 1. TypeScript SDK Setup
+
+```bash
+# Install the TypeScript SDK
+npm install @icn/ts-sdk
+
+# Or if using the monorepo
+cd packages/ts-sdk
+npm install
+npm run build
+```
+
+### 2. Basic Client Configuration
+
 ```typescript
 import { ICNClient } from '@icn/ts-sdk';
 
+// Development configuration
 const client = new ICNClient({
-  nodeEndpoint: 'http://localhost:8080',
-  network: 'devnet'
+  nodeEndpoint: 'http://localhost:7845',
+  apiKey: 'dev-key-123',
+  network: 'development',
+  timeout: 10000,
 });
 
-await client.connect();
-const nodeInfo = await client.system.getInfo();
-const nodeStatus = await client.system.getStatus();
+// Production configuration
+const prodClient = new ICNClient({
+  nodeEndpoint: 'https://node.your-federation.org',
+  apiKey: process.env.ICN_API_KEY,
+  bearerToken: process.env.ICN_BEARER_TOKEN,
+  network: 'production',
+  retryConfig: {
+    maxAttempts: 3,
+    backoffMs: 1000,
+  },
+});
 ```
 
-### 2. Mesh Computing
+### 3. Connection and Health Check
 
-**Endpoints:**
-- `POST /mesh/jobs` - Submit computational jobs
-- `GET /mesh/jobs/{id}` - Get job status
-- `GET /mesh/jobs` - List jobs
+```typescript
+async function initializeConnection() {
+  try {
+    // Test connection
+    await client.connect();
+    
+    // Get node information
+    const nodeInfo = await client.system.getInfo();
+    console.log('Connected to ICN node:', nodeInfo.version);
+    
+    // Check node status
+    const status = await client.system.getStatus();
+    console.log('Node status:', status.status); // "healthy" | "degraded" | "unhealthy"
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to connect to ICN node:', error);
+    return false;
+  }
+}
+```
+
+---
+
+## 🔌 Core API Integration Points
+
+### 1. System & Node Information
+
+**Available Endpoints:**
+- `GET /system/info` - Node version, build info, and capabilities
+- `GET /system/status` - Operational status and health metrics
+- `GET /system/metrics` - Prometheus-style metrics (if enabled)
+
+**Frontend Integration:**
+```typescript
+// Real-time status monitoring component
+import React, { useEffect, useState } from 'react';
+import { ICNClient } from '@icn/ts-sdk';
+
+interface NodeStatusProps {
+  client: ICNClient;
+}
+
+export const NodeStatusWidget: React.FC<NodeStatusProps> = ({ client }) => {
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const [info, status] = await Promise.all([
+          client.system.getInfo(),
+          client.system.getStatus(),
+        ]);
+        
+        setStatus({ info, status });
+      } catch (error) {
+        console.error('Failed to fetch node status:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    // Initial fetch
+    fetchStatus();
+    
+    // Poll every 30 seconds
+    const interval = setInterval(fetchStatus, 30000);
+    return () => clearInterval(interval);
+  }, [client]);
+
+  if (loading) return <div>Loading node status...</div>;
+  if (!status) return <div>Failed to load node status</div>;
+
+  return (
+    <div className="node-status">
+      <h3>Node Status</h3>
+      <div>Version: {status.info.version}</div>
+      <div>Status: <span className={`status-${status.status.status}`}>
+        {status.status.status}
+      </span></div>
+      <div>Peers Connected: {status.status.peers_connected}</div>
+      <div>Mana Balance: {status.status.mana_balance}</div>
+    </div>
+  );
+};
+```
+
+### 2. Identity & DID Management
+
+**Available Endpoints:**
+- `POST /identity/did/create` - Create new DID
+- `GET /identity/did/{did}` - Resolve DID document
+- `POST /identity/credentials/issue` - Issue verifiable credential
+- `POST /identity/credentials/verify` - Verify credential
+- `GET /identity/credentials/{id}` - Get credential by ID
+
+**Frontend Integration:**
+
+```typescript
+// Identity management service
+export class IdentityService {
+  constructor(private client: ICNClient) {}
+
+  async createNewIdentity(): Promise<{ did: string; document: any }> {
+    const response = await this.client.identity.createDid({
+      method: 'key',
+      keyType: 'Ed25519',
+    });
+    
+    return {
+      did: response.did,
+      document: response.document,
+    };
+  }
+
+  async issueCredential(recipientDid: string, credentialData: any) {
+    return await this.client.identity.issueCredential({
+      recipient: recipientDid,
+      type: ['VerifiableCredential'],
+      credentialSubject: credentialData,
+      expirationDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year
+    });
+  }
+
+  async verifyCredential(credential: any): Promise<boolean> {
+    try {
+      const result = await this.client.identity.verifyCredential(credential);
+      return result.valid;
+    } catch (error) {
+      console.error('Credential verification failed:', error);
+      return false;
+    }
+  }
+}
+
+// React component for DID creation
+export const CreateIdentityForm: React.FC = () => {
+  const [loading, setLoading] = useState(false);
+  const [identity, setIdentity] = useState(null);
+
+  const handleCreateIdentity = async () => {
+    setLoading(true);
+    try {
+      const identityService = new IdentityService(client);
+      const newIdentity = await identityService.createNewIdentity();
+      setIdentity(newIdentity);
+    } catch (error) {
+      console.error('Failed to create identity:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <button onClick={handleCreateIdentity} disabled={loading}>
+        {loading ? 'Creating...' : 'Create New Identity'}
+      </button>
+      
+      {identity && (
+        <div className="identity-result">
+          <h3>New Identity Created</h3>
+          <div>DID: <code>{identity.did}</code></div>
+          <details>
+            <summary>DID Document</summary>
+            <pre>{JSON.stringify(identity.document, null, 2)}</pre>
+          </details>
+        </div>
+      )}
+    </div>
+  );
+};
+```
+
+### 3. Governance & Proposals
+
+**Available Endpoints:**
+- `POST /governance/proposals` - Submit new proposal
+- `GET /governance/proposals` - List all proposals
+- `GET /governance/proposals/{id}` - Get proposal details
+- `POST /governance/proposals/{id}/vote` - Cast vote on proposal
+- `POST /governance/proposals/{id}/execute` - Execute approved proposal
+
+**Frontend Integration:**
+
+```typescript
+// Governance service
+export class GovernanceService {
+  constructor(private client: ICNClient) {}
+
+  async submitProposal(proposalData: {
+    title: string;
+    description: string;
+    type: 'ParameterChange' | 'TextProposal' | 'BudgetAllocation';
+    metadata?: any;
+  }) {
+    return await this.client.governance.submitProposal({
+      title: proposalData.title,
+      description: proposalData.description,
+      proposal_type: proposalData.type,
+      metadata: proposalData.metadata || {},
+    });
+  }
+
+  async castVote(proposalId: string, vote: 'Yes' | 'No' | 'Abstain') {
+    return await this.client.governance.castVote({
+      proposal_id: proposalId,
+      vote: vote,
+      weight: 1.0,
+    });
+  }
+
+  async getProposals(status?: 'Pending' | 'Active' | 'Passed' | 'Rejected') {
+    return await this.client.governance.getProposals({
+      status,
+      limit: 50,
+    });
+  }
+}
+
+// React component for proposal creation
+export const ProposalForm: React.FC = () => {
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    type: 'TextProposal' as const,
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const governanceService = new GovernanceService(client);
+      const proposal = await governanceService.submitProposal(formData);
+      
+      console.log('Proposal submitted:', proposal.id);
+      // Reset form or redirect
+      setFormData({ title: '', description: '', type: 'TextProposal' });
+    } catch (error) {
+      console.error('Failed to submit proposal:', error);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="proposal-form">
+      <div>
+        <label>Title:</label>
+        <input
+          type="text"
+          value={formData.title}
+          onChange={(e) => setFormData(prev => ({...prev, title: e.target.value}))}
+          required
+        />
+      </div>
+      
+      <div>
+        <label>Description:</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData(prev => ({...prev, description: e.target.value}))}
+          required
+        />
+      </div>
+      
+      <div>
+        <label>Type:</label>
+        <select
+          value={formData.type}
+          onChange={(e) => setFormData(prev => ({...prev, type: e.target.value as any}))}
+        >
+          <option value="TextProposal">Text Proposal</option>
+          <option value="ParameterChange">Parameter Change</option>
+          <option value="BudgetAllocation">Budget Allocation</option>
+        </select>
+      </div>
+      
+      <button type="submit" disabled={submitting}>
+        {submitting ? 'Submitting...' : 'Submit Proposal'}
+      </button>
+    </form>
+  );
+};
+```
+
+### 4. Mesh Computing & Job Execution
+
+**Available Endpoints:**
+- `POST /mesh/jobs` - Submit computational job
+- `GET /mesh/jobs` - List submitted jobs
+- `GET /mesh/jobs/{id}` - Get job details and status
+- `GET /mesh/jobs/{id}/receipt` - Get execution receipt
+- `GET /mesh/executors` - List available executors
+
+**Frontend Integration:**
 
 **Frontend Usage:**
 ```typescript
@@ -425,13 +770,25 @@ const client = new ICNClient({
 
 Implement error reporting for production applications:
 
-```typescript
-client.onError((error, context) => {
-  // Send to error reporting service
-  errorReportingService.captureException(error, {
-    context,
-    user: userDid,
-    endpoint: context.endpoint
-  });
-});
-```
+## Summary
+
+This integration guide demonstrates how to:
+
+1. **Set up TypeScript SDK** with modern async/await patterns
+2. **Integrate core APIs** - System, Identity, Governance, Mesh Computing, Economics
+3. **Build cross-platform UIs** using React and React Native + Tamagui
+4. **Handle real-time updates** with WebSocket connections
+5. **Implement error handling** with comprehensive error types
+6. **Optimize performance** with caching and connection pooling
+7. **Ensure production readiness** with security and monitoring
+
+The ICN ecosystem provides a complete platform for building sophisticated cooperative applications with ~60+ working endpoints, real backend services, and modern frontend frameworks.
+
+### Next Steps
+
+- **[Complete API Reference](../ICN_API_REFERENCE.md)** - Detailed endpoint documentation
+- **[TypeScript SDK Guide](../packages/ts-sdk/README.md)** - SDK usage and examples
+- **[Development Setup](DEVELOPER_GUIDE.md)** - Environment setup guide
+- **[Production Deployment](deployment-guide.md)** - Production deployment guide
+
+The integration capabilities enable rapid development of decentralized governance tools, cooperative economic systems, and federated computing platforms.

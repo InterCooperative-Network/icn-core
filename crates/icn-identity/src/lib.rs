@@ -187,7 +187,7 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
 /// # Errors
 ///
 /// Returns [`CommonError::IdentityError`] if any path segment contains
-/// unsupported characters or exceeds [`MAX_SEGMENT_LEN`].
+/// unsupported characters or exceeds the maximum segment length (63 characters).
 pub fn did_web_from_parts(domain: &str, path: &[&str]) -> Result<String, CommonError> {
     if !is_valid_domain(domain) {
         return Err(CommonError::IdentityError("invalid did:web domain".into()));
