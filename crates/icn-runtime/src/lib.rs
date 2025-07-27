@@ -107,6 +107,7 @@ pub mod abi;
 pub mod config;
 pub mod constants;
 pub mod context;
+pub mod error_recovery;
 pub mod execution_monitor;
 pub mod executor;
 pub mod memory;
