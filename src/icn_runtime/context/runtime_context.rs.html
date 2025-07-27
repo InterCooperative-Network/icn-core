@@ -4489,7 +4489,7 @@
 <a href=#4489 id=4489 data-nosnippet>4489</a>
 <a href=#4490 id=4490 data-nosnippet>4490</a>    <span class="attr">#[tokio::test]
 <a href=#4491 id=4491 data-nosnippet>4491</a>    </span><span class="kw">async fn </span>test_identity_signer_cryptographic_matching() {
-<a href=#4492 id=4492 data-nosnippet>4492</a>        <span class="kw">use </span>icn_identity::{Signer, did_key_to_verifying_key};
+<a href=#4492 id=4492 data-nosnippet>4492</a>        <span class="kw">use </span>icn_identity::{Signer, verifying_key_from_did_key};
 <a href=#4493 id=4493 data-nosnippet>4493</a>        
 <a href=#4494 id=4494 data-nosnippet>4494</a>        <span class="comment">// Test the sync version
 <a href=#4495 id=4495 data-nosnippet>4495</a>        </span><span class="kw">let </span>ctx_sync = RuntimeContext::new_with_identity_and_storage(<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
@@ -4513,7 +4513,7 @@
 <a href=#4513 id=4513 data-nosnippet>4513</a>                .expect(<span class="string">"Failed to sign message"</span>);
 <a href=#4514 id=4514 data-nosnippet>4514</a>            
 <a href=#4515 id=4515 data-nosnippet>4515</a>            <span class="comment">// Extract the verifying key from the identity DID
-<a href=#4516 id=4516 data-nosnippet>4516</a>            </span><span class="kw">let </span>verifying_key = did_key_to_verifying_key(identity)
+<a href=#4516 id=4516 data-nosnippet>4516</a>            </span><span class="kw">let </span>verifying_key = verifying_key_from_did_key(identity)
 <a href=#4517 id=4517 data-nosnippet>4517</a>                .expect(<span class="string">"Failed to extract verifying key from DID"</span>);
 <a href=#4518 id=4518 data-nosnippet>4518</a>            
 <a href=#4519 id=4519 data-nosnippet>4519</a>            <span class="comment">// Verify the signature using the identity's public key
@@ -4550,7 +4550,7 @@
 <a href=#4550 id=4550 data-nosnippet>4550</a><span class="attr">#[cfg(test)]
 <a href=#4551 id=4551 data-nosnippet>4551</a></span><span class="kw">mod </span>configuration_tests {
 <a href=#4552 id=4552 data-nosnippet>4552</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#4553 id=4553 data-nosnippet>4553</a>    <span class="kw">use </span><span class="kw">super</span>::service_config::{ServiceConfig, ServiceEnvironment};
+<a href=#4553 id=4553 data-nosnippet>4553</a>    <span class="kw">use </span><span class="kw">crate</span>::context::service_config::{ServiceConfig, ServiceEnvironment};
 <a href=#4554 id=4554 data-nosnippet>4554</a>    <span class="kw">use </span>std::str::FromStr;
 <a href=#4555 id=4555 data-nosnippet>4555</a>
 <a href=#4556 id=4556 data-nosnippet>4556</a>    <span class="attr">#[tokio::test]
