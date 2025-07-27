@@ -5,9 +5,79 @@
 #![allow(clippy::get_first)]
 
 //! # ICN API Crate
-//! This crate provides the primary API endpoints for interacting with InterCooperative Network (ICN) nodes.
-//! It defines service interfaces, data structures for requests and responses, and potentially server/client implementations.
-//! The API aims for clarity, modularity, and extensibility, typically using JSON-RPC or gRPC.
+//!
+//! This crate provides the primary API interfaces for interacting with InterCooperative Network (ICN) nodes.
+//! It defines service traits, data structures for requests and responses, and comprehensive HTTP API documentation.
+//!
+//! ## Overview
+//!
+//! The ICN API is designed for clarity, modularity, and extensibility with ~60+ HTTP endpoints
+//! providing real integration capabilities for frontend applications and external services.
+//!
+//! ### Core Features
+//!
+//! - **Service Traits**: Abstract interfaces for core ICN functionality  
+//! - **HTTP API**: RESTful endpoints for external applications
+//! - **Type Safety**: Rust-first design with comprehensive error handling
+//! - **Circuit Breakers**: Built-in resilience patterns for network operations
+//!
+//! ## Quick Start Example
+//!
+//! ```rust,no_run
+//! use icn_api::{governance_trait::GovernanceApi, identity_trait::IdentityApi};
+//! use icn_common::{Did, CommonError};
+//! 
+//! async fn example_governance_workflow() -> Result<(), CommonError> {
+//!     // Create a governance API instance (implementation-specific)
+//!     let gov_api = create_governance_api().await?;
+//!     
+//!     // Submit a proposal
+//!     let proposal_request = serde_json::json!({
+//!         "title": "Increase mana regeneration rate",
+//!         "description": "Proposal to increase base mana regeneration from 10 to 15 per hour",
+//!         "proposal_type": "ParameterChange"
+//!     });
+//!     
+//!     let proposal_id = gov_api.submit_proposal(proposal_request).await?;
+//!     println!("Submitted proposal: {}", proposal_id);
+//!     
+//!     // Vote on the proposal
+//!     let vote_request = serde_json::json!({
+//!         "proposal_id": proposal_id,
+//!         "vote": "Yes",
+//!         "weight": 1.0
+//!     });
+//!     
+//!     gov_api.cast_vote(vote_request).await?;
+//!     println!("Vote cast successfully");
+//!     
+//!     Ok(())
+//! }
+//! 
+//! # async fn create_governance_api() -> Result<impl GovernanceApi, CommonError> {
+//! #     // Implementation would return actual governance service
+//! #     unimplemented!()
+//! # }
+//! ```
+//!
+//! ## HTTP API Integration
+//!
+//! The crate provides comprehensive HTTP endpoint documentation for web UI integration.
+//! See the module documentation for detailed endpoint specifications.
+//!
+//! ### Authentication Methods
+//!
+//! - API Key Authentication: `x-api-key: your-api-key`
+//! - Bearer Token: `Authorization: Bearer token`
+//! - DID-based signatures (coming soon)
+//!
+//! ## Core API Modules
+//!
+//! - [`governance_trait`] - Proposal submission, voting, and delegation
+//! - [`identity_trait`] - DID management and credential operations  
+//! - [`federation_trait`] - Multi-node federation management
+//! - [`mutual_aid_trait`] - Resource sharing and mutual aid
+//! - [`dag_trait`] - Content-addressed storage operations
 
 // Depending on icn_common crate
 use icn_common::{

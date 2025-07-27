@@ -9,12 +9,99 @@
     deny(clippy::disallowed_methods)
 )]
 
-//! This is the core ICN Runtime crate.
+//! # ICN Runtime Crate
 //!
-//! It provides:
-//! - The Host ABI that WASM modules call into for accessing ICN services.
-//! - The RuntimeContext which manages state (identity, mana, jobs, governance).
-//! - The node runtime integration for libp2p networking.
+//! Core execution environment for InterCooperative Network (ICN) nodes providing WASM runtime,
+//! host functions, and service orchestration capabilities.
+//!
+//! ## Overview
+//!
+//! The ICN Runtime manages the execution environment where governance contracts (CCL), 
+//! mesh jobs, and node operations run securely and efficiently.
+//!
+//! ### Key Components
+//!
+//! - **WASM Runtime**: Wasmtime-based execution with sandboxing and resource limits
+//! - **Host ABI**: ~40+ host functions for WASM modules to access ICN services
+//! - **RuntimeContext**: Central coordinator managing identity, storage, networking
+//! - **Service Configuration**: Production/development/testing service selection
+//!
+//! ## Quick Start Example
+//!
+//! ```rust,no_run
+//! use icn_runtime::{RuntimeContext, config::RuntimeConfig};
+//! use icn_common::{Did, CommonError};
+//!
+//! async fn basic_runtime_setup() -> Result<(), CommonError> {
+//!     // Create runtime configuration
+//!     let config = RuntimeConfig::development()
+//!         .with_storage_backend("memory")
+//!         .with_api_key("dev-key-123");
+//!     
+//!     // Initialize runtime context
+//!     let runtime_ctx = RuntimeContext::new(config).await?;
+//!     
+//!     // Runtime is now ready for job execution, governance, etc.
+//!     println!("Runtime initialized with DID: {}", runtime_ctx.get_node_did());
+//!     
+//!     Ok(())
+//! }
+//! ```
+//!
+//! ## Host Function Integration
+//!
+//! WASM modules access ICN services through the host ABI:
+//!
+//! ```wat
+//! ;; Example WASM module calling ICN host functions
+//! (module
+//!   (import "icn" "host_get_mana_balance" (func $get_mana (param i32 i32) (result i64)))
+//!   (import "icn" "host_submit_mesh_job" (func $submit_job (param i32 i32) (result i64)))
+//!   
+//!   (func $main
+//!     ;; Get current mana balance
+//!     (call $get_mana (i32.const 0) (i32.const 32))
+//!     ;; Submit a mesh job
+//!     (call $submit_job (i32.const 64) (i32.const 256))
+//!   )
+//! )
+//! ```
+//!
+//! ## Service Architecture
+//!
+//! The runtime uses trait-based service abstractions with multiple backend implementations:
+//!
+//! ```rust,no_run
+//! use icn_runtime::config::{StorageConfig, NetworkConfig};
+//! 
+//! // Configure different storage backends
+//! let storage_config = StorageConfig {
+//!     backend: "postgresql".to_string(),  // or "rocksdb", "sled", "memory"
+//!     connection_string: Some("postgresql://localhost/icn".to_string()),
+//!     ..Default::default()
+//! };
+//! 
+//! // Configure networking
+//! let network_config = NetworkConfig {
+//!     p2p_enabled: true,
+//!     bootstrap_peers: vec!["/ip4/127.0.0.1/tcp/4001".to_string()],
+//!     ..Default::default()
+//! };
+//! ```
+//!
+//! ## Security and Sandboxing
+//!
+//! - **Resource Limits**: CPU time, memory, and mana consumption limits
+//! - **Capability-based Security**: Host functions require specific permissions
+//! - **Signature Verification**: All operations cryptographically signed
+//!
+//! ## Production Considerations
+//!
+//! The runtime requires security review and production hardening:
+//!
+//! - Host function implementations need security audit
+//! - WASM module verification and signing
+//! - Production monitoring and alerting integration
 
 pub mod abi;
 pub mod config;

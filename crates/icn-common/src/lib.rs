@@ -250,7 +250,7 @@ pub trait Signable {
     /// Return the bytes that should be signed.
     fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError>;
 
-    /// Sign `self` with the provided Ed25519 [`SigningKey`].
+    /// Sign `self` with the provided Ed25519 [`ed25519_dalek::SigningKey`].
     fn sign(&self, key: &ed25519_dalek::SigningKey) -> Result<SignatureBytes, CommonError> {
         use ed25519_dalek::Signer;
         let bytes = self.to_signable_bytes()?;
@@ -258,7 +258,7 @@ pub trait Signable {
         Ok(SignatureBytes(sig.to_bytes().to_vec()))
     }
 
-    /// Verify a signature against `self` using the provided [`VerifyingKey`].
+    /// Verify a signature against `self` using the provided [`ed25519_dalek::VerifyingKey`].
     fn verify(
         &self,
         signature: &SignatureBytes,
@@ -614,7 +614,7 @@ pub struct Transaction {
     pub sender_did: Did,
     /// Optional recipient DID.
     pub recipient_did: Option<Did>,
-    /// Describes the type of data in [`payload`].
+    /// Describes the type of data in [`Transaction::payload`].
     pub payload_type: String,
     /// Serialized transaction-specific data.
     pub payload: Vec<u8>,

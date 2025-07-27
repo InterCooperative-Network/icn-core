@@ -1,103 +1,614 @@
-# ICN Deployment Guide
+# ICN Core Deployment Guide
 
-This guide provides minimal examples for launching `icn-node` in common scenarios.
+> **Complete deployment guide for ICN nodes from development to production**
 
-For details on the HTTP API exposed by the node see [API.md](API.md).
+This guide provides comprehensive instructions for deploying ICN nodes across different environments, from local development to production federations.
 
-## Single Node Local
+**Status**: ICN Core has substantial working implementations (~65-75% complete) but requires security review and operational hardening before production use.
 
-This mode runs a standalone node for development or testing. By default the node
-starts in **production mode** with persistent storage and Ed25519 signing. Use
-`--test-mode` or set `ICN_TEST_MODE=true` to launch with stub services and
-in-memory storage.
+## 📖 Guide Overview
+
+- [Development Setup](#development-setup) - Local testing and development
+- [Single Node Deployment](#single-node-deployment) - Standalone node deployment  
+- [Federation Deployment](#federation-deployment) - Multi-node federation setup
+- [Production Deployment](#production-deployment) - Security-hardened production setup
+- [Monitoring & Operations](#monitoring--operations) - Operational considerations
+- [Backup & Recovery](#backup--recovery) - Data protection and disaster recovery
+
+---
+
+## 🚀 Development Setup
+
+### Quick Start (5 Minutes)
 
 ```bash
-icn-node --storage-backend memory --http-listen-addr 127.0.0.1:7845 \
-         --api-key mylocalkey \
-         --tls-cert-path ./cert.pem --tls-key-path ./key.pem
+# Clone and build
+git clone https://github.com/InterCooperative-Network/icn-core
+cd icn-core
+just setup && just build
+
+# Start development node
+cargo run --bin icn-node -- --test-mode
+
+# Test basic functionality
+cargo run --bin icn-cli -- info
 ```
 
-Set `ICN_STORAGE_PATH` and related variables to control where persistent DAG
-data is written:
+### Development Features
+
+The development setup includes:
+- **In-memory storage** (no persistence)
+- **Stub services** for testing
+- **Simplified authentication** 
+- **Built-in test data**
+
+### Development Configuration
+
+```toml
+# configs/development.toml
+[runtime]
+environment = "development"
+test_mode = true
+
+[network]
+http_listen_addr = "127.0.0.1:7845"
+p2p_enabled = false
+
+[storage]
+backend = "memory"
+
+[identity]
+generate_new_key = true
+
+[api]
+api_key = "dev-key-123"
+require_auth = false
+```
+
+---
+
+## 🏠 Single Node Deployment
+
+### Local Production Mode
+
+For local testing with persistent storage and real cryptography:
 
 ```bash
-ICN_STORAGE_PATH=./icn_data/node.sled ICN_MANA_LEDGER_PATH=./icn_data/mana.sled \
+# Start with persistent storage
+icn-node --storage-backend sled \
+         --storage-path ./icn_data/node.sled \
+         --http-listen-addr 127.0.0.1:7845 \
+         --api-key "$(openssl rand -hex 32)"
+```
+
+### Storage Backend Options
+
+ICN supports multiple storage backends:
+
+| Backend | Use Case | Features | Build Requirement |
+|---------|----------|----------|-------------------|
+| `memory` | Development/Testing | Fast, ephemeral | Default |  
+| `sled` | Single node production | Embedded, reliable | Default |
+| `rocksdb` | High performance | Fast, concurrent | `--features persist-rocksdb` |
+| `postgresql` | Multi-node federation | ACID, distributed | Default |
+| `sqlite` | Lightweight production | SQL, portable | Default |
+
+### Example Storage Configurations
+
+**Sled (Recommended for single nodes)**:
+```bash
+ICN_STORAGE_PATH=./icn_data/node.sled \
+ICN_MANA_LEDGER_PATH=./icn_data/mana.sled \
 icn-node --storage-backend sled
 ```
 
-Providing certificate and key paths makes the server listen on HTTPS instead of HTTP.
+**RocksDB (High performance)**:
+```bash
+# Build with RocksDB support
+cargo build --features persist-rocksdb --bin icn-node
 
-A sample TOML configuration is in `configs/single_node.toml`.
-You can also supply these values via configuration or environment variables:
-
-```toml
-http_listen_addr = "127.0.0.1:7845"
-api_key = "mylocalkey"
-tls_cert_path = "./cert.pem"
-tls_key_path = "./key.pem"
+# Run with RocksDB
+icn-node --storage-backend rocksdb \
+         --storage-path ./icn_data/rocksdb
 ```
 
-To use RocksDB as the persistence layer, build `icn-node` with the
-`persist-rocksdb` feature and set `storage_backend = "rocksdb"`.
+**PostgreSQL (Federation ready)**:
+```bash
+# Configure database connection
+icn-node --storage-backend postgresql \
+         --db-url "postgresql://user:pass@localhost/icn"
+```
 
-## Identity
+### Identity Management
 
-ICN nodes generate a new DID and Ed25519 key on first launch. To supply an
-existing key, set the path and passphrase environment variable name or provide
-`ICN_NODE_DID_PATH` and `ICN_NODE_PRIVATE_KEY_PATH`:
+ICN nodes generate a new DID and Ed25519 key on first launch. For persistent identity:
 
 ```toml
 [identity]
+# Use existing key
 key_path = "/secrets/node.key.enc"
 key_passphrase_env = "ICN_KEY_PASSPHRASE"
+
+# Generate new key (default)
+generate_new_key = true
 ```
 
-The passphrase is read from the environment variable referenced by
-`key_passphrase_env`. When the plain-text paths are provided the node loads the
-DID and private key instead of generating new ones.
+---
 
-## Small Federation
+## 🌐 Federation Deployment
 
-For a small group of cooperating nodes, each node may use a persistent store and
-bootstrap to known peers.
+### Multi-Node Federation Setup
+
+A federation consists of multiple ICN nodes that coordinate through P2P networking for governance, mesh computing, and resource sharing.
+
+### Bootstrap Node (Node A)
 
 ```bash
-icn-node --storage-backend sled --storage-path ./icn_data/node1.sled \
-         --bootstrap-peers /ip4/1.2.3.4/tcp/7000/p2p/QmPeer \
-         --api-key node1secret --open-rate-limit 0 \
-         --tls-cert-path ./cert.pem --tls-key-path ./key.pem
+# Start the bootstrap node
+icn-node --storage-backend postgresql \
+         --db-url "postgresql://localhost/icn_node_a" \
+         --http-listen-addr "0.0.0.0:7845" \
+         --p2p-listen-addr "/ip4/0.0.0.0/tcp/7000" \
+         --api-key "$(cat /secrets/api-key-a)" \
+         --tls-cert-path "/secrets/cert.pem" \
+         --tls-key-path "/secrets/key.pem"
 ```
 
-See `configs/small_federation.toml` for an example configuration file.
-A configuration file might contain:
+### Worker Nodes (Node B, C, ...)
+
+```bash
+# Node B - connects to bootstrap node
+icn-node --storage-backend postgresql \
+         --db-url "postgresql://localhost/icn_node_b" \
+         --http-listen-addr "0.0.0.0:7846" \
+         --p2p-listen-addr "/ip4/0.0.0.0/tcp/7001" \
+         --bootstrap-peers "/ip4/bootstrap-ip/tcp/7000/p2p/QmBootstrapPeerId" \
+         --api-key "$(cat /secrets/api-key-b)" \
+         --tls-cert-path "/secrets/cert.pem" \
+         --tls-key-path "/secrets/key.pem"
+```
+
+### Federation Configuration Example
 
 ```toml
+# configs/federation_node.toml
+[runtime]
+environment = "production"
+
+[network]
 http_listen_addr = "0.0.0.0:7845"
-storage_backend = "sled"
-storage_path = "./icn_data/node1.sled"
-bootstrap_peers = ["/ip4/1.2.3.4/tcp/7000/p2p/QmPeer"]
-api_key = "node1secret"
-tls_cert_path = "./cert.pem"
-tls_key_path = "./key.pem"
+p2p_enabled = true
+p2p_listen_addr = "/ip4/0.0.0.0/tcp/7000"
+bootstrap_peers = [
+    "/ip4/10.0.1.100/tcp/7000/p2p/QmBootstrapPeer",
+    "/ip4/10.0.1.101/tcp/7000/p2p/QmOtherPeer"
+]
+
+[storage]
+backend = "postgresql"
+connection_string = "postgresql://icn_user:secure_password@db.internal/icn"
+
+[identity]
+key_path = "/secrets/node_identity.key"
+key_passphrase_env = "ICN_KEY_PASSPHRASE"
+
+[api]
+api_key_env = "ICN_API_KEY"
+tls_cert_path = "/secrets/tls.crt"
+tls_key_path = "/secrets/tls.key"
+require_auth = true
 ```
 
-## DAG Backup and Restore
+### Automated Federation Setup
 
-Use `icn-cli` to export and re-import the node's DAG storage. The same commands
-work with any storage backend. After restoring, run `icn-cli dag verify` to
-confirm integrity.
-
-### RocksDB
+Use the containerized devnet for automated federation testing:
 
 ```bash
-# Node configured with RocksDB
-icn-node --storage-backend rocksdb --storage-path ./icn_data/rocksdb
+# 3-node federation
+cd icn-devnet
+./launch_federation.sh
 
-# Backup DAG data
-icn-cli dag backup --path ./backups/rocksdb
+# 10-node load testing
+NUM_JOBS=50 ./scripts/run_10node_devnet.sh
+```
 
-# Restore and verify
-icn-cli dag restore --path ./backups/rocksdb
+---
+
+## 🏭 Production Deployment
+
+### Security Requirements
+
+⚠️ **Critical**: ICN requires security review before production use. Current gaps include:
+
+- Cryptographic implementation audit needed
+- Production monitoring and alerting required  
+- Scale testing beyond development environments
+- Operational runbooks and incident response procedures
+
+### Production Architecture
+
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Load Balancer │    │   Monitoring    │    │   Backup/DR     │
+│   (HAProxy/     │    │   (Prometheus/  │    │   (S3/GCS/      │
+│    Nginx)       │    │    Grafana)     │    │    Azure)       │
+└─────────┬───────┘    └─────────┬───────┘    └─────────┬───────┘
+          │                      │                      │
+    ┌─────▼──────────────────────▼──────────────────────▼─────┐
+    │                 ICN Federation Network                 │
+    └─────┬──────────────┬─────────────────┬─────────────────┘
+          │              │                 │
+┌─────────▼───────┐ ┌────▼────────┐ ┌──────▼──────────┐
+│   ICN Node A    │ │ ICN Node B  │ │   ICN Node C    │
+│  (Bootstrap)    │ │  (Worker)   │ │   (Worker)      │
+│                 │ │             │ │                 │
+│ PostgreSQL DB   │ │ PostgreSQL  │ │ PostgreSQL DB   │
+│ Redis Cache     │ │ DB          │ │ Redis Cache     │
+└─────────────────┘ └─────────────┘ └─────────────────┘
+```
+
+### Production Node Configuration
+
+```toml
+# configs/production.toml
+[runtime]
+environment = "production"
+log_level = "info"
+
+[network]
+http_listen_addr = "0.0.0.0:7845"
+p2p_enabled = true
+p2p_listen_addr = "/ip4/0.0.0.0/tcp/7000"
+max_peers = 50
+connection_timeout = 30
+
+[storage]
+backend = "postgresql"
+connection_string = "postgresql://icn_prod_user:${DB_PASSWORD}@postgres.internal:5432/icn_production"
+max_connections = 20
+connection_timeout = 10
+
+[security]
+api_key_env = "ICN_API_KEY"
+auth_token_env = "ICN_AUTH_TOKEN"
+tls_cert_path = "/secrets/tls/cert.pem"
+tls_key_path = "/secrets/tls/key.pem"
+require_auth = true
+open_rate_limit = 0
+
+[identity]
+key_path = "/secrets/identity/node.key"
+key_passphrase_env = "ICN_KEY_PASSPHRASE"
+
+[monitoring]
+metrics_enabled = true
+metrics_bind_addr = "127.0.0.1:9090"
+health_check_interval = 30
+
+[performance]
+max_concurrent_jobs = 100
+mana_regeneration_rate = 10
+gc_interval = 3600
+```
+
+### Container Deployment
+
+**Dockerfile**:
+```dockerfile
+FROM rust:1.75 as builder
+
+WORKDIR /app
+COPY . .
+RUN cargo build --release --bin icn-node
+
+FROM debian:bookworm-slim
+RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/target/release/icn-node /usr/local/bin/
+COPY configs/production.toml /etc/icn/config.toml
+
+EXPOSE 7845 7000
+USER 1000
+
+CMD ["icn-node", "--config", "/etc/icn/config.toml"]
+```
+
+**docker-compose.yml**:
+```yaml
+version: '3.8'
+
+services:
+  icn-node:
+    build: .
+    ports:
+      - "7845:7845"  # HTTP API
+      - "7000:7000"  # P2P networking
+    environment:
+      - ICN_API_KEY_FILE=/run/secrets/api_key
+      - ICN_KEY_PASSPHRASE_FILE=/run/secrets/key_passphrase
+      - DB_PASSWORD_FILE=/run/secrets/db_password
+    secrets:
+      - api_key
+      - key_passphrase
+      - db_password
+    volumes:
+      - icn_data:/var/lib/icn
+      - /etc/ssl/certs:/etc/ssl/certs:ro
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: icn_production
+      POSTGRES_USER: icn_prod_user
+      POSTGRES_PASSWORD_FILE: /run/secrets/db_password
+    secrets:
+      - db_password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+secrets:
+  api_key:
+    file: ./secrets/api_key.txt
+  key_passphrase:
+    file: ./secrets/key_passphrase.txt
+  db_password:
+    file: ./secrets/db_password.txt
+
+volumes:
+  icn_data:
+  postgres_data:
+```
+
+### Kubernetes Deployment
+
+**deployment.yaml**:
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: icn-node
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: icn-node
+  template:
+    metadata:
+      labels:
+        app: icn-node
+    spec:
+      containers:
+      - name: icn-node
+        image: icn-core:latest
+        ports:
+        - containerPort: 7845
+          name: http-api
+        - containerPort: 7000
+          name: p2p
+        env:
+        - name: ICN_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: icn-secrets
+              key: api-key
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secrets
+              key: password
+        volumeMounts:
+        - name: config
+          mountPath: /etc/icn
+        - name: identity-keys
+          mountPath: /secrets/identity
+        - name: tls-certs
+          mountPath: /secrets/tls
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "250m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 7845
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: 7845
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+      - name: config
+        configMap:
+          name: icn-config
+      - name: identity-keys
+        secret:
+          secretName: icn-identity
+      - name: tls-certs
+        secret:
+          secretName: icn-tls
+```
+
+---
+
+## 📊 Monitoring & Operations
+
+### Metrics and Observability
+
+ICN provides Prometheus metrics for monitoring:
+
+```bash
+# Enable metrics
+icn-node --metrics-enabled --metrics-bind-addr 0.0.0.0:9090
+```
+
+**Key Metrics**:
+- `icn_node_uptime_seconds` - Node uptime
+- `icn_mana_balance_total` - Current mana balance
+- `icn_jobs_executed_total` - Mesh jobs executed
+- `icn_p2p_peers_connected` - P2P peer connections
+- `icn_governance_proposals_total` - Governance proposals
+
+### Health Checks
+
+```bash
+# Node health status
+curl https://your-node.domain.com/health
+
+# Detailed system info
+curl https://your-node.domain.com/status \
+  -H "x-api-key: your-api-key"
+```
+
+### Log Management
+
+Configure structured logging:
+
+```toml
+[logging]
+level = "info"
+format = "json"
+output = "/var/log/icn/node.log"
+
+[audit]
+enabled = true
+log_path = "/var/log/icn/audit.log"
+```
+
+---
+
+## 💾 Backup & Recovery
+
+### DAG Storage Backup
+
+```bash
+# Full DAG backup (all storage backends)
+icn-cli dag backup --output ./backups/dag-backup-$(date +%Y%m%d).tar.gz
+
+# Incremental backup (changes since last backup)
+icn-cli dag backup --incremental --since 2024-01-01 \
+                   --output ./backups/dag-incremental-$(date +%Y%m%d).tar.gz
+
+# Restore from backup
+icn-cli dag restore --input ./backups/dag-backup-20240101.tar.gz
+
+# Verify data integrity after restore  
+icn-cli dag verify --deep
+```
+
+### Database Backup (PostgreSQL)
+
+```bash
+# Full database backup
+pg_dump icn_production | gzip > /backups/icn-db-$(date +%Y%m%d).sql.gz
+
+# Automated backup script
+#!/bin/bash
+BACKUP_DIR="/backups/icn"
+DATE=$(date +%Y%m%d_%H%M%S)
+
+# Create backup directory
+mkdir -p "$BACKUP_DIR"
+
+# Database backup
+pg_dump icn_production | gzip > "$BACKUP_DIR/db-$DATE.sql.gz"
+
+# DAG backup
+icn-cli dag backup --output "$BACKUP_DIR/dag-$DATE.tar.gz"
+
+# Identity keys backup (encrypted)
+tar -czf "$BACKUP_DIR/identity-$DATE.tar.gz" /secrets/identity/
+
+# Cleanup old backups (keep last 30 days)
+find "$BACKUP_DIR" -type f -mtime +30 -delete
+```
+
+### Disaster Recovery Procedure
+
+1. **Restore Database**:
+   ```bash
+   createdb icn_production_new
+   gunzip -c /backups/icn-db-latest.sql.gz | psql icn_production_new
+   ```
+
+2. **Restore DAG Data**:
+   ```bash
+   icn-cli dag restore --input /backups/dag-latest.tar.gz
+   icn-cli dag verify --deep
+   ```
+
+3. **Restore Identity Keys**:
+   ```bash
+   tar -xzf /backups/identity-latest.tar.gz -C /secrets/
+   chmod 600 /secrets/identity/*
+   ```
+
+4. **Restart Services**:
+   ```bash
+   # Kubernetes
+   kubectl rollout restart deployment/icn-node
+   
+   # Docker Compose
+   docker-compose restart icn-node
+   ```
+
+---
+
+## 🚨 Production Readiness Checklist
+
+Before deploying ICN in production, ensure:
+
+### Security Requirements
+- [ ] **Security audit completed** - Professional review of cryptographic implementations
+- [ ] **Penetration testing performed** - Third-party security assessment  
+- [ ] **Key management procedures** - HSM or secure key storage implemented
+- [ ] **TLS certificates valid** - Proper CA-signed certificates installed
+- [ ] **Authentication configured** - API keys and bearer tokens secured
+- [ ] **Network security** - Firewalls and network segmentation configured
+
+### Operational Requirements
+- [ ] **Monitoring implemented** - Prometheus/Grafana or equivalent monitoring
+- [ ] **Alerting configured** - Critical alerts for node failures, security issues
+- [ ] **Backup procedures tested** - Regular backups and recovery procedures verified
+- [ ] **Logging centralized** - Structured logs collected and indexed
+- [ ] **Disaster recovery plan** - Documented procedures for system recovery
+- [ ] **Performance testing** - Load testing under expected production workloads
+
+### Technical Requirements
+- [ ] **Database optimized** - Connection pooling, indexing, query optimization
+- [ ] **Resource limits set** - CPU, memory, disk space monitoring and limits
+- [ ] **Auto-scaling configured** - Horizontal scaling based on load (if applicable)
+- [ ] **Health checks working** - Kubernetes/Docker health checks configured
+- [ ] **Configuration management** - Infrastructure as code (Terraform, Ansible)
+
+---
+
+## 📚 Related Documentation
+
+- **[Production Security Guide](PRODUCTION_SECURITY_GUIDE.md)** - Comprehensive security hardening
+- **[API Reference](../ICN_API_REFERENCE.md)** - Complete HTTP API documentation
+- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Common issues and solutions
+- **[Development Guide](DEVELOPER_GUIDE.md)** - Development environment setup
+- **[Federation DevNet](../icn-devnet/README.md)** - Containerized testing environment
+
+---
+
+## ⚠️ Important Notes
+
+**Current Status**: ICN Core has substantial working implementations (~65-75% complete) with real P2P networking, governance systems, mesh computing, and persistent storage. However, it requires:
+
+- **Security Review**: Cryptographic implementations need professional audit
+- **Production Hardening**: Monitoring, error recovery, and operational procedures
+- **Scale Testing**: Validation beyond development environments  
+
+**Not recommended for production use** without completing security review and operational readiness requirements.
+
+For development, testing, and research use, ICN Core provides a comprehensive platform for cooperative digital infrastructure experimentation.
 icn-cli dag verify
 ```
 

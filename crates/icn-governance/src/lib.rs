@@ -784,7 +784,7 @@ impl GovernanceModule {
         self.threshold = threshold;
     }
 
-    /// Register a callback executed when proposals are run via [`execute_proposal`].
+    /// Register a callback executed when proposals are run via [`GovernanceModule::execute_proposal`].
     pub fn set_callback<F>(&mut self, cb: F)
     where
         F: ProposalCallback + 'static,

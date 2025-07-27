@@ -856,7 +856,7 @@ impl WasmExecutor {
         }
     }
 
-    /// Executes the given job using [`execute_job`] and immediately anchors the
+    /// Executes the given job using its internal job execution logic and immediately anchors the
     /// resulting receipt via the associated [`RuntimeContext`].
     pub async fn execute_and_anchor_job(
         &self,

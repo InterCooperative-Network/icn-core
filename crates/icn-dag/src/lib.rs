@@ -148,10 +148,10 @@ pub trait StorageService<B: Clone + Serialize + for<'de> Deserialize<'de>>: Send
     /// Get metadata for a block if present.
     fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
 
-    /// Cast to [`Any`] for downcasting when the concrete type is needed.
+    /// Cast to [`std::any::Any`] for downcasting when the concrete type is needed.
     fn as_any(&self) -> &dyn std::any::Any;
 
-    /// Mutable variant of [`as_any`].
+    /// Mutable variant of [`StorageService::as_any`].
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
@@ -196,7 +196,7 @@ where
     /// Retrieve metadata for a block.
     async fn get_metadata(&self, cid: &Cid) -> Result<Option<BlockMetadata>, CommonError>;
 
-    /// Cast to [`Any`] for downcasting.
+    /// Cast to [`std::any::Any`] for downcasting.
     fn as_any(&self) -> &dyn std::any::Any;
 
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;

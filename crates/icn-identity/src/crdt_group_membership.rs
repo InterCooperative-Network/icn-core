@@ -20,7 +20,7 @@ use log::{debug, warn, error};
 pub struct CRDTGroupMembership {
     /// Node identifier for this group membership instance.
     node_id: NodeId,
-    /// CRDT Map storing group_id -> OR-Set<DID> mappings for group memberships.
+    /// CRDT Map storing group_id -> `OR-Set<DID>` mappings for group memberships.
     membership_map: Arc<RwLock<CRDTMap<String, ORSet<String>>>>,
     /// Configuration for group membership.
     config: CRDTGroupMembershipConfig,
