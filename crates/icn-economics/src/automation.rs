@@ -822,6 +822,18 @@ impl EconomicAutomationEngine {
             PenaltyType::TokenConfiscation => {
                 // Implement token confiscation
                 if let Some(amount) = penalty.amount {
+                    // Get system treasury account for confiscated tokens
+                    // Use a well-formed DID that should always parse successfully
+                    let system_did = Did::from_str("did:icn:treasury")
+                        .map_err(|e| CommonError::InternalError(format!("Failed to create system treasury DID: {}", e)))?;
+                    
+                    // Verify system DID is different from violator to prevent self-transfer
+                    if system_did == *violator {
+                        return Err(CommonError::InternalError(
+                            "Cannot confiscate tokens: system treasury DID matches violator DID".to_string()
+                        ));
+                    }
+                    
                     // Get all token classes and check balances
                     let token_classes = self.resource_ledger.list_classes();
                     let mut total_confiscated = 0u64;
@@ -829,10 +841,9 @@ impl EconomicAutomationEngine {
                     for (token_class, _class_metadata) in token_classes.iter() {
                         let balance = self.resource_ledger.get_balance(token_class, violator);
                         if balance > 0 {
-                            let confiscate_amount = amount.min(balance);
+                            let confiscate_amount = amount.saturating_sub(total_confiscated).min(balance);
                             if confiscate_amount > 0 {
-                                // Transfer to system account for confiscated tokens  
-                                let system_did = Did::from_str("did:key:system").unwrap_or_else(|_| violator.clone());
+                                // Transfer to system treasury account for confiscated tokens  
                                 self.resource_ledger.transfer(
                                     token_class,
                                     violator,
@@ -841,8 +852,8 @@ impl EconomicAutomationEngine {
                                 )?;
                                 total_confiscated += confiscate_amount;
                                 log::info!(
-                                    "Confiscated {} tokens of type {:?} from {}",
-                                    confiscate_amount, token_class, violator
+                                    "Confiscated {} tokens of type {:?} from {} to treasury {}",
+                                    confiscate_amount, token_class, violator, system_did
                                 );
                                 
                                 // If we've confiscated enough, stop
@@ -856,7 +867,7 @@ impl EconomicAutomationEngine {
                     if total_confiscated == 0 {
                         log::warn!("Token confiscation penalty: No tokens available to confiscate from {}", violator);
                     } else {
-                        log::info!("Total tokens confiscated from {}: {}", violator, total_confiscated);
+                        log::info!("Successfully confiscated {} tokens from {} to treasury", total_confiscated, violator);
                     }
                 } else {
                     log::warn!("Token confiscation penalty missing amount specification");
