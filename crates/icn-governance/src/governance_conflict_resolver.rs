@@ -356,8 +356,14 @@ impl GovernanceConflictResolver {
 
         // If more than 50% of votes are in rapid sequence, flag as suspicious
         if rapid_sequence_count as f64 / votes.len() as f64 > 0.5 {
+            let suspicious_voters: HashSet<Did> = sorted_votes
+                .windows(2)
+                .filter(|window| window[1].voted_at - window[0].voted_at < 60)
+                .map(|window| window[0].voter.clone())
+                .collect();
+
             return Some(ConflictEvidence::IrregularVotingPattern {
-                voter: Did::default(), // Would be more specific in real implementation
+                voter: suspicious_voters.into_iter().next().unwrap_or_else(Did::default),
                 pattern_description: "Rapid sequential voting detected - possible coordination".to_string(),
             });
         }
