@@ -80,6 +80,12 @@ pub enum ResolutionStatus {
     GatheringEvidence,
     /// Analyzing evidence and determining resolution
     Analyzing,
+    /// Federation voting in progress
+    FederationVoting { 
+        votes_received: usize, 
+        votes_needed: usize,
+        deadline: u64 
+    },
     /// Resolution determined, propagating decision
     ResolutionFound { winner: Cid },
     /// Resolution complete and applied
@@ -101,6 +107,8 @@ pub struct ConflictResolutionConfig {
     pub auto_resolve: bool,
     /// Resolution strategy to use
     pub resolution_strategy: ResolutionStrategy,
+    /// Configuration for federation voting
+    pub federation_vote_config: FederationVoteConfig,
 }
 
 impl Default for ConflictResolutionConfig {
@@ -111,8 +119,72 @@ impl Default for ConflictResolutionConfig {
             max_concurrent_conflicts: 10,
             auto_resolve: true,
             resolution_strategy: ResolutionStrategy::MultiCriteria,
+            federation_vote_config: FederationVoteConfig::default(),
         }
     }
+}
+
+/// Configuration for federation voting on conflicts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVoteConfig {
+    /// Voting duration in seconds
+    pub voting_duration: u64,
+    /// Minimum number of votes required for quorum
+    pub quorum: usize,
+    /// Threshold for acceptance (0.5 = majority, 0.67 = supermajority)
+    pub threshold: f64,
+    /// Maximum time to wait for vote broadcasts (seconds)
+    pub broadcast_timeout: u64,
+    /// Whether to require weighted voting based on reputation
+    pub weighted_voting: bool,
+}
+
+impl Default for FederationVoteConfig {
+    fn default() -> Self {
+        Self {
+            voting_duration: 600, // 10 minutes
+            quorum: 3,
+            threshold: 0.67, // Supermajority
+            broadcast_timeout: 60,
+            weighted_voting: false,
+        }
+    }
+}
+
+/// A vote from a federation node on a conflict resolution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVote {
+    /// The node casting the vote
+    pub voter: Did,
+    /// The conflict being voted on
+    pub conflict_id: String,
+    /// The preferred resolution (CID of winning block)
+    pub preferred_winner: Cid,
+    /// Timestamp when vote was cast
+    pub timestamp: u64,
+    /// Optional weight for the vote (based on reputation, stake, etc.)
+    pub weight: f64,
+    /// Signature of the vote for verification
+    pub signature: Option<Vec<u8>>,
+    /// Reasoning for the vote choice
+    pub reasoning: Option<String>,
+}
+
+/// Aggregated results of federation voting
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVoteResults {
+    /// Total votes received
+    pub total_votes: usize,
+    /// Votes per candidate block CID with cached reputation scores  
+    pub votes_per_candidate: HashMap<Cid, f64>,
+    /// Whether quorum was achieved
+    pub quorum_met: bool,
+    /// Whether threshold was met for any candidate
+    pub threshold_met: bool,
+    /// The winning candidate if any
+    pub winner: Option<Cid>,
+    /// Detailed vote breakdown
+    pub vote_details: Vec<FederationVote>,
 }
 
 /// Strategies for resolving DAG conflicts
@@ -132,6 +204,12 @@ pub enum ResolutionStrategy {
     FederationVote,
 }
 
+/// Trait for providing reputation scores for federation voting
+pub trait ReputationProvider: Send + Sync {
+    /// Get the reputation score for a given DID
+    fn get_reputation(&self, did: &Did) -> f64;
+}
+
 /// Manages conflict detection and resolution for DAG synchronization
 pub struct ConflictResolver<S: StorageService<DagBlock>> {
     store: S,
@@ -139,6 +217,12 @@ pub struct ConflictResolver<S: StorageService<DagBlock>> {
     active_conflicts: HashMap<String, DagConflict>,
     resolution_history: VecDeque<DagConflict>,
     node_identity: Did,
+    /// Federation nodes eligible to vote
+    federation_nodes: HashSet<Did>,
+    /// Active votes for ongoing federation voting
+    federation_votes: HashMap<String, Vec<FederationVote>>,
+    /// Reputation provider for weighted voting
+    reputation_provider: Option<Box<dyn ReputationProvider>>,
 }
 
 impl<S: StorageService<DagBlock>> ConflictResolver<S> {
@@ -150,6 +234,9 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             active_conflicts: HashMap::new(),
             resolution_history: VecDeque::new(),
             node_identity,
+            federation_nodes: HashSet::new(),
+            federation_votes: HashMap::new(),
+            reputation_provider: None,
         }
     }
 
