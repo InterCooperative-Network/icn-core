@@ -856,7 +856,7 @@
 <a href=#856 id=856 data-nosnippet>856</a>        }
 <a href=#857 id=857 data-nosnippet>857</a>    }
 <a href=#858 id=858 data-nosnippet>858</a>
-<a href=#859 id=859 data-nosnippet>859</a>    <span class="doccomment">/// Executes the given job using [`execute_job`] and immediately anchors the
+<a href=#859 id=859 data-nosnippet>859</a>    <span class="doccomment">/// Executes the given job using its internal job execution logic and immediately anchors the
 <a href=#860 id=860 data-nosnippet>860</a>    /// resulting receipt via the associated [`RuntimeContext`].
 <a href=#861 id=861 data-nosnippet>861</a>    </span><span class="kw">pub async fn </span>execute_and_anchor_job(
 <a href=#862 id=862 data-nosnippet>862</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
@@ -1165,7 +1165,7 @@
 <a href=#1165 id=1165 data-nosnippet>1165</a>        {
 <a href=#1166 id=1166 data-nosnippet>1166</a>            <span class="attr">#[cfg(feature = <span class="string">"async"</span>)]
 <a href=#1167 id=1167 data-nosnippet>1167</a>            </span>{
-<a href=#1168 id=1168 data-nosnippet>1168</a>                <span class="kw">let </span><span class="kw-2">mut </span>store = ctx.dag_store.lock().<span class="kw">await</span>;
+<a href=#1168 id=1168 data-nosnippet>1168</a>                <span class="kw">let </span><span class="kw-2">mut </span>store = ctx.dag_store.store.lock().<span class="kw">await</span>;
 <a href=#1169 id=1169 data-nosnippet>1169</a>                store.put(<span class="kw-2">&amp;</span>block).<span class="kw">await</span>.unwrap();
 <a href=#1170 id=1170 data-nosnippet>1170</a>            }
 <a href=#1171 id=1171 data-nosnippet>1171</a>            <span class="attr">#[cfg(not(feature = <span class="string">"async"</span>))]

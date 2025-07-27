@@ -306,7 +306,7 @@
 <a href=#306 id=306 data-nosnippet>306</a>    /// `/icn/service/&lt;id&gt;` to avoid collisions between components.
 <a href=#307 id=307 data-nosnippet>307</a>    </span><span class="kw">async fn </span>store_record(<span class="kw-2">&amp;</span><span class="self">self</span>, key: String, value: Vec&lt;u8&gt;) -&gt; <span class="prelude-ty">Result</span>&lt;(), MeshNetworkError&gt;;
 <a href=#308 id=308 data-nosnippet>308</a>
-<a href=#309 id=309 data-nosnippet>309</a>    <span class="doccomment">/// Retrieve a record previously stored via [`store_record`].
+<a href=#309 id=309 data-nosnippet>309</a>    <span class="doccomment">/// Retrieve a record previously stored via [`NetworkService::store_record`].
 <a href=#310 id=310 data-nosnippet>310</a>    /// Keys use the `/icn/service/&lt;id&gt;` format.
 <a href=#311 id=311 data-nosnippet>311</a>    </span><span class="kw">async fn </span>get_record(<span class="kw-2">&amp;</span><span class="self">self</span>, key: String) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;u8&gt;&gt;, MeshNetworkError&gt;;
 <a href=#312 id=312 data-nosnippet>312</a>    <span class="doccomment">/// Connect to a peer at the given multiaddress.

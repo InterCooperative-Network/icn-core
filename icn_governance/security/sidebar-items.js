@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["BallotValidationStats","GovernanceSecurityAudit","GovernanceSecurityConfig","GovernanceSecurityIssue","SecureBallotSigner","SecureBallotValidator"]};
