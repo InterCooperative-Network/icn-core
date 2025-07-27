@@ -29,6 +29,8 @@ pub struct GovernanceSecurityConfig {
     pub replay_protection: bool,
     /// Maximum time skew allowed for ballot timestamps (seconds)
     pub max_time_skew: u64,
+    /// Allow clearing replay protection cache (testing/maintenance)
+    pub allow_cache_clear: bool,
 }
 
 impl Default for GovernanceSecurityConfig {
@@ -40,6 +42,7 @@ impl Default for GovernanceSecurityConfig {
             max_election_duration: 30 * 24 * 60 * 60, // 30 days
             replay_protection: true,
             max_time_skew: 300, // 5 minutes
+            allow_cache_clear: false, // Disallow by default for security
         }
     }
 }
