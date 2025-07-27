@@ -1165,7 +1165,7 @@ mod tests {
         {
             #[cfg(feature = "async")]
             {
-                let mut store = ctx.dag_store.lock().await;
+                let mut store = ctx.dag_store.store.lock().await;
                 store.put(&block).await.unwrap();
             }
             #[cfg(not(feature = "async"))]

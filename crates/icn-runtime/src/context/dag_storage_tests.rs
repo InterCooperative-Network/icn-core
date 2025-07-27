@@ -4,10 +4,11 @@ use super::*;
 use crate::context::{DagStoreFactory, ServiceConfig, ServiceEnvironment};
 use icn_common::Did;
 use std::str::FromStr;
+use std::sync::Arc;
 use tempfile::tempdir;
 
 #[tokio::test]
-async fn test_production_dag_store_validation() {
+async fn test_production_dag_store_validation() -> Result<(), icn_common::CommonError> {
     let test_did = Did::from_str("did:key:zTestProduction").unwrap();
     
     // Test 1: Production should reject stub DAG stores
@@ -20,7 +21,7 @@ async fn test_production_dag_store_validation() {
     let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
     
     // Attempt to create production context with stub DAG store should fail
-    let result = RuntimeContext::new(
+    let config = ServiceConfig::production(
         test_did.clone(),
         network_service.clone(),
         signer.clone(),
@@ -29,12 +30,14 @@ async fn test_production_dag_store_validation() {
         mana_ledger.clone(),
         reputation_store.clone(),
         None,
-    );
+    )?;
+    let result = RuntimeContext::from_service_config(config);
     
     assert!(result.is_err());
     let error = result.unwrap_err();
     assert!(error.to_string().contains("PRODUCTION ERROR"));
     assert!(error.to_string().contains("Stub DAG store"));
+    Ok(())
 }
 
 #[test]
@@ -69,7 +72,7 @@ async fn test_testing_context_uses_stubs() {
     
     // Verify it's using stub services
     let dag_store = ctx.dag_store.clone();
-    let store = dag_store.lock().await;
+    let store = dag_store.store.lock().await;
     
     // This should be true for stub stores
     assert!(store.as_any().is::<crate::context::stubs::StubDagStore>());

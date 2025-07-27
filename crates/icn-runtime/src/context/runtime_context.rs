@@ -4402,8 +4402,9 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-            use icn_mesh::{JobKind, JobSpec, Resources};
-        use icn_protocol::MeshJobAnnouncementMessage;
+    use icn_mesh::{JobKind, Resources};
+    use icn_protocol::{JobSpec, MeshJobAnnouncementMessage};
+    use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
     use std::str::FromStr;
 
     #[tokio::test]
@@ -4434,7 +4435,7 @@ mod tests {
                 },
                 required_capabilities: vec![],
                 required_trust_scope: None,
-                min_executor_reputation: 0.0,
+                min_executor_reputation: Some(0),
                 allowed_federations: vec![],
             },
             bid_deadline: ctx.time_provider.unix_seconds() + 100,
@@ -4475,7 +4476,7 @@ mod tests {
                 },
                 required_capabilities: vec![],
                 required_trust_scope: None,
-                min_executor_reputation: 0.0,
+                min_executor_reputation: Some(0),
                 allowed_federations: vec![],
             },
             signature: icn_identity::SignatureBytes(vec![]),
@@ -4489,7 +4490,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_identity_signer_cryptographic_matching() {
-        use icn_identity::{Signer, verifying_key_from_did_key};
+        use icn_identity::{verifying_key_from_did_key};
         
         // Test the sync version
         let ctx_sync = RuntimeContext::new_with_identity_and_storage(None, None, None)
@@ -4509,18 +4510,24 @@ mod tests {
             let test_message = b"test message for signature verification";
             
             // Sign the message with the signer
-            let signature = signer.sign(test_message)
+            let signature_bytes = signer.sign(test_message)
                 .expect("Failed to sign message");
+            
+            // Convert to EdSignature
+            let signature = EdSignature::from_bytes(
+                signature_bytes.as_slice().try_into()
+                    .expect("Invalid signature length")
+            ).expect("Failed to convert signature bytes");
             
             // Extract the verifying key from the identity DID
             let verifying_key = verifying_key_from_did_key(identity)
                 .expect("Failed to extract verifying key from DID");
             
             // Verify the signature using the identity's public key
-            let verification_result = verifying_key.verify(test_message, &signature);
+            let verification_result = verify_signature(&verifying_key, test_message, &signature);
             
             assert!(
-                verification_result.is_ok(), 
+                verification_result, 
                 "{} context: Signature verification failed! Identity DID and signer are not cryptographically matched", 
                 ctx_name
             );
