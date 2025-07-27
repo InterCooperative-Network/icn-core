@@ -656,7 +656,8 @@ impl RuntimeContext {
         sys.refresh_cpu_all();
         sys.refresh_memory();
         let cpu = sys.cpus().len() as u32;
-        let memory_mb = (sys.available_memory() / 1024) as u32;
+        // Convert from bytes to megabytes: divide by 1024^2 = 1,048,576
+        let memory_mb = (sys.available_memory() / (1024 * 1024)) as u32;
         (cpu, memory_mb)
     }
 
@@ -4401,8 +4402,8 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_mesh::{JobKind, JobSpec};
-    use icn_protocol::{MeshJobAnnouncementMessage, ResourceRequirements};
+            use icn_mesh::{JobKind, JobSpec, Resources};
+        use icn_protocol::MeshJobAnnouncementMessage;
     use std::str::FromStr;
 
     #[tokio::test]
@@ -4426,12 +4427,15 @@ mod tests {
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: ResourceRequirements {
+                required_resources: Resources {
                     cpu_cores: 2,
                     memory_mb: 512,
                     storage_mb: 0,
-                    max_execution_time_secs: 0,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: 0.0,
+                allowed_federations: vec![],
             },
             bid_deadline: ctx.time_provider.unix_seconds() + 100,
         };
@@ -4464,12 +4468,15 @@ mod tests {
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: ResourceRequirements {
+                required_resources: Resources {
                     cpu_cores: 8,
                     memory_mb: 2048,
                     storage_mb: 0,
-                    max_execution_time_secs: 0,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: 0.0,
+                allowed_federations: vec![],
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };
@@ -4667,5 +4674,23 @@ mod configuration_tests {
         
         assert_eq!(ctx.current_identity, test_did);
         assert_eq!(ctx.get_mana(&test_did).await.unwrap(), 123);
+    }
+
+    #[test]
+    fn test_available_system_resources_units() {
+        // Test that available_system_resources returns memory in megabytes
+        let (cpu, memory_mb) = RuntimeContext::available_system_resources();
+        
+        // CPU cores should be reasonable (1-512 cores for most systems)
+        assert!(cpu > 0, "CPU core count should be greater than 0");
+        assert!(cpu <= 512, "CPU core count should be reasonable (<=512)");
+        
+        // Memory should be in megabytes, so for any modern system it should be
+        // at least 100MB (very conservative) and reasonable (less than 1TB = 1,048,576 MB)
+        assert!(memory_mb >= 100, "Available memory should be at least 100MB, got {}MB. If this is in KB, the bug still exists!", memory_mb);
+        assert!(memory_mb <= 1_048_576, "Available memory should be less than 1TB ({}MB), got {}MB", 1_048_576, memory_mb);
+        
+        // Log the values for debugging
+        println!("System resources: {} CPU cores, {} MB memory", cpu, memory_mb);
     }
 }
