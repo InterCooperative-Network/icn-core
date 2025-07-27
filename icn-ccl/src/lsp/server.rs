@@ -16,7 +16,7 @@ use crate::{
     semantic_analyzer::SemanticAnalyzer,
 };
 
-use super::{completion, diagnostics, hover, navigation};
+use super::{completion, diagnostics, hover, navigation, formatting};
 
 /// Document state stored for each open CCL file
 #[derive(Debug, Clone)]
@@ -206,9 +206,8 @@ impl LanguageServer for CclLanguageServer {
         
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
-            // For now, return no formatting changes
-            // TODO: Implement CCL code formatting
-            return Ok(Some(Vec::new()));
+            let edits = formatting::format_document(doc_state, params.options);
+            return Ok(Some(edits));
         }
         
         Ok(None)
