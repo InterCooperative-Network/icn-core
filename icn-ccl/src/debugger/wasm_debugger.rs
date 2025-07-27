@@ -113,7 +113,7 @@ impl WasmDebugger {
     /// Step to next instruction
     pub fn step_next(&mut self) -> Result<DebuggerState, String> {
         match &self.state {
-            DebuggerState::Paused { location } => {
+            DebuggerState::Paused { location } | DebuggerState::Stepped { location } => {
                 // Simulate stepping to the next instruction
                 // In a real implementation, this would interact with the WASM runtime
                 let next_location = WasmLocation {
@@ -133,10 +133,6 @@ impl WasmDebugger {
             }
             DebuggerState::Running => {
                 Err("Cannot step when debugger is running".to_string())
-            }
-            DebuggerState::Stepped { .. } => {
-                // Already stepped, continue to next
-                self.step_next()
             }
         }
     }
