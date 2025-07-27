@@ -443,16 +443,32 @@ impl AdaptiveRoutingEngine {
             "type": "route_request",
             "destination": destination.to_string(),
             "timestamp": current_timestamp(),
-            "requester": "local_peer", // TODO: Fix get_local_peer_id method call
+            "requester": self.local_peer_id.clone(), // Use actual local peer ID
         });
 
-        let _request_bytes = serde_json::to_vec(&route_request).map_err(|e| {
+        let request_bytes = serde_json::to_vec(&route_request).map_err(|e| {
             MeshNetworkError::RoutingError(format!("Failed to serialize route request: {}", e))
         })?;
 
-        // TODO: Fix send_message call - need to construct proper ProtocolMessage
-        // For now, skip the actual network call to allow compilation
-        // self.network_service
+        // Implement proper protocol message creation and sending
+        if let Some(network) = &self.network_service {
+            let protocol_message = icn_protocol::ProtocolMessage {
+                message_type: icn_protocol::MessageType::RouteDiscovery,
+                payload: request_bytes,
+                sender: self.local_peer_id.clone(),
+                timestamp: std::time::SystemTime::now(),
+            };
+            
+            // Send to connected peers for route discovery
+            let connected_peers = network.get_connected_peers().await
+                .unwrap_or_default();
+            
+            for peer_id in connected_peers {
+                if let Err(e) = network.send_message(&peer_id, &protocol_message).await {
+                    log::warn!("Failed to send route request to peer {}: {}", peer_id, e);
+                }
+            }
+        }
         //     .send_message(peer, protocol_message)
         //     .await
         //     .map_err(|e| {

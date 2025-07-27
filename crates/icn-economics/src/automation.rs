@@ -79,6 +79,19 @@ pub struct AllocationMetrics {
     pub efficiency_score: f64,
 }
 
+/// Resource access restriction
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ResourceRestriction {
+    /// The resource being restricted
+    pub restricted_resource: String,
+    /// Severity of the restriction (0.0 to 1.0)
+    pub severity: f64,
+    /// When the restriction expires (None for permanent, Unix timestamp)
+    pub end_time: Option<u64>,
+    /// Reason for the restriction
+    pub reason: String,
+}
+
 /// Configuration for economic automation
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EconomicAutomationConfig {
@@ -432,6 +445,9 @@ pub struct EconomicAutomationEngine {
     event_tx: mpsc::UnboundedSender<EconomicEvent>,
     event_rx: Option<mpsc::UnboundedReceiver<EconomicEvent>>,
 
+    // Resource restrictions tracking  
+    resource_restrictions: Arc<RwLock<HashMap<(Did, String), ResourceRestriction>>>,
+
     // Background tasks
     automation_handles: Arc<RwLock<Vec<tokio::task::JoinHandle<()>>>>,
 }
@@ -604,6 +620,7 @@ impl EconomicAutomationEngine {
             })),
             event_tx,
             event_rx: Some(event_rx),
+            resource_restrictions: Arc::new(RwLock::new(HashMap::new())),
             automation_handles: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -803,16 +820,149 @@ impl EconomicAutomationEngine {
                 }
             }
             PenaltyType::TokenConfiscation => {
-                // TODO: Implement token confiscation
-                log::info!("Token confiscation not yet implemented");
+                // Implement token confiscation
+                if let Some(amount) = penalty.amount {
+                    // Get system treasury account for confiscated tokens
+                    // Use a well-formed DID that should always parse successfully
+                    let system_did = Did::from_str("did:icn:treasury")
+                        .map_err(|e| CommonError::InternalError(format!("Failed to create system treasury DID: {}", e)))?;
+                    
+                    // Verify system DID is different from violator to prevent self-transfer
+                    if system_did == *violator {
+                        return Err(CommonError::InternalError(
+                            "Cannot confiscate tokens: system treasury DID matches violator DID".to_string()
+                        ));
+                    }
+                    
+                    // Get all token classes and check balances
+                    let token_classes = self.resource_ledger.list_classes();
+                    let mut total_confiscated = 0u64;
+                    
+                    for (token_class, _class_metadata) in token_classes.iter() {
+                        let balance = self.resource_ledger.get_balance(token_class, violator);
+                        if balance > 0 {
+                            let confiscate_amount = amount.saturating_sub(total_confiscated).min(balance);
+                            if confiscate_amount > 0 {
+                                // Transfer to system treasury account for confiscated tokens  
+                                self.resource_ledger.transfer(
+                                    token_class,
+                                    violator,
+                                    &system_did,
+                                    confiscate_amount,
+                                )?;
+                                total_confiscated += confiscate_amount;
+                                log::info!(
+                                    "Confiscated {} tokens of type {:?} from {} to treasury {}",
+                                    confiscate_amount, token_class, violator, system_did
+                                );
+                                
+                                // If we've confiscated enough, stop
+                                if total_confiscated >= amount {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    if total_confiscated == 0 {
+                        log::warn!("Token confiscation penalty: No tokens available to confiscate from {}", violator);
+                    } else {
+                        log::info!("Successfully confiscated {} tokens from {} to treasury", total_confiscated, violator);
+                    }
+                } else {
+                    log::warn!("Token confiscation penalty missing amount specification");
+                }
             }
             PenaltyType::ResourceRestriction => {
-                // TODO: Implement resource access restrictions
-                log::info!("Resource restriction not yet implemented");
+                // Implement resource access restrictions
+                let mut restriction_list = self.resource_restrictions.write().unwrap();
+                
+                // Add time-based restriction
+                let end_time = if let Some(duration) = penalty.duration {
+                    Some(self.time_provider.unix_seconds() + duration.as_secs())
+                } else {
+                    None // Permanent restriction
+                };
+                
+                // Apply restrictions from penalty
+                for restriction in &penalty.restrictions {
+                    restriction_list.insert(
+                        (violator.clone(), restriction.clone()),
+                        ResourceRestriction {
+                            restricted_resource: restriction.clone(),
+                            severity: penalty.severity,
+                            end_time,
+                            reason: "Economic policy violation".to_string(),
+                        }
+                    );
+                    log::info!(
+                        "Applied resource restriction '{}' to {} (severity: {:.2})",
+                        restriction, violator, penalty.severity
+                    );
+                }
+                
+                // If no specific restrictions, apply general restrictions based on severity
+                if penalty.restrictions.is_empty() {
+                    let general_restrictions = match penalty.severity {
+                        s if s >= 0.8 => vec!["compute", "storage", "network"],
+                        s if s >= 0.5 => vec!["compute", "storage"],
+                        _ => vec!["compute"],
+                    };
+                    
+                    for resource in general_restrictions {
+                        restriction_list.insert(
+                            (violator.clone(), resource.to_string()),
+                            ResourceRestriction {
+                                restricted_resource: resource.to_string(),
+                                severity: penalty.severity,
+                                end_time,
+                                reason: "Economic policy violation".to_string(),
+                            }
+                        );
+                        log::info!(
+                            "Applied general resource restriction '{}' to {} (severity: {:.2})",
+                            resource, violator, penalty.severity
+                        );
+                    }
+                }
             }
             PenaltyType::ReputationPenalty => {
-                // TODO: Apply reputation penalty
-                log::info!("Reputation penalty not yet implemented");
+                // Apply reputation penalty by recording negative execution events
+                let current_reputation = self.reputation_store.get_reputation(violator);
+                
+                if let Some(amount) = penalty.amount {
+                    // Record failed executions to reduce reputation by the specified amount
+                    let penalty_amount = amount.min(current_reputation); // Don't exceed current reputation
+                    
+                    // Each failed execution typically reduces reputation, so we simulate multiple failures
+                    // This is a workaround since we can't directly set reputation
+                    let failures_to_record = (penalty_amount / 10).max(1); // Assume each failure reduces ~10 points
+                    
+                    for _ in 0..failures_to_record {
+                        self.reputation_store.record_execution(violator, false, 1000); // Record failed execution
+                    }
+                    
+                    log::info!(
+                        "Applied reputation penalty to {} by recording {} failed executions (estimated reduction: {})",
+                        violator, failures_to_record, penalty_amount
+                    );
+                } else {
+                    // Apply severity-based reputation penalty
+                    let penalty_percent = penalty.severity.min(1.0).max(0.0);
+                    let estimated_penalty = (current_reputation as f64 * penalty_percent) as u64;
+                    
+                    // Record failed executions proportional to the severity
+                    let failures_to_record = ((penalty_percent * 10.0) as u64).max(1);
+                    
+                    for _ in 0..failures_to_record {
+                        self.reputation_store.record_execution(violator, false, 1000); // Record failed execution
+                    }
+                    
+                    log::info!(
+                        "Applied reputation penalty of {:.1}% to {} by recording {} failed executions (estimated reduction: {})",
+                        penalty_percent * 100.0, violator, failures_to_record, estimated_penalty
+                    );
+                }
             }
             PenaltyType::Warning => {
                 log::warn!("Economic warning issued to {}", violator);
@@ -1404,23 +1554,211 @@ impl EconomicAutomationEngine {
     }
 
     // Helper methods
-    async fn calculate_demand_multiplier(&self, _resource_type: &str) -> Result<f64, CommonError> {
-        // TODO: Implement demand calculation
-        Ok(1.2) // Placeholder
+    async fn calculate_demand_multiplier(&self, resource_type: &str) -> Result<f64, CommonError> {
+        // Implement demand calculation based on usage patterns and market activity
+        let base_multiplier = 1.0;
+        
+        // Check current resource allocation plans for demand signals
+        let allocation_plans = self.allocation_plans.read().unwrap();
+        let demand_signal = if let Some(plan) = allocation_plans.get(resource_type) {
+            // Calculate demand based on allocation utilization
+            let total_allocated: u64 = plan.allocations.values().map(|entry| entry.amount).sum();
+            let utilization = if plan.total_available > 0 {
+                total_allocated as f64 / plan.total_available as f64
+            } else {
+                0.0
+            };
+            
+            match utilization {
+                u if u > 0.9 => 2.5,   // Very high demand
+                u if u > 0.8 => 2.0,   // High demand  
+                u if u > 0.6 => 1.5,   // Medium demand
+                u if u > 0.4 => 1.2,   // Low demand
+                _ => 1.0,              // Normal demand
+            }
+        } else {
+            base_multiplier
+        };
+        
+        // Factor in market-making activity
+        let market_state = self.market_making_state.read().unwrap();
+        let market_multiplier = if let Some(inventory) = market_state.inventory.get(resource_type) {
+            // Low inventory = higher demand multiplier
+            if *inventory < 1000 { 1.3 } else if *inventory < 5000 { 1.1 } else { 1.0 }
+        } else {
+            1.0
+        };
+        
+        // Factor in recent pricing trends
+        let pricing_models = self.pricing_models.read().unwrap();
+        let trend_multiplier = if let Some(model) = pricing_models.get(resource_type) {
+            // Calculate price trend over recent history
+            let recent_prices: Vec<f64> = model.price_history.iter()
+                .rev()
+                .take(10)
+                .map(|(_, price)| *price)
+                .collect();
+            
+            if recent_prices.len() >= 2 {
+                let recent_avg = recent_prices.iter().sum::<f64>() / recent_prices.len() as f64;
+                let old_avg = model.price_history.iter()
+                    .take(model.price_history.len().saturating_sub(10))
+                    .map(|(_, price)| *price)
+                    .sum::<f64>() / (model.price_history.len().saturating_sub(10).max(1)) as f64;
+                
+                if recent_avg > old_avg * 1.1 {
+                    1.2 // Increasing prices suggest growing demand
+                } else if recent_avg < old_avg * 0.9 {
+                    0.9 // Decreasing prices suggest falling demand
+                } else {
+                    1.0
+                }
+            } else {
+                1.0
+            }
+        } else {
+            1.0
+        };
+        
+        let final_multiplier: f64 = base_multiplier * demand_signal * market_multiplier * trend_multiplier;
+        Ok(final_multiplier.min(5.0).max(0.1)) // Cap between 0.1x and 5.0x
     }
 
-    async fn calculate_basic_mana_price(&self, _job: &MeshJob) -> Result<u64, CommonError> {
-        // TODO: Implement basic price calculation
-        Ok(100) // Placeholder
+    async fn calculate_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
+        // Implement basic price calculation based on job characteristics
+        let base_cost = job.estimated_cost;
+        
+        // Factor in job type complexity
+        let complexity_multiplier = match job.job_type.as_deref() {
+            Some("compute_intensive") => 1.5,
+            Some("memory_intensive") => 1.3,
+            Some("network_intensive") => 1.2,
+            Some("storage_intensive") => 1.1,
+            Some("gpu_compute") => 2.0,
+            Some("machine_learning") => 1.8,
+            _ => 1.0, // Default/unknown job types
+        };
+        
+        // Factor in current system load
+        let health_metrics = self.health_metrics.read().unwrap();
+        let load_multiplier = match health_metrics.resource_efficiency {
+            e if e < 0.3 => 2.0,  // System overloaded
+            e if e < 0.5 => 1.5,  // System under stress
+            e if e < 0.7 => 1.2,  // System moderately loaded
+            _ => 1.0,             // System operating normally
+        };
+        
+        // Factor in market liquidity
+        let liquidity_multiplier = match health_metrics.market_liquidity {
+            l if l < 0.3 => 1.5,  // Low liquidity - higher prices
+            l if l < 0.6 => 1.2,  // Medium liquidity
+            _ => 1.0,             // Good liquidity
+        };
+        
+        // Factor in recent price volatility
+        let volatility_multiplier = if health_metrics.price_stability < 0.5 {
+            1.3 // High volatility - add premium for uncertainty
+        } else {
+            1.0
+        };
+        
+        // Calculate final price
+        let calculated_price = (base_cost as f64 
+            * complexity_multiplier 
+            * load_multiplier 
+            * liquidity_multiplier 
+            * volatility_multiplier) as u64;
+        
+        // Apply reasonable bounds
+        let min_price = base_cost / 2;    // Never less than 50% of estimated cost
+        let max_price = base_cost * 5;    // Never more than 500% of estimated cost
+        
+        Ok(calculated_price.max(min_price).min(max_price))
     }
 
     async fn execute_individual_allocation(
         &self,
-        _recipient: &Did,
+        recipient: &Did,
         allocation: &AllocationEntry,
     ) -> Result<u64, CommonError> {
-        // TODO: Implement individual allocation logic
-        Ok(allocation.amount)
+        // Implement individual allocation logic based on recipient characteristics
+        let base_amount = allocation.amount;
+        
+        // Factor in recipient's reputation
+        let reputation_multiplier = {
+            let rep = self.reputation_store.get_reputation(recipient);
+            match rep {
+                r if r >= 90 => 1.5,   // Excellent reputation
+                r if r >= 75 => 1.2,   // Good reputation  
+                r if r >= 50 => 1.0,   // Average reputation
+                r if r >= 25 => 0.8,   // Below average
+                _ => 0.5,              // Poor reputation
+            }
+        };
+        
+        // Factor in recipient's current mana balance to prevent over-allocation
+        let balance_factor = match self.mana_ledger.get_balance(recipient) {
+            current_balance => {
+                let mana_accounts = self.mana_accounts.read().unwrap();
+                if let Some(account) = mana_accounts.get(recipient) {
+                    let capacity_ratio = current_balance as f64 / account.capacity as f64;
+                    match capacity_ratio {
+                        r if r > 0.9 => 0.1,  // Near capacity - minimal allocation
+                        r if r > 0.7 => 0.5,  // High balance - reduced allocation
+                        r if r > 0.3 => 1.0,  // Normal allocation
+                        _ => 1.2,             // Low balance - increased allocation
+                    }
+                } else {
+                    1.0 // Default if no account state tracked
+                }
+            }
+        };
+        
+        // Factor in allocation priority based on score
+        let priority_multiplier = match allocation.score {
+            s if s >= 0.9 => 1.5,   // High priority (score 90%+)
+            s if s >= 0.7 => 1.3,   // Medium-high priority  
+            s if s >= 0.5 => 1.0,   // Normal priority
+            s if s >= 0.3 => 0.8,   // Low priority
+            _ => 0.5,               // Very low priority
+        };
+        
+        // Factor in allocation conditions - more conditions may indicate special handling
+        let conditions_multiplier = match allocation.conditions.len() {
+            0 => 1.0,               // No special conditions
+            1..=2 => 1.1,          // Few conditions - slight boost
+            3..=5 => 1.2,          // Several conditions - moderate boost
+            _ => 1.3,              // Many conditions - higher boost for complexity
+        };
+        
+        // Calculate final allocation amount
+        let final_amount = (base_amount as f64
+            * reputation_multiplier
+            * balance_factor
+            * priority_multiplier
+            * conditions_multiplier) as u64;
+        
+        // Ensure allocation stays within reasonable bounds
+        let min_allocation = base_amount / 10;  // At least 10% of requested
+        let max_allocation = base_amount * 3;   // At most 300% of requested
+        
+        let bounded_amount = final_amount.max(min_allocation).min(max_allocation);
+        
+        // Execute the actual allocation
+        match self.mana_ledger.credit(recipient, bounded_amount) {
+            Ok(()) => {
+                log::info!(
+                    "Allocated {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2})",
+                    bounded_amount, recipient, base_amount, 
+                    reputation_multiplier, balance_factor, priority_multiplier, conditions_multiplier
+                );
+                Ok(bounded_amount)
+            }
+            Err(e) => {
+                log::error!("Failed to allocate {} mana to {}: {}", bounded_amount, recipient, e);
+                Err(e)
+            }
+        }
     }
 
     /// Get economic automation statistics

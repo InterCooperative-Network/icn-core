@@ -10,6 +10,7 @@ use icn_governance::{Proposal, ProposalId, Vote, VoteOption};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::ops::DerefMut;
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
@@ -668,7 +669,7 @@ mod tests {
             start_time: std::time::Instant::now(),
             memory_usage: 0,
             instruction_count: 0,
-            node_identity: Did::parse("did:key:test").unwrap(),
+            node_identity: Did::from_str("did:key:test").unwrap(),
             governance_data: HashMap::new(),
         };
 
@@ -697,7 +698,7 @@ mod tests {
             start_time: std::time::Instant::now(),
             memory_usage: 0,
             instruction_count: 0,
-            node_identity: Did::parse("did:key:test").unwrap(),
+            node_identity: Did::from_str("did:key:test").unwrap(),
             governance_data: HashMap::new(),
         };
 
