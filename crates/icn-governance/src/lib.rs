@@ -39,6 +39,11 @@ pub mod policy_testing;
 pub mod ranked_choice;
 pub mod scoped_policy;
 pub mod voting;
+pub mod security;
+pub use security::{
+    GovernanceSecurityConfig, SecureBallotValidator, SecureBallotSigner,
+    GovernanceSecurityAudit, BallotValidationStats, GovernanceSecurityIssue
+};
 
 #[cfg(test)]
 mod integration_tests;

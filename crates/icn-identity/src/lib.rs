@@ -545,13 +545,29 @@ impl<R: MembershipResolver> MembershipPolicyEnforcer<R> {
 }
 
 /// Convenience wrapper around signing raw bytes with an Ed25519 SigningKey.
+/// Uses secure signing with timing attack protection.
 pub fn sign_message(sk: &SigningKey, msg: &[u8]) -> EdSignature {
-    sk.sign(msg)
+    let config = crate::security::SecurityConfig::default();
+    match crate::security::secure_sign_message(sk, msg, &config) {
+        Ok(signature) => signature,
+        Err(_) => {
+            // Fallback to basic signing if secure signing fails
+            // This shouldn't happen in normal operation
+            log::warn!("Secure signing failed, falling back to basic signing");
+            sk.sign(msg)
+        }
+    }
 }
 
 /// Verify a message/signature pair with an Ed25519 VerifyingKey.
+/// Uses secure verification but provides minimal error information to prevent leakage.
 pub fn verify_signature(pk: &VerifyingKey, msg: &[u8], sig: &EdSignature) -> bool {
-    pk.verify_strict(msg, sig).is_ok()
+    // Use the hardened verification with default security config
+    let config = crate::security::SecurityConfig::default();
+    match crate::security::secure_verify_signature(pk, msg, sig, &config) {
+        Ok(result) => result,
+        Err(_) => false, // Don't leak error details
+    }
 }
 
 // --- Structs for ICN System (Keypair, ExecutionReceipt) ---
