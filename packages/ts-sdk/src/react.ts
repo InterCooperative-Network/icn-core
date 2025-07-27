@@ -4,17 +4,30 @@
 import { ICNClient } from './client'
 import { ICNClientOptions } from './types'
 
+// Type definitions for React (to avoid requiring React as dependency)
+type ReactNode = any;
+type ReactContext<T> = {
+  Provider: (props: { value: T; children: ReactNode }) => ReactNode;
+};
+type SetStateAction<S> = S | ((prevState: S) => S);
+type Dispatch<A> = (value: A) => void;
+
 // Context and Provider (placeholder - would require React import)
-let ICNContext: any = null
-let useContext: any = null
-let createContext: any = null
-let useState: any = null
-let useEffect: any = null
+let ICNContext: ReactContext<{
+  client: ICNClient | null
+  connected: boolean
+  connecting: boolean
+  error: string | null
+}> | null = null
+let useContext: <T>(context: ReactContext<T>) => T
+let createContext: <T>(defaultValue: T) => ReactContext<T>
+let useState: <S>(initialState: S | (() => S)) => [S, Dispatch<SetStateAction<S>>]
+let useEffect: (effect: () => void | (() => void), deps?: any[]) => void
 
 // Dynamically import React if available
 try {
   // This will work in React Native and web environments
-  const React = require('react')
+  const React = eval('require')('react') as any
   useContext = React.useContext
   createContext = React.createContext
   useState = React.useState
@@ -25,12 +38,7 @@ try {
 
 // Create context if React is available
 if (createContext) {
-  ICNContext = createContext<{
-    client: ICNClient | null
-    connected: boolean
-    connecting: boolean
-    error: string | null
-  }>({
+  ICNContext = createContext({
     client: null,
     connected: false,
     connecting: false,
@@ -47,10 +55,10 @@ export function ICNProvider(props: {
     throw new Error('ICNProvider requires React. Import this only in React environments.')
   }
 
-  const [client, setClient] = useState<ICNClient | null>(null)
+  const [client, setClient] = useState(null)
   const [connected, setConnected] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => {
     const icnClient = new ICNClient(props.options)
@@ -114,7 +122,7 @@ export function useICNJobs() {
     throw new Error('useICNJobs requires React')
   }
 
-  const [jobs, setJobs] = useState<any[]>([])
+  const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(false)
 
   const submitJob = async (jobSpec: any, options?: any) => {
@@ -160,7 +168,7 @@ export function useICNGovernance() {
     throw new Error('useICNGovernance requires React')
   }
 
-  const [proposals, setProposals] = useState<any[]>([])
+  const [proposals, setProposals] = useState([])
   const [loading, setLoading] = useState(false)
 
   const submitProposal = async (proposal: any) => {
@@ -225,8 +233,8 @@ export function useICNTrust() {
     throw new Error('useICNTrust requires React')
   }
 
-  const [trustScore, setTrustScore] = useState<any>(null)
-  const [trustRelationships, setTrustRelationships] = useState<any[]>([])
+  const [trustScore, setTrustScore] = useState(null)
+  const [trustRelationships, setTrustRelationships] = useState([])
   const [loading, setLoading] = useState(false)
 
   const getTrustScore = async (did: string) => {
@@ -287,7 +295,7 @@ export function useICNCredentials() {
     throw new Error('useICNCredentials requires React')
   }
 
-  const [credentials, setCredentials] = useState<any[]>([])
+  const [credentials, setCredentials] = useState([])
   const [loading, setLoading] = useState(false)
 
   const issueCredential = async (request: any) => {
@@ -357,8 +365,8 @@ export function useICNTokens() {
     throw new Error('useICNTokens requires React')
   }
 
-  const [balances, setBalances] = useState<any[]>([])
-  const [tokenClasses, setTokenClasses] = useState<any[]>([])
+  const [balances, setBalances] = useState([])
+  const [tokenClasses, setTokenClasses] = useState([])
   const [loading, setLoading] = useState(false)
 
   const getBalances = async (did: string) => {
@@ -395,7 +403,7 @@ export function useICNTokens() {
     try {
       const tokenClass = await client.tokens.createTokenClass(request)
       // Add to local token classes list
-      setTokenClasses(prev => [...prev, tokenClass])
+      setTokenClasses((prev: any) => [...prev, tokenClass])
       return tokenClass
     } finally {
       setLoading(false)
@@ -420,7 +428,7 @@ export function useICNMutualAid() {
     throw new Error('useICNMutualAid requires React')
   }
 
-  const [resources, setResources] = useState<any[]>([])
+  const [resources, setResources] = useState([])
   const [loading, setLoading] = useState(false)
 
   const registerResource = async (resource: any) => {

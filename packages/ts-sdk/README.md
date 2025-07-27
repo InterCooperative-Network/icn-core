@@ -397,31 +397,32 @@ const client = new ICNClient({
 
 ## Comprehensive Examples
 
-The SDK includes extensive examples:
+The SDK includes extensive examples demonstrating all features:
 
-- `examples/basic-usage.ts` - Client setup and basic operations
-- `examples/governance-example.ts` - Proposal submission and voting
-- `examples/credential-management.ts` - Advanced credential workflows
-- `examples/trust-networks.ts` - Trust relationship management
-- `examples/mesh-computing.ts` - Job submission and monitoring
-- `examples/token-operations.ts` - Token creation and transfers
-- `examples/mutual-aid.ts` - Resource sharing workflows
-- `examples/react-hooks.tsx` - Complete React integration
-- `examples/error-handling.ts` - Comprehensive error management
+- **[Basic Usage](examples/basic-usage.ts)** - Client setup, connection management, and basic operations
+- **[Governance](examples/governance-example.ts)** - Complete governance workflows with CCL templates, voting, and analytics
+- **[Credential Management](examples/credential-management.ts)** - Advanced credential workflows with selective disclosure and trust attestations
+- **[Trust Networks](examples/trust-networks.ts)** - Trust relationship management and path analysis
+- **[Mesh Computing](examples/mesh-computing.ts)** - Job submission, monitoring, resource optimization, and performance analytics
+- **[Token Operations](examples/token-operations.ts)** - Token creation, transfers, and balance management
+- **[Mutual Aid](examples/mutual-aid.ts)** - Resource sharing, discovery, and community coordination across multiple categories
+- **[Error Handling](examples/error-handling.ts)** - Comprehensive error handling patterns, retry logic, and monitoring
+- **[Production Configuration](examples/production-config.ts)** - Production-ready setup with connection pooling, security, and deployment strategies
+- **[React Hooks](examples/react-hooks.tsx)** - Complete React integration patterns
 
-## Development
+## Development and Testing
 
 ```bash
 # Install dependencies
 pnpm install
 
-# Start development
+# Start development with watch mode
 pnpm dev
 
 # Build for production
 pnpm build
 
-# Run tests
+# Run comprehensive test suite
 pnpm test
 
 # Type checking
@@ -429,17 +430,129 @@ pnpm type-check
 
 # Lint code
 pnpm lint
+
+# Format code
+pnpm format
+
+# Run example (Node.js)
+node -r esbuild-register examples/basic-usage.ts
+
+# Clean build artifacts
+pnpm clean
 ```
+
+### Testing
+
+The SDK includes a comprehensive test suite covering:
+
+- Storage operations and encryption
+- Error handling and retry logic
+- Utility functions and validation
+- Type safety and edge cases
+- Cross-platform compatibility
+
+```typescript
+import { runTests } from '@icn/ts-sdk';
+
+// Run built-in test suite
+const results = await runTests();
+console.log(`Tests: ${results.passed} passed, ${results.failed} failed`);
+```
+
+## Production Deployment
+
+### Environment Configuration
+
+```typescript
+import { ProductionICNClient, environments } from '@icn/ts-sdk';
+
+// Production client with connection pooling
+const client = new ProductionICNClient('production');
+await client.initialize();
+
+// Health check endpoint
+app.get('/health', async (req, res) => {
+  const health = await client.performHealthCheck();
+  res.json(health);
+});
+
+// Metrics endpoint
+app.get('/metrics', (req, res) => {
+  const metrics = client.getMetrics();
+  res.json(metrics);
+});
+```
+
+### Docker Configuration
+
+```dockerfile
+FROM node:18-alpine
+
+# Security updates
+RUN apk update && apk upgrade
+
+# Non-root user
+RUN addgroup -g 1001 -S nodejs
+RUN adduser -S icnapp -u 1001
+
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+
+COPY . .
+USER icnapp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD node healthcheck.js
+
+CMD ["node", "index.js"]
+```
+
+### Environment Variables
+
+Required environment variables for production:
+
+- `ICN_NODE_ENDPOINT` - Primary ICN node endpoint URL
+- `ICN_NETWORK` - Network type (mainnet, testnet, devnet)
+- `ICN_PRIVATE_KEY` - Private key for authentication
+- `ICN_STORAGE_PASSPHRASE` - Passphrase for storage encryption
+
+Optional configuration:
+
+- `ICN_NODE_ENDPOINTS` - Comma-separated backup endpoints
+- `ICN_TIMEOUT` - Request timeout in milliseconds
+- `ICN_LOG_LEVEL` - Logging level (debug, info, warn, error)
+- `ICN_METRICS_ENABLED` - Enable metrics collection
 
 ## Contributing
 
-1. Follow TypeScript best practices
-2. Ensure cross-platform compatibility
-3. Add tests for new functionality
-4. Update documentation and examples
-5. Test on web, React Native, and Node.js
-6. Include comprehensive error handling
+1. **Follow TypeScript best practices** - Use proper typing and avoid `any` where possible
+2. **Ensure cross-platform compatibility** - Test on web, React Native, and Node.js environments
+3. **Add comprehensive tests** - Include unit tests for new functionality and edge cases
+4. **Update documentation** - Keep README and examples up to date with changes
+5. **Include error handling** - Implement proper error types and recovery mechanisms
+6. **Performance considerations** - Optimize for production use with caching and connection pooling
+7. **Security first** - Follow security best practices for key management and data protection
+
+### Development Workflow
+
+1. Fork the repository and create a feature branch
+2. Make changes with comprehensive tests
+3. Ensure all examples still work
+4. Update documentation
+5. Submit a pull request with detailed description
 
 ## License
 
-Apache-2.0 
+Apache-2.0
+
+## Roadmap
+
+- [ ] WebSocket support for real-time updates
+- [ ] Advanced caching strategies with TTL management
+- [ ] Offline mode support with sync capabilities
+- [ ] Enhanced React Native platform integration
+- [ ] GraphQL query interface
+- [ ] Advanced analytics and monitoring dashboard
+- [ ] Plugin architecture for extensibility 

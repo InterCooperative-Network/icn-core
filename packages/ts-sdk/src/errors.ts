@@ -335,12 +335,21 @@ export const ErrorUtils = {
     } catch (error) {
       const icnError = ErrorFactory.fromUnknownError(error);
       if (errorContext) {
-        icnError.details = {
-          ...icnError.details,
-          context: errorContext,
-        };
+        throw ErrorUtils.addContext(icnError, errorContext);
       }
       throw icnError;
     }
   },
+
+  /**
+   * Set additional context on an ICN error
+   */
+  addContext(error: ICNError, context: string): ICNError {
+    // Create a new error with updated details instead of modifying readonly property
+    const newDetails = {
+      ...error.details,
+      context
+    };
+    return new ICNError(error.code, error.message, newDetails, error.correlationId);
+  }
 };
