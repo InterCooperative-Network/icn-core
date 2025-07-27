@@ -16,6 +16,7 @@ pub mod host_environment;
 pub mod mana;
 pub mod mesh_network;
 pub mod realtime_ccl_integration;
+pub mod resilient_context;
 pub mod resource_ledger;
 pub mod runtime_context;
 pub mod runtime_factory;
@@ -63,6 +64,9 @@ pub use mesh_network::{
 pub use realtime_ccl_integration::{
     ActiveProposal, CclIntegrationCoordinator, GovernanceEvent, GovernanceEventType,
     ProposalStatus, VoteTracker,
+};
+pub use resilient_context::{
+    ResilientRuntimeContext, CircuitBreakerStatus, RecoveryMetrics, ICNErrorClassifier,
 };
 pub use resource_ledger::{
     record_resource_event, ResourceAction, ResourceLedger, ResourceLedgerEntry,
