@@ -242,6 +242,26 @@ pub enum CommonError {
     /// Insufficient funds for operation
     #[error("Insufficient funds: {0}")]
     InsufficientFunds(String),
+
+    /// Invalid parameters provided
+    #[error("Invalid parameters: {0}")]
+    InvalidParameters(String),
+
+    /// Resource not found
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    /// Rate limit exceeded
+    #[error("Rate limit error: {0}")]
+    RateLimitError(String),
+
+    /// Service unavailable
+    #[error("Service unavailable: {0}")]
+    ServiceUnavailable(String),
+
+    /// Validation error
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 
 /// Trait for types that can produce a canonical byte representation for

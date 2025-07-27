@@ -137,9 +137,9 @@ impl ResourceLimiter for ICNResourceLimiter {
 
     fn table_growing(
         &mut self,
-        _current: u32,
-        desired: u32,
-        _maximum: Option<u32>,
+        _current: usize,
+        desired: usize,
+        _maximum: Option<usize>,
     ) -> anyhow::Result<bool> {
         // Limit table growth (simple check)
         if desired > 1000 {

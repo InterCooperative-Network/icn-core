@@ -13,7 +13,7 @@ use log::{debug, warn, error};
 use thiserror::Error;
 
 /// Error recovery configuration for production operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ErrorRecoveryConfig {
     /// Maximum number of retry attempts
     pub max_retries: u32,
@@ -116,7 +116,7 @@ pub enum CircuitState {
 /// Circuit breaker for preventing cascade failures
 pub struct CircuitBreaker {
     state: Arc<std::sync::Mutex<CircuitState>>,
-    failure_count: AtomicU64,
+    pub failure_count: AtomicU64,
     success_count: AtomicU64,
     last_failure_time: Arc<std::sync::Mutex<Option<Instant>>>,
     config: CircuitBreakerConfig,
@@ -182,7 +182,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         let state = self.state.lock().unwrap();
         match *state {
             CircuitState::Open => {
@@ -244,29 +244,6 @@ impl CircuitBreaker {
         self.failure_count.store(0, Ordering::SeqCst);
         self.success_count.store(0, Ordering::SeqCst);
         debug!("Circuit breaker closed after successful recovery");
-    }
-
-    /// Check if circuit breaker is currently open
-    pub fn is_open(&self) -> bool {
-        let state = self.state.lock().unwrap();
-        match *state {
-            CircuitState::Open => {
-                // Check if recovery timeout has passed
-                if let Some(last_failure) = *self.last_failure_time.lock().unwrap() {
-                    if last_failure.elapsed() > self.config.recovery_timeout {
-                        drop(state);
-                        self.transition_to_half_open();
-                        false
-                    } else {
-                        true
-                    }
-                } else {
-                    true
-                }
-            }
-            CircuitState::HalfOpen => false,
-            CircuitState::Closed => false,
-        }
     }
 
     /// Manually close the circuit breaker (for admin operations)
