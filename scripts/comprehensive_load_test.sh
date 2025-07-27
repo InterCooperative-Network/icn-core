@@ -18,6 +18,7 @@ JOB_SUBMISSION_RATE="${JOB_SUBMISSION_RATE:-10}" # jobs per second
 CONCURRENT_CONNECTIONS="${CONCURRENT_CONNECTIONS:-50}"
 MAX_MEMORY_MB="${MAX_MEMORY_MB:-2048}"
 MAX_CPU_PERCENT="${MAX_CPU_PERCENT:-80}"
+MAX_MEMORY_PERCENT="${MAX_MEMORY_PERCENT:-85}"
 PROMETHEUS_PORT="${PROMETHEUS_PORT:-9090}"
 METRICS_SCRAPE_INTERVAL="${METRICS_SCRAPE_INTERVAL:-5}"
 
@@ -392,8 +393,8 @@ monitor_memory_usage() {
         
         # Check for memory limit breach
         local memory_usage=$(free | awk 'NR==2{printf "%.0f", $3/$2 * 100}')
-        if [ "$memory_usage" -gt "$MAX_CPU_PERCENT" ]; then
-            warn "Memory usage exceeded ${MAX_CPU_PERCENT}%: ${memory_usage}%"
+        if [ "$memory_usage" -gt "$MAX_MEMORY_PERCENT" ]; then
+            warn "Memory usage exceeded ${MAX_MEMORY_PERCENT}%: ${memory_usage}%"
         fi
         
         sleep 5
