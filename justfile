@@ -256,6 +256,11 @@ install-ccl-tools:
 
 # Frontend-Backend Integration Testing
 
+# Validate integration structure without requiring running services
+validate-integration-structure:
+    @echo "🔍 Validating frontend-backend integration structure..."
+    node scripts/validate-structure.js
+
 # Validate frontend-backend integration with offline tests
 validate-integration-offline:
     @echo "🧪 Running frontend-backend integration validation (offline mode)..."
