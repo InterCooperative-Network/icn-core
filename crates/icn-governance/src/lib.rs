@@ -33,6 +33,7 @@ pub mod budgeting;
 pub mod crdt_proposal_state;
 pub mod federation_governance;
 //pub mod federation_sync;
+pub mod governance_conflict_resolver;
 pub mod metrics;
 pub mod ranked_choice;
 pub mod scoped_policy;
@@ -51,6 +52,11 @@ pub use crdt_proposal_state::{
     CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,
     ProposalInfo, ProposalMetadata, ProposalStatus as CRDTProposalStatus, Vote as CRDTVote,
     VoteDecision, VoteTally,
+};
+pub use governance_conflict_resolver::{
+    ConflictEvidence, ConflictSeverity, GovernanceConflict, GovernanceConflictConfig,
+    GovernanceConflictResolver, GovernanceConflictType, GovernanceResolution,
+    GovernanceResolutionStatus,
 };
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 pub use voting::{
@@ -188,7 +194,7 @@ pub enum VoteOption {
 }
 
 /// A single vote on a proposal.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Vote {
     pub voter: Did,

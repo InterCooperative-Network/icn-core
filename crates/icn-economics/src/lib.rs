@@ -25,6 +25,7 @@ pub mod mutual_aid;
 pub mod mutual_credit;
 pub mod reputation_tokens;
 pub mod time_banking;
+pub mod economic_dispute_resolver;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
@@ -38,6 +39,12 @@ pub use ledger::FileResourceLedger;
 pub use ledger::{
     FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
     TransferRecord, TransferabilityRule,
+};
+pub use economic_dispute_resolver::{
+    AssetFreeze, BalanceAdjustment, Compensation, CompensationType, DisputeSeverity,
+    EconomicDispute, EconomicDisputeConfig, EconomicDisputeResolver, EconomicDisputeType,
+    EconomicEvidence, EconomicPenalty, EconomicResolution, EconomicResolutionStatus,
+    PenaltyType, ReputationProvider as DisputeReputationProvider, ResourceRedistribution,
 };
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};

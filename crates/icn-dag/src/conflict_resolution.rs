@@ -80,6 +80,12 @@ pub enum ResolutionStatus {
     GatheringEvidence,
     /// Analyzing evidence and determining resolution
     Analyzing,
+    /// Federation voting in progress
+    FederationVoting { 
+        votes_received: usize, 
+        votes_needed: usize,
+        deadline: u64 
+    },
     /// Resolution determined, propagating decision
     ResolutionFound { winner: Cid },
     /// Resolution complete and applied
@@ -101,6 +107,71 @@ pub struct ConflictResolutionConfig {
     pub auto_resolve: bool,
     /// Resolution strategy to use
     pub resolution_strategy: ResolutionStrategy,
+    /// Configuration for federation voting
+    pub federation_vote_config: FederationVoteConfig,
+}
+
+/// Configuration for federation voting on conflicts
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVoteConfig {
+    /// Voting duration in seconds
+    pub voting_duration: u64,
+    /// Minimum number of votes required for quorum
+    pub quorum: usize,
+    /// Threshold for acceptance (0.5 = majority, 0.67 = supermajority)
+    pub threshold: f64,
+    /// Maximum time to wait for vote broadcasts (seconds)
+    pub broadcast_timeout: u64,
+    /// Whether to require weighted voting based on reputation
+    pub weighted_voting: bool,
+}
+
+impl Default for FederationVoteConfig {
+    fn default() -> Self {
+        Self {
+            voting_duration: 600, // 10 minutes
+            quorum: 3,
+            threshold: 0.67, // Supermajority
+            broadcast_timeout: 60,
+            weighted_voting: false,
+        }
+    }
+}
+
+/// A vote from a federation node on a conflict resolution
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVote {
+    /// The node casting the vote
+    pub voter: Did,
+    /// The conflict being voted on
+    pub conflict_id: String,
+    /// The preferred resolution (CID of winning block)
+    pub preferred_winner: Cid,
+    /// Timestamp when vote was cast
+    pub timestamp: u64,
+    /// Optional weight for the vote (based on reputation, stake, etc.)
+    pub weight: f64,
+    /// Signature of the vote for verification
+    pub signature: Option<Vec<u8>>,
+    /// Reasoning for the vote choice
+    pub reasoning: Option<String>,
+}
+
+/// Aggregated results of federation voting
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationVoteResults {
+    /// Total votes received
+    pub total_votes: usize,
+    /// Votes per candidate block CID
+    pub votes_per_candidate: HashMap<Cid, f64>,
+    /// Whether quorum was achieved
+    pub quorum_met: bool,
+    /// Whether threshold was met for any candidate
+    pub threshold_met: bool,
+    /// The winning candidate if any
+    pub winner: Option<Cid>,
+    /// Detailed vote breakdown
+    pub vote_details: Vec<FederationVote>,
 }
 
 impl Default for ConflictResolutionConfig {
@@ -111,6 +182,7 @@ impl Default for ConflictResolutionConfig {
             max_concurrent_conflicts: 10,
             auto_resolve: true,
             resolution_strategy: ResolutionStrategy::MultiCriteria,
+            federation_vote_config: FederationVoteConfig::default(),
         }
     }
 }
@@ -132,6 +204,12 @@ pub enum ResolutionStrategy {
     FederationVote,
 }
 
+/// Trait for providing reputation scores for federation voting
+pub trait ReputationProvider: Send + Sync {
+    /// Get the reputation score for a given DID
+    fn get_reputation(&self, did: &Did) -> f64;
+}
+
 /// Manages conflict detection and resolution for DAG synchronization
 pub struct ConflictResolver<S: StorageService<DagBlock>> {
     store: S,
@@ -139,6 +217,12 @@ pub struct ConflictResolver<S: StorageService<DagBlock>> {
     active_conflicts: HashMap<String, DagConflict>,
     resolution_history: VecDeque<DagConflict>,
     node_identity: Did,
+    /// Federation nodes eligible to vote
+    federation_nodes: HashSet<Did>,
+    /// Active votes for ongoing federation voting
+    federation_votes: HashMap<String, Vec<FederationVote>>,
+    /// Reputation provider for weighted voting
+    reputation_provider: Option<Box<dyn ReputationProvider>>,
 }
 
 impl<S: StorageService<DagBlock>> ConflictResolver<S> {
@@ -150,7 +234,102 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             active_conflicts: HashMap::new(),
             resolution_history: VecDeque::new(),
             node_identity,
+            federation_nodes: HashSet::new(),
+            federation_votes: HashMap::new(),
+            reputation_provider: None,
         }
+    }
+
+    /// Create a new conflict resolver with federation capabilities
+    pub fn new_with_federation(
+        store: S, 
+        config: ConflictResolutionConfig, 
+        node_identity: Did,
+        federation_nodes: HashSet<Did>,
+        reputation_provider: Option<Box<dyn ReputationProvider>>,
+    ) -> Self {
+        Self {
+            store,
+            config,
+            active_conflicts: HashMap::new(),
+            resolution_history: VecDeque::new(),
+            node_identity,
+            federation_nodes,
+            federation_votes: HashMap::new(),
+            reputation_provider,
+        }
+    }
+
+    /// Add a node to the federation
+    pub fn add_federation_node(&mut self, node: Did) {
+        self.federation_nodes.insert(node);
+    }
+
+    /// Remove a node from the federation
+    pub fn remove_federation_node(&mut self, node: &Did) {
+        self.federation_nodes.remove(node);
+    }
+
+    /// Cast a vote on an active conflict
+    pub fn cast_federation_vote(&mut self, vote: FederationVote) -> Result<(), CommonError> {
+        // Verify the voter is part of the federation
+        if !self.federation_nodes.contains(&vote.voter) {
+            return Err(CommonError::PolicyDenied(
+                "Node not authorized to vote in federation".to_string()
+            ));
+        }
+
+        // Verify the conflict exists and is in voting state
+        let conflict = self.active_conflicts.get(&vote.conflict_id)
+            .ok_or_else(|| CommonError::ResourceNotFound(
+                format!("Conflict {} not found", vote.conflict_id)
+            ))?;
+
+        match &conflict.resolution_status {
+            ResolutionStatus::FederationVoting { .. } => {
+                // Add the vote
+                self.federation_votes
+                    .entry(vote.conflict_id.clone())
+                    .or_default()
+                    .push(vote);
+                Ok(())
+            }
+            _ => Err(CommonError::PolicyDenied(
+                "Conflict not in voting state".to_string()
+            )),
+        }
+    }
+
+    /// Check if federation voting is complete and tally results
+    pub fn check_federation_voting(&mut self, conflict_id: &str) -> Result<Option<FederationVoteResults>, CommonError> {
+        let conflict = self.active_conflicts.get(conflict_id)
+            .ok_or_else(|| CommonError::ResourceNotFound(
+                format!("Conflict {} not found", conflict_id)
+            ))?;
+
+        let (_votes_received, votes_needed, deadline) = match &conflict.resolution_status {
+            ResolutionStatus::FederationVoting { votes_received, votes_needed, deadline } => 
+                (*votes_received, *votes_needed, *deadline),
+            _ => return Ok(None), // Not in voting state
+        };
+
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let empty_votes = Vec::new();
+        let votes = self.federation_votes.get(conflict_id).unwrap_or(&empty_votes);
+        
+        // Check if voting period has ended or enough votes received
+        let voting_complete = current_time >= deadline || votes.len() >= votes_needed;
+        
+        if voting_complete {
+            let results = self.tally_federation_votes(conflict_id)?;
+            return Ok(Some(results));
+        }
+
+        Ok(None)
     }
 
     /// Detect conflicts in the current DAG state
@@ -214,9 +393,7 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             ResolutionStrategy::LongestChain => self.resolve_by_chain_length(&conflict)?,
             ResolutionStrategy::MultiCriteria => self.resolve_by_multiple_criteria(&conflict)?,
             ResolutionStrategy::FederationVote => {
-                return Ok(ResolutionStatus::Failed {
-                    reason: "Federation vote not implemented yet".to_string(),
-                });
+                return self.initiate_federation_vote(conflict_id);
             }
         };
 
@@ -227,6 +404,141 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             winner,
             applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
         })
+    }
+
+    /// Initiate federation voting for a conflict
+    fn initiate_federation_vote(&mut self, conflict_id: &str) -> Result<ResolutionStatus, CommonError> {
+        if self.federation_nodes.len() < self.config.federation_vote_config.quorum {
+            return Ok(ResolutionStatus::Failed {
+                reason: format!(
+                    "Insufficient federation nodes ({}) for quorum ({})",
+                    self.federation_nodes.len(),
+                    self.config.federation_vote_config.quorum
+                ),
+            });
+        }
+
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        let deadline = current_time + self.config.federation_vote_config.voting_duration;
+        let votes_needed = self.config.federation_vote_config.quorum;
+
+        // Update conflict status to federation voting
+        if let Some(conflict) = self.active_conflicts.get_mut(conflict_id) {
+            conflict.resolution_status = ResolutionStatus::FederationVoting {
+                votes_received: 0,
+                votes_needed,
+                deadline,
+            };
+        }
+
+        // Initialize empty vote collection for this conflict
+        self.federation_votes.insert(conflict_id.to_string(), Vec::new());
+
+        Ok(ResolutionStatus::FederationVoting {
+            votes_received: 0,
+            votes_needed,
+            deadline,
+        })
+    }
+
+    /// Tally federation votes and determine winner
+    fn tally_federation_votes(&self, conflict_id: &str) -> Result<FederationVoteResults, CommonError> {
+        let empty_votes = Vec::new();
+        let votes = self.federation_votes.get(conflict_id).unwrap_or(&empty_votes);
+        let config = &self.config.federation_vote_config;
+
+        let mut votes_per_candidate: HashMap<Cid, f64> = HashMap::new();
+        let mut total_weight = 0.0;
+
+        // Count votes with appropriate weighting
+        for vote in votes {
+            let weight = if config.weighted_voting {
+                // Use reputation-based weighting if enabled
+                if let Some(rep_provider) = &self.reputation_provider {
+                    let rep_score = rep_provider.get_reputation(&vote.voter);
+                    vote.weight.max(rep_score).max(1.0) // Ensure minimum weight of 1.0
+                } else {
+                    vote.weight.max(1.0)
+                }
+            } else {
+                1.0 // Equal weight for all votes
+            };
+
+            *votes_per_candidate.entry(vote.preferred_winner.clone()).or_insert(0.0) += weight;
+            total_weight += weight;
+        }
+
+        // Check quorum
+        let quorum_met = votes.len() >= config.quorum;
+        
+        // Find winner if threshold is met
+        let threshold_met = if quorum_met && total_weight > 0.0 {
+            votes_per_candidate.values().any(|&weight| weight / total_weight >= config.threshold)
+        } else {
+            false
+        };
+
+        let winner = if threshold_met {
+            votes_per_candidate
+                .iter()
+                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(cid, _)| cid.clone())
+        } else {
+            None
+        };
+
+        Ok(FederationVoteResults {
+            total_votes: votes.len(),
+            votes_per_candidate,
+            quorum_met,
+            threshold_met,
+            winner,
+            vote_details: votes.clone(),
+        })
+    }
+
+    /// Complete federation voting and apply the result
+    pub fn complete_federation_voting(&mut self, conflict_id: &str) -> Result<ResolutionStatus, CommonError> {
+        let results = self.tally_federation_votes(conflict_id)?;
+
+        if let Some(winner) = results.winner {
+            // Apply the resolution
+            self.apply_resolution(conflict_id, &winner)?;
+            
+            // Clean up votes
+            self.federation_votes.remove(conflict_id);
+
+            Ok(ResolutionStatus::Resolved {
+                winner,
+                applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            })
+        } else {
+            // Mark as failed if no consensus reached
+            if let Some(conflict) = self.active_conflicts.get_mut(conflict_id) {
+                conflict.resolution_status = ResolutionStatus::Failed {
+                    reason: if !results.quorum_met {
+                        "Quorum not met".to_string()
+                    } else {
+                        "Consensus threshold not reached".to_string()
+                    },
+                };
+            }
+
+            // Clean up votes
+            self.federation_votes.remove(conflict_id);
+
+            Ok(ResolutionStatus::Failed {
+                reason: if !results.quorum_met {
+                    "Quorum not met for federation vote".to_string()
+                } else {
+                    "Consensus threshold not reached in federation vote".to_string()
+                },
+            })
+        }
     }
 
     /// Build a structured representation of the DAG for analysis
@@ -533,6 +845,71 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     pub fn get_resolution_history(&self) -> &VecDeque<DagConflict> {
         &self.resolution_history
     }
+
+    /// Get federation nodes
+    pub fn get_federation_nodes(&self) -> &HashSet<Did> {
+        &self.federation_nodes
+    }
+
+    /// Get active federation votes for a conflict
+    pub fn get_federation_votes(&self, conflict_id: &str) -> Option<&Vec<FederationVote>> {
+        self.federation_votes.get(conflict_id)
+    }
+
+    /// Check if a node is part of the federation
+    pub fn is_federation_member(&self, node: &Did) -> bool {
+        self.federation_nodes.contains(node)
+    }
+
+    /// Process periodic tasks (check for completed votes, timeouts, etc.)
+    pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
+        let mut completed_conflicts = Vec::new();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
+        // Check for completed federation votes
+        let conflict_ids: Vec<String> = self.active_conflicts.keys().cloned().collect();
+        
+        for conflict_id in conflict_ids {
+            if let Some(_results) = self.check_federation_voting(&conflict_id)? {
+                // Vote completed, apply results
+                self.complete_federation_voting(&conflict_id)?;
+                completed_conflicts.push(conflict_id);
+            } else {
+                // Check for voting timeout - need to handle this separately to avoid borrowing conflicts
+                let needs_timeout_handling = {
+                    if let Some(conflict) = self.active_conflicts.get(&conflict_id) {
+                        if let ResolutionStatus::FederationVoting { deadline, .. } = &conflict.resolution_status {
+                            current_time >= *deadline
+                        } else {
+                            false
+                        }
+                    } else {
+                        false
+                    }
+                };
+
+                if needs_timeout_handling {
+                    // Voting timed out, try to complete with current votes
+                    match self.complete_federation_voting(&conflict_id) {
+                        Ok(_) => completed_conflicts.push(conflict_id.clone()),
+                        Err(_) => {
+                            // Failed to reach consensus, mark as failed
+                            if let Some(conflict) = self.active_conflicts.get_mut(&conflict_id) {
+                                conflict.resolution_status = ResolutionStatus::Failed {
+                                    reason: "Federation voting timed out without consensus".to_string(),
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(completed_conflicts)
+    }
 }
 
 /// Internal representation of DAG structure for analysis
@@ -742,5 +1119,149 @@ mod tests {
                 assert_eq!(winner, block1.cid); // Earlier block should win
             }
         }
+    }
+
+    #[test]
+    fn test_federation_vote_setup() {
+        let store = InMemoryDagStore::new();
+        let config = ConflictResolutionConfig {
+            resolution_strategy: ResolutionStrategy::FederationVote,
+            ..Default::default()
+        };
+        let node_id = Did::new("key", "test_node");
+        
+        let mut federation_nodes = HashSet::new();
+        federation_nodes.insert(Did::new("key", "node1"));
+        federation_nodes.insert(Did::new("key", "node2"));
+        federation_nodes.insert(Did::new("key", "node3"));
+        
+        let resolver = ConflictResolver::new_with_federation(
+            store, 
+            config, 
+            node_id,
+            federation_nodes.clone(),
+            None
+        );
+        
+        assert_eq!(resolver.federation_nodes.len(), 3);
+        assert!(resolver.is_federation_member(&Did::new("key", "node1")));
+        assert!(!resolver.is_federation_member(&Did::new("key", "outsider")));
+    }
+
+    #[test]
+    fn test_federation_vote_initiation() {
+        let mut store = InMemoryDagStore::new();
+        let mut config = ConflictResolutionConfig {
+            resolution_strategy: ResolutionStrategy::FederationVote,
+            ..Default::default()
+        };
+        config.federation_vote_config.quorum = 2;
+        
+        let node_id = Did::new("key", "test_node");
+        
+        // Create blocks with different timestamps
+        let mut block1 = create_test_block("early", vec![]);
+        let mut block2 = create_test_block("late", vec![]);
+        
+        block1.timestamp = 1000;
+        block2.timestamp = 2000;
+        
+        store.put(&block1).unwrap();
+        store.put(&block2).unwrap();
+        
+        let mut federation_nodes = HashSet::new();
+        federation_nodes.insert(Did::new("key", "node1"));
+        federation_nodes.insert(Did::new("key", "node2"));
+        federation_nodes.insert(Did::new("key", "node3"));
+        
+        let mut resolver = ConflictResolver::new_with_federation(
+            store, 
+            config, 
+            node_id,
+            federation_nodes,
+            None
+        );
+        
+        let conflicts = resolver.detect_conflicts().unwrap();
+        
+        if !conflicts.is_empty() {
+            let resolution = resolver.resolve_conflict(&conflicts[0].conflict_id).unwrap();
+            match resolution {
+                ResolutionStatus::FederationVoting { votes_needed, .. } => {
+                    assert_eq!(votes_needed, 2);
+                }
+                _ => panic!("Expected federation voting to be initiated"),
+            }
+        }
+    }
+
+    #[test]
+    fn test_federation_vote_casting_and_tallying() {
+        let store = InMemoryDagStore::new();
+        let mut config = ConflictResolutionConfig {
+            resolution_strategy: ResolutionStrategy::FederationVote,
+            ..Default::default()
+        };
+        config.federation_vote_config.quorum = 2;
+        config.federation_vote_config.threshold = 0.6; // 60% threshold
+        
+        let node_id = Did::new("key", "test_node");
+        
+        let mut federation_nodes = HashSet::new();
+        let voter1 = Did::new("key", "voter1");
+        let voter2 = Did::new("key", "voter2");
+        let voter3 = Did::new("key", "voter3");
+        federation_nodes.insert(voter1.clone());
+        federation_nodes.insert(voter2.clone());
+        federation_nodes.insert(voter3.clone());
+        
+        let mut resolver = ConflictResolver::new_with_federation(
+            store, 
+            config, 
+            node_id,
+            federation_nodes,
+            None
+        );
+        
+        // Create a mock conflict
+        let conflict_id = "test_conflict".to_string();
+        let winner_cid = Cid::new_v1_sha256(0x55, b"winner");
+        let loser_cid = Cid::new_v1_sha256(0x55, b"loser");
+        
+        // Initiate voting (manually for testing)
+        resolver.federation_votes.insert(conflict_id.clone(), Vec::new());
+        
+        // Cast votes
+        let vote1 = FederationVote {
+            voter: voter1,
+            conflict_id: conflict_id.clone(),
+            preferred_winner: winner_cid.clone(),
+            timestamp: 1000,
+            weight: 1.0,
+            signature: None,
+            reasoning: Some("Earlier block".to_string()),
+        };
+        
+        let vote2 = FederationVote {
+            voter: voter2,
+            conflict_id: conflict_id.clone(),
+            preferred_winner: winner_cid.clone(),
+            timestamp: 1001,
+            weight: 1.0,
+            signature: None,
+            reasoning: Some("Better chain".to_string()),
+        };
+        
+        resolver.federation_votes.get_mut(&conflict_id).unwrap().push(vote1);
+        resolver.federation_votes.get_mut(&conflict_id).unwrap().push(vote2);
+        
+        // Tally votes
+        let results = resolver.tally_federation_votes(&conflict_id).unwrap();
+        
+        assert_eq!(results.total_votes, 2);
+        assert!(results.quorum_met);
+        assert!(results.threshold_met);
+        assert_eq!(results.winner, Some(winner_cid));
+        assert_eq!(results.votes_per_candidate.get(&winner_cid), Some(&2.0));
     }
 }
