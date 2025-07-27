@@ -61,7 +61,7 @@ Zero-knowledge revocation proofs allow verifiers to check that a credential rema
 
 
 Revocation registries implement the `RevocationRegistry` trait. `InMemoryRevocationRegistry` offers a simple off-chain store for issued and revoked credential CIDs.
-=======
+
 ## Delegated Credentials
 
 Delegated credentials allow one DID to delegate authority to another. A chain
