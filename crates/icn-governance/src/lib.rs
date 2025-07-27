@@ -30,14 +30,17 @@ use serde::{Deserialize, Serialize};
 
 pub mod automation;
 pub mod budgeting;
+pub mod contract_registry;
 pub mod crdt_proposal_state;
 pub mod federation_governance;
+pub mod federation_scaling;
 //pub mod federation_sync;
 pub mod governance_conflict_resolver;
 pub mod metrics;
 pub mod policy_testing;
 pub mod ranked_choice;
 pub mod scoped_policy;
+pub mod social_contract;
 pub mod voting;
 
 #[cfg(test)]
@@ -49,10 +52,30 @@ pub use automation::{
     GovernanceEvent as AutomationGovernanceEvent, ReminderType,
 };
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
+pub use contract_registry::{
+    AmendmentRatificationStatus, AmendmentRecord, AmendmentVote, ContractRegistryEntry,
+    RatificationStatus, RegistryError, RegistryEvent, RegistryMetadata, SocialContractRegistry,
+    VersionRecord,
+};
 pub use crdt_proposal_state::{
     CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,
     ProposalInfo, ProposalMetadata, ProposalStatus as CRDTProposalStatus, Vote as CRDTVote,
     VoteDecision, VoteTally,
+};
+pub use federation_governance::{
+    CommitteeStatus, DecisionVote, FederationGovernanceEngine,
+    FederationGovernanceError, FederationMembershipTrustGate, FederationProposal,
+    GovernanceAction, GovernanceError, GovernanceValidationResult,
+    MembershipAction, MembershipApplicationResult, ProposalStatus as FedProposalStatus,
+    TrustCommittee, TrustCommitteeMember, TrustCommitteeRole, TrustSanction, TrustThresholdPolicy,
+    TrustViolation, ViolationType, ViolationStatus, VotingResult,
+};
+pub use federation_scaling::{
+    AggregationAuditEntry, AggregationAuditInfo, AggregationMetadata, AggregationResult,
+    AggregationStep, FederationAggregator, FederationInfo, FederationScalingEngine,
+    GlobalAggregationResult, GlobalDecision, LocalVoteCollector, ParticipantInfo,
+    ParticipantMetadata, ParticipantResult, ParticipantType, ScalingCalculation, ScalingError,
+    ScalingPreferences, VoteTally as ScalingVoteTally,
 };
 pub use governance_conflict_resolver::{
     ConflictEvidence, ConflictSeverity, GovernanceConflict, GovernanceConflictConfig,
@@ -64,6 +87,14 @@ pub use policy_testing::{
     TestExecutionStep, TestState,
 };
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
+pub use social_contract::{
+    AmendmentType, ConsentRequirements, ConsentStatus, ConsentType, ContractAmendment,
+    ContractChange, ContractRight, ContractResponsibility, ContractSignature, ContractTranslation,
+    ContractVersion, ExecutionAuthority, ExecutionRules, GovernanceMechanism,
+    GovernanceMechanismType, GovernanceScope, ImpactAssessment, MemberConsent, NonConsentAction,
+    ResourceFlow, ScalingFunction, ScalingType, SocialContract, SocialContractId,
+    SocialContractStatus, VotingRules,
+};
 pub use voting::{
     BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
     RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
