@@ -275,7 +275,7 @@ tokio = { version = "1.0", features = ["full"] }
 # For temporary DAG stores in integration tests
 icn-dag = { path = "../crates/icn-dag" }
 # Add test dependencies
-wasmtime = { version = "15", features = ["async"] }
+wasmtime = { version = "35", features = ["async"] }
 # Templates for testing
 icn-templates = { path = "../crates/icn-templates" }
 
