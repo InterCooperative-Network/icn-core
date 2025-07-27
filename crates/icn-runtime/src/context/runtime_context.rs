@@ -1061,14 +1061,11 @@ impl RuntimeContext {
             ))?;
         
         // Convert to EdSignature format
-        let signature = EdSignature::from_bytes(
-            signature_bytes.as_slice().try_into()
-                .map_err(|_| CommonError::InternalError(
-                    "Invalid signature length from signer".to_string()
-                ))?
-        ).map_err(|e| CommonError::InternalError(
-            format!("Failed to parse signature from signer: {}", e)
-        ))?;
+        let signature_array: [u8; 64] = signature_bytes.as_slice().try_into()
+            .map_err(|_| CommonError::InternalError(
+                "Invalid signature length from signer".to_string()
+            ))?;
+        let signature = EdSignature::from_bytes(&signature_array);
         
         // Verify the signature using the identity's public key
         if !verify_signature(&verifying_key, test_message, &signature) {

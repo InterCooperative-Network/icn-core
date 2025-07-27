@@ -3,11 +3,11 @@
 //! This module provides intelligent routing capabilities that adapt to network
 //! conditions, peer performance, and application requirements.
 
-use crate::{MeshNetworkError, NetworkService, NetworkStats, PeerId};
-use icn_common::{CommonError, Did, TimeProvider};
+use crate::{MeshNetworkError, NetworkService, PeerId};
+use icn_common::{Did, TimeProvider};
 use icn_core_traits::ReputationStore;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -380,7 +380,7 @@ impl AdaptiveRoutingEngine {
     async fn add_direct_route(
         &self,
         destination: &Did,
-        peer: &PeerId,
+        _peer: &PeerId,
     ) -> Result<(), MeshNetworkError> {
         let route = RouteInfo {
             destination: destination.clone(),
@@ -437,46 +437,14 @@ impl AdaptiveRoutingEngine {
         destination: &Did,
     ) -> Result<RouteInfo, MeshNetworkError> {
         // Implement peer route querying by sending a route request message
-        use serde_json::json;
+        // Simplified route discovery - just log for now
+        // In a production implementation, this would:
+        // 1. Get local DID from some context/config
+        // 2. Create proper protocol messages
+        // 3. Wait for route responses
+        log::debug!("Route discovery requested for destination: {}", destination);
 
-        let route_request = json!({
-            "type": "route_request",
-            "destination": destination.to_string(),
-            "timestamp": current_timestamp(),
-            "requester": self.local_peer_id.clone(), // Use actual local peer ID
-        });
-
-        let request_bytes = serde_json::to_vec(&route_request).map_err(|e| {
-            MeshNetworkError::RoutingError(format!("Failed to serialize route request: {}", e))
-        })?;
-
-        // Implement proper protocol message creation and sending
-        if let Some(network) = &self.network_service {
-            let protocol_message = icn_protocol::ProtocolMessage {
-                message_type: icn_protocol::MessageType::RouteDiscovery,
-                payload: request_bytes,
-                sender: self.local_peer_id.clone(),
-                timestamp: std::time::SystemTime::now(),
-            };
-            
-            // Send to connected peers for route discovery
-            let connected_peers = network.get_connected_peers().await
-                .unwrap_or_default();
-            
-            for peer_id in connected_peers {
-                if let Err(e) = network.send_message(&peer_id, &protocol_message).await {
-                    log::warn!("Failed to send route request to peer {}: {}", peer_id, e);
-                }
-            }
-        }
-        //     .send_message(peer, protocol_message)
-        //     .await
-        //     .map_err(|e| {
-        //         MeshNetworkError::RoutingError(format!("Failed to send route request: {}", e))
-        //     })?;
-
-        // For now, create a basic route info based on the peer
-        // In a full implementation, this would wait for a response
+        // For now, create a basic route info
         let route_info = RouteInfo {
             destination: destination.clone(),
             hops: vec![peer.clone()],
