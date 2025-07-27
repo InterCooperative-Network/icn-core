@@ -14,6 +14,45 @@ export type {
   VerifiableCredential,
   ZkCredentialProof,
   ZkRevocationProof,
+  // Token types
+  CreateTokenClassRequest,
+  TokenClass,
+  MintTokensRequest,
+  BurnTokensRequest,
+  TransferTokensRequest,
+  TokenBalance,
+  // Mutual Aid types
+  AidResource,
+  // Trust types
+  TrustLevel,
+  TrustContext,
+  TrustRelationshipInfo,
+  TrustPath,
+  TrustScore,
+  TrustGraphStats,
+  FederationTrustStats,
+  TrustQueryFilter,
+  TrustPathRequest,
+  TrustUpdateRequest,
+  // Enhanced Credential types
+  IssueCredentialRequest,
+  IssueCredentialResponse,
+  PresentCredentialRequest,
+  PresentCredentialResponse,
+  VerifyCredentialRequest,
+  CredentialVerificationResult,
+  AnchorDisclosureRequest,
+  AnchorDisclosureResponse,
+  RevokeCredentialRequest,
+  RevokeCredentialResponse,
+  ListCredentialsRequest,
+  CredentialMetadata,
+  ListCredentialsResponse,
+  CredentialStatus,
+  PresentationInfo,
+  TrustAttestationInfo,
+  // Executor types
+  ExecutorQueueInfo,
 } from '@icn/client-sdk'
 
 export interface ICNClientOptions {

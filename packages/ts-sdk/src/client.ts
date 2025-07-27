@@ -167,6 +167,31 @@ export class ICNClient {
     return this.baseClient.system
   }
 
+  // Token management
+  get tokens() {
+    return this.baseClient.tokens
+  }
+
+  // Mutual Aid
+  get mutualAid() {
+    return this.baseClient.mutualAid
+  }
+
+  // Trust management
+  get trust() {
+    return this.baseClient.trust
+  }
+
+  // Enhanced Credentials
+  get credentials() {
+    return this.baseClient.credentials
+  }
+
+  // Executor introspection
+  get executor() {
+    return this.baseClient.executor
+  }
+
   // Utilities
   getConnectionState(): ICNConnectionState {
     return { ...this.connectionState }
