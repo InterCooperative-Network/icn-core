@@ -45,6 +45,7 @@ icn-reputation = { path = "../icn-reputation" }
 prometheus-client = "0.22"
 fastrand = "2"
 log = "0.4"
+zeroize = { version = "1.8", features = ["derive"] }
 
 # Ensure old ones are removed if they conflict or are replaced
 # ed25519-dalek = { version = "2.0", features = ["serde"] } # Old, replaced by specific version
