@@ -106,7 +106,7 @@ icn-network = { path = "../crates/icn-network" }
 icn-dag = { path = "../crates/icn-dag" }
 icn-api = { path = "../crates/icn-api" }
 icn-zk = { path = "../crates/icn-zk" }
-ark-groth16 = "0.4"
+ark-groth16 = "0.5"
 ark-bn254 = "0.4"
 ark-serialize = "0.4"
 rand_core = "0.6"
