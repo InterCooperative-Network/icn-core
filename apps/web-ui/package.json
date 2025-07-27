@@ -17,6 +17,7 @@
   "dependencies": {
     "@icn/ts-sdk": "workspace:*",
     "@icn/i18n": "workspace:*",
+    "@icn/ccl-visual-editor": "workspace:*",
     "@headlessui/react": "^1.7.0",
     "@heroicons/react": "^2.0.0",
     "react": "^18.2.0",
