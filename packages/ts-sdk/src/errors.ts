@@ -335,7 +335,7 @@ export const ErrorUtils = {
     } catch (error) {
       const icnError = ErrorFactory.fromUnknownError(error);
       if (errorContext) {
-        return ErrorUtils.addContext(icnError, errorContext);
+        throw ErrorUtils.addContext(icnError, errorContext);
       }
       throw icnError;
     }
