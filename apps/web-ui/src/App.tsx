@@ -8,6 +8,7 @@ import { Dashboard } from './components/Dashboard'
 import { Navigation } from './components/Navigation'
 import { FederationPage } from './pages/FederationPage'
 import { GovernancePage } from './pages/GovernancePage'
+import { ContractEditorPage } from './pages/ContractEditorPage'
 import { CooperativesPage } from './pages/CooperativesPage'
 import { DemoPage } from './pages/DemoPage'
 import { JobsPage } from './pages/JobsPage'
@@ -44,6 +45,7 @@ function AppContent() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/federation" element={<FederationPage />} />
                   <Route path="/governance" element={<GovernancePage />} />
+                  <Route path="/contracts/editor" element={<ContractEditorPage />} />
                   <Route path="/cooperatives" element={<CooperativesPage />} />
                   <Route path="/jobs" element={<JobsPage />} />
                   <Route path="/settings" element={<SettingsPage />} />

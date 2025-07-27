@@ -8,6 +8,7 @@ const navigation = [
   { name: 'menu.dashboard', href: '/dashboard', icon: '🏠' },
   { name: 'menu.federation', href: '/federation', icon: '🤝' },
   { name: 'menu.governance', href: '/governance', icon: '🗳️' },
+  { name: 'menu.contractEditor', href: '/contracts/editor', icon: '🎨' },
   { name: 'menu.cooperatives', href: '/cooperatives', icon: '🏢' },
   { name: 'menu.meshJobs', href: '/jobs', icon: '⚡' },
   { name: 'menu.settings', href: '/settings', icon: '⚙️' },
