@@ -253,3 +253,20 @@ install-ccl-tools:
     cargo install --path icn-ccl --bin ccl-lsp
     cargo install --path icn-ccl --bin ccl-cli
     @echo "✅ CCL tools installed globally"
+
+# Frontend-Backend Integration Testing
+
+# Validate frontend-backend integration with offline tests
+validate-integration-offline:
+    @echo "🧪 Running frontend-backend integration validation (offline mode)..."
+    node scripts/validate-frontend-integration.js --offline
+
+# Validate frontend-backend integration with live backend  
+validate-integration:
+    @echo "🧪 Running frontend-backend integration validation..."
+    node scripts/validate-frontend-integration.js
+
+# Run TypeScript SDK integration tests
+test-sdk-integration:
+    @echo "🧪 Running TypeScript SDK integration tests..."
+    cd packages/ts-sdk && npm run test:integration:offline
