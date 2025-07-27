@@ -717,9 +717,8 @@ impl EconomicDisputeResolver {
     ) -> Result<(), CommonError> {
         match resolution {
             EconomicResolution::ReverseTransactions { transaction_ids } => {
-                // In a real implementation, this would reverse the specified transactions
-                println!("Would reverse transactions: {:?}", transaction_ids);
-                Ok(())
+                // TODO: Implement transaction reversal logic
+                todo!("Reversing transactions is not yet implemented. Transaction IDs: {:?}", transaction_ids);
             }
             EconomicResolution::AdjustBalances { adjustments } => {
                 for adjustment in adjustments {
