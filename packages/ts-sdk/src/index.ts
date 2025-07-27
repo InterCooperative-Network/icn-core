@@ -55,6 +55,9 @@ export {
   formatBytes,
 } from './utils'
 
+// Testing utilities
+export { runTests } from './tests'
+
 // React Native specific exports (optional)
 export { 
   useICNClient, 
