@@ -246,6 +246,9 @@ impl SecureBallotValidator {
 
     /// Clear replay protection cache (for testing or maintenance)
     pub fn clear_replay_cache(&mut self) {
+        if !self.config.allow_cache_clear {
+            panic!("Clearing the replay cache is not allowed in the current configuration.");
+        }
         self.seen_ballots.clear();
     }
 
