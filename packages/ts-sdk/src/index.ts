@@ -8,6 +8,25 @@ export type { EncryptionConfig } from './storage'
 export { createConfig } from './config'
 export type { ICNConfig } from './config'
 
+// Enhanced error handling
+export {
+  ICNError,
+  ICNConnectionError,
+  ICNAuthError,
+  ICNValidationError,
+  ICNNetworkError,
+  ICNGovernanceError,
+  ICNCredentialError,
+  ICNTrustError,
+  ICNMeshError,
+  ICNStorageError,
+  ICNTokenError,
+  ICNTimeoutError,
+  ICNRateLimitError,
+  ErrorFactory,
+  ErrorUtils,
+} from './errors'
+
 // Types
 export type {
   ICNClientOptions,
@@ -36,4 +55,14 @@ export {
 } from './utils'
 
 // React Native specific exports (optional)
-export { useICNClient, ICNProvider } from './react' 
+export { 
+  useICNClient, 
+  ICNProvider,
+  useICNConnection,
+  useICNJobs,
+  useICNGovernance,
+  useICNTrust,
+  useICNCredentials,
+  useICNTokens,
+  useICNMutualAid,
+} from './react' 

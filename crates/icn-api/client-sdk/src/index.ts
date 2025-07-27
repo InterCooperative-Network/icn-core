@@ -224,6 +224,290 @@ export interface AccountKeys {
 }
 
 // ============================================================================
+// Token API Types
+// ============================================================================
+
+export interface CreateTokenClassRequest {
+  id: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface TokenClass {
+  id: string;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface MintTokensRequest {
+  class_id: string;
+  to_did: string;
+  amount: number;
+}
+
+export interface BurnTokensRequest {
+  class_id: string;
+  from_did: string;
+  amount: number;
+}
+
+export interface TransferTokensRequest {
+  class_id: string;
+  from_did: string;
+  to_did: string;
+  amount: number;
+}
+
+export interface TokenBalance {
+  class_id: string;
+  amount: number;
+}
+
+// ============================================================================
+// Mutual Aid API Types
+// ============================================================================
+
+export interface AidResource {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  provider_did: string;
+  availability: 'available' | 'unavailable' | 'limited';
+  location?: string;
+  contact_info?: string;
+  metadata?: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+// ============================================================================
+// Trust API Types
+// ============================================================================
+
+export type TrustLevel = 'none' | 'low' | 'medium' | 'high' | 'absolute';
+export type TrustContext = 'general' | 'financial' | 'technical' | 'governance' | 'social';
+
+export interface TrustRelationshipInfo {
+  from: string; // DID
+  to: string; // DID
+  trust_level: TrustLevel;
+  context: TrustContext;
+  federation?: string;
+  created_at: number;
+  updated_at: number;
+  metadata: Record<string, string>;
+}
+
+export interface TrustPath {
+  from: string; // DID
+  to: string; // DID
+  path: string[]; // intermediate DIDs
+  effective_trust: TrustLevel;
+  contexts: TrustContext[];
+  length: number;
+  weight: number;
+}
+
+export interface TrustScore {
+  did: string;
+  score: number; // 0.0-1.0
+  context_scores: Record<TrustContext, number>;
+  incoming_trust_count: number;
+  outgoing_trust_count: number;
+  federations: string[];
+  calculated_at: number;
+}
+
+export interface TrustGraphStats {
+  total_entities: number;
+  total_relationships: number;
+  relationships_by_context: Record<TrustContext, number>;
+  average_trust_score: number;
+  trust_distribution: Record<string, number>;
+  connected_components: number;
+  federation_stats: Record<string, FederationTrustStats>;
+  calculated_at: number;
+}
+
+export interface FederationTrustStats {
+  member_count: number;
+  average_internal_trust: number;
+  active_contexts: TrustContext[];
+  bridge_count: number;
+}
+
+export interface TrustQueryFilter {
+  context?: TrustContext;
+  min_trust_level?: TrustLevel;
+  federation?: string;
+  created_after?: number;
+  created_before?: number;
+  include_inherited?: boolean;
+  include_cross_federation?: boolean;
+}
+
+export interface TrustPathRequest {
+  from: string; // DID
+  to: string; // DID
+  context: TrustContext;
+  max_length?: number;
+  max_paths?: number;
+  min_trust_level?: TrustLevel;
+}
+
+export interface TrustUpdateRequest {
+  from: string; // DID
+  to: string; // DID
+  trust_level: TrustLevel;
+  context: TrustContext;
+  federation?: string;
+  metadata?: Record<string, string>;
+}
+
+// ============================================================================
+// Enhanced Credential API Types
+// ============================================================================
+
+export interface IssueCredentialRequest {
+  credential_type: string;
+  holder: string; // DID
+  issuer: string; // DID
+  claims: Record<string, any>;
+  evidence?: string[];
+  validity_period?: number;
+}
+
+export interface IssueCredentialResponse {
+  credential_cid: string;
+  credential_proof: ZkCredentialProof;
+  issued_at: number;
+  valid_until?: number;
+}
+
+export interface PresentCredentialRequest {
+  credential_proof: ZkCredentialProof;
+  context: string;
+  disclosed_fields: string[];
+  challenge?: string;
+}
+
+export interface PresentCredentialResponse {
+  presentation_id: string;
+  verification_result: CredentialVerificationResult;
+  timestamp: number;
+}
+
+export interface VerifyCredentialRequest {
+  presentation_id: string;
+  verification_level: string;
+  required_claims?: string[];
+}
+
+export interface CredentialVerificationResult {
+  valid: boolean;
+  verification_level: string;
+  verified_claims: Record<string, any>;
+  warnings: string[];
+  errors: string[];
+  trust_score?: number;
+}
+
+export interface AnchorDisclosureRequest {
+  credential_cid: string;
+  disclosed_fields: string[];
+  presentation_context: string;
+  verifier: string; // DID
+  metadata?: Record<string, any>;
+}
+
+export interface AnchorDisclosureResponse {
+  disclosure_cid: string;
+  anchored_at: number;
+  dag_block_cid: string;
+}
+
+export interface RevokeCredentialRequest {
+  credential_cid: string;
+  reason: string;
+  revoked_by: string; // DID
+}
+
+export interface RevokeCredentialResponse {
+  revoked: boolean;
+  revocation_cid: string;
+  revoked_at: number;
+}
+
+export interface ListCredentialsRequest {
+  holder?: string; // DID
+  issuer?: string; // DID
+  credential_type?: string;
+  status?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CredentialMetadata {
+  cid: string;
+  issuer: string; // DID
+  holder: string; // DID
+  credential_type: string;
+  issued_at: number;
+  valid_until?: number;
+  status: string;
+  revoked: boolean;
+  presentation_count: number;
+}
+
+export interface ListCredentialsResponse {
+  credentials: CredentialMetadata[];
+  total_count: number;
+  has_more: boolean;
+}
+
+export interface CredentialStatus {
+  cid: string;
+  issuer: string; // DID
+  holder: string; // DID
+  credential_type: string;
+  issued_at: number;
+  valid_until?: number;
+  revoked: boolean;
+  revoked_at?: number;
+  revocation_reason?: string;
+  presentations: PresentationInfo[];
+  anchored_disclosures: string[];
+  trust_attestations: TrustAttestationInfo[];
+}
+
+export interface PresentationInfo {
+  presentation_id: string;
+  context: string;
+  presented_at: number;
+  verifier?: string; // DID
+  verification_result?: CredentialVerificationResult;
+}
+
+export interface TrustAttestationInfo {
+  attestor: string; // DID
+  trust_level: string;
+  attested_at: number;
+  context: string;
+}
+
+// ============================================================================
+// Executor API Types
+// ============================================================================
+
+export interface ExecutorQueueInfo {
+  queued: number;
+  capacity: number;
+}
+
+// ============================================================================
 // Reputation API Types
 // ============================================================================
 
@@ -453,6 +737,247 @@ export class ICNClient {
     };
   }
 
+  // Token API
+  get tokens() {
+    const client = this;
+    return {
+      async createTokenClass(request: CreateTokenClassRequest): Promise<TokenClass> {
+        return client.post<TokenClass>('/tokens/classes', request);
+      },
+
+      async getTokenClass(id: string): Promise<TokenClass | null> {
+        return client.get<TokenClass | null>(`/tokens/classes/${id}`);
+      },
+
+      async mintTokens(request: MintTokensRequest): Promise<void> {
+        await client.post<void>('/tokens/mint', request);
+      },
+
+      async burnTokens(request: BurnTokensRequest): Promise<void> {
+        await client.post<void>('/tokens/burn', request);
+      },
+
+      async transferTokens(request: TransferTokensRequest): Promise<void> {
+        await client.post<void>('/tokens/transfer', request);
+      },
+
+      async listBalances(did: string): Promise<TokenBalance[]> {
+        return client.get<TokenBalance[]>(`/tokens/balances/${did}`);
+      }
+    };
+  }
+
+  // Mutual Aid API
+  get mutualAid() {
+    const client = this;
+    return {
+      async listResources(): Promise<AidResource[]> {
+        return client.get<AidResource[]>('/mutual-aid/resources');
+      },
+
+      async registerResource(resource: AidResource): Promise<void> {
+        await client.post<void>('/mutual-aid/resources', resource);
+      },
+
+      async getResource(id: string): Promise<AidResource | null> {
+        return client.get<AidResource | null>(`/mutual-aid/resources/${id}`);
+      },
+
+      async updateResource(id: string, resource: Partial<AidResource>): Promise<void> {
+        await client.put<void>(`/mutual-aid/resources/${id}`, resource);
+      },
+
+      async removeResource(id: string): Promise<void> {
+        await client.delete<void>(`/mutual-aid/resources/${id}`);
+      }
+    };
+  }
+
+  // Trust API
+  get trust() {
+    const client = this;
+    return {
+      async getTrustRelationship(
+        from: string,
+        to: string,
+        context: TrustContext
+      ): Promise<TrustRelationshipInfo | null> {
+        return client.get<TrustRelationshipInfo | null>(
+          `/trust/relationships?from=${from}&to=${to}&context=${context}`
+        );
+      },
+
+      async getEntityTrustRelationships(
+        entity: string,
+        filter?: TrustQueryFilter
+      ): Promise<TrustRelationshipInfo[]> {
+        const params = new URLSearchParams({ entity });
+        if (filter) {
+          Object.entries(filter).forEach(([key, value]) => {
+            if (value !== undefined) {
+              params.append(key, String(value));
+            }
+          });
+        }
+        return client.get<TrustRelationshipInfo[]>(`/trust/relationships?${params}`);
+      },
+
+      async findTrustPaths(request: TrustPathRequest): Promise<TrustPath[]> {
+        return client.post<TrustPath[]>('/trust/paths', request);
+      },
+
+      async getTrustScore(entity: string): Promise<TrustScore> {
+        return client.get<TrustScore>(`/trust/scores/${entity}`);
+      },
+
+      async getTrustScores(entities: string[]): Promise<TrustScore[]> {
+        return client.post<TrustScore[]>('/trust/scores', { entities });
+      },
+
+      async updateTrustRelationship(request: TrustUpdateRequest): Promise<void> {
+        await client.post<void>('/trust/relationships', request);
+      },
+
+      async removeTrustRelationship(
+        from: string,
+        to: string,
+        context: TrustContext
+      ): Promise<void> {
+        await client.delete<void>(
+          `/trust/relationships?from=${from}&to=${to}&context=${context}`
+        );
+      },
+
+      async getTrustGraphStats(): Promise<TrustGraphStats> {
+        return client.get<TrustGraphStats>('/trust/stats');
+      },
+
+      async getFederationTrustStats(federation: string): Promise<FederationTrustStats> {
+        return client.get<FederationTrustStats>(`/trust/federations/${federation}/stats`);
+      },
+
+      async searchByTrust(
+        filter: TrustQueryFilter,
+        limit?: number,
+        offset?: number
+      ): Promise<TrustScore[]> {
+        const params = new URLSearchParams();
+        Object.entries(filter).forEach(([key, value]) => {
+          if (value !== undefined) {
+            params.append(key, String(value));
+          }
+        });
+        if (limit !== undefined) params.append('limit', String(limit));
+        if (offset !== undefined) params.append('offset', String(offset));
+        return client.get<TrustScore[]>(`/trust/search?${params}`);
+      },
+
+      async validateTrustOperation(
+        actor: string,
+        target: string,
+        context: TrustContext,
+        operation: string
+      ): Promise<boolean> {
+        const result = await client.post<{ valid: boolean }>('/trust/validate', {
+          actor,
+          target,
+          context,
+          operation
+        });
+        return result.valid;
+      }
+    };
+  }
+
+  // Enhanced Credential API
+  get credentials() {
+    const client = this;
+    return {
+      // Enhanced credential operations
+      async issueCredential(request: IssueCredentialRequest): Promise<IssueCredentialResponse> {
+        return client.post<IssueCredentialResponse>('/credentials/issue', request);
+      },
+
+      async presentCredential(request: PresentCredentialRequest): Promise<PresentCredentialResponse> {
+        return client.post<PresentCredentialResponse>('/credentials/present', request);
+      },
+
+      async verifyCredential(request: VerifyCredentialRequest): Promise<CredentialVerificationResult> {
+        return client.post<CredentialVerificationResult>('/credentials/verify', request);
+      },
+
+      async anchorDisclosure(request: AnchorDisclosureRequest): Promise<AnchorDisclosureResponse> {
+        return client.post<AnchorDisclosureResponse>('/credentials/anchor', request);
+      },
+
+      async revokeCredential(request: RevokeCredentialRequest): Promise<RevokeCredentialResponse> {
+        return client.post<RevokeCredentialResponse>('/credentials/revoke', request);
+      },
+
+      async getCredentialStatus(cid: string): Promise<CredentialStatus> {
+        return client.get<CredentialStatus>(`/credentials/${cid}/status`);
+      },
+
+      async listCredentials(request: ListCredentialsRequest): Promise<ListCredentialsResponse> {
+        const params = new URLSearchParams();
+        Object.entries(request).forEach(([key, value]) => {
+          if (value !== undefined) {
+            params.append(key, String(value));
+          }
+        });
+        return client.get<ListCredentialsResponse>(`/credentials?${params}`);
+      },
+
+      // Legacy identity API compatibility methods
+      async issueCredentialLegacy(request: {
+        issuer: string;
+        holder: string;
+        attributes: Record<string, string>;
+        schema: string;
+        expiration: number;
+      }): Promise<{ cid: string; credential: VerifiableCredential }> {
+        return client.post<{ cid: string; credential: VerifiableCredential }>('/identity/credentials/issue', request);
+      },
+
+      async verifyCredentialLegacy(credential: VerifiableCredential): Promise<{ valid: boolean }> {
+        return client.post<{ valid: boolean }>('/identity/credentials/verify', { credential });
+      },
+
+      async getCredentialLegacy(cid: string): Promise<{ cid: string; credential: VerifiableCredential }> {
+        return client.get<{ cid: string; credential: VerifiableCredential }>(`/identity/credentials/${cid}`);
+      },
+
+      async listSchemas(): Promise<string[]> {
+        return client.get<string[]>('/identity/credentials/schemas');
+      },
+
+      async generateProof(request: {
+        issuer: string;
+        holder: string;
+        claim_type: string;
+        schema: string;
+        backend: string;
+        public_inputs?: any;
+      }): Promise<{ proof: ZkCredentialProof }> {
+        return client.post<{ proof: ZkCredentialProof }>('/identity/generate-proof', request);
+      },
+
+      async verifyProof(proof: ZkCredentialProof): Promise<{ valid: boolean }> {
+        return client.post<{ valid: boolean }>('/identity/verify', proof);
+      }
+    };
+  }
+
+  // Executor API
+  get executor() {
+    const client = this;
+    return {
+      async getExecutorQueue(did: string): Promise<ExecutorQueueInfo> {
+        return client.get<ExecutorQueueInfo>(`/executor/${did}/queue`);
+      }
+    };
+  }
+
   // Private HTTP methods
   private async get<T>(path: string): Promise<T> {
     const response = await fetch(`${this.baseUrl}${path}`, {
@@ -469,6 +994,27 @@ export class ICNClient {
       method: 'POST',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
+      signal: this.getAbortSignal()
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
+  private async put<T>(path: string, body?: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'PUT',
+      headers: this.getHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+      signal: this.getAbortSignal()
+    });
+
+    return this.handleResponse<T>(response);
+  }
+
+  private async delete<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
       signal: this.getAbortSignal()
     });
 

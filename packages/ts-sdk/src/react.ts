@@ -150,4 +150,324 @@ export function useICNJobs() {
     submitJob,
     refreshJobs,
   }
+}
+
+// Hook for governance operations
+export function useICNGovernance() {
+  const { client } = useICNClient()
+  
+  if (!useState) {
+    throw new Error('useICNGovernance requires React')
+  }
+
+  const [proposals, setProposals] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const submitProposal = async (proposal: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      const proposalId = await client.governance.submitProposal(proposal)
+      // Refresh proposals list
+      const updatedProposals = await client.governance.listProposals()
+      setProposals(updatedProposals)
+      return proposalId
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const castVote = async (proposalId: string, voteOption: string) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      await client.governance.castVote({
+        voter_did: client.getConnectionState().did || '',
+        proposal_id: proposalId,
+        vote_option: voteOption,
+      })
+      // Refresh proposals list
+      const updatedProposals = await client.governance.listProposals()
+      setProposals(updatedProposals)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshProposals = async () => {
+    if (!client) return
+    
+    setLoading(true)
+    try {
+      const proposalList = await client.governance.listProposals()
+      setProposals(proposalList)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    proposals,
+    loading,
+    submitProposal,
+    castVote,
+    refreshProposals,
+  }
+}
+
+// Hook for trust operations
+export function useICNTrust() {
+  const { client } = useICNClient()
+  
+  if (!useState) {
+    throw new Error('useICNTrust requires React')
+  }
+
+  const [trustScore, setTrustScore] = useState<any>(null)
+  const [trustRelationships, setTrustRelationships] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const getTrustScore = async (did: string) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      const score = await client.trust.getTrustScore(did)
+      setTrustScore(score)
+      return score
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateTrustRelationship = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      await client.trust.updateTrustRelationship(request)
+      // Refresh trust relationships if we have an entity
+      if (trustScore?.did) {
+        const relationships = await client.trust.getEntityTrustRelationships(trustScore.did)
+        setTrustRelationships(relationships)
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const findTrustPaths = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      return await client.trust.findTrustPaths(request)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    trustScore,
+    trustRelationships,
+    loading,
+    getTrustScore,
+    updateTrustRelationship,
+    findTrustPaths,
+  }
+}
+
+// Hook for credential operations
+export function useICNCredentials() {
+  const { client } = useICNClient()
+  
+  if (!useState) {
+    throw new Error('useICNCredentials requires React')
+  }
+
+  const [credentials, setCredentials] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const issueCredential = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      const response = await client.credentials.issueCredential(request)
+      // Refresh credentials list
+      const updatedCredentials = await client.credentials.listCredentials({})
+      setCredentials(updatedCredentials.credentials)
+      return response
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const presentCredential = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      return await client.credentials.presentCredential(request)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const verifyCredential = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      return await client.credentials.verifyCredential(request)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshCredentials = async (filter?: any) => {
+    if (!client) return
+    
+    setLoading(true)
+    try {
+      const response = await client.credentials.listCredentials(filter || {})
+      setCredentials(response.credentials)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    credentials,
+    loading,
+    issueCredential,
+    presentCredential,
+    verifyCredential,
+    refreshCredentials,
+  }
+}
+
+// Hook for token operations
+export function useICNTokens() {
+  const { client } = useICNClient()
+  
+  if (!useState) {
+    throw new Error('useICNTokens requires React')
+  }
+
+  const [balances, setBalances] = useState<any[]>([])
+  const [tokenClasses, setTokenClasses] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const getBalances = async (did: string) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      const tokenBalances = await client.tokens.listBalances(did)
+      setBalances(tokenBalances)
+      return tokenBalances
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const transferTokens = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      await client.tokens.transferTokens(request)
+      // Refresh balances for the sender
+      const updatedBalances = await client.tokens.listBalances(request.from_did)
+      setBalances(updatedBalances)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const createTokenClass = async (request: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      const tokenClass = await client.tokens.createTokenClass(request)
+      // Add to local token classes list
+      setTokenClasses(prev => [...prev, tokenClass])
+      return tokenClass
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    balances,
+    tokenClasses,
+    loading,
+    getBalances,
+    transferTokens,
+    createTokenClass,
+  }
+}
+
+// Hook for mutual aid operations
+export function useICNMutualAid() {
+  const { client } = useICNClient()
+  
+  if (!useState) {
+    throw new Error('useICNMutualAid requires React')
+  }
+
+  const [resources, setResources] = useState<any[]>([])
+  const [loading, setLoading] = useState(false)
+
+  const registerResource = async (resource: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      await client.mutualAid.registerResource(resource)
+      // Refresh resources list
+      const updatedResources = await client.mutualAid.listResources()
+      setResources(updatedResources)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const updateResource = async (id: string, resource: any) => {
+    if (!client) throw new Error('ICN client not available')
+    
+    setLoading(true)
+    try {
+      await client.mutualAid.updateResource(id, resource)
+      // Refresh resources list
+      const updatedResources = await client.mutualAid.listResources()
+      setResources(updatedResources)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const refreshResources = async () => {
+    if (!client) return
+    
+    setLoading(true)
+    try {
+      const resourceList = await client.mutualAid.listResources()
+      setResources(resourceList)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return {
+    resources,
+    loading,
+    registerResource,
+    updateResource,
+    refreshResources,
+  }
 } 
