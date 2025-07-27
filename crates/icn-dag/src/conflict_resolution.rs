@@ -111,6 +111,19 @@ pub struct ConflictResolutionConfig {
     pub federation_vote_config: FederationVoteConfig,
 }
 
+impl Default for ConflictResolutionConfig {
+    fn default() -> Self {
+        Self {
+            evidence_timeout: 300, // 5 minutes
+            min_participants: 3,
+            max_concurrent_conflicts: 10,
+            auto_resolve: true,
+            resolution_strategy: ResolutionStrategy::MultiCriteria,
+            federation_vote_config: FederationVoteConfig::default(),
+        }
+    }
+}
+
 /// Configuration for federation voting on conflicts
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FederationVoteConfig {
@@ -162,7 +175,7 @@ pub struct FederationVote {
 pub struct FederationVoteResults {
     /// Total votes received
     pub total_votes: usize,
-    /// Votes per candidate block CID
+    /// Votes per candidate block CID with cached reputation scores  
     pub votes_per_candidate: HashMap<Cid, f64>,
     /// Whether quorum was achieved
     pub quorum_met: bool,
@@ -172,19 +185,6 @@ pub struct FederationVoteResults {
     pub winner: Option<Cid>,
     /// Detailed vote breakdown
     pub vote_details: Vec<FederationVote>,
-}
-
-impl Default for ConflictResolutionConfig {
-    fn default() -> Self {
-        Self {
-            evidence_timeout: 300, // 5 minutes
-            min_participants: 3,
-            max_concurrent_conflicts: 10,
-            auto_resolve: true,
-            resolution_strategy: ResolutionStrategy::MultiCriteria,
-            federation_vote_config: FederationVoteConfig::default(),
-        }
-    }
 }
 
 /// Strategies for resolving DAG conflicts
@@ -841,75 +841,14 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         &self.active_conflicts
     }
 
+
+
     /// Get resolution history
     pub fn get_resolution_history(&self) -> &VecDeque<DagConflict> {
         &self.resolution_history
     }
 
-    /// Get federation nodes
-    pub fn get_federation_nodes(&self) -> &HashSet<Did> {
-        &self.federation_nodes
-    }
 
-    /// Get active federation votes for a conflict
-    pub fn get_federation_votes(&self, conflict_id: &str) -> Option<&Vec<FederationVote>> {
-        self.federation_votes.get(conflict_id)
-    }
-
-    /// Check if a node is part of the federation
-    pub fn is_federation_member(&self, node: &Did) -> bool {
-        self.federation_nodes.contains(node)
-    }
-
-    /// Process periodic tasks (check for completed votes, timeouts, etc.)
-    pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
-        let mut completed_conflicts = Vec::new();
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
-
-        // Check for completed federation votes
-        let conflict_ids: Vec<String> = self.active_conflicts.keys().cloned().collect();
-        
-        for conflict_id in conflict_ids {
-            if let Some(_results) = self.check_federation_voting(&conflict_id)? {
-                // Vote completed, apply results
-                self.complete_federation_voting(&conflict_id)?;
-                completed_conflicts.push(conflict_id);
-            } else {
-                // Check for voting timeout - need to handle this separately to avoid borrowing conflicts
-                let needs_timeout_handling = {
-                    if let Some(conflict) = self.active_conflicts.get(&conflict_id) {
-                        if let ResolutionStatus::FederationVoting { deadline, .. } = &conflict.resolution_status {
-                            current_time >= *deadline
-                        } else {
-                            false
-                        }
-                    } else {
-                        false
-                    }
-                };
-
-                if needs_timeout_handling {
-                    // Voting timed out, try to complete with current votes
-                    match self.complete_federation_voting(&conflict_id) {
-                        Ok(_) => completed_conflicts.push(conflict_id.clone()),
-                        Err(_) => {
-                            // Failed to reach consensus, mark as failed
-                            if let Some(conflict) = self.active_conflicts.get_mut(&conflict_id) {
-                                conflict.resolution_status = ResolutionStatus::Failed {
-                                    reason: "Federation voting timed out without consensus".to_string(),
-                                };
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(completed_conflicts)
-    }
 }
 
 /// Internal representation of DAG structure for analysis
@@ -1261,7 +1200,7 @@ mod tests {
         assert_eq!(results.total_votes, 2);
         assert!(results.quorum_met);
         assert!(results.threshold_met);
-        assert_eq!(results.winner, Some(winner_cid));
+        assert_eq!(results.winner, Some(winner_cid.clone()));
         assert_eq!(results.votes_per_candidate.get(&winner_cid), Some(&2.0));
     }
 }

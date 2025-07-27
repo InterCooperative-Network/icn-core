@@ -441,7 +441,7 @@ impl EconomicDisputeResolver {
         let mut detected_disputes = Vec::new();
 
         // Detect double spending
-        detected_disputes.extend(self.detect_double_spending(recent_transactions)?);
+        detected_disputes.extend(self.detect_double_spending(mana_ledger, recent_transactions)?);
 
         // Detect balance discrepancies
         detected_disputes.extend(self.detect_balance_discrepancies(mana_ledger, recent_transactions)?);
@@ -458,7 +458,11 @@ impl EconomicDisputeResolver {
     }
 
     /// Detect double spending patterns
-    fn detect_double_spending(&self, transactions: &[ManaTransaction]) -> Result<Vec<EconomicDispute>, CommonError> {
+    fn detect_double_spending<M: ManaLedger>(
+        &self, 
+        mana_ledger: &M,
+        transactions: &[ManaTransaction]
+    ) -> Result<Vec<EconomicDispute>, CommonError> {
         let mut disputes = Vec::new();
         let mut transaction_map: HashMap<String, Vec<&ManaTransaction>> = HashMap::new();
 
@@ -473,7 +477,7 @@ impl EconomicDisputeResolver {
             if txs.len() > 1 {
                 // Check if multiple transactions from same account at same time
                 let total_amount: i64 = txs.iter().map(|tx| tx.amount).sum();
-                let account_balance = mana_ledger.get_balance(&txs[0].did).unwrap_or(0);
+                let account_balance = mana_ledger.get_balance(&txs[0].did);
 
                 if total_amount.abs() as u64 > account_balance {
                     let dispute_id = format!("double_spend_{}_{}", 
@@ -503,7 +507,13 @@ impl EconomicDisputeResolver {
         Ok(disputes)
     }
 
-    /// Detect balance discrepancies
+    /// Detect balance discrepancies by looking for inconsistent transaction patterns
+    /// 
+    /// Since we don't have access to historical balances, this function detects
+    /// potential discrepancies by looking for suspicious transaction patterns:
+    /// 1. Negative balances that shouldn't exist
+    /// 2. Transactions that would exceed reasonable balance limits
+    /// 3. Inconsistent transaction flows
     fn detect_balance_discrepancies<M: ManaLedger>(
         &self,
         mana_ledger: &M,
@@ -517,15 +527,19 @@ impl EconomicDisputeResolver {
             account_transactions.entry(tx.did.clone()).or_default().push(tx);
         }
 
-        // Check each account for discrepancies
+        // Check each account for suspicious patterns
         for (did, txs) in account_transactions {
-            let expected_balance: i64 = txs.iter().map(|tx| tx.amount).sum();
-            let actual_balance = mana_ledger.get_balance(&did);
-
-            let discrepancy = (expected_balance.abs() as u64).abs_diff(actual_balance);
+            let current_balance = mana_ledger.get_balance(&did);
+            let net_change: i64 = txs.iter().map(|tx| tx.amount).sum();
+            let total_debits: u64 = txs.iter()
+                .filter(|tx| tx.amount < 0)
+                .map(|tx| (-tx.amount) as u64)
+                .sum();
             
-            if discrepancy > self.config.minimum_dispute_amount {
-                let dispute_id = format!("balance_discrepancy_{}_{}", 
+            // Pattern 1: Check if total debits exceed what seems reasonable for current balance
+            // This could indicate transactions were processed when balance was insufficient
+            if total_debits > current_balance + (self.config.minimum_dispute_amount * 10) {
+                let dispute_id = format!("excessive_debits_{}_{}", 
                     did.to_string(),
                     SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
                 );
@@ -534,22 +548,76 @@ impl EconomicDisputeResolver {
                     dispute_id,
                     dispute_type: EconomicDisputeType::ManaDispute,
                     parties: vec![did.clone()],
-                    disputed_amount: Some(discrepancy),
+                    disputed_amount: Some(total_debits - current_balance),
+                    disputed_asset: "mana".to_string(),
+                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    resolution_status: EconomicResolutionStatus::Filed,
+                    evidence: vec![EconomicEvidence::BalanceDiscrepancy {
+                        account: did.clone(),
+                        expected_balance: if total_debits > current_balance { 0 } else { current_balance - total_debits },
+                        actual_balance: current_balance,
+                        asset_type: "mana".to_string(),
+                    }],
+                    description: format!("Suspicious transaction pattern: total debits ({}) exceed reasonable balance limit for account with balance {}", total_debits, current_balance),
+                    severity: DisputeSeverity::High,
+                    scope: None,
+                });
+                continue;
+            }
+
+            // Pattern 2: Check for accounts with zero balance but positive net changes
+            // This might indicate missing credit transactions
+            if current_balance == 0 && net_change > 0 {
+                let dispute_id = format!("missing_credits_{}_{}", 
+                    did.to_string(),
+                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                );
+
+                disputes.push(EconomicDispute {
+                    dispute_id,
+                    dispute_type: EconomicDisputeType::ManaDispute,
+                    parties: vec![did.clone()],
+                    disputed_amount: Some(net_change as u64),
+                    disputed_asset: "mana".to_string(),
+                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    resolution_status: EconomicResolutionStatus::Filed,
+                    evidence: vec![EconomicEvidence::BalanceDiscrepancy {
+                        account: did.clone(),
+                        expected_balance: net_change as u64,
+                        actual_balance: current_balance,
+                        asset_type: "mana".to_string(),
+                    }],
+                    description: format!("Account has zero balance but recent transactions show net positive change of {}", net_change),
+                    severity: DisputeSeverity::Medium,
+                    scope: None,
+                });
+                continue;
+            }
+
+            // Pattern 3: Check for extremely large negative net changes compared to current balance
+            // This might indicate unauthorized debits or double-spending
+            if net_change < 0 && (-net_change) as u64 > current_balance * 2 && current_balance > 0 {
+                let dispute_id = format!("excessive_negative_change_{}_{}", 
+                    did.to_string(),
+                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                );
+
+                disputes.push(EconomicDispute {
+                    dispute_id,
+                    dispute_type: EconomicDisputeType::ManaDispute,
+                    parties: vec![did.clone()],
+                    disputed_amount: Some((-net_change) as u64),
                     disputed_asset: "mana".to_string(),
                     filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did,
-                        expected_balance: expected_balance.abs() as u64,
-                        actual_balance,
+                        expected_balance: current_balance,
+                        actual_balance: current_balance,
                         asset_type: "mana".to_string(),
                     }],
-                    description: "Balance discrepancy detected".to_string(),
-                    severity: if discrepancy > self.config.minimum_dispute_amount * 10 {
-                        DisputeSeverity::High
-                    } else {
-                        DisputeSeverity::Medium
-                    },
+                    description: format!("Excessive negative transaction flow: {} debits for account with balance {}", (-net_change), current_balance),
+                    severity: DisputeSeverity::High,
                     scope: None,
                 });
             }
@@ -718,6 +786,7 @@ impl EconomicDisputeResolver {
         match resolution {
             EconomicResolution::ReverseTransactions { transaction_ids } => {
                 // TODO: Implement transaction reversal logic
+                // This is a critical operation that needs proper implementation
                 todo!("Reversing transactions is not yet implemented. Transaction IDs: {:?}", transaction_ids);
             }
             EconomicResolution::AdjustBalances { adjustments } => {
@@ -918,6 +987,7 @@ mod tests {
     #[test]
     fn test_double_spending_detection() {
         let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let ledger = MockManaLedger::default();
         
         let transactions = vec![
             ManaTransaction {
@@ -938,9 +1008,75 @@ mod tests {
             },
         ];
         
-        let disputes = resolver.detect_double_spending(&transactions).unwrap();
+        let disputes = resolver.detect_double_spending(&ledger, &transactions).unwrap();
         assert_eq!(disputes.len(), 1);
         assert_eq!(disputes[0].dispute_type, EconomicDisputeType::DoubleSpending);
+    }
+
+    #[test]
+    fn test_balance_discrepancy_detection() {
+        let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let ledger = MockManaLedger::default();
+        let test_did = Did::default();
+        
+        // Set up account with current balance of 50
+        ledger.set_balance(&test_did, 50).unwrap();
+        
+        // Test pattern 1: Excessive debits (total debits exceed reasonable balance limit)
+        let transactions = vec![
+            ManaTransaction {
+                transaction_id: "tx1".to_string(),
+                did: test_did.clone(),
+                amount: -200, // Large debit that exceeds balance + threshold
+                transaction_type: TransactionType::ManaTransfer,
+                timestamp: 1000,
+                context: HashMap::new(),
+            },
+        ];
+        
+        let disputes = resolver.detect_balance_discrepancies(&ledger, &transactions).unwrap();
+        assert_eq!(disputes.len(), 1);
+        assert_eq!(disputes[0].dispute_type, EconomicDisputeType::ManaDispute);
+        assert!(disputes[0].description.contains("excessive debits"));
+        
+        // Test pattern 2: Zero balance with positive net change
+        // Create a different DID by using a different default instance
+        let zero_balance_did = Did::default(); 
+        ledger.set_balance(&zero_balance_did, 0).unwrap();
+        
+        let transactions2 = vec![
+            ManaTransaction {
+                transaction_id: "tx2".to_string(),
+                did: zero_balance_did.clone(),
+                amount: 100, // Positive change but zero balance suggests missing credits
+                transaction_type: TransactionType::ManaTransfer,
+                timestamp: 1000,
+                context: HashMap::new(),
+            },
+        ];
+        
+        let disputes2 = resolver.detect_balance_discrepancies(&ledger, &transactions2).unwrap();
+        assert_eq!(disputes2.len(), 1);
+        assert!(disputes2[0].description.contains("zero balance but recent transactions"));
+        
+        // Test pattern 3: Excessive negative change  
+        let high_balance_did = Did::default();
+        ledger.set_balance(&high_balance_did, 100).unwrap();
+        
+        let transactions3 = vec![
+            ManaTransaction {
+                transaction_id: "tx3".to_string(),
+                did: high_balance_did.clone(),
+                amount: -300, // Net change way exceeds current balance (100 * 2 = 200)
+                transaction_type: TransactionType::ManaTransfer,
+                timestamp: 1000,
+                context: HashMap::new(),
+            },
+        ];
+        
+        let disputes3 = resolver.detect_balance_discrepancies(&ledger, &transactions3).unwrap();
+        assert_eq!(disputes3.len(), 1);
+        assert!(disputes3[0].description.contains("Excessive negative transaction flow"));
     }
 
     #[test]

@@ -517,11 +517,18 @@ impl GovernanceConflictResolver {
                 GovernanceResolutionStatus::UnderInvestigation
             }
             (GovernanceConflictType::PolicyContradiction, _) => {
-                // Automatic policy override if authority decides
+                // Extract actual policy information from conflict evidence
+                let (suspended_policy, new_policy) = match conflict.evidence.first() {
+                    Some(ConflictEvidence::PolicyContradiction { conflicting_policy, .. }) => {
+                        (conflicting_policy.clone(), format!("Override for {}", conflicting_policy))
+                    }
+                    _ => ("unknown_policy".to_string(), "default_override".to_string())
+                };
+                
                 GovernanceResolutionStatus::Resolved {
                     resolution: GovernanceResolution::PolicyOverride {
-                        suspended_policies: vec!["conflicting_policy".to_string()],
-                        new_policy: "override_policy".to_string(),
+                        suspended_policies: vec![suspended_policy],
+                        new_policy,
                     },
                     applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
                 }
