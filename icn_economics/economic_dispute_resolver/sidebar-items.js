@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CompensationType","DisputeSeverity","EconomicDisputeType","EconomicEvidence","EconomicResolution","EconomicResolutionStatus","PenaltyType"],"struct":["AssetFreeze","BalanceAdjustment","Compensation","EconomicDispute","EconomicDisputeConfig","EconomicDisputeResolver","EconomicPenalty","ResourceRedistribution"],"trait":["ReputationProvider"]};

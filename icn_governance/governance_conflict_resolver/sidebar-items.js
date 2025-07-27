@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ConflictEvidence","ConflictSeverity","GovernanceConflictType","GovernanceResolution","GovernanceResolutionStatus"],"struct":["GovernanceConflict","GovernanceConflictConfig","GovernanceConflictResolver"]};

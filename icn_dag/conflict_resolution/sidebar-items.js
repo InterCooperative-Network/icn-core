@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["ConflictEvidence","ConflictType","ResolutionStatus","ResolutionStrategy"],"struct":["ConflictPosition","ConflictResolutionConfig","ConflictResolver","DagConflict"]};
+window.SIDEBAR_ITEMS = {"enum":["ConflictEvidence","ConflictType","ResolutionStatus","ResolutionStrategy"],"struct":["ConflictPosition","ConflictResolutionConfig","ConflictResolver","DagConflict","FederationVote","FederationVoteConfig","FederationVoteResults"],"trait":["ReputationProvider"]};
