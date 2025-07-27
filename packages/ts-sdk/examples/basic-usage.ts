@@ -49,7 +49,10 @@ async function basicUsageExample() {
     console.log('📋 Node Info:');
     console.log(`   Name: ${nodeInfo.name}`);
     console.log(`   Version: ${nodeInfo.version}`);
-    console.log(`   Status: ${nodeInfo.status_message}\n`);
+    if (nodeInfo.did) {
+      console.log(`   DID: ${nodeInfo.did}`);
+    }
+    console.log();
 
     // 4. Get node status
     console.log('📊 Fetching node status...');

@@ -178,7 +178,7 @@ export function useICNGovernance() {
     }
   }
 
-  const castVote = async (proposalId: string, voteOption: string) => {
+  const castVote = async (proposalId: string, voteOption: "Yes" | "No" | "Abstain") => {
     if (!client) throw new Error('ICN client not available')
     
     setLoading(true)

@@ -38,7 +38,7 @@ export const EnhancedUtils = {
   formatTokenAmount(amount: number, decimals: number = 0, symbol?: string): string {
     const divisor = Math.pow(10, decimals)
     const formatted = (amount / divisor).toLocaleString(undefined, {
-      minimumFractionDigits: decimals > 0 ? 2 : 0,
+      minimumFractionDigits: decimals,
       maximumFractionDigits: decimals
     })
     return symbol ? `${formatted} ${symbol}` : formatted
@@ -300,14 +300,15 @@ export const EnhancedUtils = {
     }
 
     // Trust level factor
-    const trustLevelScore = {
+    const trustLevelScore: Record<string, number> = {
       'absolute': 20,
       'high': 15,
       'medium': 10,
       'low': 5,
       'none': 0
-    }[path.effective_trust] || 0
-    score += trustLevelScore
+    }
+    const levelScore = trustLevelScore[path.effective_trust] || 0
+    score += levelScore
     factors.push(`${path.effective_trust} effective trust`)
 
     let strength: 'weak' | 'moderate' | 'strong' | 'very_strong'
