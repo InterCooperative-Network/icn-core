@@ -473,7 +473,7 @@ impl EconomicDisputeResolver {
             if txs.len() > 1 {
                 // Check if multiple transactions from same account at same time
                 let total_amount: i64 = txs.iter().map(|tx| tx.amount).sum();
-                let account_balance = 0; // Would get actual balance in real implementation
+                let account_balance = mana_ledger.get_balance(&txs[0].did).unwrap_or(0);
 
                 if total_amount.abs() as u64 > account_balance {
                     let dispute_id = format!("double_spend_{}_{}", 
