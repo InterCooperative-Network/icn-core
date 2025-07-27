@@ -17,6 +17,8 @@
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
     "test": "vitest",
+    "test:integration": "node -r esbuild-register src/integration.test.ts",
+    "test:integration:offline": "node -r esbuild-register src/integration.test.ts --offline",
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
@@ -34,6 +36,8 @@
     "@types/node": "^20.0.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "esbuild": "^0.19.0",
+    "esbuild-register": "^3.5.0",
     "eslint": "^8.50.0",
     "prettier": "^3.0.0",
     "tsup": "^7.2.0",
