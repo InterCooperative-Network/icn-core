@@ -22,7 +22,305 @@ export function formatJobId(jobId: string): string {
   return jobId
 }
 
-// Additional utilities for Federation Dashboard and Governance
+// Enhanced utilities for comprehensive SDK functionality
+export const EnhancedUtils = {
+  /**
+   * Format credential ID for display
+   */
+  formatCredentialId(cid: string): string {
+    if (!cid) return ''
+    return cid.length > 16 ? `${cid.slice(0, 8)}...${cid.slice(-8)}` : cid
+  },
+
+  /**
+   * Format token amount with proper decimals
+   */
+  formatTokenAmount(amount: number, decimals: number = 0, symbol?: string): string {
+    const divisor = Math.pow(10, decimals)
+    const formatted = (amount / divisor).toLocaleString(undefined, {
+      minimumFractionDigits: decimals > 0 ? 2 : 0,
+      maximumFractionDigits: decimals
+    })
+    return symbol ? `${formatted} ${symbol}` : formatted
+  },
+
+  /**
+   * Format trust score as percentage
+   */
+  formatTrustScore(score: number): string {
+    return `${(score * 100).toFixed(1)}%`
+  },
+
+  /**
+   * Format trust level for display
+   */
+  formatTrustLevel(level: string): string {
+    const levelMap: Record<string, string> = {
+      'none': '❌ None',
+      'low': '🟡 Low',
+      'medium': '🟠 Medium',
+      'high': '🟢 High',
+      'absolute': '💎 Absolute'
+    }
+    return levelMap[level] || level
+  },
+
+  /**
+   * Calculate time until expiration
+   */
+  getExpirationStatus(expirationTimestamp: number): {
+    status: 'expired' | 'expiring_soon' | 'current'
+    daysRemaining: number
+    message: string
+  } {
+    const now = Date.now() / 1000
+    const timeRemaining = expirationTimestamp - now
+    const daysRemaining = Math.floor(timeRemaining / (24 * 3600))
+
+    if (daysRemaining < 0) {
+      return {
+        status: 'expired',
+        daysRemaining: 0,
+        message: `Expired ${Math.abs(daysRemaining)} days ago`
+      }
+    } else if (daysRemaining < 30) {
+      return {
+        status: 'expiring_soon',
+        daysRemaining,
+        message: `Expires in ${daysRemaining} days`
+      }
+    } else {
+      return {
+        status: 'current',
+        daysRemaining,
+        message: `Valid for ${daysRemaining} days`
+      }
+    }
+  },
+
+  /**
+   * Validate token amount format
+   */
+  validateTokenAmount(amount: string, decimals: number = 0): {
+    valid: boolean
+    error?: string
+    parsedAmount?: number
+  } {
+    if (!amount || amount.trim() === '') {
+      return { valid: false, error: 'Amount is required' }
+    }
+
+    const num = parseFloat(amount)
+    if (isNaN(num)) {
+      return { valid: false, error: 'Invalid number format' }
+    }
+
+    if (num < 0) {
+      return { valid: false, error: 'Amount must be positive' }
+    }
+
+    const multiplier = Math.pow(10, decimals)
+    const integerAmount = Math.round(num * multiplier)
+    
+    // Check if we lost precision
+    if (Math.abs((integerAmount / multiplier) - num) > 1e-10) {
+      return { 
+        valid: false, 
+        error: `Too many decimal places (max ${decimals})` 
+      }
+    }
+
+    return { valid: true, parsedAmount: integerAmount }
+  },
+
+  /**
+   * Generate secure random string for challenges
+   */
+  generateChallenge(length: number = 32): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+    let result = ''
+    
+    // Use crypto.getRandomValues if available, fallback to Math.random
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const array = new Uint8Array(length)
+      crypto.getRandomValues(array)
+      for (let i = 0; i < length; i++) {
+        result += chars[array[i] % chars.length]
+      }
+    } else {
+      for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)]
+      }
+    }
+    
+    return result
+  },
+
+  /**
+   * Format proposal status for display
+   */
+  formatProposalStatus(status: string): string {
+    const statusMap: Record<string, string> = {
+      'Draft': '📝 Draft',
+      'Open': '🗳️  Open',
+      'Closed': '🔒 Closed',
+      'Executed': '✅ Executed'
+    }
+    return statusMap[status] || status
+  },
+
+  /**
+   * Calculate voting progress
+   */
+  calculateVotingProgress(proposal: any): {
+    totalVotes: number
+    yesPercentage: number
+    noPercentage: number
+    abstainPercentage: number
+    quorumReached: boolean
+    progressPercentage: number
+  } {
+    const yes = proposal.votes?.yes || 0
+    const no = proposal.votes?.no || 0
+    const abstain = proposal.votes?.abstain || 0
+    const totalVotes = yes + no + abstain
+    const quorum = proposal.quorum || 50
+
+    return {
+      totalVotes,
+      yesPercentage: totalVotes > 0 ? (yes / totalVotes) * 100 : 0,
+      noPercentage: totalVotes > 0 ? (no / totalVotes) * 100 : 0,
+      abstainPercentage: totalVotes > 0 ? (abstain / totalVotes) * 100 : 0,
+      quorumReached: totalVotes >= quorum,
+      progressPercentage: Math.min((totalVotes / quorum) * 100, 100)
+    }
+  },
+
+  /**
+   * Format resource availability status
+   */
+  formatResourceAvailability(availability: string): string {
+    const availabilityMap: Record<string, string> = {
+      'available': '✅ Available',
+      'unavailable': '❌ Unavailable',
+      'limited': '⚠️  Limited'
+    }
+    return availabilityMap[availability] || availability
+  },
+
+  /**
+   * Validate DID format with enhanced error messages
+   */
+  validateDidFormat(did: string): { valid: boolean; error?: string } {
+    if (!did || typeof did !== 'string') {
+      return { valid: false, error: 'DID is required and must be a string' }
+    }
+
+    if (!ICNUtils.isValidDid(did)) {
+      return { 
+        valid: false, 
+        error: 'Invalid DID format. Must be in format: did:method:identifier' 
+      }
+    }
+
+    return { valid: true }
+  },
+
+  /**
+   * Sanitize user input for safe display
+   */
+  sanitizeInput(input: string, maxLength: number = 256): string {
+    if (!input || typeof input !== 'string') return ''
+    
+    return input
+      .trim()
+      .slice(0, maxLength)
+      .replace(/[<>]/g, '') // Remove potential HTML tags
+      .replace(/javascript:/gi, '') // Remove javascript: protocols
+  },
+
+  /**
+   * Format job execution duration
+   */
+  formatJobDuration(startedAt?: string, completedAt?: string): string {
+    if (!startedAt) return 'Not started'
+    if (!completedAt) return 'Running...'
+
+    const start = new Date(startedAt).getTime()
+    const end = new Date(completedAt).getTime()
+    const duration = (end - start) / 1000 // seconds
+
+    if (duration < 60) {
+      return `${Math.round(duration)}s`
+    } else if (duration < 3600) {
+      return `${Math.round(duration / 60)}m ${Math.round(duration % 60)}s`
+    } else {
+      const hours = Math.floor(duration / 3600)
+      const minutes = Math.round((duration % 3600) / 60)
+      return `${hours}h ${minutes}m`
+    }
+  },
+
+  /**
+   * Calculate trust path strength
+   */
+  calculatePathStrength(path: any): {
+    strength: 'weak' | 'moderate' | 'strong' | 'very_strong'
+    score: number
+    factors: string[]
+  } {
+    const factors: string[] = []
+    let score = 0
+
+    // Length factor (shorter is better)
+    if (path.length <= 2) {
+      score += 40
+      factors.push('Short path')
+    } else if (path.length <= 4) {
+      score += 20
+      factors.push('Moderate path')
+    } else {
+      score += 5
+      factors.push('Long path')
+    }
+
+    // Weight factor
+    if (path.weight > 0.8) {
+      score += 40
+      factors.push('High weight')
+    } else if (path.weight > 0.6) {
+      score += 25
+      factors.push('Good weight')
+    } else if (path.weight > 0.4) {
+      score += 15
+      factors.push('Fair weight')
+    } else {
+      score += 5
+      factors.push('Low weight')
+    }
+
+    // Trust level factor
+    const trustLevelScore = {
+      'absolute': 20,
+      'high': 15,
+      'medium': 10,
+      'low': 5,
+      'none': 0
+    }[path.effective_trust] || 0
+    score += trustLevelScore
+    factors.push(`${path.effective_trust} effective trust`)
+
+    let strength: 'weak' | 'moderate' | 'strong' | 'very_strong'
+    if (score >= 80) strength = 'very_strong'
+    else if (score >= 60) strength = 'strong'
+    else if (score >= 40) strength = 'moderate'
+    else strength = 'weak'
+
+    return { strength, score, factors }
+  }
+}
+
+// Additional UI-specific utilities for Federation Dashboard and Governance
 export const FederationUtils = {
   /**
    * Generate a federation DID based on metadata

@@ -48,6 +48,7 @@ export {
   GovernanceUtils,
   CCLUtils,
   ICNUtils,
+  EnhancedUtils,
   formatError,
   validateUrl,
   formatRelativeTime,
