@@ -164,6 +164,157 @@
     padding-left: 1rem;
     padding-right: 1rem;
   }
+  
+  .grid-responsive {
+    grid-template-columns: 1fr;
+  }
+  
+  .text-responsive {
+    font-size: 0.875rem;
+  }
+  
+  .stat-card {
+    padding: 1rem;
+  }
+  
+  .mobile-stack {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .md-hide {
+    display: none;
+  }
+  
+  .mobile-menu-show {
+    display: block;
+  }
+  
+  .tablet-responsive {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* RTL language support */
+[dir="rtl"] {
+  .rtl-flip {
+    transform: scaleX(-1);
+  }
+  
+  .rtl-text-right {
+    text-align: right;
+  }
+  
+  .rtl-text-left {
+    text-align: left;
+  }
+  
+  .rtl-ml-2 {
+    margin-right: 0.5rem;
+    margin-left: 0;
+  }
+  
+  .rtl-mr-2 {
+    margin-left: 0.5rem;
+    margin-right: 0;
+  }
+  
+  .rtl-border-l {
+    border-left: none;
+    border-right: 4px solid;
+  }
+}
+
+/* Enhanced accessibility */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.focus-visible:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: #000;
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  z-index: 9999;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .card {
+    border-width: 2px;
+    border-color: #000;
+  }
+  
+  .btn-primary {
+    border: 2px solid #000;
+  }
+  
+  .status-badge {
+    border: 1px solid #000;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .animate-pulse,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-bounce-subtle {
+    animation: none;
+  }
+  
+  .transition-all,
+  .transition-colors,
+  .transition-shadow {
+    transition: none;
+  }
+}
+
+/* Enhanced cooperative card styles */
+.cooperative-card {
+  @apply card hover:shadow-lg transition-all duration-300 transform hover:-translate-y-1;
+}
+
+.cooperative-card:hover {
+  @apply border-blue-300;
+}
+
+.cooperative-health-excellent {
+  @apply bg-gradient-to-r from-green-50 to-emerald-50 border-green-200;
+}
+
+.cooperative-health-good {
+  @apply bg-gradient-to-r from-blue-50 to-cyan-50 border-blue-200;
+}
+
+.cooperative-health-warning {
+  @apply bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200;
+}
+
+.cooperative-health-poor {
+  @apply bg-gradient-to-r from-red-50 to-pink-50 border-red-200;
 }
 
 /* Federation-specific styles */

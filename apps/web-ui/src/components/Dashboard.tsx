@@ -3,6 +3,7 @@ import { useFederation } from '../contexts/FederationContext'
 import { useGovernance } from '../contexts/GovernanceContext'
 import { FederationUtils, GovernanceUtils, ICNUtils } from '@icn/ts-sdk'
 import { useTranslation } from '@icn/i18n'
+import { useDashboardSync } from '../hooks/useRealtimeSync'
 
 interface StatCardProps {
   title: string
@@ -20,16 +21,27 @@ function StatCard({ title, value, subtitle, status = 'info', loading }: StatCard
     info: 'bg-blue-50 text-blue-700 border-blue-200'
   }
 
+  const statusLabels = {
+    success: 'Good',
+    warning: 'Warning', 
+    error: 'Error',
+    info: 'Information'
+  }
+
   return (
-    <div className={`rounded-lg border p-6 ${statusClasses[status]}`}>
+    <div 
+      className={`rounded-lg border p-6 ${statusClasses[status]}`}
+      role="status"
+      aria-label={`${title}: ${loading ? 'Loading' : value} - ${statusLabels[status]}`}
+    >
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium opacity-75">{title}</p>
           <p className="text-2xl font-bold">
             {loading ? (
-              <div className="animate-pulse bg-current opacity-25 h-8 w-16 rounded"></div>
+              <div className="animate-pulse bg-current opacity-25 h-8 w-16 rounded" aria-hidden="true"></div>
             ) : (
-              value
+              <span aria-live="polite">{value}</span>
             )}
           </p>
           {subtitle && (
@@ -53,14 +65,22 @@ function HealthIndicator({ health, label }: HealthIndicatorProps) {
     return 'bg-red-500'
   }
 
+  const getHealthStatus = (score: number) => {
+    if (score >= 80) return 'Excellent'
+    if (score >= 60) return 'Good'
+    return 'Needs Attention'
+  }
+
   return (
     <div className="flex items-center space-x-3">
       <div className="flex-1">
         <div className="flex justify-between text-sm mb-1">
           <span>{label}</span>
-          <span className="font-semibold">{health}%</span>
+          <span className="font-semibold" aria-label={`${health}% - ${getHealthStatus(health)}`}>
+            {health}%
+          </span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-2" role="progressbar" aria-valuenow={health} aria-valuemin={0} aria-valuemax={100} aria-label={`${label} health: ${health}%`}>
           <div
             className={`h-2 rounded-full transition-all duration-300 ${getHealthColor(health)}`}
             style={{ width: `${health}%` }}
@@ -79,19 +99,37 @@ export function Dashboard() {
     nodeInfo,
     nodeStatus,
     loading,
-    error: federationError
+    error: federationError,
+    refreshFederationData
   } = useFederation()
 
   const {
     proposals,
     activeProposals,
     loading: governanceLoading,
-    error: governanceError
+    error: governanceError,
+    refreshProposals
   } = useGovernance()
 
   const { t } = useTranslation('dashboard')
 
   const error = federationError || governanceError
+
+  // Real-time sync for dashboard data
+  const { broadcastChange } = useDashboardSync((syncedData) => {
+    // Handle incoming real-time updates from other tabs
+    if (syncedData.trigger === 'refresh') {
+      refreshFederationData()
+      refreshProposals()
+    }
+  })
+
+  // Broadcast refresh events to other tabs
+  const handleRefresh = () => {
+    broadcastChange({ trigger: 'refresh', timestamp: Date.now() })
+    refreshFederationData()
+    refreshProposals()
+  }
 
   // Calculate health scores
   const overallHealth = metadata ? FederationUtils.calculateHealthScore(metadata) : 0
@@ -102,12 +140,24 @@ export function Dashboard() {
   return (
     <div className="space-y-8" id="main-content">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
-        <p className="text-gray-600 mt-2">
-          {t('subtitle')}
-        </p>
-      </div>
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+          <p className="text-gray-600 mt-2" id="dashboard-description">
+            {t('subtitle')}
+          </p>
+        </div>
+        <button
+          onClick={handleRefresh}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+          aria-label="Refresh dashboard data"
+        >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          Refresh
+        </button>
+      </header>
 
       {/* Error Banner */}
       {error && (
@@ -122,46 +172,54 @@ export function Dashboard() {
       )}
 
       {/* Key Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard
-          title={t('metrics.totalCooperatives')}
-          value={metadata?.totalCooperatives || 0}
-          subtitle={t('metrics.activeInFederation')}
-          status="success"
-          loading={loading.cooperatives}
-        />
-        <StatCard
-          title={t('metrics.totalMembers')}
-          value={metadata?.totalMembers || 0}
-          subtitle={t('metrics.acrossAllCooperatives')}
-          status="info"
-          loading={loading.cooperatives}
-        />
-        <StatCard
-          title={t('metrics.activeProposals')}
-          value={activeProposals.length}
-          subtitle={t('metrics.totalProposals', { count: proposals.length })}
-          status="warning"
-          loading={governanceLoading.proposals}
-        />
-        <StatCard
-          title={t('metrics.networkPeers')}
-          value={federationStatus?.peer_count || 0}
-          subtitle={t('metrics.connectedPeers')}
-          status={federationStatus?.peer_count ? 'success' : 'error'}
-          loading={loading.federationStatus}
-        />
-      </div>
+      <section aria-labelledby="metrics-heading">
+        <h2 id="metrics-heading" className="sr-only">Key Metrics</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            title={t('metrics.totalCooperatives')}
+            value={metadata?.totalCooperatives || 0}
+            subtitle={t('metrics.activeInFederation')}
+            status="success"
+            loading={loading.cooperatives}
+          />
+          <StatCard
+            title={t('metrics.totalMembers')}
+            value={metadata?.totalMembers || 0}
+            subtitle={t('metrics.acrossAllCooperatives')}
+            status="info"
+            loading={loading.cooperatives}
+          />
+          <StatCard
+            title={t('metrics.activeProposals')}
+            value={activeProposals.length}
+            subtitle={t('metrics.totalProposals', { count: proposals.length })}
+            status="warning"
+            loading={governanceLoading.proposals}
+          />
+          <StatCard
+            title={t('metrics.networkPeers')}
+            value={federationStatus?.peer_count || 0}
+            subtitle={t('metrics.connectedPeers')}
+            status={federationStatus?.peer_count ? 'success' : 'error'}
+            loading={loading.federationStatus}
+          />
+        </div>
+      </section>
 
       {/* Health Indicators */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">{t('health.title')}</h2>
+      <section 
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="health-indicators-heading"
+      >
+        <h2 id="health-indicators-heading" className="text-xl font-semibold text-gray-900 mb-4">
+          {t('health.title')}
+        </h2>
         <div className="space-y-4">
           <HealthIndicator health={overallHealth} label={t('health.overall')} />
           <HealthIndicator health={networkHealth} label={t('health.network')} />
           <HealthIndicator health={governanceHealth} label={t('health.governance')} />
         </div>
-      </div>
+      </section>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Cooperatives */}

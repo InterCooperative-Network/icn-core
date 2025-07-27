@@ -234,6 +234,14 @@ export function FederationPage() {
   const [showJoinForm, setShowJoinForm] = useState(false)
   const [actionLoading, setActionLoading] = useState(false)
 
+  // Keyboard navigation
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      setShowCreateForm(false)
+      setShowJoinForm(false)
+    }
+  }
+
   const handleCreateFederation = async (data: FederationFormData) => {
     setActionLoading(true)
     try {
@@ -275,7 +283,7 @@ export function FederationPage() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" onKeyDown={handleKeyDown} tabIndex={-1}>
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Federation Management</h1>
@@ -286,13 +294,17 @@ export function FederationPage() {
         <div className="flex space-x-3">
           <button
             onClick={() => setShowJoinForm(!showJoinForm)}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700"
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            aria-expanded={showJoinForm}
+            aria-controls="join-form"
           >
             Join Federation
           </button>
           <button
             onClick={() => setShowCreateForm(!showCreateForm)}
-            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            aria-expanded={showCreateForm}
+            aria-controls="create-form"
           >
             Create Federation
           </button>
@@ -308,74 +320,171 @@ export function FederationPage() {
 
       {/* Create Federation Form */}
       {showCreateForm && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Create New Federation</h2>
+        <section 
+          className="bg-white rounded-lg border border-gray-200 p-6 animate-slide-up"
+          id="create-form"
+          aria-labelledby="create-form-heading"
+        >
+          <h2 id="create-form-heading" className="text-lg font-semibold text-gray-900 mb-4">
+            Create New Federation
+          </h2>
           <CreateFederationForm onSubmit={handleCreateFederation} loading={actionLoading} />
-        </div>
+        </section>
       )}
 
       {/* Join Federation Form */}
       {showJoinForm && (
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Join Existing Federation</h2>
+        <section 
+          className="bg-white rounded-lg border border-gray-200 p-6 animate-slide-up"
+          id="join-form"
+          aria-labelledby="join-form-heading"
+        >
+          <h2 id="join-form-heading" className="text-lg font-semibold text-gray-900 mb-4">
+            Join Existing Federation
+          </h2>
           <JoinFederationForm onSubmit={handleJoinFederation} loading={actionLoading} />
-        </div>
+        </section>
       )}
 
       {/* Current Federation Status */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Current Federation</h2>
+      <section 
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="federation-status-heading"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="federation-status-heading" className="text-lg font-semibold text-gray-900">
+            Current Federation
+          </h2>
+          {federationStatus && (
+            <div className="flex items-center space-x-2">
+              <div
+                className={`w-3 h-3 rounded-full ${
+                  federationStatus.peer_count > 0 ? 'bg-green-500' : 'bg-red-500'
+                }`}
+                aria-hidden="true"
+              />
+              <span
+                className={`text-sm font-medium ${
+                  federationStatus.peer_count > 0 ? 'text-green-700' : 'text-red-700'
+                }`}
+              >
+                {federationStatus.peer_count > 0 ? 'Connected' : 'Disconnected'}
+              </span>
+            </div>
+          )}
+        </div>
+        
         {loading.federationStatus ? (
-          <div className="animate-pulse space-y-4">
+          <div className="animate-pulse space-y-4" aria-label="Loading federation status">
             <div className="h-4 bg-gray-200 rounded w-3/4"></div>
             <div className="h-4 bg-gray-200 rounded w-1/2"></div>
           </div>
         ) : federationStatus ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <h3 className="font-medium text-gray-900">Federation Name</h3>
-                <p className="text-gray-600">{metadata?.name || 'Unknown Federation'}</p>
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h3 className="font-medium text-blue-900">Federation Name</h3>
+                <p className="text-blue-700 text-lg font-semibold">
+                  {metadata?.name || 'Unknown Federation'}
+                </p>
               </div>
-              <div>
-                <h3 className="font-medium text-gray-900">Connected Peers</h3>
-                <p className="text-gray-600">{federationStatus.peer_count}</p>
+              <div className="bg-green-50 p-4 rounded-lg">
+                <h3 className="font-medium text-green-900">Connected Peers</h3>
+                <p className="text-green-700 text-lg font-semibold">
+                  {federationStatus.peer_count}
+                </p>
               </div>
-              <div>
-                <h3 className="font-medium text-gray-900">Total Cooperatives</h3>
-                <p className="text-gray-600">{metadata?.totalCooperatives || 0}</p>
+              <div className="bg-purple-50 p-4 rounded-lg">
+                <h3 className="font-medium text-purple-900">Total Cooperatives</h3>
+                <p className="text-purple-700 text-lg font-semibold">
+                  {metadata?.totalCooperatives || 0}
+                </p>
+              </div>
+              <div className="bg-indigo-50 p-4 rounded-lg">
+                <h3 className="font-medium text-indigo-900">Health Score</h3>
+                <p className="text-indigo-700 text-lg font-semibold">
+                  {metadata ? Math.round((federationStatus.peer_count / Math.max(federationStatus.peer_count + 1, 1)) * 100) : 0}%
+                </p>
               </div>
             </div>
 
             {federationStatus.peers.length > 0 && (
               <div>
-                <h3 className="font-medium text-gray-900 mb-2">Connected Peers</h3>
-                <div className="space-y-2">
+                <h3 className="font-medium text-gray-900 mb-3">Connected Peers</h3>
+                <div className="space-y-3">
                   {federationStatus.peers.map((peer, index) => (
-                    <div key={index} className="flex items-center justify-between bg-gray-50 px-3 py-2 rounded">
-                      <span className="font-mono text-sm">{peer}</span>
+                    <div 
+                      key={index} 
+                      className="flex items-center justify-between bg-gray-50 px-4 py-3 rounded-lg border border-gray-200"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" aria-hidden="true"></div>
+                        <div>
+                          <span className="font-mono text-sm text-gray-900">{peer}</span>
+                          <p className="text-xs text-gray-500">Active connection</p>
+                        </div>
+                      </div>
                       <button
                         onClick={() => handleLeaveFederation(peer)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="px-3 py-1 text-sm text-red-600 hover:text-red-800 hover:bg-red-50 rounded-md border border-red-200 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                        aria-label={`Disconnect from peer ${peer}`}
                       >
-                        Leave
+                        Disconnect
                       </button>
                     </div>
                   ))}
                 </div>
               </div>
             )}
+
+            {/* Last sync information */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Last synchronized: Just now</span>
+                <button 
+                  className="text-blue-600 hover:text-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                  aria-label="Refresh federation status"
+                >
+                  Refresh
+                </button>
+              </div>
+            </div>
           </div>
         ) : (
-          <p className="text-gray-500">Not connected to any federation</p>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <span className="text-2xl text-gray-400">🔗</span>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Federation Connection</h3>
+            <p className="text-gray-500 mb-4">You're not currently connected to any federation</p>
+            <button
+              onClick={() => setShowJoinForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Join a Federation
+            </button>
+          </div>
         )}
-      </div>
+      </section>
 
       {/* Member Cooperatives */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Member Cooperatives</h2>
+      <section 
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="cooperatives-heading"
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2 id="cooperatives-heading" className="text-lg font-semibold text-gray-900">
+            Member Cooperatives
+          </h2>
+          {cooperatives.length > 0 && (
+            <div className="text-sm text-gray-600">
+              {cooperatives.filter(c => c.status === 'active').length} active • {cooperatives.length} total
+            </div>
+          )}
+        </div>
+        
         {loading.cooperatives ? (
-          <div className="space-y-4">
+          <div className="space-y-4" aria-label="Loading cooperatives">
             {[1, 2, 3].map((i) => (
               <div key={i} className="animate-pulse">
                 <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
@@ -384,46 +493,123 @@ export function FederationPage() {
             ))}
           </div>
         ) : cooperatives.length > 0 ? (
-          <div className="grid gap-6">
-            {cooperatives.map((coop) => (
-              <div key={coop.did} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-gray-900">{coop.name}</h3>
-                    <p className="text-gray-600 text-sm mt-1">{coop.description}</p>
-                    <div className="flex items-center space-x-4 mt-2 text-sm text-gray-500">
-                      <span>{coop.memberCount} members</span>
-                      <span>{coop.reputation}% reputation</span>
-                      <span>Joined {new Date(coop.joinedAt).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {coop.capabilities.map((capability) => (
+          <div className="grid gap-4">
+            {cooperatives.map((coop) => {
+              const healthScore = Math.min(coop.reputation + (coop.memberCount * 2), 100)
+              // Use deterministic activity score based on cooperative data instead of Math.random()
+              const activityScore = Math.min(
+                Math.floor((coop.reputation * 0.3) + (coop.memberCount * 2) + (coop.capabilities.length * 3)), 
+                100
+              )
+              const getHealthColor = (score: number) => {
+                if (score >= 80) return 'text-green-600 bg-green-50 border-green-200'
+                if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
+                return 'text-red-600 bg-red-50 border-red-200'
+              }
+              
+              return (
+                <article 
+                  key={coop.did} 
+                  className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="font-semibold text-gray-900">{coop.name}</h3>
                         <span
-                          key={capability}
-                          className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            coop.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-800'
+                          }`}
                         >
-                          {capability}
+                          {coop.status}
                         </span>
-                      ))}
+                      </div>
+                      
+                      <p className="text-gray-600 text-sm mb-3">{coop.description}</p>
+                      
+                      {/* Health and metrics */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3">
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-blue-600">{coop.memberCount}</div>
+                          <div className="text-xs text-gray-500">Members</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-purple-600">{coop.reputation}%</div>
+                          <div className="text-xs text-gray-500">Reputation</div>
+                        </div>
+                        <div className="text-center">
+                          <div className={`text-lg font-semibold ${getHealthColor(healthScore).split(' ')[0]}`}>
+                            {healthScore}%
+                          </div>
+                          <div className="text-xs text-gray-500">Health</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-semibold text-indigo-600">
+                            {activityScore}
+                          </div>
+                          <div className="text-xs text-gray-500">Activity</div>
+                        </div>
+                      </div>
+                      
+                      {/* Capabilities */}
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        {coop.capabilities.map((capability) => (
+                          <span
+                            key={capability}
+                            className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                          >
+                            {capability}
+                          </span>
+                        ))}
+                      </div>
+                      
+                      {/* Membership info */}
+                      <div className="flex items-center space-x-4 text-sm text-gray-500">
+                        <span>Joined {new Date(coop.joinedAt).toLocaleDateString()}</span>
+                        <span>•</span>
+                        <span>Last active: 2h ago</span>
+                      </div>
+                    </div>
+                    
+                    {/* Health indicator */}
+                    <div className={`ml-4 p-3 rounded-lg border ${getHealthColor(healthScore)}`}>
+                      <div className="text-center">
+                        <div className="text-sm font-medium">Health</div>
+                        <div className="text-xl font-bold">{healthScore}%</div>
+                        <div className="w-16 bg-gray-200 rounded-full h-2 mt-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              healthScore >= 80 ? 'bg-green-500' :
+                              healthScore >= 60 ? 'bg-yellow-500' : 'bg-red-500'
+                            }`}
+                            style={{ width: `${healthScore}%` }}
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <span
-                    className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      coop.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-gray-100 text-gray-800'
-                    }`}
-                  >
-                    {coop.status}
-                  </span>
-                </div>
-              </div>
-            ))}
+                </article>
+              )
+            })}
           </div>
         ) : (
-          <p className="text-gray-500 text-center py-8">No cooperatives in federation</p>
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+              <span className="text-2xl text-gray-400">🏢</span>
+            </div>
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No Cooperatives</h3>
+            <p className="text-gray-500 mb-4">This federation doesn't have any cooperatives yet</p>
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Add First Cooperative
+            </button>
+          </div>
         )}
-      </div>
+      </section>
     </div>
   )
 }

@@ -224,54 +224,93 @@ function ProposalCreationForm({ templates, onSubmit, loading }: ProposalFormProp
 
       {/* CCL Template Selection */}
       <div className="space-y-4">
-        <h3 className="font-medium text-gray-900">CCL Templates (Optional)</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="font-medium text-gray-900">CCL Templates</h3>
+          <span className="text-sm text-gray-500">Optional - Use templates for common proposals</span>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {templates.map((template) => (
             <div
               key={template.id}
-              className={`border rounded-lg p-4 cursor-pointer transition-colors ${
+              className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 ${
                 selectedTemplate?.id === template.id
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300'
+                  ? 'border-blue-500 bg-blue-50 shadow-md'
+                  : 'border-gray-200 hover:border-gray-300 hover:shadow-sm'
               }`}
               onClick={() => handleTemplateSelect(template)}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedTemplate?.id === template.id}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleTemplateSelect(template)
+                }
+              }}
             >
-              <h4 className="font-medium text-gray-900">{template.name}</h4>
-              <p className="text-sm text-gray-600 mt-1">{template.description}</p>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 mt-2">
-                {template.category}
-              </span>
+              <div className="flex items-start justify-between mb-2">
+                <h4 className="font-medium text-gray-900">{template.name}</h4>
+                {selectedTemplate?.id === template.id && (
+                  <div className="w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+              <p className="text-sm text-gray-600 mb-3">{template.description}</p>
+              <div className="flex items-center justify-between">
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  {template.category}
+                </span>
+                <span className="text-xs text-gray-500">
+                  {template.parameters.length} parameters
+                </span>
+              </div>
             </div>
           ))}
         </div>
 
         {selectedTemplate && (
-          <div className="border border-gray-200 rounded-lg p-4">
+          <div className="border border-blue-200 rounded-lg p-6 bg-blue-50">
             <div className="flex justify-between items-center mb-4">
-              <h4 className="font-medium text-gray-900">Configure: {selectedTemplate.name}</h4>
-              <button
-                type="button"
-                onClick={() => setShowTemplatePreview(!showTemplatePreview)}
-                className="text-blue-600 hover:text-blue-800 text-sm"
-              >
-                {showTemplatePreview ? 'Hide' : 'Show'} Preview
-              </button>
+              <h4 className="font-medium text-blue-900">Configure: {selectedTemplate.name}</h4>
+              <div className="flex space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setShowTemplatePreview(!showTemplatePreview)}
+                  className="text-blue-700 hover:text-blue-900 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 rounded-md px-2 py-1"
+                >
+                  {showTemplatePreview ? 'Hide' : 'Show'} Preview
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTemplate(null)}
+                  className="text-gray-500 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 rounded-md p-1"
+                  aria-label="Clear template selection"
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {selectedTemplate.parameters.map((param) => (
-                <div key={param.name}>
-                  <label className="block text-sm font-medium text-gray-700">
-                    {param.name} {param.required && '*'}
+                <div key={param.name} className="space-y-1">
+                  <label className="block text-sm font-medium text-blue-900">
+                    {param.name} {param.required && <span className="text-red-500">*</span>}
                   </label>
-                  <p className="text-xs text-gray-500 mb-1">{param.description}</p>
+                  <p className="text-xs text-blue-700 mb-2">{param.description}</p>
                   
                   {param.type === 'boolean' ? (
                     <select
-                      value={templateParams[param.name] || ''}
+                      value={templateParams[param.name] !== undefined ? templateParams[param.name].toString() : ''}
                       onChange={(e) => handleParamChange(param.name, e.target.value === 'true')}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full rounded-md border-blue-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      required={param.required}
                     >
                       <option value="">Select...</option>
                       <option value="true">Yes</option>
@@ -281,13 +320,22 @@ function ProposalCreationForm({ templates, onSubmit, loading }: ProposalFormProp
                     <select
                       value={templateParams[param.name] || ''}
                       onChange={(e) => handleParamChange(param.name, e.target.value)}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      className="w-full rounded-md border-blue-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      required={param.required}
                     >
                       <option value="">Select...</option>
                       {param.validation.options.map((option) => (
                         <option key={option} value={option}>{option}</option>
                       ))}
                     </select>
+                  ) : param.type === 'date' ? (
+                    <input
+                      type="date"
+                      value={templateParams[param.name] || ''}
+                      onChange={(e) => handleParamChange(param.name, e.target.value)}
+                      className="w-full rounded-md border-blue-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      required={param.required}
+                    />
                   ) : (
                     <input
                       type={param.type === 'number' ? 'number' : 'text'}
@@ -299,20 +347,37 @@ function ProposalCreationForm({ templates, onSubmit, loading }: ProposalFormProp
                       min={param.validation?.min}
                       max={param.validation?.max}
                       pattern={param.validation?.pattern}
-                      className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-                      placeholder={param.default?.toString() || ''}
+                      className="w-full rounded-md border-blue-300 bg-white shadow-sm focus:border-blue-500 focus:ring-blue-500"
+                      placeholder={param.default?.toString() || `Enter ${param.name}`}
+                      required={param.required}
                     />
+                  )}
+                  {errors[`template_${param.name}`] && (
+                    <p className="text-sm text-red-600">{errors[`template_${param.name}`]}</p>
                   )}
                 </div>
               ))}
             </div>
 
             {showTemplatePreview && (
-              <div className="mt-4">
-                <h5 className="font-medium text-gray-900 mb-2">Generated CCL Code</h5>
-                <pre className="bg-gray-50 border border-gray-200 rounded p-3 text-sm overflow-x-auto">
-                  {generatePreview()}
-                </pre>
+              <div className="mt-6 border-t border-blue-200 pt-4">
+                <h5 className="font-medium text-blue-900 mb-3">Generated CCL Code</h5>
+                <div className="relative">
+                  <pre className="bg-white border border-blue-200 rounded-lg p-4 text-sm overflow-x-auto text-gray-900 font-mono">
+                    {generatePreview()}
+                  </pre>
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(generatePreview())}
+                    className="absolute top-2 right-2 p-1 text-gray-500 hover:text-gray-700 bg-white rounded border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    title="Copy to clipboard"
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M8 3a1 1 0 011-1h2a1 1 0 110 2H9a1 1 0 01-1-1z" />
+                      <path d="M6 3a2 2 0 00-2 2v11a2 2 0 002 2h8a2 2 0 002-2V5a2 2 0 00-2-2 3 3 0 01-3 3H9a3 3 0 01-3-3z" />
+                    </svg>
+                  </button>
+                </div>
               </div>
             )}
           </div>

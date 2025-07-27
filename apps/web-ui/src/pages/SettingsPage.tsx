@@ -1,23 +1,151 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation, LanguageSwitcher, useI18N } from '@icn/i18n'
 
 export function SettingsPage() {
   const { t } = useTranslation('common')
   const { currentLanguage, supportedLanguages } = useI18N()
+  const [accessibilitySettings, setAccessibilitySettings] = useState({
+    reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    highContrast: window.matchMedia('(prefers-contrast: high)').matches,
+    fontSize: 'medium',
+    screenReader: false
+  })
+
+  const handleAccessibilityChange = (setting: string, value: any) => {
+    setAccessibilitySettings(prev => ({
+      ...prev,
+      [setting]: value
+    }))
+
+    // Apply changes immediately
+    const root = document.documentElement
+    switch (setting) {
+      case 'reducedMotion':
+        root.style.setProperty('--animation-duration', value ? '0s' : '0.3s')
+        break
+      case 'highContrast':
+        root.classList.toggle('high-contrast', value)
+        break
+      case 'fontSize':
+        root.style.setProperty('--base-font-size', {
+          small: '14px',
+          medium: '16px',
+          large: '18px',
+          'extra-large': '20px'
+        }[value] || '16px')
+        break
+    }
+  }
 
   return (
     <div className="space-y-8" id="main-content">
       {/* Header */}
-      <div>
+      <header>
         <h1 className="text-3xl font-bold text-gray-900">{t('settings')}</h1>
         <p className="text-gray-600 mt-2">
           Manage your preferences and application settings
         </p>
-      </div>
+      </header>
+
+      {/* Accessibility Settings */}
+      <section 
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="accessibility-heading"
+      >
+        <h2 id="accessibility-heading" className="text-xl font-semibold text-gray-900 mb-4">
+          Accessibility Preferences
+        </h2>
+        
+        <div className="space-y-6">
+          <div>
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Motion & Animation</h3>
+            <div className="space-y-3">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={accessibilitySettings.reducedMotion}
+                  onChange={(e) => handleAccessibilityChange('reducedMotion', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700">
+                  Reduce motion and animations
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 ml-6">
+                Minimizes animations for users who prefer reduced motion
+              </p>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Visual Preferences</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={accessibilitySettings.highContrast}
+                    onChange={(e) => handleAccessibilityChange('highContrast', e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="ml-3 text-sm text-gray-700">
+                    High contrast mode
+                  </span>
+                </label>
+                <p className="text-xs text-gray-500 ml-6">
+                  Increases contrast for better visibility
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="font-size" className="block text-sm font-medium text-gray-700 mb-2">
+                  Font Size
+                </label>
+                <select
+                  id="font-size"
+                  value={accessibilitySettings.fontSize}
+                  onChange={(e) => handleAccessibilityChange('fontSize', e.target.value)}
+                  className="form-input w-full sm:w-auto"
+                >
+                  <option value="small">Small</option>
+                  <option value="medium">Medium (Default)</option>
+                  <option value="large">Large</option>
+                  <option value="extra-large">Extra Large</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-200 pt-6">
+            <h3 className="text-lg font-medium text-gray-900 mb-3">Screen Reader Support</h3>
+            <div className="space-y-3">
+              <label className="flex items-center">
+                <input
+                  type="checkbox"
+                  checked={accessibilitySettings.screenReader}
+                  onChange={(e) => handleAccessibilityChange('screenReader', e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="ml-3 text-sm text-gray-700">
+                  Enhanced screen reader support
+                </span>
+              </label>
+              <p className="text-xs text-gray-500 ml-6">
+                Provides additional context and descriptions for screen readers
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* Language Settings */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-xl font-semibold text-gray-900 mb-4">Language & Localization</h2>
+      <section 
+        className="bg-white rounded-lg border border-gray-200 p-6"
+        aria-labelledby="language-heading"
+      >
+        <h2 id="language-heading" className="text-xl font-semibold text-gray-900 mb-4">
+          Language & Localization
+        </h2>
         
         <div className="space-y-6">
           <div>
