@@ -65,7 +65,7 @@ mod security_tests {
         };
         
         // Should be within 5ms of each other due to timing mitigation
-        assert!(diff.as_millis() < 10, "Timing difference too large: {:?}", diff);
+        assert!(diff.as_millis() < 5, "Timing difference too large: {:?}", diff);
     }
 
     #[test]
