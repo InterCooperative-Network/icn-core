@@ -32,6 +32,7 @@ pub mod automation;
 pub mod budgeting;
 pub mod contract_registry;
 pub mod crdt_proposal_state;
+pub mod dispute_resolution;
 pub mod federation_governance;
 pub mod federation_scaling;
 //pub mod federation_sync;
@@ -56,6 +57,16 @@ pub use contract_registry::{
     AmendmentRatificationStatus, AmendmentRecord, AmendmentVote, ContractRegistryEntry,
     RatificationStatus, RegistryError, RegistryEvent, RegistryMetadata, SocialContractRegistry,
     VersionRecord,
+};
+pub use dispute_resolution::{
+    Appeal, AppealGrounds, AppealRights, AppealStatus, ContactPreferences, Decision, Dispute,
+    DisputeEvent, DisputeId, DisputeOutcome, DisputeParty, DisputeResolutionError,
+    DisputeResolutionSystem, DisputeStatus, DisputeType, EscalationCriteria, Evidence,
+    EvidenceType, EventType, ExperienceLevel, GovernanceImpactLevel, ImpactThreshold,
+    ImplementationPhase, ImplementationTimeline, MediatorInfo, MediatorRequirements,
+    ParticipantRole, PartyRole, PreventiveMeasure, ProcessStep, RequiredAction, ResolutionMethod,
+    ResolutionTemplate, ResolutionTier, Restitution, RestitutionType, VerificationStatus,
+    WorkingHours,
 };
 pub use crdt_proposal_state::{
     CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,

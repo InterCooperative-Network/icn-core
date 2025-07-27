@@ -613,8 +613,9 @@ where
             .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
 
         // Create a DAG block for the ballot
+        let cid = Cid::new_v1_sha256(0x71, &ballot_data);
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &ballot_data), // Raw codec for ballot data
+            cid,
             data: ballot_data,
             links: vec![], // Ballots are leaf nodes initially
             timestamp: ballot.timestamp
@@ -663,8 +664,9 @@ where
         let election_data = serde_json::to_vec(&election_id)
             .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize election ID: {}", e)))?;
 
+        let cid = Cid::new_v1_sha256(0x71, &election_data);
         let result_block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &election_data),
+            cid,
             data: election_data,
             links,
             timestamp: std::time::SystemTime::now()

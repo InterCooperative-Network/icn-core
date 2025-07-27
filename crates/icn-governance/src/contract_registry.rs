@@ -599,8 +599,9 @@ where
             .map_err(|e| RegistryError::Serialization(e.to_string()))?;
 
         // Create DAG block
+        let cid = Cid::new_v1_sha256(0x71, &contract_data);
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &contract_data),
+            cid,
             data: contract_data,
             links: vec![], // Contracts can link to parent/predecessor later
             timestamp: contract
@@ -640,8 +641,9 @@ where
             .map_err(|e| RegistryError::Serialization(e.to_string()))?;
 
         // Create DAG block
+        let cid = Cid::new_v1_sha256(0x71, &amendment_data);
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &amendment_data),
+            cid,
             data: amendment_data,
             links: vec![], // Could link to target contract
             timestamp: amendment
