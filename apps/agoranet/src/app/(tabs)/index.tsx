@@ -117,7 +117,10 @@ export default function HomeScreen() {
                     </XStack>
                     
                     <Progress
-                      value={(proposal.votes.yes / (proposal.votes.yes + proposal.votes.no + proposal.votes.abstain || 1)) * 100}
+                      value={(() => {
+                        const totalVotes = proposal.votes.yes + proposal.votes.no + proposal.votes.abstain;
+                        return totalVotes > 0 ? (proposal.votes.yes / totalVotes) * 100 : 0;
+                      })()}
                       backgroundColor="$gray4"
                     >
                       <Progress.Indicator animation="bouncy" backgroundColor="$green9" />
