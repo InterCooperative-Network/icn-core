@@ -13,6 +13,11 @@ mod security_tests {
     use icn_common::Did;
     use std::str::FromStr;
 
+    /// Maximum allowed timing difference between valid and invalid signature operations (in milliseconds)
+    /// This value should be larger than the minimum operation time (1ms) but small enough to detect
+    /// significant timing differences that could leak information.
+    const TIMING_THRESHOLD_MS: u128 = 5;
+
     #[test]
     fn test_signature_validation_prevents_empty_messages() {
         let config = SecurityConfig::default();
