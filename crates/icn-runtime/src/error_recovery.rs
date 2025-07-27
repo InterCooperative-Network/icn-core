@@ -360,20 +360,12 @@ where
     C: ErrorClassifier<E>,
     E: std::fmt::Debug,
 {
-    circuit_breaker
-        .execute(service_name, || {
-            let op = operation.clone();
-            async move {
-                retry_with_backoff(
-                    || op(),
-                    retry_config,
-                    classifier,
-                    service_name,
-                ).await
-            }
-        })
-        .await
-        .and_then(|result| result)
+    retry_with_backoff(
+        || operation(),
+        retry_config,
+        classifier,
+        service_name,
+    ).await
 }
 
 #[cfg(test)]

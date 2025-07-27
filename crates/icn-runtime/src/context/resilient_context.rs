@@ -40,6 +40,9 @@ impl ErrorClassifier<HostAbiError> for ICNErrorClassifier {
             HostAbiError::InvalidJobState(_) => false, // Permanent - wrong state
             HostAbiError::ResourceLimitExceeded(_) => true, // Could be temporary
             HostAbiError::ConfigurationError(_) => false, // Permanent
+            
+            // Default to recoverable for any other errors
+            _ => true,
         }
     }
 }
@@ -61,6 +64,9 @@ impl ErrorClassifier<CommonError> for ICNErrorClassifier {
             CommonError::TimeoutError(_) => true,
             CommonError::RateLimitError(_) => true,
             CommonError::ServiceUnavailable(_) => true,
+            
+            // Default to recoverable for any other errors
+            _ => true,
         }
     }
 }
@@ -114,25 +120,16 @@ impl ResilientRuntimeContext {
         let inner = self.inner.clone();
         let account = account.clone();
         
-        self.mana_circuit_breaker
-            .execute("mana_operations", || {
+        retry_with_backoff(
+            || {
                 let inner = inner.clone();
                 let account = account.clone();
-                async move {
-                    retry_with_backoff(
-                        || {
-                            let inner = inner.clone();
-                            let account = account.clone();
-                            async move { inner.spend_mana(&account, amount).await }
-                        },
-                        &self.retry_config,
-                        &self.error_classifier,
-                        "spend_mana",
-                    ).await
-                }
-            })
-            .await
-            .and_then(|result| result)
+                async move { inner.spend_mana(&account, amount).await }
+            },
+            &self.retry_config,
+            &self.error_classifier,
+            "spend_mana",
+        ).await
     }
 
     /// Enhanced mana retrieval with error recovery
@@ -143,25 +140,16 @@ impl ResilientRuntimeContext {
         let inner = self.inner.clone();
         let account = account.clone();
 
-        self.mana_circuit_breaker
-            .execute("mana_operations", || {
+        retry_with_backoff(
+            || {
                 let inner = inner.clone();
                 let account = account.clone();
-                async move {
-                    retry_with_backoff(
-                        || {
-                            let inner = inner.clone();
-                            let account = account.clone();
-                            async move { inner.get_mana(&account).await }
-                        },
-                        &self.retry_config,
-                        &self.error_classifier,
-                        "get_mana",
-                    ).await
-                }
-            })
-            .await
-            .and_then(|result| result)
+                async move { inner.get_mana(&account).await }
+            },
+            &self.retry_config,
+            &self.error_classifier,
+            "get_mana",
+        ).await
     }
 
     /// Enhanced job submission with error recovery
@@ -173,27 +161,17 @@ impl ResilientRuntimeContext {
     ) -> Result<JobId, RecoveryError<HostAbiError>> {
         let inner = self.inner.clone();
         
-        self.job_circuit_breaker
-            .execute("job_operations", || {
+        retry_with_backoff(
+            || {
                 let inner = inner.clone();
                 let manifest_cid = manifest_cid.clone();
                 let spec_bytes = spec_bytes.clone();
-                async move {
-                    retry_with_backoff(
-                        || {
-                            let inner = inner.clone();
-                            let manifest_cid = manifest_cid.clone();
-                            let spec_bytes = spec_bytes.clone();
-                            async move { inner.handle_submit_job(manifest_cid, spec_bytes, cost_mana).await }
-                        },
-                        &self.retry_config,
-                        &self.error_classifier,
-                        "submit_job",
-                    ).await
-                }
-            })
-            .await
-            .and_then(|result| result)
+                async move { inner.handle_submit_job(manifest_cid, spec_bytes, cost_mana).await }
+            },
+            &self.retry_config,
+            &self.error_classifier,
+            "submit_job",
+        ).await
     }
 
     /// Enhanced DAG operations with error recovery
@@ -204,25 +182,16 @@ impl ResilientRuntimeContext {
         let inner = self.inner.clone();
         let mut receipt = receipt.clone();
         
-        self.dag_circuit_breaker
-            .execute("dag_operations", || {
+        retry_with_backoff(
+            || {
                 let inner = inner.clone();
                 let mut receipt = receipt.clone();
-                async move {
-                    retry_with_backoff(
-                        || {
-                            let inner = inner.clone();
-                            let mut receipt = receipt.clone();
-                            async move { inner.anchor_receipt(&mut receipt).await }
-                        },
-                        &self.retry_config,
-                        &self.error_classifier,
-                        "anchor_receipt",
-                    ).await
-                }
-            })
-            .await
-            .and_then(|result| result)
+                async move { inner.anchor_receipt(&mut receipt).await }
+            },
+            &self.retry_config,
+            &self.error_classifier,
+            "anchor_receipt",
+        ).await
     }
 
     /// Enhanced job status retrieval with error recovery
@@ -233,25 +202,16 @@ impl ResilientRuntimeContext {
         let inner = self.inner.clone();
         let job_id = job_id.clone();
         
-        self.job_circuit_breaker
-            .execute("job_operations", || {
+        retry_with_backoff(
+            || {
                 let inner = inner.clone();
                 let job_id = job_id.clone();
-                async move {
-                    retry_with_backoff(
-                        || {
-                            let inner = inner.clone();
-                            let job_id = job_id.clone();
-                            async move { inner.get_job_status(&job_id).await }
-                        },
-                        &self.retry_config,
-                        &self.error_classifier,
-                        "get_job_status",
-                    ).await
-                }
-            })
-            .await
-            .and_then(|result| result)
+                async move { inner.get_job_status(&job_id).await }
+            },
+            &self.retry_config,
+            &self.error_classifier,
+            "get_job_status",
+        ).await
     }
 
     /// Get circuit breaker status for monitoring
