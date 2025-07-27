@@ -239,16 +239,25 @@ export function CanvasArea({
         })}
 
         {/* Connection preview */}
-        {connectionPreview && (
-          <ConnectionLine
-            sourceX={0} // Would need actual port position
-            sourceY={0}
-            targetX={connectionPreview.mousePosition.x}
-            targetY={connectionPreview.mousePosition.y}
-            selected={false}
-            preview={true}
-          />
-        )}
+        {connectionPreview && (() => {
+          const sourceNode = nodes.find(n => n.id === connectionPreview.sourceNodeId)
+          if (!sourceNode) return null
+          
+          // Calculate actual source port position
+          const sourceX = sourceNode.position.x + sourceNode.size.width
+          const sourceY = sourceNode.position.y + 30 // Approximate port position
+          
+          return (
+            <ConnectionLine
+              sourceX={sourceX}
+              sourceY={sourceY}
+              targetX={connectionPreview.mousePosition.x}
+              targetY={connectionPreview.mousePosition.y}
+              selected={false}
+              preview={true}
+            />
+          )
+        })()}
       </svg>
 
       {/* Render nodes */}
