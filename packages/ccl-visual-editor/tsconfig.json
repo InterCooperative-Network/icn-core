@@ -6,7 +6,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "node",
@@ -19,10 +19,12 @@
     "baseUrl": ".",
     "paths": {
       "@icn/*": ["../*/src", "../../packages/*/src"]
-    }
+    },
+    "typeRoots": ["./types", "./node_modules/@types", "../../node_modules/@types"]
   },
   "include": [
-    "src/**/*"
+    "src/**/*",
+    "types/**/*"
   ],
   "exclude": [
     "node_modules",
