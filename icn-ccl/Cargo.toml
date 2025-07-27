@@ -245,7 +245,7 @@ log = "0.4"
 sha2 = "0.10"
 # WASM generation
 wasm-encoder = "0.233"
-wasmparser = "0.121"
+wasmparser = "0.235"
 # HTTP client for job spec generator
 reqwest = { workspace = true, features = ["blocking"] }
 # wasm-tools = "1.208"  # Example, for WASM manipulation/validation
