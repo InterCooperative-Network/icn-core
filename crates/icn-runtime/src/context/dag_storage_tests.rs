@@ -12,28 +12,7 @@ async fn test_production_dag_store_validation() {
     
     // Test 1: Production should reject stub DAG stores
     let stub_dag_store = DagStoreFactory::create_testing();
-    
-    // Create a mock network service for testing
-    struct MockNetworkService;
-    impl icn_network::NetworkService for MockNetworkService {
-        fn as_any(&self) -> &dyn std::any::Any {
-            self
-        }
-        
-        async fn start(&mut self) -> Result<(), icn_common::CommonError> {
-            Ok(())
-        }
-        
-        async fn stop(&mut self) -> Result<(), icn_common::CommonError> {
-            Ok(())
-        }
-        
-        fn local_peer_id(&self) -> String {
-            "test_peer".to_string()
-        }
-    }
-    
-    let network_service = Arc::new(MockNetworkService);
+    let network_service = Arc::new(icn_network::StubNetworkService::default());
     let signer = Arc::new(crate::context::signers::StubSigner::new());
     let did_resolver = Arc::new(icn_identity::KeyDidResolver);
     let temp_file = tempfile::NamedTempFile::new().unwrap();

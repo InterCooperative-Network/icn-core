@@ -8,6 +8,7 @@ use super::{
     CclIntegrationCoordinator, CrossComponentCoordinator, EnhancedDagSync, MeshNetworkService,
     RuntimeContext, SmartP2pRouter,
 };
+use crate::context::{MeshNetworkServiceType, stubs::StubMeshNetworkService};
 use icn_common::{Cid, CommonError, Did, TimeProvider};
 use icn_governance::{
     GovernanceAutomationConfig, GovernanceAutomationEngine, GovernanceAutomationStats,

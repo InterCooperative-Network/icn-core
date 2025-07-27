@@ -4489,7 +4489,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_identity_signer_cryptographic_matching() {
-        use icn_identity::{Signer, did_key_to_verifying_key};
+        use icn_identity::{Signer, verifying_key_from_did_key};
         
         // Test the sync version
         let ctx_sync = RuntimeContext::new_with_identity_and_storage(None, None, None)
@@ -4513,7 +4513,7 @@ mod tests {
                 .expect("Failed to sign message");
             
             // Extract the verifying key from the identity DID
-            let verifying_key = did_key_to_verifying_key(identity)
+            let verifying_key = verifying_key_from_did_key(identity)
                 .expect("Failed to extract verifying key from DID");
             
             // Verify the signature using the identity's public key
@@ -4550,7 +4550,7 @@ mod tests {
 #[cfg(test)]
 mod configuration_tests {
     use super::*;
-    use super::service_config::{ServiceConfig, ServiceEnvironment};
+    use crate::context::service_config::{ServiceConfig, ServiceEnvironment};
     use std::str::FromStr;
 
     #[tokio::test]
