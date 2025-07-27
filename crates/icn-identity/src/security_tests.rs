@@ -299,7 +299,7 @@ mod security_tests {
             avg_invalid - avg_valid
         };
         
-        assert!(diff.as_millis() < 5, "Timing difference too large: {:?}", diff);
+        assert!(diff.as_millis() < TIMING_THRESHOLD_MS, "Timing difference too large: {:?}", diff);
     }
 
     #[test]
