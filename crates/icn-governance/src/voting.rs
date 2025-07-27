@@ -994,6 +994,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
 mod enhanced_tests {
     use super::*;
     use std::str::FromStr;
+    use icn_reputation::ReputationStore;
 
     #[test]
     fn test_enhanced_eligibility_validation_with_reputation() {
@@ -1006,11 +1007,9 @@ mod enhanced_tests {
         };
         
         let reputation_rules = EligibilityRules::reputation_gated(75.0);
-        let mut reputation_store = InMemoryReputationStore::new();
+        let reputation_store = InMemoryReputationStore::new();
         
-        // Set reputation below threshold
-        reputation_store.set_reputation(&test_did, 50);
-        
+        // Start with default reputation (0), which should be below threshold
         let result = reputation_rules.validate_voter_with_context(
             &test_did_doc,
             Some(&reputation_store),
@@ -1021,8 +1020,10 @@ mod enhanced_tests {
         assert!(result.is_err());
         assert!(matches!(result, Err(VotingError::IneligibleVoter(_))));
         
-        // Set reputation above threshold
-        reputation_store.set_reputation(&test_did, 100);
+        // Simulate successful executions to build reputation above threshold
+        for _ in 0..100 {
+            reputation_store.record_execution(&test_did, true, 1000);
+        }
         
         let result = reputation_rules.validate_voter_with_context(
             &test_did_doc,
