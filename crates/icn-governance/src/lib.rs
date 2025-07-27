@@ -35,6 +35,7 @@ pub mod federation_governance;
 //pub mod federation_sync;
 pub mod governance_conflict_resolver;
 pub mod metrics;
+pub mod policy_testing;
 pub mod ranked_choice;
 pub mod scoped_policy;
 pub mod voting;
@@ -57,6 +58,10 @@ pub use governance_conflict_resolver::{
     ConflictEvidence, ConflictSeverity, GovernanceConflict, GovernanceConflictConfig,
     GovernanceConflictResolver, GovernanceConflictType, GovernanceResolution,
     GovernanceResolutionStatus,
+};
+pub use policy_testing::{
+    ExpectedOutcome, PolicyTestResult, PolicyTestScenario, PolicyTestingFramework, TestAction,
+    TestExecutionStep, TestState,
 };
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 pub use voting::{
