@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"mod":["completion","diagnostics","hover","navigation","server"]};
+window.SIDEBAR_ITEMS = {"mod":["completion","diagnostics","formatting","hover","navigation","server"]};
