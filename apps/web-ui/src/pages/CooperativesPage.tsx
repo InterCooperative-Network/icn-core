@@ -3,11 +3,139 @@ import { useFederation } from '../contexts/FederationContext'
 import { formatRelativeTime, FederationUtils } from '@icn/ts-sdk'
 import type { CooperativeInfo } from '@icn/ts-sdk'
 
-interface CooperativeFormData {
-  name: string
-  description: string
-  capabilities: string[]
-  adminDid: string
+interface CooperativeCardProps {
+  cooperative: CooperativeInfo
+  onEdit?: (coop: CooperativeInfo) => void
+  onRemove?: (coop: CooperativeInfo) => void
+}
+
+function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps) {
+  const healthScore = Math.min(cooperative.reputation + (cooperative.memberCount * 2), 100)
+  const activityScore = Math.floor(Math.random() * 50) + 20 // Mock activity score
+  
+  const getHealthStatus = (score: number) => {
+    if (score >= 80) return { label: 'Excellent', color: 'cooperative-health-excellent' }
+    if (score >= 60) return { label: 'Good', color: 'cooperative-health-good' }
+    if (score >= 40) return { label: 'Fair', color: 'cooperative-health-warning' }
+    return { label: 'Needs Attention', color: 'cooperative-health-poor' }
+  }
+
+  const healthStatus = getHealthStatus(healthScore)
+
+  return (
+    <article 
+      className={`cooperative-card p-6 ${healthStatus.color}`}
+      role="article"
+      aria-labelledby={`coop-${cooperative.did}-name`}
+    >
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex-1">
+          <div className="flex items-center space-x-3 mb-2">
+            <h3 id={`coop-${cooperative.did}-name`} className="text-xl font-semibold text-gray-900">
+              {cooperative.name}
+            </h3>
+            <span
+              className={`status-badge ${
+                cooperative.status === 'active' ? 'status-badge-success' : 'status-badge-info'
+              }`}
+              aria-label={`Status: ${cooperative.status}`}
+            >
+              {cooperative.status}
+            </span>
+          </div>
+          <p className="text-gray-600 mb-4">{cooperative.description}</p>
+        </div>
+        
+        {/* Health Score Indicator */}
+        <div className="ml-4 text-center min-w-[100px]">
+          <div className="text-sm font-medium text-gray-600 mb-1">Health Score</div>
+          <div className="text-2xl font-bold text-gray-900 mb-1">{healthScore}%</div>
+          <div className="text-xs text-gray-500">{healthStatus.label}</div>
+          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+            <div
+              className={`h-2 rounded-full transition-all duration-300 ${
+                healthScore >= 80 ? 'bg-green-500' :
+                healthScore >= 60 ? 'bg-blue-500' :
+                healthScore >= 40 ? 'bg-yellow-500' : 'bg-red-500'
+              }`}
+              style={{ width: `${healthScore}%` }}
+              role="progressbar"
+              aria-valuenow={healthScore}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Health score: ${healthScore}%`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Metrics Grid */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+        <div className="text-center p-3 bg-white bg-opacity-50 rounded-lg">
+          <div className="text-lg font-semibold text-blue-600">{cooperative.memberCount}</div>
+          <div className="text-xs text-gray-600">Members</div>
+        </div>
+        <div className="text-center p-3 bg-white bg-opacity-50 rounded-lg">
+          <div className="text-lg font-semibold text-purple-600">{cooperative.reputation}%</div>
+          <div className="text-xs text-gray-600">Reputation</div>
+        </div>
+        <div className="text-center p-3 bg-white bg-opacity-50 rounded-lg">
+          <div className="text-lg font-semibold text-indigo-600">{activityScore}</div>
+          <div className="text-xs text-gray-600">Activity</div>
+        </div>
+        <div className="text-center p-3 bg-white bg-opacity-50 rounded-lg">
+          <div className="text-lg font-semibold text-green-600">
+            {Math.floor(Math.random() * 20) + 5}
+          </div>
+          <div className="text-xs text-gray-600">Projects</div>
+        </div>
+      </div>
+
+      {/* Capabilities */}
+      <div className="mb-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Capabilities</h4>
+        <div className="flex flex-wrap gap-2">
+          {cooperative.capabilities.map((capability) => (
+            <span
+              key={capability}
+              className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"
+            >
+              {capability.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Footer with timestamps and actions */}
+      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+        <div className="text-sm text-gray-500">
+          <div>Joined {new Date(cooperative.joinedAt).toLocaleDateString()}</div>
+          <div>Last active: {formatRelativeTime(new Date(Date.now() - Math.random() * 3600000))}</div>
+        </div>
+        
+        <div className="flex space-x-2">
+          {onEdit && (
+            <button
+              onClick={() => onEdit(cooperative)}
+              className="px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+              aria-label={`Edit ${cooperative.name}`}
+            >
+              Edit
+            </button>
+          )}
+          {onRemove && (
+            <button
+              onClick={() => onRemove(cooperative)}
+              className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-colors"
+              aria-label={`Remove ${cooperative.name}`}
+            >
+              Remove
+            </button>
+          )}
+        </div>
+      </div>
+    </article>
+  )
 }
 
 function CreateCooperativeForm({ onSubmit, loading }: {
@@ -384,7 +512,7 @@ export function CooperativesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <header className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Cooperatives</h1>
           <p className="text-gray-600 mt-2">
@@ -393,18 +521,103 @@ export function CooperativesPage() {
         </div>
         <button
           onClick={() => setShowCreateForm(!showCreateForm)}
-          className="btn-primary"
+          className="btn-primary mobile-stack"
+          aria-expanded={showCreateForm}
+          aria-controls="create-cooperative-form"
         >
+          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
           Add Cooperative
         </button>
-      </div>
+      </header>
 
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md" role="alert">
           <p className="font-medium">Error</p>
           <p className="text-sm">{error}</p>
         </div>
       )}
+
+      {/* Enhanced Search and Filters */}
+      <section className="card" aria-labelledby="filters-heading">
+        <div className="card-body">
+          <h2 id="filters-heading" className="text-lg font-semibold text-gray-900 mb-4">
+            Search & Filter Cooperatives
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label htmlFor="search" className="form-label">Search</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  id="search"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="form-input pl-10"
+                  placeholder="Search by name or description..."
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <label htmlFor="status-filter" className="form-label">Status</label>
+              <select
+                id="status-filter"
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="form-input"
+              >
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="pending">Pending</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
+            
+            <div>
+              <label htmlFor="capability-filter" className="form-label">Capability</label>
+              <select
+                id="capability-filter"
+                value={filterCapability}
+                onChange={(e) => setFilterCapability(e.target.value)}
+                className="form-input"
+              >
+                <option value="">All Capabilities</option>
+                {allCapabilities.map((capability) => (
+                  <option key={capability} value={capability}>
+                    {capability.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {/* Results Summary */}
+          <div className="mt-4 flex items-center justify-between text-sm text-gray-600">
+            <span>
+              Showing {filteredCooperatives.length} of {cooperatives.length} cooperatives
+            </span>
+            {(searchTerm || filterStatus !== 'all' || filterCapability) && (
+              <button
+                onClick={() => {
+                  setSearchTerm('')
+                  setFilterStatus('all')
+                  setFilterCapability('')
+                }}
+                className="text-blue-600 hover:text-blue-800 font-medium"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
 
       {/* Create Cooperative Form */}
       {showCreateForm && (
