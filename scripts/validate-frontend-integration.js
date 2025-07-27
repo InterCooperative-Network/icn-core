@@ -48,6 +48,30 @@ class FrontendValidator {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  /**
+   * Fetch with timeout support using AbortController
+   * The standard fetch API doesn't support timeout option directly
+   */
+  async fetchWithTimeout(url, options = {}, timeoutMs = CONFIG.timeout) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        ...options,
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+      return response;
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error(`Request timeout after ${timeoutMs}ms`);
+      }
+      throw error;
+    }
+  }
+
   async checkPortAvailable(port) {
     return new Promise((resolve) => {
       const server = http.createServer();
@@ -64,7 +88,7 @@ class FrontendValidator {
   async waitForService(url, maxAttempts = 10, delay = 2000) {
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const response = await fetch(url);
+        const response = await this.fetchWithTimeout(url, {}, 5000); // Use shorter timeout for health checks
         if (response.ok) {
           return true;
         }
@@ -94,9 +118,8 @@ class FrontendValidator {
       const healthUrl = `${CONFIG.nodeEndpoint}/health`;
       
       try {
-        const response = await fetch(healthUrl, {
+        const response = await this.fetchWithTimeout(healthUrl, {
           method: 'GET',
-          timeout: CONFIG.timeout,
         });
         
         if (!response.ok) {
@@ -112,7 +135,7 @@ class FrontendValidator {
 
   async validateSystemAPIs() {
     await this.runTest('System Info API', async () => {
-      const response = await fetch(`${CONFIG.nodeEndpoint}/system/info`);
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/system/info`);
       if (!response.ok) {
         throw new Error(`System info API failed: ${response.status}`);
       }
@@ -126,7 +149,7 @@ class FrontendValidator {
     });
 
     await this.runTest('System Status API', async () => {
-      const response = await fetch(`${CONFIG.nodeEndpoint}/system/status`);
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/system/status`);
       if (!response.ok) {
         throw new Error(`System status API failed: ${response.status}`);
       }
@@ -152,7 +175,7 @@ class FrontendValidator {
         },
       };
 
-      const response = await fetch(`${CONFIG.nodeEndpoint}/mesh/jobs`, {
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/mesh/jobs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -177,7 +200,7 @@ class FrontendValidator {
     });
 
     await this.runTest('Job List API', async () => {
-      const response = await fetch(`${CONFIG.nodeEndpoint}/mesh/jobs`);
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/mesh/jobs`);
       if (!response.ok) {
         throw new Error(`Job list API failed: ${response.status}`);
       }
@@ -193,7 +216,7 @@ class FrontendValidator {
 
   async validateFederationAPIs() {
     await this.runTest('Federation Status API', async () => {
-      const response = await fetch(`${CONFIG.nodeEndpoint}/federation/status`);
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/federation/status`);
       if (!response.ok) {
         throw new Error(`Federation status API failed: ${response.status}`);
       }
@@ -207,7 +230,7 @@ class FrontendValidator {
     });
 
     await this.runTest('Federation Peers API', async () => {
-      const response = await fetch(`${CONFIG.nodeEndpoint}/federation/peers`);
+      const response = await this.fetchWithTimeout(`${CONFIG.nodeEndpoint}/federation/peers`);
       if (!response.ok) {
         throw new Error(`Federation peers API failed: ${response.status}`);
       }
@@ -364,7 +387,7 @@ class FrontendValidator {
           }
 
           // Test that the app loads
-          const response = await fetch(appUrl);
+          const response = await this.fetchWithTimeout(appUrl);
           if (!response.ok) {
             throw new Error(`Frontend app ${app.name} returned ${response.status}`);
           }
