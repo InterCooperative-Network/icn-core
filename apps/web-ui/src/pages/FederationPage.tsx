@@ -496,6 +496,11 @@ export function FederationPage() {
           <div className="grid gap-4">
             {cooperatives.map((coop) => {
               const healthScore = Math.min(coop.reputation + (coop.memberCount * 2), 100)
+              // Use deterministic activity score based on cooperative data instead of Math.random()
+              const activityScore = Math.min(
+                Math.floor((coop.reputation * 0.3) + (coop.memberCount * 2) + (coop.capabilities.length * 3)), 
+                100
+              )
               const getHealthColor = (score: number) => {
                 if (score >= 80) return 'text-green-600 bg-green-50 border-green-200'
                 if (score >= 60) return 'text-yellow-600 bg-yellow-50 border-yellow-200'
@@ -542,7 +547,7 @@ export function FederationPage() {
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-semibold text-indigo-600">
-                            {Math.floor(Math.random() * 50) + 20}
+                            {activityScore}
                           </div>
                           <div className="text-xs text-gray-500">Activity</div>
                         </div>

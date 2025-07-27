@@ -3,6 +3,13 @@ import { useFederation } from '../contexts/FederationContext'
 import { formatRelativeTime, FederationUtils } from '@icn/ts-sdk'
 import type { CooperativeInfo } from '@icn/ts-sdk'
 
+interface CooperativeFormData {
+  name: string
+  description: string
+  capabilities: string[]
+  adminDid: string
+}
+
 interface CooperativeCardProps {
   cooperative: CooperativeInfo
   onEdit?: (coop: CooperativeInfo) => void
@@ -10,9 +17,19 @@ interface CooperativeCardProps {
 }
 
 function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps) {
-  const healthScore = Math.min(cooperative.reputation + (cooperative.memberCount * 2), 100)
-  const activityScore = Math.floor(Math.random() * 50) + 20 // Mock activity score
-  
+  const healthScore = FederationUtils.calculateHealthScore({
+    totalMembers: cooperative.memberCount,
+    governance: { activeProposals: 2 },
+    mesh: { activeJobs: 5 },
+    dag: { syncStatus: 'synced' }
+  })
+
+  // Use deterministic activity score based on cooperative data instead of Math.random()
+  const activityScore = Math.min(
+    Math.floor((cooperative.reputation * 0.3) + (cooperative.memberCount * 2) + (cooperative.capabilities.length * 3)), 
+    100
+  )
+
   const getHealthStatus = (score: number) => {
     if (score >= 80) return { label: 'Excellent', color: 'cooperative-health-excellent' }
     if (score >= 60) return { label: 'Good', color: 'cooperative-health-good' }
@@ -21,6 +38,12 @@ function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps
   }
 
   const healthStatus = getHealthStatus(healthScore)
+
+  const getHealthColor = (score: number) => {
+    if (score >= 80) return 'text-green-600'
+    if (score >= 60) return 'text-yellow-600'
+    return 'text-red-600'
+  }
 
   return (
     <article 
@@ -85,9 +108,9 @@ function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps
         </div>
         <div className="text-center p-3 bg-white bg-opacity-50 rounded-lg">
           <div className="text-lg font-semibold text-green-600">
-            {Math.floor(Math.random() * 20) + 5}
+            {cooperative.capabilities.length}
           </div>
-          <div className="text-xs text-gray-600">Projects</div>
+          <div className="text-xs text-gray-600">Capabilities</div>
         </div>
       </div>
 
@@ -100,7 +123,7 @@ function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps
               key={capability}
               className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200"
             >
-              {capability.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+              {capability.replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
             </span>
           ))}
         </div>
@@ -110,7 +133,7 @@ function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps
       <div className="flex items-center justify-between pt-4 border-t border-gray-200">
         <div className="text-sm text-gray-500">
           <div>Joined {new Date(cooperative.joinedAt).toLocaleDateString()}</div>
-          <div>Last active: {formatRelativeTime(new Date(Date.now() - Math.random() * 3600000))}</div>
+          <div>Last active: {formatRelativeTime(new Date(cooperative.joinedAt).getTime() + (24 * 60 * 60 * 1000))}</div>
         </div>
         
         <div className="flex space-x-2">
@@ -206,7 +229,7 @@ function CreateCooperativeForm({ onSubmit, loading }: {
   const removeCapability = (capability: string) => {
     setFormData(prev => ({
       ...prev,
-      capabilities: prev.capabilities.filter(c => c !== capability)
+      capabilities: prev.capabilities.filter((c: string) => c !== capability)
     }))
   }
 
@@ -347,112 +370,6 @@ function CreateCooperativeForm({ onSubmit, loading }: {
   )
 }
 
-interface CooperativeCardProps {
-  cooperative: CooperativeInfo
-  onEdit?: (cooperative: CooperativeInfo) => void
-  onRemove?: (cooperative: CooperativeInfo) => void
-}
-
-function CooperativeCard({ cooperative, onEdit, onRemove }: CooperativeCardProps) {
-  const healthScore = FederationUtils.calculateHealthScore({
-    totalMembers: cooperative.memberCount,
-    governance: { activeProposals: 2 },
-    mesh: { activeJobs: 5 },
-    dag: { syncStatus: 'synced' }
-  })
-
-  const getHealthColor = (score: number) => {
-    if (score >= 80) return 'text-green-600'
-    if (score >= 60) return 'text-yellow-600'
-    return 'text-red-600'
-  }
-
-  return (
-    <div className="card">
-      <div className="card-body">
-        <div className="flex items-start justify-between mb-4">
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">{cooperative.name}</h3>
-            <p className="text-gray-600 text-sm mt-1">{cooperative.description}</p>
-            <p className="text-xs text-gray-500 mt-2 font-mono">{cooperative.did}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <span
-              className={`status-badge ${
-                cooperative.status === 'active'
-                  ? 'status-badge-success'
-                  : cooperative.status === 'pending'
-                  ? 'status-badge-warning'
-                  : 'status-badge-error'
-              }`}
-            >
-              {cooperative.status}
-            </span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-          <div>
-            <p className="text-sm font-medium text-gray-500">Members</p>
-            <p className="text-lg font-semibold text-gray-900">{cooperative.memberCount}</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Reputation</p>
-            <p className="text-lg font-semibold text-gray-900">{cooperative.reputation}%</p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Health</p>
-            <p className={`text-lg font-semibold ${getHealthColor(healthScore)}`}>
-              {healthScore}%
-            </p>
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-500">Joined</p>
-            <p className="text-sm text-gray-900">
-              {formatRelativeTime(new Date(cooperative.joinedAt).getTime())}
-            </p>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <p className="text-sm font-medium text-gray-500 mb-2">Capabilities</p>
-          <div className="flex flex-wrap gap-1">
-            {cooperative.capabilities.map((capability) => (
-              <span
-                key={capability}
-                className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
-              >
-                {capability}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {(onEdit || onRemove) && (
-          <div className="flex justify-end space-x-2 pt-4 border-t border-gray-200">
-            {onEdit && (
-              <button
-                onClick={() => onEdit(cooperative)}
-                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
-              >
-                Edit
-              </button>
-            )}
-            {onRemove && (
-              <button
-                onClick={() => onRemove(cooperative)}
-                className="text-red-600 hover:text-red-800 text-sm font-medium"
-              >
-                Remove
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
 export function CooperativesPage() {
   const { cooperatives, loading, error } = useFederation()
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -492,7 +409,7 @@ export function CooperativesPage() {
   }
 
   // Filter cooperatives
-  const filteredCooperatives = cooperatives.filter(coop => {
+  const filteredCooperatives = cooperatives.filter((coop: CooperativeInfo) => {
     const matchesSearch = !searchTerm || 
       coop.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       coop.description?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -500,14 +417,14 @@ export function CooperativesPage() {
     const matchesStatus = filterStatus === 'all' || coop.status === filterStatus
     
     const matchesCapability = !filterCapability || 
-      coop.capabilities.some(cap => cap.includes(filterCapability))
+      coop.capabilities.some((cap: string) => cap.includes(filterCapability))
     
     return matchesSearch && matchesStatus && matchesCapability
   })
 
   // Get unique capabilities for filter
   const allCapabilities = Array.from(
-    new Set(cooperatives.flatMap(coop => coop.capabilities))
+    new Set(cooperatives.flatMap((coop: CooperativeInfo) => coop.capabilities))
   ).sort()
 
   return (
@@ -539,7 +456,22 @@ export function CooperativesPage() {
         </div>
       )}
 
-      {/* Enhanced Search and Filters */}
+      {/* Create Cooperative Form */}
+      {showCreateForm && (
+        <div className="card">
+          <div className="card-header">
+            <h2 className="text-lg font-semibold text-gray-900">Add New Cooperative</h2>
+          </div>
+          <div className="card-body">
+            <CreateCooperativeForm
+              onSubmit={handleCreateCooperative}
+              loading={actionLoading}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Search and Filters */}
       <section className="card" aria-labelledby="filters-heading">
         <div className="card-body">
           <h2 id="filters-heading" className="text-lg font-semibold text-gray-900 mb-4">
@@ -590,8 +522,8 @@ export function CooperativesPage() {
               >
                 <option value="">All Capabilities</option>
                 {allCapabilities.map((capability) => (
-                  <option key={capability} value={capability}>
-                    {capability.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  <option key={capability as string} value={capability as string}>
+                    {(capability as string).replace('-', ' ').replace(/\b\w/g, (l: string) => l.toUpperCase())}
                   </option>
                 ))}
               </select>
@@ -618,85 +550,6 @@ export function CooperativesPage() {
           </div>
         </div>
       </section>
-
-      {/* Create Cooperative Form */}
-      {showCreateForm && (
-        <div className="card">
-          <div className="card-header">
-            <h2 className="text-lg font-semibold text-gray-900">Add New Cooperative</h2>
-          </div>
-          <div className="card-body">
-            <CreateCooperativeForm
-              onSubmit={handleCreateCooperative}
-              loading={actionLoading}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* Filters */}
-      <div className="card">
-        <div className="card-body">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <label htmlFor="search" className="form-label">Search</label>
-              <input
-                type="text"
-                id="search"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="form-input"
-                placeholder="Search by name or description"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="status" className="form-label">Status</label>
-              <select
-                id="status"
-                value={filterStatus}
-                onChange={(e) => setFilterStatus(e.target.value as any)}
-                className="form-input"
-              >
-                <option value="all">All Statuses</option>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-            
-            <div>
-              <label htmlFor="capability" className="form-label">Capability</label>
-              <select
-                id="capability"
-                value={filterCapability}
-                onChange={(e) => setFilterCapability(e.target.value)}
-                className="form-input"
-              >
-                <option value="">All Capabilities</option>
-                {allCapabilities.map((capability) => (
-                  <option key={capability} value={capability}>
-                    {capability}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="flex items-end">
-              <button
-                onClick={() => {
-                  setSearchTerm('')
-                  setFilterStatus('all')
-                  setFilterCapability('')
-                }}
-                className="btn-secondary w-full"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Cooperatives List */}
       <div>
