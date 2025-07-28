@@ -7,7 +7,7 @@
 use crate::voting::{RankedChoiceBallot, Signature, VotingError};
 use icn_common::Signable;
 use icn_identity::{
-    security::{SecurityConfig, secure_verify_signature, secure_validate_did},
+    security::{secure_validate_did, secure_verify_signature, SecurityConfig},
     verifying_key_from_did_key, EdSignature,
 };
 use serde::{Deserialize, Serialize};
@@ -37,11 +37,11 @@ impl Default for GovernanceSecurityConfig {
     fn default() -> Self {
         Self {
             crypto_config: SecurityConfig::default(),
-            max_ballot_size: 64 * 1024, // 64KB
-            max_preferences: 100,       // Reasonable limit for ranked choice
+            max_ballot_size: 64 * 1024,               // 64KB
+            max_preferences: 100,                     // Reasonable limit for ranked choice
             max_election_duration: 30 * 24 * 60 * 60, // 30 days
             replay_protection: true,
-            max_time_skew: 300, // 5 minutes
+            max_time_skew: 300,       // 5 minutes
             allow_cache_clear: false, // Disallow by default for security
         }
     }
@@ -168,7 +168,7 @@ impl SecureBallotValidator {
     /// Check for replay attacks
     fn check_replay_protection(&self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
         let ballot_hash = self.compute_ballot_hash(ballot)?;
-        
+
         if self.seen_ballots.contains(&ballot_hash) {
             return Err(VotingError::DuplicateVote);
         }
@@ -178,15 +178,16 @@ impl SecureBallotValidator {
 
     /// Compute a unique hash for the ballot to prevent replays
     fn compute_ballot_hash(&self, ballot: &RankedChoiceBallot) -> Result<String, VotingError> {
-        use sha2::{Sha256, Digest};
-        
-        let signable_bytes = ballot.to_signable_bytes()
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
-        
+        use sha2::{Digest, Sha256};
+
+        let signable_bytes = ballot.to_signable_bytes().map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
+        })?;
+
         let mut hasher = Sha256::new();
         hasher.update(&signable_bytes);
         hasher.update(&ballot.signature.value);
-        
+
         Ok(format!("{:x}", hasher.finalize()))
     }
 
@@ -200,12 +201,18 @@ impl SecureBallotValidator {
         let ed_signature = self.convert_signature(&ballot.signature)?;
 
         // Get signable bytes
-        let message = ballot.to_signable_bytes()
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
+        let message = ballot.to_signable_bytes().map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
+        })?;
 
         // Use hardened signature verification
-        let is_valid = secure_verify_signature(&verifying_key, &message, &ed_signature, &self.config.crypto_config)
-            .map_err(|_| VotingError::InvalidSignature)?;
+        let is_valid = secure_verify_signature(
+            &verifying_key,
+            &message,
+            &ed_signature,
+            &self.config.crypto_config,
+        )
+        .map_err(|_| VotingError::InvalidSignature)?;
 
         if !is_valid {
             return Err(VotingError::InvalidSignature);
@@ -227,7 +234,9 @@ impl SecureBallotValidator {
         }
 
         // Convert to Ed25519 signature
-        let sig_bytes: [u8; 64] = signature.value.as_slice()
+        let sig_bytes: [u8; 64] = signature
+            .value
+            .as_slice()
             .try_into()
             .map_err(|_| VotingError::InvalidSignature)?;
 
@@ -319,15 +328,17 @@ impl SecureBallotSigner {
         }
 
         // Get signable bytes
-        let message = ballot.to_signable_bytes()
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
+        let message = ballot.to_signable_bytes().map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
+        })?;
 
         // Use hardened signing
         let ed_signature = icn_identity::security::secure_sign_message(
             signing_key,
             &message,
             &self.config.crypto_config,
-        ).map_err(|_| VotingError::InvalidSignature)?;
+        )
+        .map_err(|_| VotingError::InvalidSignature)?;
 
         // Convert to governance signature format
         ballot.signature = Signature {
@@ -344,7 +355,7 @@ mod tests {
     use super::*;
     use crate::voting::{BallotId, CandidateId, ElectionId};
     use icn_common::{Did, DidDocument};
-    use icn_identity::{generate_ed25519_keypair, did_key_from_verifying_key};
+    use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
     use std::str::FromStr;
 
     fn create_test_ballot() -> RankedChoiceBallot {
@@ -375,17 +386,19 @@ mod tests {
     fn test_ballot_structure_validation() {
         let config = GovernanceSecurityConfig::default();
         let mut validator = SecureBallotValidator::new(config);
-        
+
         let mut ballot = create_test_ballot();
-        
+
         // Test invalid ballot ID
         ballot.ballot_id = BallotId("".to_string());
         let result = validator.validate_ballot_structure(&ballot);
         assert!(result.is_err());
-        
+
         // Test too many preferences
         ballot = create_test_ballot();
-        ballot.preferences = (0..200).map(|i| CandidateId(format!("candidate_{}", i))).collect();
+        ballot.preferences = (0..200)
+            .map(|i| CandidateId(format!("candidate_{}", i)))
+            .collect();
         let result = validator.validate_ballot_structure(&ballot);
         assert!(result.is_err());
     }
@@ -394,14 +407,14 @@ mod tests {
     fn test_timestamp_validation() {
         let config = GovernanceSecurityConfig::default();
         let validator = SecureBallotValidator::new(config);
-        
+
         let mut ballot = create_test_ballot();
-        
+
         // Test future timestamp
         ballot.timestamp = SystemTime::now() + std::time::Duration::from_secs(1000);
         let result = validator.validate_timestamp(&ballot);
         assert!(result.is_err());
-        
+
         // Test very old timestamp
         ballot.timestamp = SystemTime::UNIX_EPOCH;
         let result = validator.validate_timestamp(&ballot);
@@ -412,13 +425,13 @@ mod tests {
     fn test_replay_protection() {
         let config = GovernanceSecurityConfig::default();
         let mut validator = SecureBallotValidator::new(config);
-        
+
         let ballot = create_test_ballot();
-        
+
         // First validation should succeed (structure issues aside)
         let hash1 = validator.compute_ballot_hash(&ballot).unwrap();
         validator.seen_ballots.insert(hash1);
-        
+
         // Second validation should fail due to replay
         let result = validator.check_replay_protection(&ballot);
         assert!(result.is_err());
@@ -429,11 +442,11 @@ mod tests {
     fn test_secure_ballot_signing() {
         let config = GovernanceSecurityConfig::default();
         let signer = SecureBallotSigner::new(config);
-        
+
         let (sk, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
         let did = Did::from_str(&did_str).unwrap();
-        
+
         let mut ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-signing".to_string()),
             voter_did: DidDocument {
@@ -448,11 +461,11 @@ mod tests {
                 value: vec![0u8; 64],
             },
         };
-        
+
         // Sign the ballot
         let result = signer.sign_ballot(&mut ballot, &sk);
         assert!(result.is_ok());
-        
+
         // Verify the signature was updated
         assert_ne!(ballot.signature.value, vec![0u8; 64]);
         assert_eq!(ballot.signature.algorithm, "ed25519");
@@ -463,10 +476,10 @@ mod tests {
     fn test_ballot_size_estimation() {
         let config = GovernanceSecurityConfig::default();
         let validator = SecureBallotValidator::new(config);
-        
+
         let ballot = create_test_ballot();
         let size = validator.estimate_ballot_size(&ballot);
-        
+
         // Should be reasonable size
         assert!(size > 0);
         assert!(size < 10000); // Should be less than 10KB for a simple ballot
@@ -476,7 +489,7 @@ mod tests {
     fn test_signature_conversion() {
         let config = GovernanceSecurityConfig::default();
         let validator = SecureBallotValidator::new(config);
-        
+
         // Valid signature
         let valid_sig = Signature {
             algorithm: "ed25519".to_string(),
@@ -484,7 +497,7 @@ mod tests {
         };
         let result = validator.convert_signature(&valid_sig);
         assert!(result.is_ok());
-        
+
         // Invalid algorithm
         let invalid_sig = Signature {
             algorithm: "rsa".to_string(),
@@ -492,7 +505,7 @@ mod tests {
         };
         let result = validator.convert_signature(&invalid_sig);
         assert!(result.is_err());
-        
+
         // Invalid length
         let invalid_sig = Signature {
             algorithm: "ed25519".to_string(),

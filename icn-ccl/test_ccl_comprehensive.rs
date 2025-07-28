@@ -6,7 +6,7 @@ use icn_ccl::compile_ccl_source_to_wasm;
 fn main() {
     println!("🎯 COMPREHENSIVE CCL IMPLEMENTATION TEST");
     println!("=========================================");
-    
+
     let comprehensive_test = r#"
         const SCALING: Bool = true;
         const WEEK: Integer = 604800;
@@ -88,10 +88,10 @@ fn main() {
             println!("✅ SUCCESS: Comprehensive CCL test compiled successfully!");
             println!("📊 WASM size: {} bytes", wasm.len());
             println!("📋 Contract metadata: {:?}", metadata);
-            
+
             println!("\n🎉 CCL IMPLEMENTATION VERIFICATION: COMPLETE");
             println!("🔓 ✅ Else-if chains: WORKING");
-            println!("🔓 ✅ String operations: WORKING"); 
+            println!("🔓 ✅ String operations: WORKING");
             println!("🔓 ✅ String equality: WORKING");
             println!("🔓 ✅ Array operations: WORKING");
             println!("🔓 ✅ Array indexing: WORKING");
@@ -105,11 +105,10 @@ fn main() {
             println!("🔓 ✅ Constants (Integer/String/Bool): WORKING");
             println!("🔓 ✅ Variable assignment: WORKING");
             println!("🔓 ✅ Return statements: WORKING");
-            
+
             println!("\n✨ CCL IMPLEMENTATION STATUS: 100% COMPLETE");
             println!("🚀 ALL CORE FEATURES WORKING - READY FOR PRODUCTION!");
             println!("🏛️ Governance contracts can now be deployed successfully!");
-            
         }
         Err(e) => {
             println!("❌ FAILED: Comprehensive CCL test failed");

@@ -1,12 +1,15 @@
 // icn-ccl/src/lsp/navigation.rs
 //! Navigation features for CCL LSP (go-to-definition, find references)
 
-use tower_lsp::lsp_types::*;
 use super::server::DocumentState;
-use crate::ast::{AstNode, TopLevelNode, FunctionDefinitionNode, ExpressionNode, StatementNode, ContractBodyNode};
+use crate::ast::{
+    AstNode, ContractBodyNode, ExpressionNode, FunctionDefinitionNode, StatementNode, TopLevelNode,
+};
+use tower_lsp::lsp_types::*;
 
 /// Symbol information for navigation
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct SymbolInfo {
     name: String,
     symbol_type: SymbolType,
@@ -15,6 +18,7 @@ struct SymbolInfo {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum SymbolType {
     Function,
     Variable,
@@ -27,7 +31,7 @@ enum SymbolType {
 pub fn goto_definition(doc_state: &DocumentState, position: Position) -> Option<Location> {
     // Get the word at the cursor position
     let word = get_word_at_position(&doc_state.text, position)?;
-    
+
     // Find the symbol definition in the AST
     if let Some(ast) = &doc_state.ast {
         if let Some(definition_range) = find_symbol_definition(ast, &word, position) {
@@ -37,7 +41,7 @@ pub fn goto_definition(doc_state: &DocumentState, position: Position) -> Option<
             });
         }
     }
-    
+
     None
 }
 
@@ -48,7 +52,8 @@ pub fn find_references(doc_state: &DocumentState, position: Position) -> Vec<Loc
         // Find all references to this symbol in the AST
         if let Some(ast) = &doc_state.ast {
             let ranges = find_symbol_references(ast, &word);
-            return ranges.into_iter()
+            return ranges
+                .into_iter()
                 .map(|range| Location {
                     uri: doc_state.uri.clone(),
                     range,
@@ -56,12 +61,16 @@ pub fn find_references(doc_state: &DocumentState, position: Position) -> Vec<Loc
                 .collect();
         }
     }
-    
+
     Vec::new()
 }
 
 /// Find the definition of a symbol in the AST
-fn find_symbol_definition(ast: &AstNode, symbol_name: &str, _cursor_position: Position) -> Option<Range> {
+fn find_symbol_definition(
+    ast: &AstNode,
+    symbol_name: &str,
+    _cursor_position: Position,
+) -> Option<Range> {
     match ast {
         AstNode::Program(top_level_nodes) => {
             for node in top_level_nodes {
@@ -75,7 +84,7 @@ fn find_symbol_definition(ast: &AstNode, symbol_name: &str, _cursor_position: Po
             if name == symbol_name {
                 return Some(create_range(0, 0, 0, name.len()));
             }
-            
+
             // Look inside contract body
             for body_node in body {
                 if let Some(range) = find_definition_in_contract_body(body_node, symbol_name) {
@@ -85,7 +94,7 @@ fn find_symbol_definition(ast: &AstNode, symbol_name: &str, _cursor_position: Po
         }
         _ => {}
     }
-    
+
     None
 }
 
@@ -96,7 +105,7 @@ fn find_definition_in_top_level(node: &TopLevelNode, symbol_name: &str) -> Optio
             if contract.name == symbol_name {
                 return Some(create_range(0, 0, 0, contract.name.len()));
             }
-            
+
             // Look inside contract body
             for body_node in &contract.body {
                 if let Some(range) = find_definition_in_contract_body(body_node, symbol_name) {
@@ -116,7 +125,7 @@ fn find_definition_in_top_level(node: &TopLevelNode, symbol_name: &str) -> Optio
         }
         _ => {}
     }
-    
+
     None
 }
 
@@ -140,14 +149,14 @@ fn find_definition_in_contract_body(node: &ContractBodyNode, symbol_name: &str) 
         }
         _ => {}
     }
-    
+
     None
 }
 
 /// Find all references to a symbol in the AST
 fn find_symbol_references(ast: &AstNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     match ast {
         AstNode::Program(top_level_nodes) => {
             for node in top_level_nodes {
@@ -161,14 +170,14 @@ fn find_symbol_references(ast: &AstNode, symbol_name: &str) -> Vec<Range> {
         }
         _ => {}
     }
-    
+
     references
 }
 
 /// Find references in top-level nodes
 fn find_references_in_top_level(node: &TopLevelNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     match node {
         TopLevelNode::Contract(contract) => {
             for body_node in &contract.body {
@@ -180,14 +189,14 @@ fn find_references_in_top_level(node: &TopLevelNode, symbol_name: &str) -> Vec<R
         }
         _ => {}
     }
-    
+
     references
 }
 
 /// Find references in contract body nodes
 fn find_references_in_contract_body(node: &ContractBodyNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     match node {
         ContractBodyNode::Function(func) => {
             references.extend(find_references_in_function(func, symbol_name));
@@ -198,39 +207,42 @@ fn find_references_in_contract_body(node: &ContractBodyNode, symbol_name: &str) 
             }
         }
         ContractBodyNode::Const(const_decl) => {
-            references.extend(find_references_in_expression(&const_decl.value, symbol_name));
+            references.extend(find_references_in_expression(
+                &const_decl.value,
+                symbol_name,
+            ));
         }
         _ => {}
     }
-    
+
     references
 }
 
 /// Find references in function definition
 fn find_references_in_function(func: &FunctionDefinitionNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     // Check function body
     references.extend(find_references_in_block(&func.body, symbol_name));
-    
+
     references
 }
 
 /// Find references in a block of statements
 fn find_references_in_block(block: &crate::ast::BlockNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     for statement in &block.statements {
         references.extend(find_references_in_statement(statement, symbol_name));
     }
-    
+
     references
 }
 
 /// Find references in a statement
 fn find_references_in_statement(statement: &StatementNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     match statement {
         StatementNode::ExpressionStatement(expr) => {
             references.extend(find_references_in_expression(expr, symbol_name));
@@ -238,11 +250,19 @@ fn find_references_in_statement(statement: &StatementNode, symbol_name: &str) ->
         StatementNode::Assignment { value, .. } => {
             references.extend(find_references_in_expression(value, symbol_name));
         }
-        StatementNode::If { condition, then_block, else_ifs, else_block } => {
+        StatementNode::If {
+            condition,
+            then_block,
+            else_ifs,
+            else_block,
+        } => {
             references.extend(find_references_in_expression(condition, symbol_name));
             references.extend(find_references_in_block(then_block, symbol_name));
             for (else_if_condition, else_if_block) in else_ifs {
-                references.extend(find_references_in_expression(else_if_condition, symbol_name));
+                references.extend(find_references_in_expression(
+                    else_if_condition,
+                    symbol_name,
+                ));
                 references.extend(find_references_in_block(else_if_block, symbol_name));
             }
             if let Some(else_block) = else_block {
@@ -253,25 +273,26 @@ fn find_references_in_statement(statement: &StatementNode, symbol_name: &str) ->
             references.extend(find_references_in_expression(condition, symbol_name));
             references.extend(find_references_in_block(body, symbol_name));
         }
-        StatementNode::Return(expr) => {
-            if let Some(expr) = expr {
-                references.extend(find_references_in_expression(expr, symbol_name));
-            }
+        StatementNode::Return(Some(expr)) => {
+            references.extend(find_references_in_expression(expr, symbol_name));
+        }
+        StatementNode::Return(None) => {
+            // No expression to process
         }
         _ => {}
     }
-    
+
     references
 }
 
 /// Find references in an expression
 fn find_references_in_expression(expr: &ExpressionNode, symbol_name: &str) -> Vec<Range> {
     let mut references = Vec::new();
-    
+
     match expr {
         ExpressionNode::Identifier(name) => {
             if name == symbol_name {
-                // Create a placeholder range - in a real implementation, 
+                // Create a placeholder range - in a real implementation,
                 // you'd track source positions through the parser
                 references.push(create_range(0, 0, 0, name.len()));
             }
@@ -297,7 +318,7 @@ fn find_references_in_expression(expr: &ExpressionNode, symbol_name: &str) -> Ve
         }
         _ => {}
     }
-    
+
     references
 }
 
@@ -307,30 +328,30 @@ fn get_word_at_position(text: &str, position: Position) -> Option<String> {
     if position.line as usize >= lines.len() {
         return None;
     }
-    
+
     let line = lines[position.line as usize];
     let char_pos = position.character as usize;
-    
+
     // Find word boundaries
     let chars: Vec<char> = line.chars().collect();
-    
+
     // Check bounds using character count, not byte count
     if char_pos >= chars.len() {
         return None;
     }
-    
+
     // Find start of word
     let mut start = char_pos;
     while start > 0 && (chars[start - 1].is_alphanumeric() || chars[start - 1] == '_') {
         start -= 1;
     }
-    
+
     // Find end of word
     let mut end = char_pos;
     while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
         end += 1;
     }
-    
+
     if start < end {
         Some(chars[start..end].iter().collect())
     } else {
@@ -347,7 +368,12 @@ pub fn text_position_to_lsp(line: usize, character: usize) -> Position {
 }
 
 /// Create an LSP Range from start and end positions
-pub fn create_range(start_line: usize, start_char: usize, end_line: usize, end_char: usize) -> Range {
+pub fn create_range(
+    start_line: usize,
+    start_char: usize,
+    end_line: usize,
+    end_char: usize,
+) -> Range {
     Range {
         start: text_position_to_lsp(start_line, start_char),
         end: text_position_to_lsp(end_line, end_char),

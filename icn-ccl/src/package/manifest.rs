@@ -7,7 +7,7 @@ use std::collections::HashMap;
 /// Version requirement for dependencies
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VersionReq {
-    pub requirement: String,  // e.g., "^1.0.0", ">=2.0.0", "~1.2.3"
+    pub requirement: String, // e.g., "^1.0.0", ">=2.0.0", "~1.2.3"
 }
 
 impl VersionReq {
@@ -30,8 +30,8 @@ impl VersionReq {
 pub struct Dependency {
     pub name: String,
     pub version: VersionReq,
-    pub source: Option<String>,  // Registry URL, git repo, or local path
-    pub features: Vec<String>,   // Optional features to enable
+    pub source: Option<String>, // Registry URL, git repo, or local path
+    pub features: Vec<String>,  // Optional features to enable
 }
 
 /// Author information
@@ -39,7 +39,7 @@ pub struct Dependency {
 pub struct Author {
     pub name: String,
     pub email: Option<String>,
-    pub did: Option<String>,  // Decentralized identifier
+    pub did: Option<String>, // Decentralized identifier
 }
 
 /// Package metadata
@@ -47,8 +47,8 @@ pub struct Author {
 pub struct Metadata {
     pub keywords: Vec<String>,
     pub categories: Vec<String>,
-    pub governance_patterns: Vec<String>,  // Types of governance this package implements
-    pub mana_cost: Option<u64>,            // Estimated mana cost for deployment
+    pub governance_patterns: Vec<String>, // Types of governance this package implements
+    pub mana_cost: Option<u64>,           // Estimated mana cost for deployment
 }
 
 /// CCL package manifest (package.ccl)
@@ -78,9 +78,9 @@ pub struct PackageInfo {
 /// Build configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildConfig {
-    pub optimization_level: Option<String>,  // "none", "basic", "aggressive"
-    pub target: Option<String>,              // "wasm32-unknown-unknown"
-    pub features: Vec<String>,               // Build features to enable
+    pub optimization_level: Option<String>, // "none", "basic", "aggressive"
+    pub target: Option<String>,             // "wasm32-unknown-unknown"
+    pub features: Vec<String>,              // Build features to enable
 }
 
 impl PackageManifest {

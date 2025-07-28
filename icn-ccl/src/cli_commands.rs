@@ -3,8 +3,8 @@
 
 use crate::{
     debugger::{SourceMap, WasmDebugger},
-    package::{PackageManifest, Registry, DependencyResolver, VersionReq},
     error::CclError,
+    package::{DependencyResolver, PackageManifest, Registry, VersionReq},
 };
 use std::fs;
 use std::path::Path;
@@ -17,19 +17,16 @@ pub fn init_package(
     author_email: Option<String>,
 ) -> Result<(), CclError> {
     let package_dir = directory.join(&name);
-    
+
     // Create package directory structure
-    fs::create_dir_all(&package_dir).map_err(|e| {
-        CclError::IoError(format!("Failed to create package directory: {}", e))
-    })?;
-    
-    fs::create_dir_all(package_dir.join("src")).map_err(|e| {
-        CclError::IoError(format!("Failed to create src directory: {}", e))
-    })?;
-    
-    fs::create_dir_all(package_dir.join("examples")).map_err(|e| {
-        CclError::IoError(format!("Failed to create examples directory: {}", e))
-    })?;
+    fs::create_dir_all(&package_dir)
+        .map_err(|e| CclError::IoError(format!("Failed to create package directory: {}", e)))?;
+
+    fs::create_dir_all(package_dir.join("src"))
+        .map_err(|e| CclError::IoError(format!("Failed to create src directory: {}", e)))?;
+
+    fs::create_dir_all(package_dir.join("examples"))
+        .map_err(|e| CclError::IoError(format!("Failed to create examples directory: {}", e)))?;
 
     // Create package manifest
     let author = crate::package::manifest::Author {
@@ -37,19 +34,18 @@ pub fn init_package(
         email: author_email,
         did: None,
     };
-    
+
     let mut manifest = PackageManifest::new(name.clone(), "0.1.0".to_string(), vec![author]);
     manifest.package.description = Some("A new CCL governance package".to_string());
     manifest.package.license = Some("Apache-2.0".to_string());
 
-    let manifest_content = manifest.to_toml().map_err(|e| {
-        CclError::IoError(format!("Failed to serialize manifest: {}", e))
-    })?;
+    let manifest_content = manifest
+        .to_toml()
+        .map_err(|e| CclError::IoError(format!("Failed to serialize manifest: {}", e)))?;
 
     let manifest_path = package_dir.join("package.ccl");
-    fs::write(&manifest_path, manifest_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write manifest: {}", e))
-    })?;
+    fs::write(&manifest_path, manifest_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write manifest: {}", e)))?;
 
     // Create initial contract file
     let contract_content = format!(
@@ -81,9 +77,8 @@ contract {} {{
     );
 
     let contract_path = package_dir.join("src").join("main.ccl");
-    fs::write(&contract_path, contract_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write contract: {}", e))
-    })?;
+    fs::write(&contract_path, contract_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write contract: {}", e)))?;
 
     // Create README
     let readme_content = format!(
@@ -110,44 +105,48 @@ Apache-2.0
     );
 
     let readme_path = package_dir.join("README.md");
-    fs::write(&readme_path, readme_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write README: {}", e))
-    })?;
+    fs::write(&readme_path, readme_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write README: {}", e)))?;
 
-    println!("✅ Created new CCL package '{}' in {}", name, package_dir.display());
+    println!(
+        "✅ Created new CCL package '{}' in {}",
+        name,
+        package_dir.display()
+    );
     Ok(())
 }
 
 /// Install dependencies for a CCL package
 pub fn install_dependencies(package_dir: &Path) -> Result<(), CclError> {
     let manifest_path = package_dir.join("package.ccl");
-    
+
     if !manifest_path.exists() {
         return Err(CclError::IoError(
-            "No package.ccl found. Run 'ccl package init' first.".to_string()
+            "No package.ccl found. Run 'ccl package init' first.".to_string(),
         ));
     }
 
-    let manifest_content = fs::read_to_string(&manifest_path).map_err(|e| {
-        CclError::IoError(format!("Failed to read manifest: {}", e))
-    })?;
+    let manifest_content = fs::read_to_string(&manifest_path)
+        .map_err(|e| CclError::IoError(format!("Failed to read manifest: {}", e)))?;
 
-    let manifest = PackageManifest::from_toml(&manifest_content).map_err(|e| {
-        CclError::IoError(format!("Failed to parse manifest: {}", e))
-    })?;
+    let manifest = PackageManifest::from_toml(&manifest_content)
+        .map_err(|e| CclError::IoError(format!("Failed to parse manifest: {}", e)))?;
 
-    let registry = Registry::default();
+    let registry = Registry::default_registry();
     let mut resolver = DependencyResolver::new(registry);
 
-    println!("📦 Resolving dependencies for '{}'...", manifest.package.name);
+    println!(
+        "📦 Resolving dependencies for '{}'...",
+        manifest.package.name
+    );
 
-    let resolved = resolver.resolve(&manifest).map_err(|e| {
-        CclError::IoError(format!("Failed to resolve dependencies: {}", e))
-    })?;
+    let resolved = resolver
+        .resolve(&manifest)
+        .map_err(|e| CclError::IoError(format!("Failed to resolve dependencies: {}", e)))?;
 
-    resolver.check_conflicts(&resolved).map_err(|e| {
-        CclError::IoError(format!("Dependency conflicts detected: {}", e))
-    })?;
+    resolver
+        .check_conflicts(&resolved)
+        .map_err(|e| CclError::IoError(format!("Dependency conflicts detected: {}", e)))?;
 
     let flattened = resolver.flatten_dependencies(&resolved);
 
@@ -160,19 +159,21 @@ pub fn install_dependencies(package_dir: &Path) -> Result<(), CclError> {
     // Download and install each dependency
     for dep in flattened {
         println!("📥 Installing {}@{}", dep.name, dep.version);
-        
+
         // TODO: Actually download and install the dependency
         // For now, just create a placeholder
         let dep_dir = deps_dir.join(format!("{}-{}", dep.name, dep.version));
         fs::create_dir_all(&dep_dir).map_err(|e| {
             CclError::IoError(format!("Failed to create dependency directory: {}", e))
         })?;
-        
+
         // Create a placeholder file
         let placeholder = dep_dir.join("README.md");
-        fs::write(&placeholder, format!("# {}\n\nVersion: {}\n", dep.name, dep.version)).map_err(|e| {
-            CclError::IoError(format!("Failed to write dependency placeholder: {}", e))
-        })?;
+        fs::write(
+            &placeholder,
+            format!("# {}\n\nVersion: {}\n", dep.name, dep.version),
+        )
+        .map_err(|e| CclError::IoError(format!("Failed to write dependency placeholder: {}", e)))?;
     }
 
     println!("✅ Dependencies installed successfully");
@@ -187,20 +188,18 @@ pub fn add_dependency(
     is_dev: bool,
 ) -> Result<(), CclError> {
     let manifest_path = package_dir.join("package.ccl");
-    
+
     if !manifest_path.exists() {
         return Err(CclError::IoError(
-            "No package.ccl found. Run 'ccl package init' first.".to_string()
+            "No package.ccl found. Run 'ccl package init' first.".to_string(),
         ));
     }
 
-    let manifest_content = fs::read_to_string(&manifest_path).map_err(|e| {
-        CclError::IoError(format!("Failed to read manifest: {}", e))
-    })?;
+    let manifest_content = fs::read_to_string(&manifest_path)
+        .map_err(|e| CclError::IoError(format!("Failed to read manifest: {}", e)))?;
 
-    let mut manifest = PackageManifest::from_toml(&manifest_content).map_err(|e| {
-        CclError::IoError(format!("Failed to parse manifest: {}", e))
-    })?;
+    let mut manifest = PackageManifest::from_toml(&manifest_content)
+        .map_err(|e| CclError::IoError(format!("Failed to parse manifest: {}", e)))?;
 
     let version_req = VersionReq::new(&version);
 
@@ -212,13 +211,12 @@ pub fn add_dependency(
         println!("✅ Added dependency: {} = \"{}\"", name, version);
     }
 
-    let updated_content = manifest.to_toml().map_err(|e| {
-        CclError::IoError(format!("Failed to serialize manifest: {}", e))
-    })?;
+    let updated_content = manifest
+        .to_toml()
+        .map_err(|e| CclError::IoError(format!("Failed to serialize manifest: {}", e)))?;
 
-    fs::write(&manifest_path, updated_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write manifest: {}", e))
-    })?;
+    fs::write(&manifest_path, updated_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write manifest: {}", e)))?;
 
     Ok(())
 }
@@ -232,7 +230,8 @@ pub fn generate_debug_info(
     println!("🔍 Generating debug information...");
 
     // Create a source map
-    let contract_name = ccl_source.file_stem()
+    let contract_name = ccl_source
+        .file_stem()
         .and_then(|s| s.to_str())
         .unwrap_or("contract")
         .to_string();
@@ -246,13 +245,12 @@ pub fn generate_debug_info(
     // TODO: Actually generate source map by analyzing compilation process
     // For now, create a placeholder
 
-    let debug_json = source_map.to_json().map_err(|e| {
-        CclError::IoError(format!("Failed to serialize debug info: {}", e))
-    })?;
+    let debug_json = source_map
+        .to_json()
+        .map_err(|e| CclError::IoError(format!("Failed to serialize debug info: {}", e)))?;
 
-    fs::write(debug_output, debug_json).map_err(|e| {
-        CclError::IoError(format!("Failed to write debug info: {}", e))
-    })?;
+    fs::write(debug_output, debug_json)
+        .map_err(|e| CclError::IoError(format!("Failed to write debug info: {}", e)))?;
 
     println!("✅ Debug information written to {}", debug_output.display());
     Ok(())
@@ -262,17 +260,15 @@ pub fn generate_debug_info(
 pub fn start_debug_session(debug_file: &Path) -> Result<(), CclError> {
     if !debug_file.exists() {
         return Err(CclError::IoError(
-            "Debug file not found. Generate debug info first.".to_string()
+            "Debug file not found. Generate debug info first.".to_string(),
         ));
     }
 
-    let debug_content = fs::read_to_string(debug_file).map_err(|e| {
-        CclError::IoError(format!("Failed to read debug file: {}", e))
-    })?;
+    let debug_content = fs::read_to_string(debug_file)
+        .map_err(|e| CclError::IoError(format!("Failed to read debug file: {}", e)))?;
 
-    let source_map = SourceMap::from_json(&debug_content).map_err(|e| {
-        CclError::IoError(format!("Failed to parse debug info: {}", e))
-    })?;
+    let source_map = SourceMap::from_json(&debug_content)
+        .map_err(|e| CclError::IoError(format!("Failed to parse debug info: {}", e)))?;
 
     let _debugger = WasmDebugger::new(source_map);
 

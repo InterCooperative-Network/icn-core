@@ -336,7 +336,8 @@ impl RuntimeConfig {
         config.storage.dag_store.storage_path = Some(PathBuf::from("./dev-data/dag"));
         config.storage.mana_ledger.ledger_path = PathBuf::from("./dev-data/mana.db");
         config.storage.reputation_store.store_type = "file".to_string();
-        config.storage.reputation_store.storage_path = Some(PathBuf::from("./dev-data/reputation.db"));
+        config.storage.reputation_store.storage_path =
+            Some(PathBuf::from("./dev-data/reputation.db"));
 
         config.governance.voting.voting_period_seconds = 300; // 5 minutes for dev
         config.runtime.job_execution_timeout_ms = 60000; // 1 minute for dev
@@ -555,7 +556,9 @@ impl RuntimeConfig {
                 && self.storage.dag_store.store_type != "memory")
         {
             let dag_store_raw = self.create_dag_store()?;
-            let dag_store = crate::context::dag_store_wrapper::DagStoreWrapper::generic_production(dag_store_raw);
+            let dag_store = crate::context::dag_store_wrapper::DagStoreWrapper::generic_production(
+                dag_store_raw,
+            );
             builder = builder.with_dag_store(dag_store);
         }
 
@@ -586,7 +589,7 @@ impl RuntimeConfig {
             "file" => {
                 if let Some(ref key_path) = self.identity.key_store.key_file_path {
                     let expanded_path = expand_path(key_path)?;
-                    
+
                     // Check if the key file exists
                     if !expanded_path.exists() {
                         return Err(CommonError::ConfigError(format!(
@@ -594,54 +597,55 @@ impl RuntimeConfig {
                             expanded_path.display()
                         )));
                     }
-                    
+
                     // For encrypted key files, we need a passphrase
                     // For now, check if it looks like a base58 key file or encrypted
-                    let key_content = std::fs::read_to_string(&expanded_path)
-                        .map_err(|e| CommonError::IoError(format!(
-                            "Failed to read key file {}: {}", 
-                            expanded_path.display(), 
+                    let key_content = std::fs::read_to_string(&expanded_path).map_err(|e| {
+                        CommonError::IoError(format!(
+                            "Failed to read key file {}: {}",
+                            expanded_path.display(),
                             e
-                        )))?;
-                    
-                            // Try to parse as base58 encoded private key first
-        match bs58::decode(key_content.trim()).into_vec() {
-            Ok(decoded) => {
-                if decoded.len() != 32 {
-                    return Err(CommonError::ConfigError(format!(
+                        ))
+                    })?;
+
+                    // Try to parse as base58 encoded private key first
+                    match bs58::decode(key_content.trim()).into_vec() {
+                        Ok(decoded) => {
+                            if decoded.len() != 32 {
+                                return Err(CommonError::ConfigError(format!(
                         "Invalid key file at {}: expected 32 bytes, got {} bytes. Key file must contain a base58-encoded 32-byte Ed25519 private key.",
                         expanded_path.display(),
                         decoded.len()
                     )));
-                }
-                
-                // Safe conversion since we've verified the length
-                let key_bytes: [u8; 32] = decoded.try_into().map_err(|_| {
-                    CommonError::ConfigError(format!(
-                        "Failed to convert decoded key to 32-byte array at {}",
-                        expanded_path.display()
-                    ))
-                })?;
-                
-                let signing_key = icn_identity::SigningKey::from_bytes(&key_bytes);
-                return Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)));
-            }
-            Err(decode_error) => {
-                // Check if it might be an encrypted file or other format
-                if key_content.contains("BEGIN") && key_content.contains("END") {
-                    return Err(CommonError::ConfigError(format!(
+                            }
+
+                            // Safe conversion since we've verified the length
+                            let key_bytes: [u8; 32] = decoded.try_into().map_err(|_| {
+                                CommonError::ConfigError(format!(
+                                    "Failed to convert decoded key to 32-byte array at {}",
+                                    expanded_path.display()
+                                ))
+                            })?;
+
+                            let signing_key = icn_identity::SigningKey::from_bytes(&key_bytes);
+                            return Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)));
+                        }
+                        Err(decode_error) => {
+                            // Check if it might be an encrypted file or other format
+                            if key_content.contains("BEGIN") && key_content.contains("END") {
+                                return Err(CommonError::ConfigError(format!(
                         "Key file at {} appears to be in PEM or encrypted format, which is not currently supported. Please provide a base58-encoded Ed25519 private key, or use 'generate' key store type to create a new key.",
                         expanded_path.display()
                     )));
-                } else {
-                    return Err(CommonError::ConfigError(format!(
+                            } else {
+                                return Err(CommonError::ConfigError(format!(
                         "Invalid key file at {}: failed to decode as base58 ({}). Key file must contain a base58-encoded Ed25519 private key.",
                         expanded_path.display(),
                         decode_error
                     )));
-                }
-            }
-        }
+                            }
+                        }
+                    }
                 } else {
                     Err(CommonError::ConfigError(
                         "Key file path is required for file key store".to_string(),
@@ -1653,7 +1657,11 @@ mod tests {
 
         // Test 1: Invalid base58 content
         let invalid_base58_file = NamedTempFile::new().unwrap();
-        writeln!(invalid_base58_file.as_file(), "this-is-not-valid-base58!@#$").unwrap();
+        writeln!(
+            invalid_base58_file.as_file(),
+            "this-is-not-valid-base58!@#$"
+        )
+        .unwrap();
 
         let config = RuntimeConfigBuilder::testing()
             .key_store_type("file")
@@ -1687,7 +1695,8 @@ mod tests {
         writeln!(
             pem_file.as_file(),
             "-----BEGIN PRIVATE KEY-----\nSomeEncryptedContentHere\n-----END PRIVATE KEY-----"
-        ).unwrap();
+        )
+        .unwrap();
 
         let config = RuntimeConfigBuilder::testing()
             .key_store_type("file")
@@ -1712,7 +1721,11 @@ mod tests {
             .build_unchecked();
 
         let result = config.create_signer();
-        assert!(result.is_ok(), "Valid 32-byte base58 key should work: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Valid 32-byte base58 key should work: {:?}",
+            result
+        );
 
         // Test 5: Non-existent file
         let config = RuntimeConfigBuilder::testing()

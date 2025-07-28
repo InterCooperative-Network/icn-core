@@ -16,16 +16,16 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+pub mod crdt_ledger;
+pub mod economic_dispute_resolver;
 pub mod explorer;
 pub mod ledger;
-pub mod crdt_ledger;
 pub mod marketplace;
 pub mod metrics;
 pub mod mutual_aid;
 pub mod mutual_credit;
 pub mod reputation_tokens;
 pub mod time_banking;
-pub mod economic_dispute_resolver;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
@@ -33,18 +33,18 @@ pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
 };
-pub use explorer::{FlowStats, LedgerExplorer};
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
+pub use economic_dispute_resolver::{
+    AssetFreeze, BalanceAdjustment, Compensation, CompensationType, DisputeSeverity,
+    EconomicDispute, EconomicDisputeConfig, EconomicDisputeResolver, EconomicDisputeType,
+    EconomicEvidence, EconomicPenalty, EconomicResolution, EconomicResolutionStatus, PenaltyType,
+    ReputationProvider as DisputeReputationProvider, ResourceRedistribution,
+};
+pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileResourceLedger;
 pub use ledger::{
     FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
     TransferRecord, TransferabilityRule,
-};
-pub use economic_dispute_resolver::{
-    AssetFreeze, BalanceAdjustment, Compensation, CompensationType, DisputeSeverity,
-    EconomicDispute, EconomicDisputeConfig, EconomicDisputeResolver, EconomicDisputeType,
-    EconomicEvidence, EconomicPenalty, EconomicResolution, EconomicResolutionStatus,
-    PenaltyType, ReputationProvider as DisputeReputationProvider, ResourceRedistribution,
 };
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};

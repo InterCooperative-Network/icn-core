@@ -1,11 +1,11 @@
 //! Integration tests for ranked choice voting functionality
 
-use icn_governance::{
-    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
-    RankedChoiceBallot, RankedChoiceBallotValidator, RankedChoiceVotingSystem, Signature,
-    VotingError, VotingPeriod, VotingSystem,
-};
 use icn_common::{Did, DidDocument, Signable};
+use icn_governance::{
+    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election,
+    ElectionId, EligibilityRules, RankedChoiceBallot, RankedChoiceBallotValidator,
+    RankedChoiceVotingSystem, Signature, VotingError, VotingPeriod, VotingSystem,
+};
 use icn_identity::KeyDidResolver;
 use std::sync::Arc;
 use std::time::SystemTime;
@@ -102,15 +102,40 @@ async fn test_ranked_choice_voting_integration() {
     // Create test ballots representing different voting scenarios
     let ballots = vec![
         // Voter 1: Alice first, Bob second, Charlie third
-        create_test_ballot("ballot-001", "voter-001", "test-election-2023", vec!["alice", "bob", "charlie"]),
-        // Voter 2: Alice first, Charlie second, Bob third  
-        create_test_ballot("ballot-002", "voter-002", "test-election-2023", vec!["alice", "charlie", "bob"]),
+        create_test_ballot(
+            "ballot-001",
+            "voter-001",
+            "test-election-2023",
+            vec!["alice", "bob", "charlie"],
+        ),
+        // Voter 2: Alice first, Charlie second, Bob third
+        create_test_ballot(
+            "ballot-002",
+            "voter-002",
+            "test-election-2023",
+            vec!["alice", "charlie", "bob"],
+        ),
         // Voter 3: Bob first, Alice second, Charlie third
-        create_test_ballot("ballot-003", "voter-003", "test-election-2023", vec!["bob", "alice", "charlie"]),
+        create_test_ballot(
+            "ballot-003",
+            "voter-003",
+            "test-election-2023",
+            vec!["bob", "alice", "charlie"],
+        ),
         // Voter 4: Charlie first, Bob second, Alice third
-        create_test_ballot("ballot-004", "voter-004", "test-election-2023", vec!["charlie", "bob", "alice"]),
+        create_test_ballot(
+            "ballot-004",
+            "voter-004",
+            "test-election-2023",
+            vec!["charlie", "bob", "alice"],
+        ),
         // Voter 5: Alice first, Bob second, Charlie third
-        create_test_ballot("ballot-005", "voter-005", "test-election-2023", vec!["alice", "bob", "charlie"]),
+        create_test_ballot(
+            "ballot-005",
+            "voter-005",
+            "test-election-2023",
+            vec!["alice", "bob", "charlie"],
+        ),
     ];
 
     // Validate all ballots
@@ -122,22 +147,38 @@ async fn test_ranked_choice_voting_integration() {
     let result = voting_system.count_votes(ballots).unwrap();
 
     // Verify the results
-    assert_eq!(result.election_id, ElectionId("test-election-2023".to_string()));
+    assert_eq!(
+        result.election_id,
+        ElectionId("test-election-2023".to_string())
+    );
     assert_eq!(result.total_ballots, 5);
-    
+
     // Alice should win with 3 first-choice votes (majority)
     assert_eq!(result.winner, Some(CandidateId("alice".to_string())));
-    
+
     // Should complete in one round since Alice has a majority
     assert_eq!(result.rounds.len(), 1);
-    
+
     let first_round = &result.rounds[0];
     assert_eq!(first_round.round_number, 1);
-    
+
     // Verify vote counts: Alice=3, Bob=1, Charlie=1
-    assert_eq!(first_round.vote_counts.get(&CandidateId("alice".to_string())), Some(&3));
-    assert_eq!(first_round.vote_counts.get(&CandidateId("bob".to_string())), Some(&1));
-    assert_eq!(first_round.vote_counts.get(&CandidateId("charlie".to_string())), Some(&1));
+    assert_eq!(
+        first_round
+            .vote_counts
+            .get(&CandidateId("alice".to_string())),
+        Some(&3)
+    );
+    assert_eq!(
+        first_round.vote_counts.get(&CandidateId("bob".to_string())),
+        Some(&1)
+    );
+    assert_eq!(
+        first_round
+            .vote_counts
+            .get(&CandidateId("charlie".to_string())),
+        Some(&1)
+    );
 }
 
 #[tokio::test]
@@ -146,15 +187,25 @@ async fn test_ballot_validator_integration() {
     let validator = RankedChoiceBallotValidator::new(did_resolver);
 
     // Test valid ballot
-    let valid_ballot = create_test_ballot("ballot-001", "voter-001", "test-election", vec!["alice", "bob"]);
-    
+    let valid_ballot = create_test_ballot(
+        "ballot-001",
+        "voter-001",
+        "test-election",
+        vec!["alice", "bob"],
+    );
+
     assert!(validator.validate_format(&valid_ballot).is_ok());
     assert!(validator.validate_signature(&valid_ballot).is_ok());
     assert!(validator.check_duplicate(&valid_ballot).is_ok());
 
     // Test duplicate detection
-    let duplicate_ballot = create_test_ballot("ballot-002", "voter-001", "test-election", vec!["bob", "alice"]);
-    
+    let duplicate_ballot = create_test_ballot(
+        "ballot-002",
+        "voter-001",
+        "test-election",
+        vec!["bob", "alice"],
+    );
+
     // Second ballot from same voter should trigger duplicate detection
     assert!(matches!(
         validator.check_duplicate(&duplicate_ballot),
@@ -168,13 +219,18 @@ async fn test_voting_system_eligibility() {
     let voting_system = RankedChoiceVotingSystem::new(did_resolver, 3);
 
     // Test voter eligibility
-    assert!(voting_system.is_eligible_voter("did:test:voter-001").is_ok());
-    
+    assert!(voting_system
+        .is_eligible_voter("did:test:voter-001")
+        .is_ok());
+
     // Test insufficient participation
-    let single_ballot = vec![
-        create_test_ballot("ballot-001", "voter-001", "test-election", vec!["alice"])
-    ];
-    
+    let single_ballot = vec![create_test_ballot(
+        "ballot-001",
+        "voter-001",
+        "test-election",
+        vec!["alice"],
+    )];
+
     let result = voting_system.count_votes(single_ballot);
     assert!(matches!(result, Err(VotingError::InvalidBallot(_))));
 }
@@ -182,20 +238,39 @@ async fn test_voting_system_eligibility() {
 #[tokio::test]
 async fn test_ballot_preference_validation() {
     // Test ballot with duplicate preferences
-    let invalid_ballot = create_test_ballot("ballot-001", "voter-001", "test-election", vec!["alice", "bob", "alice"]);
-    
+    let invalid_ballot = create_test_ballot(
+        "ballot-001",
+        "voter-001",
+        "test-election",
+        vec!["alice", "bob", "alice"],
+    );
+
     assert!(matches!(
         invalid_ballot.validate_preferences(),
         Err(VotingError::DuplicatePreferences)
     ));
 
     // Test ballot with valid preferences
-    let valid_ballot = create_test_ballot("ballot-002", "voter-002", "test-election", vec!["alice", "bob", "charlie"]);
-    
+    let valid_ballot = create_test_ballot(
+        "ballot-002",
+        "voter-002",
+        "test-election",
+        vec!["alice", "bob", "charlie"],
+    );
+
     assert!(valid_ballot.validate_preferences().is_ok());
-    assert_eq!(valid_ballot.first_choice(), Some(&CandidateId("alice".to_string())));
-    assert_eq!(valid_ballot.nth_choice(1), Some(&CandidateId("bob".to_string())));
-    assert_eq!(valid_ballot.nth_choice(2), Some(&CandidateId("charlie".to_string())));
+    assert_eq!(
+        valid_ballot.first_choice(),
+        Some(&CandidateId("alice".to_string()))
+    );
+    assert_eq!(
+        valid_ballot.nth_choice(1),
+        Some(&CandidateId("bob".to_string()))
+    );
+    assert_eq!(
+        valid_ballot.nth_choice(2),
+        Some(&CandidateId("charlie".to_string()))
+    );
     assert_eq!(valid_ballot.nth_choice(3), None);
 }
 
@@ -207,30 +282,55 @@ async fn test_enhanced_voting_primitives_integration() {
     let did_resolver = Arc::new(KeyDidResolver);
     let voting_system = RankedChoiceVotingSystem::new(did_resolver.clone(), 1);
     let ballot_validator = RankedChoiceBallotValidator::new(did_resolver);
-    
+
     // Create DAG-backed ballot anchoring service
     let dag_storage = InMemoryDagStore::new();
     let mut anchoring_service = BallotAnchoringService::new(dag_storage);
 
     // Create a comprehensive election scenario
     let election = create_test_election();
-    
+
     // Test different eligibility rule types
     let open_rules = EligibilityRules::open_to_all();
     let federation_rules = EligibilityRules::federation_members_only("test-federation".to_string());
     let reputation_rules = EligibilityRules::reputation_gated(0.75);
-    
+
     assert!(!open_rules.has_restrictions());
     assert!(federation_rules.has_restrictions());
     assert!(reputation_rules.has_restrictions());
 
     // Create test ballots with various preference patterns
     let ballots = vec![
-        create_test_ballot("ballot-001", "voter-001", "test-election-2023", vec!["alice", "bob", "charlie"]),
-        create_test_ballot("ballot-002", "voter-002", "test-election-2023", vec!["bob", "charlie", "alice"]),
-        create_test_ballot("ballot-003", "voter-003", "test-election-2023", vec!["charlie", "alice", "bob"]),
-        create_test_ballot("ballot-004", "voter-004", "test-election-2023", vec!["alice", "charlie", "bob"]),
-        create_test_ballot("ballot-005", "voter-005", "test-election-2023", vec!["bob", "alice", "charlie"]),
+        create_test_ballot(
+            "ballot-001",
+            "voter-001",
+            "test-election-2023",
+            vec!["alice", "bob", "charlie"],
+        ),
+        create_test_ballot(
+            "ballot-002",
+            "voter-002",
+            "test-election-2023",
+            vec!["bob", "charlie", "alice"],
+        ),
+        create_test_ballot(
+            "ballot-003",
+            "voter-003",
+            "test-election-2023",
+            vec!["charlie", "alice", "bob"],
+        ),
+        create_test_ballot(
+            "ballot-004",
+            "voter-004",
+            "test-election-2023",
+            vec!["alice", "charlie", "bob"],
+        ),
+        create_test_ballot(
+            "ballot-005",
+            "voter-005",
+            "test-election-2023",
+            vec!["bob", "alice", "charlie"],
+        ),
     ];
 
     // Test ballot validation for all ballots
@@ -238,7 +338,7 @@ async fn test_enhanced_voting_primitives_integration() {
         assert!(voting_system.validate_ballot(ballot).is_ok());
         assert!(ballot_validator.validate_format(ballot).is_ok());
         assert!(ballot_validator.validate_signature(ballot).is_ok());
-        
+
         // Test signable implementation
         assert!(ballot.to_signable_bytes().is_ok());
     }
@@ -248,11 +348,11 @@ async fn test_enhanced_voting_primitives_integration() {
     for ballot in &ballots {
         let cid = anchoring_service.anchor_ballot(ballot).unwrap();
         ballot_cids.push(cid.clone());
-        
+
         // Verify ballot can be retrieved
         let retrieved = anchoring_service.retrieve_ballot(&cid).unwrap();
         assert!(retrieved.is_some());
-        
+
         let retrieved_ballot = retrieved.unwrap();
         assert_eq!(retrieved_ballot.ballot_id, ballot.ballot_id);
         assert_eq!(retrieved_ballot.preferences, ballot.preferences);
@@ -266,20 +366,20 @@ async fn test_enhanced_voting_primitives_integration() {
 
     // Test ranked choice voting execution
     let voting_result = voting_system.count_votes(ballots.clone()).unwrap();
-    
+
     // Verify comprehensive results
     assert_eq!(voting_result.total_ballots, 5);
     assert_eq!(voting_result.election_id, election.election_id);
     assert!(voting_result.winner.is_some());
     assert!(!voting_result.rounds.is_empty());
-    
+
     // Verify round-by-round results structure
     for (i, round) in voting_result.rounds.iter().enumerate() {
         assert_eq!(round.round_number, i + 1);
         assert!(!round.vote_counts.is_empty());
         assert!(round.majority_threshold > 0);
     }
-    
+
     println!("✅ Enhanced voting primitives integration test completed successfully");
     println!("   - Ballots validated: {}", ballots.len());
     println!("   - DAG anchored ballots: {}", ballot_cids.len());
@@ -290,18 +390,21 @@ async fn test_enhanced_voting_primitives_integration() {
 #[tokio::test]
 async fn test_election_configuration() {
     let election = create_test_election();
-    
+
     // Verify election properties
-    assert_eq!(election.election_id, ElectionId("test-election-2023".to_string()));
+    assert_eq!(
+        election.election_id,
+        ElectionId("test-election-2023".to_string())
+    );
     assert_eq!(election.title, "ICN Governance Council Election 2023");
     assert_eq!(election.candidates.len(), 3);
-    
+
     // Verify candidates
     let candidate_names: Vec<_> = election.candidates.iter().map(|c| &c.name).collect();
     assert!(candidate_names.contains(&&"Alice Smith".to_string()));
     assert!(candidate_names.contains(&&"Bob Jones".to_string()));
     assert!(candidate_names.contains(&&"Charlie Brown".to_string()));
-    
+
     // Verify voting period is active
     assert!(election.voting_period.is_active());
     assert!(!election.voting_period.has_ended());

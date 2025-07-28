@@ -5,8 +5,8 @@ use ark_groth16::{Groth16, PreparedVerifyingKey, Proof, ProvingKey};
 use ark_relations::r1cs::{ConstraintSynthesizer, SynthesisError};
 use ark_snark::SNARK;
 use ark_std::rand::{CryptoRng, RngCore};
-use rayon::prelude::*;
 use rand::rngs::OsRng;
+use rayon::prelude::*;
 
 mod circuits;
 #[cfg(feature = "devtools")]

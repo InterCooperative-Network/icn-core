@@ -1,14 +1,14 @@
 //! Advanced key management with automated rotation, audit trails, and HSM support
 //!
 //! This module extends the basic key rotation functionality with enterprise-grade
-//! features including scheduled rotation, comprehensive audit logging, and 
+//! features including scheduled rotation, comprehensive audit logging, and
 //! hardware security module integration.
 
 use crate::{KeyRotation, KeyStorage};
 use icn_common::{CommonError, Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 /// Configuration for automated key rotation
@@ -34,7 +34,7 @@ impl Default for KeyRotationConfig {
     fn default() -> Self {
         Self {
             rotation_interval: Duration::from_secs(30 * 24 * 60 * 60), // 30 days
-            max_key_age: Duration::from_secs(90 * 24 * 60 * 60), // 90 days
+            max_key_age: Duration::from_secs(90 * 24 * 60 * 60),       // 90 days
             enable_rotation_warnings: true,
             warning_period: Duration::from_secs(7 * 24 * 60 * 60), // 7 days
             enable_audit_logging: true,
@@ -120,7 +120,7 @@ impl AdvancedKeyManager {
     /// Register a new key with the manager
     pub fn register_key(&self, did: Did) -> Result<(), CommonError> {
         let current_time = self.time_provider.unix_seconds() * 1000;
-        
+
         let metadata = KeyMetadata {
             created_at: current_time,
             last_rotated: current_time,
@@ -131,11 +131,17 @@ impl AdvancedKeyManager {
         };
 
         // Store metadata
-        self.key_metadata.write().unwrap().insert(did.clone(), metadata);
+        self.key_metadata
+            .write()
+            .unwrap()
+            .insert(did.clone(), metadata);
 
         // Schedule first rotation
         let next_rotation = current_time + self.config.rotation_interval.as_millis() as u64;
-        self.rotation_schedule.lock().unwrap().insert(did.clone(), next_rotation);
+        self.rotation_schedule
+            .lock()
+            .unwrap()
+            .insert(did.clone(), next_rotation);
 
         // Log audit entry
         self.log_key_operation(
@@ -152,7 +158,7 @@ impl AdvancedKeyManager {
     pub fn check_rotation_schedule(&self) -> Vec<Did> {
         let current_time = self.time_provider.unix_seconds() * 1000;
         let schedule = self.rotation_schedule.lock().unwrap();
-        
+
         schedule
             .iter()
             .filter(|(_, &next_rotation)| current_time >= next_rotation)
@@ -169,12 +175,11 @@ impl AdvancedKeyManager {
         let current_time = self.time_provider.unix_seconds() * 1000;
         let warning_threshold = self.config.warning_period.as_millis() as u64;
         let schedule = self.rotation_schedule.lock().unwrap();
-        
+
         schedule
             .iter()
             .filter(|(_, &next_rotation)| {
-                next_rotation > current_time && 
-                (next_rotation - current_time) <= warning_threshold
+                next_rotation > current_time && (next_rotation - current_time) <= warning_threshold
             })
             .map(|(did, &next_rotation)| (did.clone(), next_rotation))
             .collect()
@@ -186,7 +191,7 @@ impl AdvancedKeyManager {
         K: KeyRotation + KeyStorage,
     {
         let current_time = self.time_provider.unix_seconds() * 1000;
-        
+
         // Get current metadata
         let mut metadata_map = self.key_metadata.write().unwrap();
         let metadata = metadata_map.get_mut(did).ok_or_else(|| {
@@ -234,7 +239,7 @@ impl AdvancedKeyManager {
         audit_metadata.insert("old_did".to_string(), did.to_string());
         audit_metadata.insert("new_did".to_string(), new_did.to_string());
         audit_metadata.insert("rotation_count".to_string(), rotation_count.to_string());
-        
+
         self.log_key_operation(
             new_did.clone(),
             KeyOperation::Rotated,
@@ -300,17 +305,15 @@ impl AdvancedKeyManager {
             .values()
             .filter(|&&next_rotation| current_time >= next_rotation)
             .count();
-        
-        let total_rotations: u32 = metadata_map
-            .values()
-            .map(|meta| meta.rotation_count)
-            .sum();
+
+        let total_rotations: u32 = metadata_map.values().map(|meta| meta.rotation_count).sum();
 
         let avg_key_age = if !metadata_map.is_empty() {
             metadata_map
                 .values()
                 .map(|meta| current_time - meta.created_at)
-                .sum::<u64>() / metadata_map.len() as u64
+                .sum::<u64>()
+                / metadata_map.len() as u64
         } else {
             0
         };
@@ -336,8 +339,8 @@ pub struct KeyRotationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{InMemoryKeyStore, generate_ed25519_keypair, did_key_from_verifying_key};
-    use icn_common::{SystemTimeProvider, Did};
+    use crate::{did_key_from_verifying_key, generate_ed25519_keypair, InMemoryKeyStore};
+    use icn_common::{Did, SystemTimeProvider};
     use std::str::FromStr;
 
     #[test]
@@ -351,7 +354,7 @@ mod tests {
         let did = Did::from_str(&did_str).unwrap();
 
         manager.register_key(did.clone()).unwrap();
-        
+
         let metadata = manager.get_key_metadata(&did).unwrap();
         assert_eq!(metadata.rotation_count, 0);
         assert_eq!(metadata.version, 1);
@@ -372,9 +375,9 @@ mod tests {
         manager.register_key(did.clone()).unwrap();
 
         let new_did = manager.rotate_key(&did, &mut key_store).unwrap();
-        
+
         assert_ne!(did, new_did);
-        
+
         let metadata = manager.get_key_metadata(&new_did).unwrap();
         assert_eq!(metadata.rotation_count, 1);
         assert_eq!(metadata.version, 2);

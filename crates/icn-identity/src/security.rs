@@ -154,10 +154,10 @@ fn validate_signature_inputs(msg: &[u8], config: &SecurityConfig) -> Result<(), 
 /// Mitigate timing attacks by ensuring consistent operation duration
 fn mitigate_timing_attack(start_time: Instant, _config: &SecurityConfig) {
     const MIN_OPERATION_TIME_MS: u64 = 1; // Minimum 1ms for crypto operations
-    
+
     let elapsed = start_time.elapsed();
     let min_duration = std::time::Duration::from_millis(MIN_OPERATION_TIME_MS);
-    
+
     if elapsed < min_duration {
         let remaining = min_duration - elapsed;
         std::thread::sleep(remaining);
@@ -185,7 +185,11 @@ pub fn secure_validate_did(did: &Did, config: &SecurityConfig) -> Result<(), Com
     }
 
     // Validate method characters (alphanumeric and dash only)
-    if !did.method.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+    if !did
+        .method
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-')
+    {
         return Err(CommonError::IdentityError(
             "Invalid characters in DID method".to_string(),
         ));
@@ -198,9 +202,11 @@ pub fn secure_validate_did(did: &Did, config: &SecurityConfig) -> Result<(), Com
         "peer" => validate_did_peer_format(&did.id_string, config)?,
         _ => {
             // For unknown methods, just check basic format
-            if !did.id_string.chars().all(|c| {
-                c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == ':'
-            }) {
+            if !did
+                .id_string
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == ':')
+            {
                 return Err(CommonError::IdentityError(
                     "Invalid characters in DID identifier".to_string(),
                 ));
@@ -385,36 +391,32 @@ pub fn audit_cryptographic_security(config: &SecurityConfig) -> SecurityAuditRes
 fn generate_security_recommendations(issues: &[SecurityIssue]) -> Vec<String> {
     let mut recommendations = Vec::new();
 
-    if issues
-        .iter()
-        .any(|i| i.category == "Timing Attacks")
-    {
+    if issues.iter().any(|i| i.category == "Timing Attacks") {
         recommendations.push(
-            "Implement constant-time cryptographic operations to prevent timing attacks".to_string(),
+            "Implement constant-time cryptographic operations to prevent timing attacks"
+                .to_string(),
         );
     }
 
-    if issues
-        .iter()
-        .any(|i| i.category == "Input Validation")
-    {
+    if issues.iter().any(|i| i.category == "Input Validation") {
         recommendations.push(
             "Enable comprehensive input validation for all cryptographic operations".to_string(),
         );
     }
 
-    if issues.iter().any(|i| i.severity == SecurityIssueSeverity::Critical) {
+    if issues
+        .iter()
+        .any(|i| i.severity == SecurityIssueSeverity::Critical)
+    {
         recommendations.push(
             "Address critical security issues immediately before production deployment".to_string(),
         );
     }
 
-    recommendations.push(
-        "Regularly audit cryptographic implementations and update dependencies".to_string(),
-    );
-    recommendations.push(
-        "Consider external security audit before production deployment".to_string(),
-    );
+    recommendations
+        .push("Regularly audit cryptographic implementations and update dependencies".to_string());
+    recommendations
+        .push("Consider external security audit before production deployment".to_string());
 
     recommendations
 }
@@ -422,7 +424,7 @@ fn generate_security_recommendations(issues: &[SecurityIssue]) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{generate_ed25519_keypair, did_key_from_verifying_key};
+    use crate::{did_key_from_verifying_key, generate_ed25519_keypair};
     use std::str::FromStr;
 
     #[test]
@@ -433,7 +435,7 @@ mod tests {
 
         let signature = secure_sign_message(&sk, message, &config).unwrap();
         let verified = secure_verify_signature(&pk, message, &signature, &config).unwrap();
-        
+
         assert!(verified);
     }
 
@@ -446,7 +448,7 @@ mod tests {
 
         let signature = secure_sign_message(&sk, message, &config).unwrap();
         let verified = secure_verify_signature(&other_pk, message, &signature, &config).unwrap();
-        
+
         assert!(!verified);
     }
 
@@ -454,11 +456,11 @@ mod tests {
     fn test_input_validation() {
         let config = SecurityConfig::default();
         let (sk, _) = generate_ed25519_keypair();
-        
+
         // Test empty message
         let result = secure_sign_message(&sk, &[], &config);
         assert!(result.is_err());
-        
+
         // Test oversized message
         let large_msg = vec![0u8; config.max_input_length + 1];
         let result = secure_sign_message(&sk, &large_msg, &config);
@@ -468,13 +470,13 @@ mod tests {
     #[test]
     fn test_did_validation() {
         let config = SecurityConfig::default();
-        
+
         // Valid did:key
         let (_, pk) = generate_ed25519_keypair();
         let did_str = did_key_from_verifying_key(&pk);
         let did = Did::from_str(&did_str).unwrap();
         assert!(secure_validate_did(&did, &config).is_ok());
-        
+
         // Invalid did:key (bad prefix)
         let bad_did = Did::new("key", "invalid_key_format");
         assert!(secure_validate_did(&bad_did, &config).is_err());
@@ -483,16 +485,16 @@ mod tests {
     #[test]
     fn test_security_audit() {
         let mut config = SecurityConfig::default();
-        
+
         // Audit with all security features enabled
         let result = audit_cryptographic_security(&config);
         assert_eq!(result.security_score, 100);
         assert!(result.issues.is_empty());
-        
+
         // Disable some security features
         config.constant_time_operations = false;
         config.strict_input_validation = false;
-        
+
         let result = audit_cryptographic_security(&config);
         assert!(result.security_score < 100);
         assert!(!result.issues.is_empty());
@@ -502,10 +504,10 @@ mod tests {
     fn test_secure_bytes_zeroization() {
         let sensitive_data = vec![0xDEu8, 0xAD, 0xBE, 0xEF];
         let secure_bytes = SecureBytes::new(sensitive_data.clone());
-        
+
         assert_eq!(secure_bytes.as_bytes(), &sensitive_data);
         assert_eq!(secure_bytes.len(), 4);
-        
+
         // SecureBytes should automatically zero on drop
         drop(secure_bytes);
         // Note: We can't easily test the zeroing without unsafe code

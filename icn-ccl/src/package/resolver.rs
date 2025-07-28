@@ -1,11 +1,11 @@
 // icn-ccl/src/package/resolver.rs
 //! Dependency resolution for CCL packages
 
-use std::collections::{HashMap, HashSet, VecDeque};
 use super::{
     manifest::{Dependency, PackageManifest, VersionReq},
     registry::{Registry, RegistryError},
 };
+use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Resolved dependency with specific version
 #[derive(Debug, Clone)]
@@ -21,17 +21,17 @@ pub struct ResolvedDependency {
 pub enum ResolverError {
     #[error("Registry error: {0}")]
     Registry(#[from] RegistryError),
-    
+
     #[error("Circular dependency detected: {0}")]
     CircularDependency(String),
-    
+
     #[error("Version conflict for package {package}: {version1} vs {version2}")]
     VersionConflict {
         package: String,
         version1: String,
         version2: String,
     },
-    
+
     #[error("No compatible version found for {package} with requirement {requirement}")]
     NoCompatibleVersion {
         package: String,
@@ -55,7 +55,10 @@ impl DependencyResolver {
     }
 
     /// Resolve all dependencies for a package manifest
-    pub fn resolve(&mut self, manifest: &PackageManifest) -> Result<Vec<ResolvedDependency>, ResolverError> {
+    pub fn resolve(
+        &mut self,
+        manifest: &PackageManifest,
+    ) -> Result<Vec<ResolvedDependency>, ResolverError> {
         let mut resolved = Vec::new();
         let mut visited = HashSet::new();
         let mut visiting = HashSet::new();
@@ -63,7 +66,8 @@ impl DependencyResolver {
         // Resolve runtime dependencies
         for (name, dependency) in &manifest.dependencies {
             if !visited.contains(name) {
-                let resolved_dep = self.resolve_dependency(dependency, &mut visited, &mut visiting)?;
+                let resolved_dep =
+                    self.resolve_dependency(dependency, &mut visited, &mut visiting)?;
                 resolved.push(resolved_dep);
             }
         }
@@ -94,17 +98,20 @@ impl DependencyResolver {
 
         // Get available versions from registry
         let available_versions = self.registry.get_versions(package_name)?;
-        
+
         // Find compatible version
-        let compatible_version = self.find_compatible_version(&dependency.version, &available_versions)
+        let compatible_version = self
+            .find_compatible_version(&dependency.version, &available_versions)
             .ok_or_else(|| ResolverError::NoCompatibleVersion {
                 package: package_name.clone(),
                 requirement: dependency.version.requirement.clone(),
             })?;
 
         // Get package manifest for the resolved version
-        let package_info = self.registry.get_package(package_name, Some(&compatible_version))?;
-        
+        let _package_info = self
+            .registry
+            .get_package(package_name, Some(&compatible_version))?;
+
         // For now, assume packages don't have their own dependencies
         // TODO: Download and parse package manifest to get actual dependencies
         let sub_dependencies = Vec::new();
@@ -118,22 +125,27 @@ impl DependencyResolver {
 
         visiting.remove(package_name);
         visited.insert(package_name.clone());
-        self.resolved_cache.insert(package_name.clone(), resolved.clone());
+        self.resolved_cache
+            .insert(package_name.clone(), resolved.clone());
 
         Ok(resolved)
     }
 
     /// Find a version that satisfies the version requirement
-    fn find_compatible_version(&self, version_req: &VersionReq, available_versions: &[String]) -> Option<String> {
+    fn find_compatible_version(
+        &self,
+        version_req: &VersionReq,
+        available_versions: &[String],
+    ) -> Option<String> {
         // Simple implementation - just find first matching version
         // TODO: Implement proper semver resolution with preference for latest compatible
-        
+
         for version in available_versions {
             if version_req.matches(version) {
                 return Some(version.clone());
             }
         }
-        
+
         None
     }
 
@@ -150,11 +162,11 @@ impl DependencyResolver {
 
         while let Some(dep) = queue.pop_front() {
             let key = format!("{}@{}", dep.name, dep.version);
-            
+
             if !seen.contains(&key) {
                 seen.insert(key);
                 flattened.push(dep.clone());
-                
+
                 // Add sub-dependencies to queue
                 for sub_dep in &dep.dependencies {
                     queue.push_back(sub_dep);

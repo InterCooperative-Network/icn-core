@@ -5,11 +5,11 @@
 
 use crate::{DidResolver, KeyDidResolver, PeerDidResolver, WebDidResolver};
 use icn_common::{CommonError, Did, TimeProvider};
+use lru::LruCache;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::{Arc, RwLock, Mutex};
-use lru::LruCache;
 use std::num::NonZeroUsize;
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Cache entry for DID resolution results with access tracking
 #[derive(Debug, Clone)]
@@ -93,8 +93,9 @@ pub struct MethodStats {
 impl EnhancedDidResolver {
     /// Create a new enhanced DID resolver with LRU caching
     pub fn new(config: DidResolutionConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
-        let cache_size = NonZeroUsize::new(config.max_cache_size).unwrap_or_else(|| NonZeroUsize::new(1000).unwrap());
-        
+        let cache_size = NonZeroUsize::new(config.max_cache_size)
+            .unwrap_or_else(|| NonZeroUsize::new(1000).unwrap());
+
         Self {
             config,
             lru_cache: Arc::new(Mutex::new(LruCache::new(cache_size))),

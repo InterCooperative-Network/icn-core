@@ -2,16 +2,14 @@
 //! CCL command-line interface for package management and debugging
 
 use clap::{Parser, Subcommand};
-use icn_ccl::{
-    cli_commands,
-    compile_ccl_file_to_wasm,
-    error::CclError,
-};
+use icn_ccl::{cli_commands, compile_ccl_file_to_wasm, error::CclError};
 use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "ccl-cli")]
-#[command(about = "CCL Developer Tools - Package manager and debugger for Cooperative Contract Language")]
+#[command(
+    about = "CCL Developer Tools - Package manager and debugger for Cooperative Contract Language"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -133,7 +131,7 @@ enum MigrationCommands {
 
 fn main() {
     env_logger::init();
-    
+
     let cli = Cli::parse();
 
     if let Err(e) = run_command(cli.command) {
@@ -144,77 +142,75 @@ fn main() {
 
 fn run_command(command: Commands) -> Result<(), CclError> {
     match command {
-        Commands::Compile { file, output, debug } => {
-            compile_command(file, output, debug)
-        }
-        Commands::Package { command } => {
-            match command {
-                PackageCommands::Init { name, directory, author, email } => {
-                    cli_commands::init_package(name, &directory, author, email)
-                }
-                PackageCommands::Install { directory } => {
-                    cli_commands::install_dependencies(&directory)
-                }
-                PackageCommands::Add { name, version, dev, directory } => {
-                    cli_commands::add_dependency(&directory, name, version, dev)
-                }
+        Commands::Compile {
+            file,
+            output,
+            debug,
+        } => compile_command(file, output, debug),
+        Commands::Package { command } => match command {
+            PackageCommands::Init {
+                name,
+                directory,
+                author,
+                email,
+            } => cli_commands::init_package(name, &directory, author, email),
+            PackageCommands::Install { directory } => {
+                cli_commands::install_dependencies(&directory)
             }
-        }
-        Commands::Debug { file, interactive } => {
-            debug_command(file, interactive)
-        }
-        Commands::Format { files } => {
-            format_command(files)
-        }
-        Commands::Lint { files } => {
-            lint_command(files)
-        }
-        Commands::Migrate { command } => {
-            match command {
-                MigrationCommands::Upgrade { input, output, target_version, dry_run } => {
-                    migration_upgrade_command(input, output, target_version, dry_run)
-                }
-                MigrationCommands::Convert { input, output, source_language } => {
-                    migration_convert_command(input, output, source_language)
-                }
-                MigrationCommands::Detect { file } => {
-                    migration_detect_command(file)
-                }
-            }
-        }
+            PackageCommands::Add {
+                name,
+                version,
+                dev,
+                directory,
+            } => cli_commands::add_dependency(&directory, name, version, dev),
+        },
+        Commands::Debug { file, interactive } => debug_command(file, interactive),
+        Commands::Format { files } => format_command(files),
+        Commands::Lint { files } => lint_command(files),
+        Commands::Migrate { command } => match command {
+            MigrationCommands::Upgrade {
+                input,
+                output,
+                target_version,
+                dry_run,
+            } => migration_upgrade_command(input, output, target_version, dry_run),
+            MigrationCommands::Convert {
+                input,
+                output,
+                source_language,
+            } => migration_convert_command(input, output, source_language),
+            MigrationCommands::Detect { file } => migration_detect_command(file),
+        },
     }
 }
 
 fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), CclError> {
     println!("🔨 Compiling CCL contract: {}", file.display());
-    
+
     // Create output directory
-    std::fs::create_dir_all(&output).map_err(|e| {
-        CclError::IoError(format!("Failed to create output directory: {}", e))
-    })?;
+    std::fs::create_dir_all(&output)
+        .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
 
     // Compile the contract
     let (wasm_bytes, metadata) = compile_ccl_file_to_wasm(&file)?;
 
     // Get file stem safely
-    let file_stem = file.file_stem()
+    let file_stem = file
+        .file_stem()
         .and_then(|s| s.to_str())
         .ok_or_else(|| CclError::IoError(format!("Invalid file path: {}", file.display())))?;
 
     // Write WASM output
     let wasm_path = output.join(format!("{}.wasm", file_stem));
-    std::fs::write(&wasm_path, wasm_bytes).map_err(|e| {
-        CclError::IoError(format!("Failed to write WASM file: {}", e))
-    })?;
+    std::fs::write(&wasm_path, wasm_bytes)
+        .map_err(|e| CclError::IoError(format!("Failed to write WASM file: {}", e)))?;
 
     // Write metadata
     let meta_path = output.join(format!("{}.json", file_stem));
-    let meta_json = serde_json::to_string_pretty(&metadata).map_err(|e| {
-        CclError::IoError(format!("Failed to serialize metadata: {}", e))
-    })?;
-    std::fs::write(&meta_path, meta_json).map_err(|e| {
-        CclError::IoError(format!("Failed to write metadata file: {}", e))
-    })?;
+    let meta_json = serde_json::to_string_pretty(&metadata)
+        .map_err(|e| CclError::IoError(format!("Failed to serialize metadata: {}", e)))?;
+    std::fs::write(&meta_path, meta_json)
+        .map_err(|e| CclError::IoError(format!("Failed to write metadata file: {}", e)))?;
 
     println!("✅ Compiled successfully:");
     println!("   WASM: {}", wasm_path.display());
@@ -240,7 +236,7 @@ fn debug_command(file: PathBuf, interactive: bool) -> Result<(), CclError> {
             Ok(())
         } else {
             return Err(CclError::IoError(
-                "Debug command requires a .debug.json file or use --interactive flag".to_string()
+                "Debug command requires a .debug.json file or use --interactive flag".to_string(),
             ));
         }
     }
@@ -248,7 +244,9 @@ fn debug_command(file: PathBuf, interactive: bool) -> Result<(), CclError> {
 
 fn format_command(files: Vec<PathBuf>) -> Result<(), CclError> {
     if files.is_empty() {
-        return Err(CclError::IoError("No files specified for formatting".to_string()));
+        return Err(CclError::IoError(
+            "No files specified for formatting".to_string(),
+        ));
     }
 
     for file in files {
@@ -262,7 +260,9 @@ fn format_command(files: Vec<PathBuf>) -> Result<(), CclError> {
 
 fn lint_command(files: Vec<PathBuf>) -> Result<(), CclError> {
     if files.is_empty() {
-        return Err(CclError::IoError("No files specified for linting".to_string()));
+        return Err(CclError::IoError(
+            "No files specified for linting".to_string(),
+        ));
     }
 
     for file in files {
@@ -280,15 +280,14 @@ fn migration_upgrade_command(
     target_version: Option<String>,
     dry_run: bool,
 ) -> Result<(), CclError> {
-    use icn_ccl::migration::{MigrationEngine, CclVersion, CURRENT_CCL_VERSION};
+    use icn_ccl::migration::{CclVersion, MigrationEngine, CURRENT_CCL_VERSION};
     use std::fs;
 
     println!("🔄 Migrating CCL contract: {}", input.display());
 
     // Read input file
-    let content = fs::read_to_string(&input).map_err(|e| {
-        CclError::IoError(format!("Failed to read input file: {}", e))
-    })?;
+    let content = fs::read_to_string(&input)
+        .map_err(|e| CclError::IoError(format!("Failed to read input file: {}", e)))?;
 
     // Initialize migration engine
     let engine = MigrationEngine::new();
@@ -333,14 +332,12 @@ fn migration_upgrade_command(
 
     // Write output
     if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            CclError::IoError(format!("Failed to create output directory: {}", e))
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
     }
 
-    fs::write(&output_path, migrated_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write output file: {}", e))
-    })?;
+    fs::write(&output_path, migrated_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write output file: {}", e)))?;
 
     println!("✅ Migration completed: {}", output_path.display());
     Ok(())
@@ -351,37 +348,39 @@ fn migration_convert_command(
     output: PathBuf,
     source_language: String,
 ) -> Result<(), CclError> {
-    use icn_ccl::migration::{convert_from_solidity, convert_from_javascript};
+    use icn_ccl::migration::{convert_from_javascript, convert_from_solidity};
     use std::fs;
 
-    println!("🔄 Converting {} to CCL: {}", source_language, input.display());
+    println!(
+        "🔄 Converting {} to CCL: {}",
+        source_language,
+        input.display()
+    );
 
     // Read input file
-    let content = fs::read_to_string(&input).map_err(|e| {
-        CclError::IoError(format!("Failed to read input file: {}", e))
-    })?;
+    let content = fs::read_to_string(&input)
+        .map_err(|e| CclError::IoError(format!("Failed to read input file: {}", e)))?;
 
     // Convert based on source language
     let ccl_content = match source_language.to_lowercase().as_str() {
         "solidity" | "sol" => convert_from_solidity(&content)?,
         "javascript" | "js" | "typescript" | "ts" => convert_from_javascript(&content)?,
         _ => {
-            return Err(CclError::CliArgumentError(
-                format!("Unsupported source language: {}. Supported: solidity, javascript, typescript", source_language)
-            ));
+            return Err(CclError::CliArgumentError(format!(
+                "Unsupported source language: {}. Supported: solidity, javascript, typescript",
+                source_language
+            )));
         }
     };
 
     // Write output
     if let Some(parent) = output.parent() {
-        fs::create_dir_all(parent).map_err(|e| {
-            CclError::IoError(format!("Failed to create output directory: {}", e))
-        })?;
+        fs::create_dir_all(parent)
+            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
     }
 
-    fs::write(&output, ccl_content).map_err(|e| {
-        CclError::IoError(format!("Failed to write output file: {}", e))
-    })?;
+    fs::write(&output, ccl_content)
+        .map_err(|e| CclError::IoError(format!("Failed to write output file: {}", e)))?;
 
     println!("✅ Conversion completed: {}", output.display());
     println!("⚠️  Note: Automated conversion requires manual review for correctness.");
@@ -395,9 +394,8 @@ fn migration_detect_command(file: PathBuf) -> Result<(), CclError> {
     println!("🔍 Detecting CCL version: {}", file.display());
 
     // Read file
-    let content = fs::read_to_string(&file).map_err(|e| {
-        CclError::IoError(format!("Failed to read file: {}", e))
-    })?;
+    let content = fs::read_to_string(&file)
+        .map_err(|e| CclError::IoError(format!("Failed to read file: {}", e)))?;
 
     // Detect version
     let engine = MigrationEngine::new();

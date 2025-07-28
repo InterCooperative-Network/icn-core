@@ -479,16 +479,16 @@ impl FederationGovernanceEngine {
         // 1. Query the federation registry/membership system
         // 2. Count active members
         // 3. Apply any federation-specific rules for quorum calculations
-        
+
         // For now, implement a mock lookup based on federation ID
         match federation.0.as_str() {
-            "main" | "primary" => 12,         // Main federation has more members
-            "development" | "test" => 5,      // Development federations are smaller
-            "research" => 8,                  // Research federation medium size
-            "regional" => 6,                  // Regional federations vary
-            id if id.starts_with("large_") => 25,  // Large federations
-            id if id.starts_with("small_") => 3,   // Small federations
-            _ => 10,                          // Default size for unknown federations
+            "main" | "primary" => 12,             // Main federation has more members
+            "development" | "test" => 5,          // Development federations are smaller
+            "research" => 8,                      // Research federation medium size
+            "regional" => 6,                      // Regional federations vary
+            id if id.starts_with("large_") => 25, // Large federations
+            id if id.starts_with("small_") => 3,  // Small federations
+            _ => 10,                              // Default size for unknown federations
         }
     }
 

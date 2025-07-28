@@ -4590,9 +4590,20 @@ mod tests {
         use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
         use icn_runtime::executor::WasmExecutor;
 
-        let (app, ctx) =
-            app_router_with_options(RuntimeMode::Testing, None, None, None, None, None, None, None, None, None, None)
-                .await;
+        let (app, ctx) = app_router_with_options(
+            RuntimeMode::Testing,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
 
         // Compile a tiny CCL contract
         let (wasm, _) =

@@ -1,5 +1,5 @@
 //! Core voting primitives and traits for ICN governance
-//! 
+//!
 //! This module provides the foundational types and traits for implementing
 //! sophisticated voting mechanisms including ranked choice voting.
 //!
@@ -31,9 +31,9 @@
 //! // Create a ballot with ranked preferences
 //! let ballot = RankedChoiceBallot {
 //!     ballot_id: BallotId("ballot-001".to_string()),
-//!     voter_did: DidDocument { 
-//!         id: Did::default(), 
-//!         public_key: vec![0u8; 32] 
+//!     voter_did: DidDocument {
+//!         id: Did::default(),
+//!         public_key: vec![0u8; 32]
 //!     },
 //!     election_id: ElectionId("election-123".to_string()),
 //!     preferences: vec![
@@ -134,13 +134,13 @@ pub trait VotingSystem {
     type Ballot;
     type Result;
     type Error;
-    
+
     /// Validate a ballot's format and eligibility
     fn validate_ballot(&self, ballot: &Self::Ballot) -> Result<(), Self::Error>;
-    
+
     /// Count votes from a collection of ballots
     fn count_votes(&self, ballots: Vec<Self::Ballot>) -> Result<Self::Result, Self::Error>;
-    
+
     /// Check if a voter is eligible to participate
     fn is_eligible_voter(&self, voter_id: &str) -> Result<bool, Self::Error>;
 }
@@ -149,10 +149,10 @@ pub trait VotingSystem {
 pub trait BallotValidator {
     /// Validate the format and structure of a ballot
     fn validate_format(&self, ballot: &dyn Any) -> Result<(), VotingError>;
-    
+
     /// Verify the cryptographic signature of a ballot
     fn validate_signature(&self, ballot: &dyn Any) -> Result<(), VotingError>;
-    
+
     /// Check for duplicate votes from the same voter
     fn check_duplicate(&self, ballot: &dyn Any) -> Result<(), VotingError>;
 }
@@ -161,13 +161,13 @@ pub trait BallotValidator {
 pub trait FederationRegistry {
     /// Check if a DID is a member of a specific federation
     fn is_member(&self, did: &Did, federation_id: &str) -> Result<bool, VotingError>;
-    
+
     /// Get all federations that a DID is a member of
     fn get_memberships(&self, did: &Did) -> Result<Vec<String>, VotingError>;
-    
+
     /// Add a DID to a federation (admin operation)
     fn add_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError>;
-    
+
     /// Remove a DID from a federation (admin operation)  
     fn remove_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError>;
 }
@@ -196,12 +196,12 @@ impl VotingPeriod {
         let now = SystemTime::now();
         now >= self.start_time && now <= self.end_time
     }
-    
+
     /// Check if the voting period has ended
     pub fn has_ended(&self) -> bool {
         SystemTime::now() > self.end_time
     }
-    
+
     /// Check if the voting period has not started yet
     pub fn has_not_started(&self) -> bool {
         SystemTime::now() < self.start_time
@@ -255,7 +255,7 @@ impl EligibilityRules {
 
     /// Check if the rules have any restrictions
     pub fn has_restrictions(&self) -> bool {
-        !self.required_credentials.is_empty() 
+        !self.required_credentials.is_empty()
             || self.min_reputation.is_some()
             || self.required_federation.is_some()
             || self.custom_rules.is_some()
@@ -268,7 +268,7 @@ impl EligibilityRules {
 
     /// Validate a voter's DID document against these eligibility rules with optional context
     pub fn validate_voter_with_context(
-        &self, 
+        &self,
         voter_did_doc: &DidDocument,
         reputation_store: Option<&dyn icn_reputation::ReputationStore>,
         dag_storage: Option<&dyn icn_dag::StorageService<icn_common::DagBlock>>,
@@ -280,9 +280,10 @@ impl EligibilityRules {
             let did_str = voter_did_doc.id.to_string();
             for required_cred in &self.required_credentials {
                 if !did_str.contains(required_cred) {
-                    return Err(VotingError::IneligibleVoter(
-                        format!("Required credential '{}' not found in DID", required_cred)
-                    ));
+                    return Err(VotingError::IneligibleVoter(format!(
+                        "Required credential '{}' not found in DID",
+                        required_cred
+                    )));
                 }
             }
         }
@@ -292,17 +293,19 @@ impl EligibilityRules {
             if let Some(rep_store) = reputation_store {
                 let voter_reputation = rep_store.get_reputation(&voter_did_doc.id);
                 if (voter_reputation as f64) < min_rep {
-                    return Err(VotingError::IneligibleVoter(
-                        format!("Voter reputation {} below minimum required {}", voter_reputation, min_rep)
-                    ));
+                    return Err(VotingError::IneligibleVoter(format!(
+                        "Voter reputation {} below minimum required {}",
+                        voter_reputation, min_rep
+                    )));
                 }
             } else {
                 // If no reputation store provided, we can't verify - this might be acceptable
                 // in some contexts but we should warn
                 log::warn!("Reputation requirement specified but no reputation store provided for validation");
-                return Err(VotingError::IneligibleVoter(
-                    format!("Cannot verify minimum reputation {} - no reputation store available", min_rep)
-                ));
+                return Err(VotingError::IneligibleVoter(format!(
+                    "Cannot verify minimum reputation {} - no reputation store available",
+                    min_rep
+                )));
             }
         }
 
@@ -310,17 +313,19 @@ impl EligibilityRules {
         if let Some(ref federation_id) = self.required_federation {
             if let Some(fed_registry) = federation_registry {
                 if !fed_registry.is_member(&voter_did_doc.id, federation_id)? {
-                    return Err(VotingError::IneligibleVoter(
-                        format!("Voter is not a member of required federation '{}'", federation_id)
-                    ));
+                    return Err(VotingError::IneligibleVoter(format!(
+                        "Voter is not a member of required federation '{}'",
+                        federation_id
+                    )));
                 }
             } else {
                 // Basic federation membership check - for now, check if the DID contains the federation ID
                 let did_str = voter_did_doc.id.to_string();
                 if !did_str.contains(federation_id) {
-                    return Err(VotingError::IneligibleVoter(
-                        format!("DID does not indicate membership in federation '{}'", federation_id)
-                    ));
+                    return Err(VotingError::IneligibleVoter(format!(
+                        "DID does not indicate membership in federation '{}'",
+                        federation_id
+                    )));
                 }
             }
         }
@@ -335,31 +340,33 @@ impl EligibilityRules {
                             Ok(eligible) => {
                                 if !eligible {
                                     return Err(VotingError::IneligibleVoter(
-                                        "Voter does not meet custom eligibility rules".to_string()
+                                        "Voter does not meet custom eligibility rules".to_string(),
                                     ));
                                 }
                             }
                             Err(e) => {
-                                return Err(VotingError::IneligibleVoter(
-                                    format!("Error evaluating custom rules: {}", e)
-                                ));
+                                return Err(VotingError::IneligibleVoter(format!(
+                                    "Error evaluating custom rules: {}",
+                                    e
+                                )));
                             }
                         }
                     }
                     Ok(None) => {
                         return Err(VotingError::IneligibleVoter(
-                            "Custom rules not found in DAG storage".to_string()
+                            "Custom rules not found in DAG storage".to_string(),
                         ));
                     }
                     Err(e) => {
-                        return Err(VotingError::IneligibleVoter(
-                            format!("Error retrieving custom rules from DAG: {}", e)
-                        ));
+                        return Err(VotingError::IneligibleVoter(format!(
+                            "Error retrieving custom rules from DAG: {}",
+                            e
+                        )));
                     }
                 }
             } else {
                 return Err(VotingError::IneligibleVoter(
-                    "Custom rules specified but no DAG storage provided for validation".to_string()
+                    "Custom rules specified but no DAG storage provided for validation".to_string(),
                 ));
             }
         }
@@ -369,13 +376,20 @@ impl EligibilityRules {
     }
 
     /// Evaluate custom eligibility rules (basic JSON-based implementation)
-    fn evaluate_custom_rules(&self, rule_data: &[u8], voter_did_doc: &DidDocument) -> Result<bool, String> {
+    fn evaluate_custom_rules(
+        &self,
+        rule_data: &[u8],
+        voter_did_doc: &DidDocument,
+    ) -> Result<bool, String> {
         // Parse custom rules from JSON
         let rules: serde_json::Value = serde_json::from_slice(rule_data)
             .map_err(|e| format!("Invalid custom rules JSON: {}", e))?;
 
         // Basic rule evaluation - this can be extended with more sophisticated rule engines
-        if let Some(required_did_patterns) = rules.get("required_did_patterns").and_then(|v| v.as_array()) {
+        if let Some(required_did_patterns) = rules
+            .get("required_did_patterns")
+            .and_then(|v| v.as_array())
+        {
             let did_str = voter_did_doc.id.to_string();
             for pattern in required_did_patterns {
                 if let Some(pattern_str) = pattern.as_str() {
@@ -386,7 +400,9 @@ impl EligibilityRules {
             }
         }
 
-        if let Some(required_key_length) = rules.get("min_public_key_length").and_then(|v| v.as_u64()) {
+        if let Some(required_key_length) =
+            rules.get("min_public_key_length").and_then(|v| v.as_u64())
+        {
             if voter_did_doc.public_key.len() < required_key_length as usize {
                 return Ok(false);
             }
@@ -446,7 +462,7 @@ impl RankedChoiceBallot {
             signature,
         }
     }
-    
+
     /// Validate that preferences don't contain duplicates
     pub fn validate_preferences(&self) -> Result<(), VotingError> {
         let mut seen = std::collections::HashSet::new();
@@ -457,12 +473,12 @@ impl RankedChoiceBallot {
         }
         Ok(())
     }
-    
+
     /// Get the voter's first choice candidate
     pub fn first_choice(&self) -> Option<&CandidateId> {
         self.preferences.first()
     }
-    
+
     /// Get the voter's nth choice candidate (0-indexed)
     pub fn nth_choice(&self, n: usize) -> Option<&CandidateId> {
         self.preferences.get(n)
@@ -472,32 +488,33 @@ impl RankedChoiceBallot {
 impl Signable for RankedChoiceBallot {
     fn to_signable_bytes(&self) -> Result<Vec<u8>, icn_common::CommonError> {
         let mut bytes = Vec::new();
-        
+
         // Include ballot_id with separator
         bytes.extend_from_slice(self.ballot_id.0.as_bytes());
         bytes.push(b'\0'); // Separator to prevent collision
-        
+
         // Include voter DID (from DID document) with separator
         bytes.extend_from_slice(self.voter_did.id.to_string().as_bytes());
         bytes.push(b'\0'); // Separator to prevent collision
-        
+
         // Include election_id with separator
         bytes.extend_from_slice(self.election_id.0.as_bytes());
         bytes.push(b'\0'); // Separator to prevent collision
-        
+
         // Include preferences in order (critical for ranked choice integrity)
         for preference in &self.preferences {
             bytes.extend_from_slice(preference.0.as_bytes());
             bytes.push(b'\0'); // Separator to prevent ambiguity
         }
-        
+
         // Include timestamp for replay protection - use full u128 to prevent overflow
-        let timestamp_nanos = self.timestamp
+        let timestamp_nanos = self
+            .timestamp
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_nanos();
         bytes.extend_from_slice(&timestamp_nanos.to_le_bytes());
-        
+
         Ok(bytes)
     }
 }
@@ -550,16 +567,16 @@ pub struct RankedChoiceRound {
 /// // Retrieve the ballot later
 /// // let retrieved_ballot = anchoring_service.retrieve_ballot(&ballot_cid)?;
 /// ```
-pub struct BallotAnchoringService<S> 
-where 
-    S: StorageService<icn_common::DagBlock>
+pub struct BallotAnchoringService<S>
+where
+    S: StorageService<icn_common::DagBlock>,
 {
     storage: S,
 }
 
 impl<S> BallotAnchoringService<S>
-where 
-    S: StorageService<icn_common::DagBlock>
+where
+    S: StorageService<icn_common::DagBlock>,
 {
     /// Create a new ballot anchoring service with the provided storage backend
     pub fn new(storage: S) -> Self {
@@ -587,9 +604,9 @@ where
     /// # let mut service = BallotAnchoringService::new(storage);
     /// # let ballot = RankedChoiceBallot::new(
     /// #     BallotId("ballot-001".to_string()),
-    /// #     DidDocument { 
-    /// #         id: Did::default(), 
-    /// #         public_key: vec![0u8; 32] 
+    /// #     DidDocument {
+    /// #         id: Did::default(),
+    /// #         public_key: vec![0u8; 32]
     /// #     },
     /// #     ElectionId("election-123".to_string()),
     /// #     vec![
@@ -607,17 +624,19 @@ where
     /// ```
     pub fn anchor_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<Cid, VotingError> {
         use icn_common::DagBlock;
-        
+
         // Serialize the ballot for storage
-        let ballot_data = serde_json::to_vec(ballot)
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e)))?;
+        let ballot_data = serde_json::to_vec(ballot).map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
+        })?;
 
         // Create a DAG block for the ballot
         let block = DagBlock {
             cid: Cid::new_v1_sha256(0x71, &ballot_data), // Raw codec for ballot data
             data: ballot_data,
             links: vec![], // Ballots are leaf nodes initially
-            timestamp: ballot.timestamp
+            timestamp: ballot
+                .timestamp
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
@@ -627,21 +646,25 @@ where
         };
 
         // Store the block in the DAG
-        self.storage.put(&block)
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to store ballot in DAG: {}", e)))?;
+        self.storage.put(&block).map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to store ballot in DAG: {}", e))
+        })?;
 
         Ok(block.cid)
     }
 
     /// Retrieve a ballot from the DAG by its CID
     pub fn retrieve_ballot(&self, cid: &Cid) -> Result<Option<RankedChoiceBallot>, VotingError> {
-        let block = self.storage.get(cid)
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to retrieve from DAG: {}", e)))?;
+        let block = self.storage.get(cid).map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to retrieve from DAG: {}", e))
+        })?;
 
         match block {
             Some(dag_block) => {
-                let ballot: RankedChoiceBallot = serde_json::from_slice(&dag_block.data)
-                    .map_err(|e| VotingError::InvalidBallot(format!("Failed to deserialize ballot: {}", e)))?;
+                let ballot: RankedChoiceBallot =
+                    serde_json::from_slice(&dag_block.data).map_err(|e| {
+                        VotingError::InvalidBallot(format!("Failed to deserialize ballot: {}", e))
+                    })?;
                 Ok(Some(ballot))
             }
             None => Ok(None),
@@ -649,19 +672,27 @@ where
     }
 
     /// Create a link between ballots (e.g., for election result aggregation)
-    pub fn link_ballots(&mut self, election_id: &ElectionId, ballot_cids: Vec<Cid>) -> Result<Cid, VotingError> {
+    pub fn link_ballots(
+        &mut self,
+        election_id: &ElectionId,
+        ballot_cids: Vec<Cid>,
+    ) -> Result<Cid, VotingError> {
         use icn_common::{DagBlock, DagLink};
-        
+
         // Create links to all ballots
-        let links: Vec<DagLink> = ballot_cids.into_iter().map(|cid| DagLink {
-            cid,
-            name: "ballot".to_string(),
-            size: 0, // Size calculation could be improved
-        }).collect();
+        let links: Vec<DagLink> = ballot_cids
+            .into_iter()
+            .map(|cid| DagLink {
+                cid,
+                name: "ballot".to_string(),
+                size: 0, // Size calculation could be improved
+            })
+            .collect();
 
         // Create metadata for the election result
-        let election_data = serde_json::to_vec(&election_id)
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to serialize election ID: {}", e)))?;
+        let election_data = serde_json::to_vec(&election_id).map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to serialize election ID: {}", e))
+        })?;
 
         let result_block = DagBlock {
             cid: Cid::new_v1_sha256(0x71, &election_data),
@@ -676,8 +707,9 @@ where
             scope: None,
         };
 
-        self.storage.put(&result_block)
-            .map_err(|e| VotingError::InvalidBallot(format!("Failed to store election result: {}", e)))?;
+        self.storage.put(&result_block).map_err(|e| {
+            VotingError::InvalidBallot(format!("Failed to store election result: {}", e))
+        })?;
 
         Ok(result_block.cid)
     }
@@ -717,12 +749,12 @@ mod tests {
         let now = SystemTime::now();
         let start = now - std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(60);
-        
+
         let period = VotingPeriod {
             start_time: start,
             end_time: end,
         };
-        
+
         assert!(period.is_active());
         assert!(!period.has_ended());
         assert!(!period.has_not_started());
@@ -733,12 +765,12 @@ mod tests {
         let now = SystemTime::now();
         let start = now - std::time::Duration::from_secs(120);
         let end = now - std::time::Duration::from_secs(60);
-        
+
         let period = VotingPeriod {
             start_time: start,
             end_time: end,
         };
-        
+
         assert!(!period.is_active());
         assert!(period.has_ended());
         assert!(!period.has_not_started());
@@ -749,12 +781,12 @@ mod tests {
         let now = SystemTime::now();
         let start = now + std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(120);
-        
+
         let period = VotingPeriod {
             start_time: start,
             end_time: end,
         };
-        
+
         assert!(!period.is_active());
         assert!(!period.has_ended());
         assert!(period.has_not_started());
@@ -777,7 +809,7 @@ mod tests {
                 value: vec![0u8; 64],
             },
         };
-        
+
         assert!(ballot.validate_preferences().is_ok());
     }
 
@@ -798,7 +830,7 @@ mod tests {
                 value: vec![0u8; 64],
             },
         };
-        
+
         assert!(matches!(
             ballot.validate_preferences(),
             Err(VotingError::DuplicatePreferences)
@@ -822,11 +854,20 @@ mod tests {
                 value: vec![0u8; 64],
             },
         };
-        
-        assert_eq!(ballot.first_choice(), Some(&CandidateId("alice".to_string())));
-        assert_eq!(ballot.nth_choice(0), Some(&CandidateId("alice".to_string())));
+
+        assert_eq!(
+            ballot.first_choice(),
+            Some(&CandidateId("alice".to_string()))
+        );
+        assert_eq!(
+            ballot.nth_choice(0),
+            Some(&CandidateId("alice".to_string()))
+        );
         assert_eq!(ballot.nth_choice(1), Some(&CandidateId("bob".to_string())));
-        assert_eq!(ballot.nth_choice(2), Some(&CandidateId("charlie".to_string())));
+        assert_eq!(
+            ballot.nth_choice(2),
+            Some(&CandidateId("charlie".to_string()))
+        );
         assert_eq!(ballot.nth_choice(3), None);
     }
 
@@ -850,26 +891,32 @@ mod tests {
         // Test that ballot can be converted to signable bytes
         let signable_bytes = ballot.to_signable_bytes();
         assert!(signable_bytes.is_ok());
-        
+
         let bytes = signable_bytes.unwrap();
         assert!(!bytes.is_empty());
-        
+
         // Verify that different ballots produce different signatures
         let mut ballot2 = ballot.clone();
-        ballot2.preferences = vec![CandidateId("bob".to_string()), CandidateId("alice".to_string())];
-        
+        ballot2.preferences = vec![
+            CandidateId("bob".to_string()),
+            CandidateId("alice".to_string()),
+        ];
+
         let bytes2 = ballot2.to_signable_bytes().unwrap();
-        assert_ne!(bytes, bytes2, "Different preference orders should produce different signable bytes");
+        assert_ne!(
+            bytes, bytes2,
+            "Different preference orders should produce different signable bytes"
+        );
     }
 
     #[cfg(feature = "serde")]
-    #[test] 
+    #[test]
     fn test_ballot_anchoring_service_integration() {
         use icn_dag::InMemoryDagStore;
-        
+
         let storage = InMemoryDagStore::new();
         let mut anchoring_service = BallotAnchoringService::new(storage);
-        
+
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
             voter_did: create_test_did_document(),
@@ -888,16 +935,16 @@ mod tests {
         // Test ballot anchoring
         let ballot_cid = anchoring_service.anchor_ballot(&ballot);
         assert!(ballot_cid.is_ok(), "Ballot anchoring should succeed");
-        
+
         let cid = ballot_cid.unwrap();
-        
+
         // Test ballot retrieval
         let retrieved_ballot = anchoring_service.retrieve_ballot(&cid);
         assert!(retrieved_ballot.is_ok(), "Ballot retrieval should succeed");
-        
+
         let retrieved = retrieved_ballot.unwrap();
         assert!(retrieved.is_some(), "Retrieved ballot should exist");
-        
+
         let retrieved_ballot = retrieved.unwrap();
         assert_eq!(retrieved_ballot.ballot_id, ballot.ballot_id);
         assert_eq!(retrieved_ballot.election_id, ballot.election_id);
@@ -909,9 +956,13 @@ mod tests {
         let open_rules = EligibilityRules::open_to_all();
         assert!(!open_rules.has_restrictions());
 
-        let federation_rules = EligibilityRules::federation_members_only("test-federation".to_string());
+        let federation_rules =
+            EligibilityRules::federation_members_only("test-federation".to_string());
         assert!(federation_rules.has_restrictions());
-        assert_eq!(federation_rules.required_federation, Some("test-federation".to_string()));
+        assert_eq!(
+            federation_rules.required_federation,
+            Some("test-federation".to_string())
+        );
 
         let reputation_rules = EligibilityRules::reputation_gated(0.75);
         assert!(reputation_rules.has_restrictions());
@@ -922,7 +973,7 @@ mod tests {
     fn test_eligibility_rules_validation() {
         let open_rules = EligibilityRules::open_to_all();
         let test_did_doc = create_test_did_document();
-        
+
         // Open rules should accept any valid DID document
         let result = open_rules.validate_voter(&test_did_doc);
         assert!(result.is_ok());
@@ -958,19 +1009,21 @@ impl Default for InMemoryFederationRegistry {
 
 impl FederationRegistry for InMemoryFederationRegistry {
     fn is_member(&self, did: &Did, federation_id: &str) -> Result<bool, VotingError> {
-        Ok(self.memberships
+        Ok(self
+            .memberships
             .get(did)
             .map(|federations| federations.contains(federation_id))
             .unwrap_or(false))
     }
-    
+
     fn get_memberships(&self, did: &Did) -> Result<Vec<String>, VotingError> {
-        Ok(self.memberships
+        Ok(self
+            .memberships
             .get(did)
             .map(|federations| federations.iter().cloned().collect())
             .unwrap_or_default())
     }
-    
+
     fn add_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError> {
         self.memberships
             .entry(did.clone())
@@ -978,7 +1031,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
             .insert(federation_id.to_string());
         Ok(())
     }
-    
+
     fn remove_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError> {
         if let Some(federations) = self.memberships.get_mut(did) {
             federations.remove(federation_id);
@@ -993,22 +1046,22 @@ impl FederationRegistry for InMemoryFederationRegistry {
 #[cfg(test)]
 mod enhanced_tests {
     use super::*;
-    use std::str::FromStr;
     use icn_reputation::ReputationStore;
+    use std::str::FromStr;
 
     #[test]
     fn test_enhanced_eligibility_validation_with_reputation() {
         use icn_reputation::InMemoryReputationStore;
-        
+
         let test_did = Did::from_str("did:key:zTestEnhanced").unwrap();
         let test_did_doc = DidDocument {
             id: test_did.clone(),
             public_key: vec![0u8; 32],
         };
-        
+
         let reputation_rules = EligibilityRules::reputation_gated(75.0);
         let reputation_store = InMemoryReputationStore::new();
-        
+
         // Start with default reputation (0), which should be below threshold
         let result = reputation_rules.validate_voter_with_context(
             &test_did_doc,
@@ -1016,22 +1069,22 @@ mod enhanced_tests {
             None,
             None,
         );
-        
+
         assert!(result.is_err());
         assert!(matches!(result, Err(VotingError::IneligibleVoter(_))));
-        
+
         // Simulate successful executions to build reputation above threshold
         for _ in 0..100 {
             reputation_store.record_execution(&test_did, true, 1000);
         }
-        
+
         let result = reputation_rules.validate_voter_with_context(
             &test_did_doc,
             Some(&reputation_store),
             None,
             None,
         );
-        
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }
@@ -1041,16 +1094,19 @@ mod enhanced_tests {
         let mut registry = InMemoryFederationRegistry::new();
         let test_did = Did::from_str("did:key:zTestFederation").unwrap();
         let federation_id = "test-federation";
-        
+
         // Initially not a member
         assert!(!registry.is_member(&test_did, federation_id).unwrap());
         assert!(registry.get_memberships(&test_did).unwrap().is_empty());
-        
+
         // Add to federation
         registry.add_member(&test_did, federation_id).unwrap();
         assert!(registry.is_member(&test_did, federation_id).unwrap());
-        assert_eq!(registry.get_memberships(&test_did).unwrap(), vec![federation_id.to_string()]);
-        
+        assert_eq!(
+            registry.get_memberships(&test_did).unwrap(),
+            vec![federation_id.to_string()]
+        );
+
         // Remove from federation
         registry.remove_member(&test_did, federation_id).unwrap();
         assert!(!registry.is_member(&test_did, federation_id).unwrap());
@@ -1064,10 +1120,11 @@ mod enhanced_tests {
             id: test_did.clone(),
             public_key: vec![0u8; 32],
         };
-        
-        let federation_rules = EligibilityRules::federation_members_only("test-federation".to_string());
+
+        let federation_rules =
+            EligibilityRules::federation_members_only("test-federation".to_string());
         let mut registry = InMemoryFederationRegistry::new();
-        
+
         // Not a member initially
         let result = federation_rules.validate_voter_with_context(
             &test_did_doc,
@@ -1075,20 +1132,20 @@ mod enhanced_tests {
             None,
             Some(&registry),
         );
-        
+
         assert!(result.is_err());
         assert!(matches!(result, Err(VotingError::IneligibleVoter(_))));
-        
+
         // Add to federation
         registry.add_member(&test_did, "test-federation").unwrap();
-        
+
         let result = federation_rules.validate_voter_with_context(
             &test_did_doc,
             None,
             None,
             Some(&registry),
         );
-        
+
         assert!(result.is_ok());
         assert!(result.unwrap());
     }

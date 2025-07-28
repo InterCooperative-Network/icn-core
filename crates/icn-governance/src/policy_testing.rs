@@ -63,9 +63,7 @@ pub enum TestAction {
         vote_option: String,
     },
     /// Time advances by specified seconds
-    AdvanceTime {
-        seconds: u64,
-    },
+    AdvanceTime { seconds: u64 },
     /// System parameter changes
     UpdateParameter {
         parameter_name: String,
@@ -139,7 +137,7 @@ impl MockTimeProvider {
             current_time: RwLock::new(initial_time),
         }
     }
-    
+
     pub fn advance_time(&self, seconds: u64) {
         let mut current = self.current_time.write().unwrap();
         *current += seconds;
@@ -162,33 +160,44 @@ impl MockManaLedger {
             balances: RwLock::new(initial_balances),
         }
     }
-    
+
     pub fn set_balance_direct(&self, did: &Did, amount: u64) {
-        self.balances.write().unwrap().insert(did.to_string(), amount);
+        self.balances
+            .write()
+            .unwrap()
+            .insert(did.to_string(), amount);
     }
 }
 
 impl ManaLedger for MockManaLedger {
     fn get_balance(&self, did: &Did) -> u64 {
-        self.balances.read().unwrap().get(&did.to_string()).copied().unwrap_or(0)
+        self.balances
+            .read()
+            .unwrap()
+            .get(&did.to_string())
+            .copied()
+            .unwrap_or(0)
     }
 
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-        self.balances.write().unwrap().insert(did.to_string(), amount);
+        self.balances
+            .write()
+            .unwrap()
+            .insert(did.to_string(), amount);
         Ok(())
     }
 
     fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let mut balances = self.balances.write().unwrap();
         let current_balance = balances.get(&did.to_string()).copied().unwrap_or(0);
-        
+
         if current_balance < amount {
             return Err(CommonError::InsufficientFunds(format!(
                 "Insufficient balance for {}: {} < {}",
                 did, current_balance, amount
             )));
         }
-        
+
         balances.insert(did.to_string(), current_balance - amount);
         Ok(())
     }
@@ -215,7 +224,12 @@ impl MockReputationStore {
 
 impl ReputationStore for MockReputationStore {
     fn get_reputation(&self, did: &Did) -> u64 {
-        self.scores.read().unwrap().get(&did.to_string()).copied().unwrap_or(50) // Default score
+        self.scores
+            .read()
+            .unwrap()
+            .get(&did.to_string())
+            .copied()
+            .unwrap_or(50) // Default score
     }
 
     fn record_execution(&self, _did: &Did, _success: bool, _mana_consumed: u64) {
@@ -272,10 +286,10 @@ impl PolicyTestingFramework {
         let mut execution_results = Vec::new();
         let mut errors = Vec::new();
         let mut current_state = scenario.initial_state.clone();
-        
+
         // Initialize test state
         self.initialize_test_state(&current_state).await;
-        
+
         // Execute each action in the scenario
         for action in &scenario.actions {
             match self.execute_action(action, &mut current_state).await {
@@ -287,16 +301,16 @@ impl PolicyTestingFramework {
                 }
             }
         }
-        
+
         // Validate expected outcomes
         let passed = self.validate_outcomes(&scenario.expected_outcomes, &execution_results);
-        
+
         let summary = if passed {
             format!("Policy test '{}' passed successfully", scenario.name)
         } else {
             format!("Policy test '{}' failed validation", scenario.name)
         };
-        
+
         PolicyTestResult {
             scenario,
             passed,
@@ -313,7 +327,7 @@ impl PolicyTestingFramework {
             let did = Did::new("key", did_str);
             self.mana_ledger.set_balance_direct(&did, *balance);
         }
-        
+
         // Set up reputation scores
         for (did_str, score) in &state.reputation_scores {
             let did = Did::new("key", did_str);
@@ -329,50 +343,69 @@ impl PolicyTestingFramework {
     ) -> Result<TestExecutionStep, CommonError> {
         let mut violations_detected = Vec::new();
         let mut enforcement_actions = Vec::new();
-        
+
         match action {
-            TestAction::ResourceUsage { user_did, resource_type, amount } => {
+            TestAction::ResourceUsage {
+                user_did,
+                resource_type,
+                amount,
+            } => {
                 // Simulate resource usage and check for violations
                 let did = Did::new("key", user_did);
                 let current_balance = self.mana_ledger.get_balance(&did);
-                
+
                 // Check if resource usage violates policy
                 if self.check_resource_usage_policy(*amount, &did).await? {
                     violations_detected.push(PolicyViolation {
                         violation_type: "excessive_resource_usage".to_string(),
                         severity: "medium".to_string(),
                         target: Some(did.clone()),
-                        details: format!("User {} used {} of {} resource", user_did, amount, resource_type),
+                        details: format!(
+                            "User {} used {} of {} resource",
+                            user_did, amount, resource_type
+                        ),
                     });
-                    
+
                     // Apply enforcement action
                     let penalty = amount / 10; // 10% penalty
                     if current_balance >= penalty {
-                        let _ = self.mana_ledger.set_balance(&did, current_balance - penalty);
-                        current_state.mana_balances.insert(user_did.clone(), current_balance - penalty);
-                        enforcement_actions.push(format!("Applied mana penalty of {} to {}", penalty, user_did));
+                        let _ = self
+                            .mana_ledger
+                            .set_balance(&did, current_balance - penalty);
+                        current_state
+                            .mana_balances
+                            .insert(user_did.clone(), current_balance - penalty);
+                        enforcement_actions.push(format!(
+                            "Applied mana penalty of {} to {}",
+                            penalty, user_did
+                        ));
                     }
                 }
             }
-            
+
             TestAction::AdvanceTime { seconds } => {
                 self.time_provider.advance_time(*seconds);
             }
-            
-            TestAction::UpdateParameter { parameter_name, new_value } => {
-                current_state.system_parameters.insert(parameter_name.clone(), new_value.clone());
+
+            TestAction::UpdateParameter {
+                parameter_name,
+                new_value,
+            } => {
+                current_state
+                    .system_parameters
+                    .insert(parameter_name.clone(), new_value.clone());
             }
-            
+
             // Add more action implementations as needed
             _ => {
                 // Placeholder for other actions
             }
         }
-        
+
         // Update current state snapshot
         current_state.mana_balances = self.get_current_mana_balances().await;
         current_state.reputation_scores = self.get_current_reputation_scores().await;
-        
+
         Ok(TestExecutionStep {
             action: action.clone(),
             violations_detected,
@@ -382,7 +415,11 @@ impl PolicyTestingFramework {
     }
 
     /// Check if resource usage violates policy
-    async fn check_resource_usage_policy(&self, amount: u64, _user: &Did) -> Result<bool, CommonError> {
+    async fn check_resource_usage_policy(
+        &self,
+        amount: u64,
+        _user: &Did,
+    ) -> Result<bool, CommonError> {
         // Simple policy: resource usage over 1000 units is a violation
         Ok(amount > 1000)
     }
@@ -422,7 +459,10 @@ impl PolicyTestingFramework {
         execution_results: &[TestExecutionStep],
     ) -> bool {
         match expected {
-            ExpectedOutcome::PolicyViolation { violation_type, target_user } => {
+            ExpectedOutcome::PolicyViolation {
+                violation_type,
+                target_user,
+            } => {
                 // Check if any step detected the expected violation
                 for step in execution_results {
                     for violation in &step.violations_detected {
@@ -439,13 +479,18 @@ impl PolicyTestingFramework {
                 }
                 false
             }
-            
+
             ExpectedOutcome::NoPolicyViolation => {
                 // Check that no violations were detected
-                execution_results.iter().all(|step| step.violations_detected.is_empty())
+                execution_results
+                    .iter()
+                    .all(|step| step.violations_detected.is_empty())
             }
-            
-            ExpectedOutcome::EnforcementAction { action_type, target_user } => {
+
+            ExpectedOutcome::EnforcementAction {
+                action_type,
+                target_user,
+            } => {
                 // Check if the expected enforcement action was taken
                 for step in execution_results {
                     for action in &step.enforcement_actions {
@@ -456,8 +501,11 @@ impl PolicyTestingFramework {
                 }
                 false
             }
-            
-            ExpectedOutcome::ManaBalance { user_did, expected_balance } => {
+
+            ExpectedOutcome::ManaBalance {
+                user_did,
+                expected_balance,
+            } => {
                 // Check final mana balance
                 if let Some(step) = execution_results.last() {
                     if let Some(actual_balance) = step.resulting_state.mana_balances.get(user_did) {
@@ -466,7 +514,7 @@ impl PolicyTestingFramework {
                 }
                 false
             }
-            
+
             _ => {
                 // Placeholder for other outcome types
                 true
@@ -488,7 +536,7 @@ mod tests {
     #[tokio::test]
     async fn test_resource_usage_policy() {
         let framework = PolicyTestingFramework::new();
-        
+
         let scenario = PolicyTestScenario {
             name: "Resource Usage Violation".to_string(),
             description: "Test that excessive resource usage triggers policy violation".to_string(),
@@ -503,13 +551,11 @@ mod tests {
                 system_parameters: HashMap::new(),
                 active_proposals: Vec::new(),
             },
-            actions: vec![
-                TestAction::ResourceUsage {
-                    user_did: "alice".to_string(),
-                    resource_type: "compute".to_string(),
-                    amount: 1500, // Exceeds limit of 1000
-                }
-            ],
+            actions: vec![TestAction::ResourceUsage {
+                user_did: "alice".to_string(),
+                resource_type: "compute".to_string(),
+                amount: 1500, // Exceeds limit of 1000
+            }],
             expected_outcomes: vec![
                 ExpectedOutcome::PolicyViolation {
                     violation_type: "excessive_resource_usage".to_string(),
@@ -518,7 +564,7 @@ mod tests {
                 ExpectedOutcome::EnforcementAction {
                     action_type: "mana penalty".to_string(),
                     target_user: "alice".to_string(),
-                }
+                },
             ],
         };
 
@@ -529,7 +575,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_violation_scenario() {
         let framework = PolicyTestingFramework::new();
-        
+
         let scenario = PolicyTestScenario {
             name: "Normal Resource Usage".to_string(),
             description: "Test that normal resource usage does not trigger violations".to_string(),
@@ -544,19 +590,19 @@ mod tests {
                 system_parameters: HashMap::new(),
                 active_proposals: Vec::new(),
             },
-            actions: vec![
-                TestAction::ResourceUsage {
-                    user_did: "bob".to_string(),
-                    resource_type: "compute".to_string(),
-                    amount: 500, // Within limit
-                }
-            ],
-            expected_outcomes: vec![
-                ExpectedOutcome::NoPolicyViolation,
-            ],
+            actions: vec![TestAction::ResourceUsage {
+                user_did: "bob".to_string(),
+                resource_type: "compute".to_string(),
+                amount: 500, // Within limit
+            }],
+            expected_outcomes: vec![ExpectedOutcome::NoPolicyViolation],
         };
 
         let result = framework.run_scenario(scenario).await;
-        assert!(result.passed, "No violation test should pass: {}", result.summary);
+        assert!(
+            result.passed,
+            "No violation test should pass: {}",
+            result.summary
+        );
     }
 }

@@ -20,6 +20,8 @@ use tokio::fs::{self, File as TokioFile, OpenOptions as TokioOpenOptions};
 #[cfg(feature = "async")]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+pub mod conflict_resolution;
+pub mod federation_sync;
 /// Helper crate for encoding/decoding root hashes
 pub mod index;
 pub mod metrics;
@@ -36,8 +38,6 @@ pub mod snapshot;
 #[cfg(feature = "persist-sqlite")]
 pub mod sqlite_store;
 pub mod sync_monitor;
-pub mod conflict_resolution;
-pub mod federation_sync;
 
 /// Metadata associated with a stored DAG block.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

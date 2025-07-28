@@ -3,11 +3,11 @@
 //! This module provides a factory for creating RuntimeContext instances with
 //! appropriate service configurations based on environment and requirements.
 
+use super::dag_store_wrapper::DagStoreWrapper;
 use super::{
     DagStorageService, DagStoreMutexType, RuntimeContext, ServiceConfig, ServiceConfigBuilder,
     ServiceEnvironment, SimpleManaLedger,
 };
-use super::dag_store_wrapper::DagStoreWrapper;
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{DidResolver, EnhancedDidResolver, SigningKey};
 use icn_network::{
@@ -209,10 +209,15 @@ impl RuntimeContextFactory {
         let signer = if let Some(key_path) = &config.key_file_path {
             // Use key from encrypted file if provided
             if let Some(passphrase) = &config.key_passphrase {
-                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
-                    key_path,
-                    passphrase.as_bytes(),
-                ).map_err(|e| CommonError::CryptoError(format!("Failed to load production key: {}", e)))?) as Arc<dyn super::signers::Signer>
+                Arc::new(
+                    super::signers::Ed25519Signer::from_encrypted_file(
+                        key_path,
+                        passphrase.as_bytes(),
+                    )
+                    .map_err(|e| {
+                        CommonError::CryptoError(format!("Failed to load production key: {}", e))
+                    })?,
+                ) as Arc<dyn super::signers::Signer>
             } else {
                 return Err(CommonError::CryptoError(
                     "Production environment requires passphrase for encrypted key file".to_string(),
@@ -220,8 +225,11 @@ impl RuntimeContextFactory {
             }
         } else if let Some(hsm) = &config.hsm {
             // Use HSM if configured
-            Arc::new(super::signers::Ed25519Signer::from_hsm(hsm.as_ref())
-                .map_err(|e| CommonError::CryptoError(format!("Failed to load HSM key: {}", e)))?)
+            Arc::new(
+                super::signers::Ed25519Signer::from_hsm(hsm.as_ref()).map_err(|e| {
+                    CommonError::CryptoError(format!("Failed to load HSM key: {}", e))
+                })?,
+            )
         } else {
             // Generate a new key for this production instance and warn the user
             log::warn!("🔑 PRODUCTION WARNING: No key file or HSM configured. Generating ephemeral key. This key will not persist across restarts!");
@@ -294,10 +302,15 @@ impl RuntimeContextFactory {
         let signer = if let Some(key_path) = &config.key_file_path {
             // Use key from encrypted file if provided
             if let Some(passphrase) = &config.key_passphrase {
-                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
-                    key_path,
-                    passphrase.as_bytes(),
-                ).map_err(|e| CommonError::CryptoError(format!("Failed to load development key: {}", e)))?) as Arc<dyn super::signers::Signer>
+                Arc::new(
+                    super::signers::Ed25519Signer::from_encrypted_file(
+                        key_path,
+                        passphrase.as_bytes(),
+                    )
+                    .map_err(|e| {
+                        CommonError::CryptoError(format!("Failed to load development key: {}", e))
+                    })?,
+                ) as Arc<dyn super::signers::Signer>
             } else {
                 return Err(CommonError::CryptoError(
                     "Development environment with key file requires passphrase".to_string(),
@@ -305,8 +318,11 @@ impl RuntimeContextFactory {
             }
         } else if let Some(hsm) = &config.hsm {
             // Use HSM if configured
-            Arc::new(super::signers::Ed25519Signer::from_hsm(hsm.as_ref())
-                .map_err(|e| CommonError::CryptoError(format!("Failed to load HSM key: {}", e)))?)
+            Arc::new(
+                super::signers::Ed25519Signer::from_hsm(hsm.as_ref()).map_err(|e| {
+                    CommonError::CryptoError(format!("Failed to load HSM key: {}", e))
+                })?,
+            )
         } else {
             // For development, generate a new key (this is fine for dev environments)
             log::info!("🔧 DEVELOPMENT: Generating ephemeral Ed25519 key for this session");
@@ -431,10 +447,15 @@ impl RuntimeContextFactory {
         let signer = if let Some(key_path) = &config.key_file_path {
             // Use key from encrypted file if provided (for consistent test keys)
             if let Some(passphrase) = &config.key_passphrase {
-                Arc::new(super::signers::Ed25519Signer::from_encrypted_file(
-                    key_path,
-                    passphrase.as_bytes(),
-                ).map_err(|e| CommonError::CryptoError(format!("Failed to load test key: {}", e)))?) as Arc<dyn super::signers::Signer>
+                Arc::new(
+                    super::signers::Ed25519Signer::from_encrypted_file(
+                        key_path,
+                        passphrase.as_bytes(),
+                    )
+                    .map_err(|e| {
+                        CommonError::CryptoError(format!("Failed to load test key: {}", e))
+                    })?,
+                ) as Arc<dyn super::signers::Signer>
             } else {
                 return Err(CommonError::CryptoError(
                     "Integration test environment with key file requires passphrase".to_string(),
