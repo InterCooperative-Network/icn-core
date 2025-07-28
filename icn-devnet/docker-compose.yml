@@ -159,7 +159,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-e-key
       - ICN_LOG_LEVEL=debug
@@ -174,7 +173,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-e-key", "http://localhost:7845/info"]
@@ -196,7 +195,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-f-key
       - ICN_LOG_LEVEL=debug
@@ -211,7 +209,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-f-key", "http://localhost:7845/info"]
@@ -233,7 +231,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-g-key
       - ICN_LOG_LEVEL=debug
@@ -248,7 +245,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-g-key", "http://localhost:7845/info"]
@@ -270,7 +267,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-h-key
       - ICN_LOG_LEVEL=debug
@@ -285,7 +281,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-h-key", "http://localhost:7845/info"]
@@ -307,7 +303,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-i-key
       - ICN_LOG_LEVEL=debug
@@ -322,7 +317,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-i-key", "http://localhost:7845/info"]
@@ -344,7 +339,6 @@ services:
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
       - ICN_ENABLE_MDNS=true
-      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-j-key
       - ICN_LOG_LEVEL=debug
@@ -359,7 +353,7 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a:
+      icn-node-a:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-j-key", "http://localhost:7845/info"]
