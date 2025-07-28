@@ -13,8 +13,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
       - ICN_LOG_LEVEL=debug
@@ -26,13 +25,15 @@ services:
       - icn-federation
     volumes:
       - node-a-data:/app/data
+      - peer-coordination:/app/peer_coordination
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-a-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   # Node B - Worker node
   icn-node-b:
@@ -46,8 +47,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
       - ICN_LOG_LEVEL=debug
@@ -59,15 +59,18 @@ services:
       - icn-federation
     volumes:
       - node-b-data:/app/data
+      - peer-coordination:/app/peer_coordination
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-b-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node C - Worker node
   icn-node-c:
@@ -81,8 +84,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001
+      - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
       - ICN_LOG_LEVEL=debug
@@ -94,15 +96,18 @@ services:
       - icn-federation
     volumes:
       - node-c-data:/app/data
+      - peer-coordination:/app/peer_coordination
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-c-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node D - Worker node
   icn-node-d:
@@ -116,8 +121,7 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-d-key
       - ICN_LOG_LEVEL=debug
@@ -129,15 +133,18 @@ services:
       - icn-federation
     volumes:
       - node-d-data:/app/data
+      - peer-coordination:/app/peer_coordination
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-d-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node E - Worker node
   icn-node-e:
@@ -151,8 +158,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-e-key
       - ICN_LOG_LEVEL=debug
@@ -164,15 +171,17 @@ services:
       - icn-federation
     volumes:
       - node-e-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-e-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node F - Worker node
   icn-node-f:
@@ -186,8 +195,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-f-key
       - ICN_LOG_LEVEL=debug
@@ -199,15 +208,17 @@ services:
       - icn-federation
     volumes:
       - node-f-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-f-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node G - Worker node
   icn-node-g:
@@ -221,8 +232,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-g-key
       - ICN_LOG_LEVEL=debug
@@ -234,15 +245,17 @@ services:
       - icn-federation
     volumes:
       - node-g-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-g-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node H - Worker node
   icn-node-h:
@@ -256,8 +269,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-h-key
       - ICN_LOG_LEVEL=debug
@@ -269,15 +282,17 @@ services:
       - icn-federation
     volumes:
       - node-h-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-h-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node I - Worker node
   icn-node-i:
@@ -291,8 +306,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-i-key
       - ICN_LOG_LEVEL=debug
@@ -304,15 +319,17 @@ services:
       - icn-federation
     volumes:
       - node-i-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-i-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Node J - Worker node
   icn-node-j:
@@ -326,8 +343,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=false
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_ENABLE_MDNS=true
+      - # ICN_BOOTSTRAP_PEERS - Managed by entrypoint script
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-j-key
       - ICN_LOG_LEVEL=debug
@@ -339,15 +356,17 @@ services:
       - icn-federation
     volumes:
       - node-j-data:/app/data
+      - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      - icn-node-a
+      - icn-node-a:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-j-key", "http://localhost:7845/info"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # Optional: Prometheus for metrics monitoring
   prometheus:
@@ -432,3 +451,4 @@ volumes:
   node-j-data:
   postgres-data:
   grafana-data:
+  peer-coordination:  # Shared volume for peer coordination
