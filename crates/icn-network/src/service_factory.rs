@@ -291,18 +291,22 @@ impl NetworkServiceFactory {
                     // Explicit peer ID provided
                     if let Ok(peer_id) = PeerId::from_str(&peer.peer_id) {
                         bootstrap_peers.push((peer_id, multiaddr));
+                        log::debug!("Added bootstrap peer {} at {}", peer_id, multiaddr);
+                    } else {
+                        log::warn!("Invalid peer ID for bootstrap peer: {}", peer.peer_id);
                     }
                 } else {
                     // No peer ID - try to extract from multiaddr or use placeholder
                     match Self::extract_peer_id_from_multiaddr(&multiaddr) {
                         Some(peer_id) => {
                             bootstrap_peers.push((peer_id, multiaddr));
+                            log::debug!("Extracted peer ID {} from {}", peer_id, multiaddr);
                         }
                         None => {
                             // Use placeholder peer ID - the actual peer ID will be discovered during connection
                             let placeholder_peer_id = PeerId::random();
                             log::debug!(
-                                "Using placeholder peer ID {} for bootstrap peer {}",
+                                "Using placeholder peer ID {} for bootstrap peer {} - actual peer ID will be discovered",
                                 placeholder_peer_id,
                                 multiaddr
                             );
@@ -313,6 +317,12 @@ impl NetworkServiceFactory {
             } else {
                 log::warn!("Invalid bootstrap peer multiaddr: {}", peer.address);
             }
+        }
+        
+        if bootstrap_peers.is_empty() && !config.bootstrap_peers.is_empty() {
+            log::warn!("No valid bootstrap peers could be parsed from configuration");
+        } else if !bootstrap_peers.is_empty() {
+            log::info!("Successfully configured {} bootstrap peer(s)", bootstrap_peers.len());
         }
 
         NetworkConfig {
