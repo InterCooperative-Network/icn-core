@@ -40,7 +40,7 @@ split-debuginfo = "unpacked"
 
 [profile.release]
 debug = 1  # Some debug info for better error reporting
-lto = "thin"  # Use thin LTO instead of full LTO to avoid compiler crashes
+lto = false  # Disable LTO due to LLVM crashes after power surge
 codegen-units = 4  # Increase codegen units to reduce memory pressure
 
 # Dependencies for integration tests

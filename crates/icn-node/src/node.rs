@@ -343,6 +343,13 @@ pub struct Cli {
     #[clap(
         long,
         action,
+        help = "Enable development mode with real P2P networking and mixed services"
+    )]
+    pub dev: bool,
+
+    #[clap(
+        long,
+        action,
         help = "Enable demo mode with preloaded test data and memory-only storage"
     )]
     pub demo: bool,
@@ -704,22 +711,38 @@ pub async fn build_network_service(
         NetworkServiceOptionsBuilder,
     };
 
-    info!(
-        "🚀 Building network service - test_mode: {}, enable_p2p: {}",
-        config.test_mode, config.p2p.enable_p2p
-    );
+    info!("🚀 Building network service - detailed configuration:");
+    info!("  🧪 Test mode: {}", config.test_mode);
+    info!("  🛠️ Development mode: {}", config.dev);
+    info!("  🌐 P2P enabled: {}", config.p2p.enable_p2p);
+    info!("🔧 P2P Configuration details:");
+    info!("  📡 Listen Address: {}", config.p2p.listen_address);
+    info!("  🔗 Bootstrap Peers: {:?}", config.p2p.bootstrap_peers);
+    info!("  🔍 Enable mDNS: {}", config.p2p.enable_mdns);
+    info!("  👥 Max Peers: {}", config.p2p.max_peers);
+    info!("  ⏱️ Connection Timeout: {}ms", config.p2p.connection_timeout_ms);
+    info!("  🔄 Heartbeat Interval: {}ms", config.p2p.heartbeat_interval_ms);
 
-    // Determine environment based on configuration
+    // Determine environment based on configuration with detailed logging
     let environment = if config.test_mode {
-        info!("🧪 Test mode enabled - using testing environment");
+        info!("🧪 Test mode enabled - using testing environment (stub services)");
+        info!("   → This will create StubMeshNetworkService");
         NetworkEnvironment::Testing
+    } else if config.dev {
+        info!("🛠️ Development mode enabled - using development environment with real P2P");
+        info!("   → This should create Libp2pNetworkService with real networking");
+        NetworkEnvironment::Development
     } else if config.p2p.enable_p2p {
         info!("🏭 P2P enabled - using production environment");
+        info!("   → This will create Libp2pNetworkService for production");
         NetworkEnvironment::Production
     } else {
-        info!("🛠️ P2P disabled - using development environment");
+        info!("🛠️ P2P disabled - using development environment (fallback)");
+        info!("   → This may fall back to stub services");
         NetworkEnvironment::Development
     };
+
+    info!("📋 Final environment selected: {:?}", environment);
 
     // Create network service configuration
     let net_config = NetworkServiceConfig {
@@ -772,21 +795,35 @@ pub async fn build_network_service(
         .allow_fallback(config.test_mode || environment == NetworkEnvironment::Development) // Allow fallback in test/dev mode
         .build();
 
+    let allow_fallback = config.test_mode || environment == NetworkEnvironment::Development;
+    info!("🔧 Network service options:");
+    info!("  🌍 Environment: {:?}", environment);
+    info!("  🔄 Allow fallback: {}", allow_fallback);
+    info!("  🎯 Expected service type: {}", if environment == NetworkEnvironment::Testing { "Stub" } else { "Libp2p" });
+
     match NetworkServiceFactory::create(options).await {
         icn_network::NetworkServiceCreationResult::Libp2p(service) => {
-            info!("✅ Libp2p network service created successfully!");
+            info!("✅ SUCCESS: Libp2p network service created successfully!");
+            info!("🌐 P2P service will bind to: {}", config.p2p.listen_address);
+            info!("🔗 Bootstrap peers configured: {:?}", config.p2p.bootstrap_peers);
+            info!("🎯 This means REAL P2P networking should work!");
             Ok(service)
         }
         icn_network::NetworkServiceCreationResult::Stub(service) => {
             if config.test_mode {
-                info!("✅ Stub network service created for testing");
+                info!("✅ Stub network service created for testing mode (expected)");
             } else {
-                warn!("⚠️ Using stub network service in non-test mode");
+                warn!("⚠️ PROBLEM: Using stub network service in non-test mode!");
+                warn!("   🛠️ Dev mode: {}", config.dev);
+                warn!("   🌐 P2P enabled: {}", config.p2p.enable_p2p);
+                warn!("   🚨 This means P2P networking will NOT work - peers won't connect!");
+                warn!("   💡 Check libp2p feature compilation and configuration");
             }
             Ok(service)
         }
         icn_network::NetworkServiceCreationResult::Failed(e) => {
-            error!("❌ Network service creation failed: {}", e);
+            error!("❌ CRITICAL: Network service creation failed: {}", e);
+            error!("   🔍 This suggests a fundamental issue with libp2p setup");
             Err(CommonError::NetworkError(format!(
                 "Failed to create network service: {}",
                 e
@@ -1564,6 +1601,14 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
     config.http.open_rate_limit = parameter_store.open_rate_limit();
     config.apply_env_overrides();
     config.apply_cli_overrides(&cli, &matches);
+    
+    // Log final configuration state for debugging
+    info!("📋 Final configuration after all overrides:");
+    info!("  🧪 Test mode: {}", config.test_mode);
+    info!("  🛠️ Development mode: {}", config.dev);
+    info!("  🌐 P2P enabled: {}", config.p2p.enable_p2p);
+    info!("  🔍 mDNS enabled: {}", config.p2p.enable_mdns);
+    
     if let Err(e) =
         parameter_store.set_parameter("open_rate_limit", &config.http.open_rate_limit.to_string())
     {
@@ -1630,9 +1675,25 @@ pub async fn run_node() -> Result<(), Box<dyn std::error::Error>> {
 
     #[cfg_attr(not(feature = "persist-sled"), allow(unused_mut))]
     let mut rt_ctx = if config.test_mode {
+        info!("🧪 RUNTIME: Creating testing RuntimeContext (stub services)");
         RuntimeContext::new_for_testing(node_did.clone(), Some(1000))
             .expect("Failed to create RuntimeContext for testing")
+    } else if config.dev {
+        // Development mode: use real libp2p networking with mixed services
+        info!("🛠️ RUNTIME: Creating development RuntimeContext with REAL P2P networking");
+        info!("   → Development mode should use real libp2p services");
+        info!("   → Network service type: {:?}", std::any::type_name_of_val(&network_service));
+        RuntimeContext::new_for_development(
+            node_did.clone(),
+            signer.clone(),
+            mana_ledger,
+            Some(network_service),
+            Some(dag_store_for_rt),
+        )
+        .expect("Failed to create RuntimeContext for development")
     } else {
+        // Production mode: use all real services
+        info!("🏭 RUNTIME: Creating production RuntimeContext with all real services");
         RuntimeContext::new_for_production(
             node_did.clone(),
             network_service,
