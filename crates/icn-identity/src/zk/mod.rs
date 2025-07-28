@@ -929,7 +929,11 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-        let (sk, _) = crate::generate_ed25519_keypair();
+        let (sk, vk) = crate::generate_ed25519_keypair();
+        let issuer_did_string = crate::did_key_from_verifying_key(&vk);
+        // Parse "did:key:encoded_part" into Did::new("key", "encoded_part")
+        let parts: Vec<&str> = issuer_did_string.splitn(3, ':').collect();
+        let issuer_did = Did::new(parts[1], parts[2]);
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
@@ -943,7 +947,7 @@ mod tests {
             icn_zk::ReputationThresholds::default(),
         );
         let proof = ZkCredentialProof {
-            issuer: Did::new("key", "issuer"),
+            issuer: issuer_did,
             holder: Did::new("key", "holder"),
             claim_type: "age_over_18".into(),
             proof: proof_bytes.clone(),
@@ -1004,7 +1008,11 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-        let (sk, _) = crate::generate_ed25519_keypair();
+        let (sk, vk) = crate::generate_ed25519_keypair();
+        let issuer_did_string = crate::did_key_from_verifying_key(&vk);
+        // Parse "did:key:encoded_part" into Did::new("key", "encoded_part")
+        let parts: Vec<&str> = issuer_did_string.splitn(3, ':').collect();
+        let issuer_did = Did::new(parts[1], parts[2]);
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
@@ -1019,7 +1027,7 @@ mod tests {
             icn_zk::ReputationThresholds::default(),
         );
         let proof = ZkCredentialProof {
-            issuer: Did::new("key", "issuer"),
+            issuer: issuer_did,
             holder: Did::new("key", "holder"),
             claim_type: "age_over_18".into(),
             proof: proof_bytes,
@@ -1054,7 +1062,11 @@ mod tests {
         let mut vk_bytes = Vec::new();
         pk.vk.serialize_compressed(&mut vk_bytes).unwrap();
 
-        let (sk, _) = crate::generate_ed25519_keypair();
+        let (sk, vk) = crate::generate_ed25519_keypair();
+        let issuer_did_string = crate::did_key_from_verifying_key(&vk);
+        // Parse "did:key:encoded_part" into Did::new("key", "encoded_part")
+        let parts: Vec<&str> = issuer_did_string.splitn(3, ':').collect();
+        let issuer_did = Did::new(parts[1], parts[2]);
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
@@ -1068,7 +1080,7 @@ mod tests {
             icn_zk::ReputationThresholds::default(),
         );
         let proof = ZkCredentialProof {
-            issuer: Did::new("key", "issuer"),
+            issuer: issuer_did,
             holder: Did::new("key", "holder"),
             claim_type: "age_over_18".into(),
             proof: proof_bytes.clone(),
