@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8'  # Removed - this attribute is obsolete
 
 services:
   # Node A - Bootstrap node and primary HTTP gateway

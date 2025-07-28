@@ -27,9 +27,9 @@ ARGS=(
     --storage-backend "${ICN_STORAGE_BACKEND:-memory}"
 )
 
-# Force development mode to enable real networking (not test mode)
+# Enable real networking with P2P but not test mode
 # This ensures we get DefaultMeshNetworkService with libp2p instead of StubMeshNetworkService
-ARGS+=(--dev)  # Development mode for real networking
+# Note: Removed --dev flag as it doesn't exist; P2P is enabled via --enable-p2p
 
 # Add API key if provided
 if [ -n "${ICN_HTTP_API_KEY}" ]; then
