@@ -70,11 +70,17 @@ test_peer_connectivity() {
     local response=$(curl -s -H "x-api-key: $api_key" "$node_url/status" 2>/dev/null || echo "")
     if [ -n "$response" ]; then
         local peer_count=$(echo "$response" | jq -r '.peer_count // 0' 2>/dev/null || echo "0")
+        local kademlia_peers=$(echo "$response" | jq -r '.kademlia_peers // 0' 2>/dev/null || echo "0")
         if [ "$peer_count" -gt 0 ]; then
-            success "$node_name has $peer_count peer connection(s)"
+            success "$node_name has $peer_count peer connection(s), $kademlia_peers Kademlia peers"
             return 0
         else
-            warning "$node_name has 0 peer connections"
+            warning "$node_name has 0 peer connections, $kademlia_peers Kademlia peers"
+            # Also check network stats for more details
+            local stats_response=$(curl -s -H "x-api-key: $api_key" "$node_url/network/stats" 2>/dev/null || echo "")
+            if [ -n "$stats_response" ]; then
+                info "Network stats for $node_name: $stats_response"
+            fi
             return 1
         fi
     else

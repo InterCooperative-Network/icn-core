@@ -276,16 +276,38 @@ impl NetworkServiceFactory {
             .filter_map(|addr_str| addr_str.parse::<Multiaddr>().ok())
             .collect();
 
-        // Parse bootstrap peers
-        let bootstrap_peers = config
-            .bootstrap_peers
-            .iter()
-            .filter_map(|peer| {
-                let peer_id = PeerId::from_str(&peer.peer_id).ok()?;
-                let multiaddr = peer.address.parse::<Multiaddr>().ok()?;
-                Some((peer_id, multiaddr))
-            })
-            .collect();
+        // Parse bootstrap peers - handle both full and partial multiaddrs
+        let mut bootstrap_peers = Vec::new();
+        
+        for peer in &config.bootstrap_peers {
+            if let Ok(multiaddr) = peer.address.parse::<Multiaddr>() {
+                if !peer.peer_id.is_empty() {
+                    // Explicit peer ID provided
+                    if let Ok(peer_id) = PeerId::from_str(&peer.peer_id) {
+                        bootstrap_peers.push((peer_id, multiaddr));
+                    }
+                } else {
+                    // No peer ID - try to extract from multiaddr or use placeholder
+                    match Self::extract_peer_id_from_multiaddr(&multiaddr) {
+                        Some(peer_id) => {
+                            bootstrap_peers.push((peer_id, multiaddr));
+                        }
+                        None => {
+                            // Use placeholder peer ID - the actual peer ID will be discovered during connection
+                            let placeholder_peer_id = PeerId::random();
+                            log::debug!(
+                                "Using placeholder peer ID {} for bootstrap peer {}",
+                                placeholder_peer_id,
+                                multiaddr
+                            );
+                            bootstrap_peers.push((placeholder_peer_id, multiaddr));
+                        }
+                    }
+                }
+            } else {
+                log::warn!("Invalid bootstrap peer multiaddr: {}", peer.address);
+            }
+        }
 
         NetworkConfig {
             listen_addresses,
@@ -355,6 +377,19 @@ impl NetworkServiceFactory {
                 "Stub service not allowed in production".to_string(),
             )),
         }
+    }
+
+    /// Extract peer ID from multiaddr if present
+    #[cfg(feature = "libp2p")]
+    fn extract_peer_id_from_multiaddr(multiaddr: &libp2p::Multiaddr) -> Option<libp2p::PeerId> {
+        use libp2p::multiaddr::Protocol;
+        
+        for protocol in multiaddr.iter() {
+            if let Protocol::P2p(peer_id) = protocol {
+                return Some(peer_id);
+            }
+        }
+        None
     }
 }
 
