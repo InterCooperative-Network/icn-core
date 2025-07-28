@@ -788,6 +788,7 @@ impl RuntimeConfig {
             peer_discovery_interval: Duration::from_secs(60), // Default 1 minute
             enable_mdns: self.network.enable_mdns,
             kademlia_replication_factor: 20, // Default replication factor
+            discovery_addresses: Vec::new(), // No discovery addresses in runtime config (use bootstrap_peers)
         })
     }
 

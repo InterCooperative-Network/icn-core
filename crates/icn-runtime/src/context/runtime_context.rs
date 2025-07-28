@@ -1231,6 +1231,7 @@ impl RuntimeContext {
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
                 bootstrap_peers: vec![], // No bootstrap peers by default
+                discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
                 max_peers_per_ip: 5,
@@ -1439,6 +1440,7 @@ impl RuntimeContext {
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
                 bootstrap_peers: vec![], // No bootstrap peers by default
+                discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
                 max_peers_per_ip: 5,

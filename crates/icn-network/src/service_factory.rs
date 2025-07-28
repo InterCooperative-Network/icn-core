@@ -188,6 +188,12 @@ impl NetworkServiceFactory {
                 let mut cfg = NetworkServiceConfig::default();
                 cfg.enable_mdns = true; // Enable mDNS for local development
                 cfg.max_peers = 50; // Smaller peer limit for development
+                
+                // Add default development bootstrap peers if none provided
+                if cfg.bootstrap_peers.is_empty() {
+                    cfg.bootstrap_peers = Self::get_default_bootstrap_peers_for_env(NetworkEnvironment::Development);
+                }
+                
                 cfg
             });
 
@@ -276,20 +282,58 @@ impl NetworkServiceFactory {
             .filter_map(|addr_str| addr_str.parse::<Multiaddr>().ok())
             .collect();
 
-        // Parse bootstrap peers
-        let bootstrap_peers = config
-            .bootstrap_peers
-            .iter()
-            .filter_map(|peer| {
-                let peer_id = PeerId::from_str(&peer.peer_id).ok()?;
-                let multiaddr = peer.address.parse::<Multiaddr>().ok()?;
-                Some((peer_id, multiaddr))
-            })
-            .collect();
+        // Parse bootstrap peers - only include those with valid peer IDs
+        let mut bootstrap_peers = Vec::new();
+        let mut discovery_addresses = Vec::new();
+        
+        for peer in &config.bootstrap_peers {
+            if let Ok(multiaddr) = peer.address.parse::<Multiaddr>() {
+                if !peer.peer_id.is_empty() {
+                    // Explicit peer ID provided - validate it
+                    if let Ok(peer_id) = PeerId::from_str(&peer.peer_id) {
+                        bootstrap_peers.push((peer_id, multiaddr.clone()));
+                        log::debug!("Added bootstrap peer with known ID {} at {}", peer_id, multiaddr);
+                    } else {
+                        log::warn!("Invalid peer ID for bootstrap peer: {}", peer.peer_id);
+                    }
+                } else {
+                    // No peer ID provided - try to extract from multiaddr
+                    match Self::extract_peer_id_from_multiaddr(&multiaddr) {
+                        Some(peer_id) => {
+                            bootstrap_peers.push((peer_id, multiaddr.clone()));
+                            log::debug!("Extracted peer ID {} from multiaddr {}", peer_id, multiaddr);
+                        }
+                        None => {
+                            // No peer ID available - add to discovery addresses instead
+                            // These will be dialed for initial connection but NOT added to Kademlia
+                            discovery_addresses.push(multiaddr.clone());
+                            log::debug!(
+                                "Added discovery address {} - will dial but not add to DHT until peer ID is known",
+                                multiaddr
+                            );
+                        }
+                    }
+                }
+            } else {
+                log::warn!("Invalid bootstrap peer multiaddr: {}", peer.address);
+            }
+        }
+        
+        if bootstrap_peers.is_empty() && discovery_addresses.is_empty() && !config.bootstrap_peers.is_empty() {
+            log::warn!("No valid bootstrap peers or discovery addresses could be parsed from configuration");
+        } else {
+            if !bootstrap_peers.is_empty() {
+                log::info!("Successfully configured {} bootstrap peer(s) with known IDs", bootstrap_peers.len());
+            }
+            if !discovery_addresses.is_empty() {
+                log::info!("Successfully configured {} discovery address(es) for initial connection", discovery_addresses.len());
+            }
+        }
 
         NetworkConfig {
             listen_addresses,
             bootstrap_peers,
+            discovery_addresses, // New field for addresses without known peer IDs
             max_peers: config.max_peers,
             max_peers_per_ip: config.max_peers_per_ip,
             connection_timeout: Duration::from_millis(config.connection_timeout_ms),
@@ -354,6 +398,48 @@ impl NetworkServiceFactory {
             NetworkServiceCreationResult::Stub(_) => Err(MeshNetworkError::SetupError(
                 "Stub service not allowed in production".to_string(),
             )),
+        }
+    }
+
+    /// Extract peer ID from multiaddr if present
+    #[cfg(feature = "libp2p")]
+    fn extract_peer_id_from_multiaddr(multiaddr: &libp2p::Multiaddr) -> Option<libp2p::PeerId> {
+        use libp2p::multiaddr::Protocol;
+        
+        for protocol in multiaddr.iter() {
+            if let Protocol::P2p(peer_id) = protocol {
+                return Some(peer_id);
+            }
+        }
+        None
+    }
+
+    /// Get default bootstrap peers for specific environments
+    fn get_default_bootstrap_peers_for_env(env: NetworkEnvironment) -> Vec<BootstrapPeer> {
+        match env {
+            NetworkEnvironment::Production => {
+                // In production, no default bootstrap peers - they must be explicitly configured
+                Vec::new()
+            }
+            NetworkEnvironment::Development => {
+                // For development, provide some well-known development bootstrap addresses
+                vec![
+                    BootstrapPeer {
+                        peer_id: String::new(), // Will be discovered
+                        address: "/ip4/127.0.0.1/tcp/4001".to_string(),
+                        weight: Some(1),
+                        trusted: true,
+                    }
+                ]
+            }
+            NetworkEnvironment::Testing => {
+                // For testing, no bootstrap peers needed typically
+                Vec::new()
+            }
+            NetworkEnvironment::Benchmarking => {
+                // For benchmarking, no bootstrap peers needed typically
+                Vec::new()
+            }
         }
     }
 }
