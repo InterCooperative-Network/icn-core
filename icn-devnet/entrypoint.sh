@@ -23,7 +23,7 @@ fi
 # Build command line arguments
 ARGS=(
     --http-listen-addr "${ICN_HTTP_LISTEN_ADDR:-0.0.0.0:7845}"
-    --p2p-listen-addr "${ICN_P2P_LISTEN_ADDR:-/ip4/0.0.0.0/tcp/4001}"
+    --listen-address "${ICN_P2P_LISTEN_ADDR:-/ip4/0.0.0.0/tcp/4001}"
     --storage-backend "${ICN_STORAGE_BACKEND:-memory}"
 )
 
@@ -62,18 +62,21 @@ if [ "${ICN_ENABLE_P2P}" = "true" ]; then
         echo "🌟 Bootstrap node - starting without bootstrap peers"
         # Bootstrap node starts without bootstrap peers
     else
-        echo "🔗 Worker node - configuring with mDNS discovery"
+        echo "🔗 Worker node - configuring with bootstrap peers and mDNS discovery"
         
-        # Enable mDNS for worker nodes since bootstrap peer coordination is complex
-        echo "🔍 Enabling mDNS for local peer discovery"
-        ARGS+=(--enable-mdns)
+        # Add bootstrap peers if provided
+        if [ -n "${ICN_BOOTSTRAP_PEERS}" ]; then
+            echo "🔗 Adding bootstrap peers: ${ICN_BOOTSTRAP_PEERS}"
+            ARGS+=(--bootstrap-peers "${ICN_BOOTSTRAP_PEERS}")
+        fi
     fi
 else
     echo "🚫 P2P networking disabled"
 fi
 
-# Enable mDNS if explicitly requested (in addition to automatic enabling for workers)
-if [ "${ICN_ENABLE_MDNS}" = "true" ]; then
+# Enable mDNS if explicitly requested OR if this is a worker node with P2P enabled
+if [ "${ICN_ENABLE_MDNS}" = "true" ] || ( [ "${ICN_ENABLE_P2P}" = "true" ] && [ "$IS_BOOTSTRAP_NODE" = "false" ] ); then
+    echo "🔍 Enabling mDNS for peer discovery"
     ARGS+=(--enable-mdns)
 fi
 
