@@ -39,26 +39,18 @@ ENV RUST_MIN_STACK=16777216
 ENV CARGO_NET_RETRY=10
 ENV CARGO_NET_TIMEOUT=300
 
-# Ultra-conservative compilation flags to minimize memory usage
-ENV RUSTFLAGS="-C debuginfo=1 -C opt-level=1 -C strip=symbols -C codegen-units=4"
-ENV CARGO_PROFILE_RELEASE_DEBUG=0
-ENV CARGO_PROFILE_RELEASE_OPT_LEVEL=1
-ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=16
+# Conservative compilation flags to avoid compiler crashes
+ENV RUSTFLAGS="-C debuginfo=1 -C lto=off"
+ENV CARGO_PROFILE_RELEASE_LTO=false
+ENV CARGO_PROFILE_RELEASE_CODEGEN_UNITS=8
 
 # Limit concurrent compilation jobs to reduce memory pressure
 ENV CARGO_BUILD_JOBS=2
-ENV CARGO_PROFILE_RELEASE_LTO=false
-
-# Reduce optimization for C dependencies to avoid crashes
-ENV CFLAGS="-O1 -g0"
-ENV CXXFLAGS="-O1 -g0"
-
-# Additional LLVM memory optimizations
-ENV LLVM_DISABLE_LLVM_DYLIB=1
 ENV CARGO_INCREMENTAL=0
 
-# Limit parallel compilation to reduce memory pressure
-ENV CARGO_BUILD_JOBS=2
+# Reduce optimization for C dependencies
+ENV CFLAGS="-O1"
+ENV CXXFLAGS="-O1"
 
 # Build with increased stack size and memory limits
 # Use release mode with reduced debug info to avoid LLVM issues
