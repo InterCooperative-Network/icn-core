@@ -282,35 +282,35 @@ impl NetworkServiceFactory {
             .filter_map(|addr_str| addr_str.parse::<Multiaddr>().ok())
             .collect();
 
-        // Parse bootstrap peers - handle both full and partial multiaddrs
+        // Parse bootstrap peers - only include those with valid peer IDs
         let mut bootstrap_peers = Vec::new();
+        let mut discovery_addresses = Vec::new();
         
         for peer in &config.bootstrap_peers {
             if let Ok(multiaddr) = peer.address.parse::<Multiaddr>() {
                 if !peer.peer_id.is_empty() {
-                    // Explicit peer ID provided
+                    // Explicit peer ID provided - validate it
                     if let Ok(peer_id) = PeerId::from_str(&peer.peer_id) {
-                        bootstrap_peers.push((peer_id, multiaddr));
-                        log::debug!("Added bootstrap peer {} at {}", peer_id, multiaddr);
+                        bootstrap_peers.push((peer_id, multiaddr.clone()));
+                        log::debug!("Added bootstrap peer with known ID {} at {}", peer_id, multiaddr);
                     } else {
                         log::warn!("Invalid peer ID for bootstrap peer: {}", peer.peer_id);
                     }
                 } else {
-                    // No peer ID - try to extract from multiaddr or use placeholder
+                    // No peer ID provided - try to extract from multiaddr
                     match Self::extract_peer_id_from_multiaddr(&multiaddr) {
                         Some(peer_id) => {
-                            bootstrap_peers.push((peer_id, multiaddr));
-                            log::debug!("Extracted peer ID {} from {}", peer_id, multiaddr);
+                            bootstrap_peers.push((peer_id, multiaddr.clone()));
+                            log::debug!("Extracted peer ID {} from multiaddr {}", peer_id, multiaddr);
                         }
                         None => {
-                            // Use placeholder peer ID - the actual peer ID will be discovered during connection
-                            let placeholder_peer_id = PeerId::random();
+                            // No peer ID available - add to discovery addresses instead
+                            // These will be dialed for initial connection but NOT added to Kademlia
+                            discovery_addresses.push(multiaddr.clone());
                             log::debug!(
-                                "Using placeholder peer ID {} for bootstrap peer {} - actual peer ID will be discovered",
-                                placeholder_peer_id,
+                                "Added discovery address {} - will dial but not add to DHT until peer ID is known",
                                 multiaddr
                             );
-                            bootstrap_peers.push((placeholder_peer_id, multiaddr));
                         }
                     }
                 }
@@ -319,15 +319,21 @@ impl NetworkServiceFactory {
             }
         }
         
-        if bootstrap_peers.is_empty() && !config.bootstrap_peers.is_empty() {
-            log::warn!("No valid bootstrap peers could be parsed from configuration");
-        } else if !bootstrap_peers.is_empty() {
-            log::info!("Successfully configured {} bootstrap peer(s)", bootstrap_peers.len());
+        if bootstrap_peers.is_empty() && discovery_addresses.is_empty() && !config.bootstrap_peers.is_empty() {
+            log::warn!("No valid bootstrap peers or discovery addresses could be parsed from configuration");
+        } else {
+            if !bootstrap_peers.is_empty() {
+                log::info!("Successfully configured {} bootstrap peer(s) with known IDs", bootstrap_peers.len());
+            }
+            if !discovery_addresses.is_empty() {
+                log::info!("Successfully configured {} discovery address(es) for initial connection", discovery_addresses.len());
+            }
         }
 
         NetworkConfig {
             listen_addresses,
             bootstrap_peers,
+            discovery_addresses, // New field for addresses without known peer IDs
             max_peers: config.max_peers,
             max_peers_per_ip: config.max_peers_per_ip,
             connection_timeout: Duration::from_millis(config.connection_timeout_ms),

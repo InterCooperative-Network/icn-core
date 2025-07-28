@@ -702,6 +702,9 @@ pub mod libp2p_service {
         pub enable_mdns: bool,
         pub kademlia_replication_factor: usize,
         pub bootstrap_peers: Vec<(Libp2pPeerId, Multiaddr)>,
+        /// Discovery addresses for initial connections (without known peer IDs)
+        /// These will be dialed but not added to Kademlia until peer ID is discovered
+        pub discovery_addresses: Vec<Multiaddr>,
     }
 
     impl Default for NetworkConfig {
@@ -718,6 +721,7 @@ pub mod libp2p_service {
                 enable_mdns: false,
                 kademlia_replication_factor: 20,
                 bootstrap_peers: Vec::new(),
+                discovery_addresses: Vec::new(),
             }
         }
     }
@@ -742,6 +746,7 @@ pub mod libp2p_service {
                 enable_mdns: false, // Disabled for production security
                 kademlia_replication_factor: 20,
                 bootstrap_peers: Vec::new(),
+                discovery_addresses: Vec::new(),
             }
         }
 
@@ -762,6 +767,7 @@ pub mod libp2p_service {
                 enable_mdns: true, // Enabled for local development
                 kademlia_replication_factor: 10,
                 bootstrap_peers: Vec::new(),
+                discovery_addresses: Vec::new(),
             }
         }
 
@@ -1362,6 +1368,7 @@ pub mod libp2p_service {
                 match swarm.dial(addr.clone()) {
                     Ok(_) => {
                         info!("Successfully initiated dial to bootstrap peer: {}", peer_id);
+                        // Add known bootstrap peers to Kademlia routing table
                         swarm
                             .behaviour_mut()
                             .kademlia
@@ -1370,6 +1377,22 @@ pub mod libp2p_service {
                     Err(e) => {
                         warn!("Failed to dial bootstrap peer {}: {}", peer_id, e);
                         // Continue trying other bootstrap peers instead of stopping
+                    }
+                }
+            }
+
+            // Connect to discovery addresses (without adding to Kademlia until peer ID is known)
+            for addr in &config.discovery_addresses {
+                info!("Attempting to dial discovery address: {}", addr);
+                match swarm.dial(addr.clone()) {
+                    Ok(_) => {
+                        info!("Successfully initiated dial to discovery address: {} - peer ID will be discovered on connection", addr);
+                        // Note: We do NOT add to Kademlia here - the peer ID will be discovered
+                        // during the connection handshake and can be added to Kademlia then
+                    }
+                    Err(e) => {
+                        warn!("Failed to dial discovery address {}: {}", addr, e);
+                        // Continue trying other discovery addresses
                     }
                 }
             }
@@ -1383,9 +1406,11 @@ pub mod libp2p_service {
             let federations = Arc::new(Mutex::new(Vec::new()));
             let federations_clone = federations.clone();
 
-            // Clone bootstrap_peers for use in the async task
+            // Clone bootstrap_peers and discovery_addresses for use in the async task
             let bootstrap_peers_clone = config.bootstrap_peers.clone();
+            let discovery_addresses_clone = config.discovery_addresses.clone();
             let has_bootstrap_peers = !bootstrap_peers_clone.is_empty();
+            let has_discovery_addresses = !discovery_addresses_clone.is_empty();
 
             // Store the listening addresses for the service
             let listening_addresses = Arc::new(Mutex::new(Vec::new()));
@@ -1565,14 +1590,26 @@ pub mod libp2p_service {
                             // This timeout ensures the event loop continues running even if no events are available
                             // This is important for proper swarm operation and prevents hanging
                         }
-                        _ = bootstrap_tick.tick(), if has_bootstrap_peers => {
+                        _ = bootstrap_tick.tick(), if has_bootstrap_peers || has_discovery_addresses => {
+                            // Retry known bootstrap peers
                             for (peer, addr) in &bootstrap_peers_clone {
                                 if !swarm.is_connected(peer) {
                                     if let Err(e) = swarm.dial(addr.clone()) {
-                                        log::warn!("Failed to redial bootstrap {}: {}", peer, e);
+                                        log::warn!("Failed to redial bootstrap peer {}: {}", peer, e);
                                     }
                                 }
                             }
+                            
+                            // Retry discovery addresses (without known peer IDs)
+                            for addr in &discovery_addresses_clone {
+                                // Check if we're already connected to this address
+                                // We can't check by peer ID since we don't know it, so we'll try to dial
+                                // The swarm will handle duplicate connections appropriately
+                                if let Err(e) = swarm.dial(addr.clone()) {
+                                    log::warn!("Failed to redial discovery address {}: {}", addr, e);
+                                }
+                            }
+                            
                             if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
                                 log::error!("❌ [LIBP2P] Periodic bootstrap error: {:?}", e);
                             }
@@ -2118,3 +2155,4 @@ pub mod libp2p_service {
         }
     }
 }
+
