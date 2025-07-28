@@ -32,7 +32,7 @@ use icn_common::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
-use libp2p::PeerId as Libp2pPeerId;
+use libp2p::{PeerId as Libp2pPeerId, Multiaddr, multiaddr::Protocol};
 #[cfg(feature = "libp2p")]
 use log::{info, warn};
 use lru::LruCache;
@@ -865,6 +865,116 @@ pub mod libp2p_service {
 
             self.listen_addresses = parsed_addresses;
             Ok(())
+        }
+
+        /// Add bootstrap peers from string format.
+        ///
+        /// This method parses multiaddr strings and adds them as bootstrap peers.
+        /// Supports both full multiaddrs with peer IDs and partial multiaddrs without peer IDs.
+        pub fn with_bootstrap_peers(mut self, peer_strings: &[String]) -> Result<Self, MeshNetworkError> {
+            self.bootstrap_peers = Self::parse_bootstrap_peers(peer_strings)?;
+            Ok(self)
+        }
+
+        /// Customize network configuration settings.
+        ///
+        /// This method allows overriding specific configuration values.
+        pub fn with_settings(
+            mut self,
+            listen_address: Option<&str>,
+            enable_mdns: Option<bool>,
+            max_peers: Option<usize>,
+            max_peers_per_ip: Option<usize>,
+            connection_timeout_ms: Option<u64>,
+            request_timeout_ms: Option<u64>,
+            heartbeat_interval_ms: Option<u64>,
+            bootstrap_interval_secs: Option<u64>,
+            peer_discovery_interval_secs: Option<u64>,
+            kademlia_replication_factor: Option<usize>,
+        ) -> Result<Self, MeshNetworkError> {
+            // Apply listen address if provided
+            if let Some(addr_str) = listen_address {
+                match addr_str.parse() {
+                    Ok(addr) => self.listen_addresses = vec![addr],
+                    Err(e) => return Err(MeshNetworkError::SetupError(
+                        format!("Invalid listen address '{}': {}", addr_str, e)
+                    )),
+                }
+            }
+
+            // Apply other settings
+            if let Some(mdns) = enable_mdns {
+                self.enable_mdns = mdns;
+            }
+            if let Some(peers) = max_peers {
+                self.max_peers = peers;
+            }
+            if let Some(peers_per_ip) = max_peers_per_ip {
+                self.max_peers_per_ip = peers_per_ip;
+            }
+            if let Some(timeout) = connection_timeout_ms {
+                self.connection_timeout = Duration::from_millis(timeout);
+            }
+            if let Some(timeout) = request_timeout_ms {
+                self.request_timeout = Duration::from_millis(timeout);
+            }
+            if let Some(interval) = heartbeat_interval_ms {
+                self.heartbeat_interval = Duration::from_millis(interval);
+            }
+            if let Some(interval) = bootstrap_interval_secs {
+                self.bootstrap_interval = Duration::from_secs(interval);
+            }
+            if let Some(interval) = peer_discovery_interval_secs {
+                self.peer_discovery_interval = Duration::from_secs(interval);
+            }
+            if let Some(factor) = kademlia_replication_factor {
+                self.kademlia_replication_factor = factor;
+            }
+
+            Ok(self)
+        }
+
+        /// Parse bootstrap peers from string format to (PeerId, Multiaddr) tuples.
+        ///
+        /// Handles both formats:
+        /// - Full multiaddr with peer ID: "/dns4/host/tcp/4001/p2p/12D3KooW..."
+        /// - Partial multiaddr without peer ID: "/dns4/host/tcp/4001" (peer ID will be discovered)
+        fn parse_bootstrap_peers(peers: &[String]) -> Result<Vec<(Libp2pPeerId, Multiaddr)>, MeshNetworkError> {
+            let mut parsed_peers = Vec::new();
+            
+            for peer_str in peers {
+                if peer_str.is_empty() {
+                    continue;
+                }
+                
+                match peer_str.parse::<Multiaddr>() {
+                    Ok(multiaddr) => {
+                                                 // Check if the multiaddr contains a peer ID
+                         if let Some(peer_id) = multiaddr.iter().find_map(|p| {
+                             if let Protocol::P2p(pid) = p {
+                                 Some(pid)
+                             } else {
+                                 None
+                             }
+                         }) {
+                             // Full multiaddr with peer ID
+                             parsed_peers.push((peer_id, multiaddr));
+                        } else {
+                            // Partial multiaddr without peer ID - use a placeholder
+                            // The actual peer ID will be discovered during connection
+                            let placeholder_peer_id = Libp2pPeerId::random();
+                            parsed_peers.push((placeholder_peer_id, multiaddr));
+                        }
+                    }
+                                         Err(e) => {
+                         return Err(MeshNetworkError::SetupError(
+                             format!("Invalid multiaddr '{}': {}", peer_str, e)
+                         ));
+                     }
+                }
+            }
+            
+            Ok(parsed_peers)
         }
     }
 

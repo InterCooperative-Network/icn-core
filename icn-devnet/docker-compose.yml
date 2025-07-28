@@ -13,11 +13,11 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-a-key
       - ICN_LOG_LEVEL=debug
-
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
     ports:
       - "5001:7845"  # HTTP API
@@ -46,8 +46,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-b-key
       - ICN_LOG_LEVEL=debug
@@ -81,8 +81,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-c-key
       - ICN_LOG_LEVEL=debug
@@ -116,8 +116,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-d-key
       - ICN_LOG_LEVEL=debug
@@ -151,8 +151,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-e-key
       - ICN_LOG_LEVEL=debug
@@ -186,8 +186,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-f-key
       - ICN_LOG_LEVEL=debug
@@ -221,8 +221,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-g-key
       - ICN_LOG_LEVEL=debug
@@ -256,8 +256,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-h-key
       - ICN_LOG_LEVEL=debug
@@ -291,8 +291,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-i-key
       - ICN_LOG_LEVEL=debug
@@ -326,8 +326,8 @@ services:
       - ICN_HTTP_LISTEN_ADDR=0.0.0.0:7845
       - ICN_P2P_LISTEN_ADDR=/ip4/0.0.0.0/tcp/4001
       - ICN_ENABLE_P2P=true
-      - ICN_ENABLE_MDNS=true
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_ENABLE_MDNS=false
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
       - ICN_STORAGE_BACKEND=memory
       - ICN_HTTP_API_KEY=devnet-j-key
       - ICN_LOG_LEVEL=debug
