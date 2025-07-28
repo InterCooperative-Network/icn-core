@@ -10,8 +10,16 @@ echo "🌐 P2P Listen: ${ICN_P2P_LISTEN_ADDR:-/ip4/0.0.0.0/tcp/4001}"
 echo "🔗 Bootstrap Peers: ${ICN_BOOTSTRAP_PEERS:-none}"
 
 # Initialize storage and coordination directories
-mkdir -p /app/data
-mkdir -p /app/peer_coordination
+# Use 'mkdir -p' with error handling in case of permission issues
+mkdir -p /app/data 2>/dev/null || {
+    echo "⚠️  Warning: Cannot create /app/data (likely volume permission issue), using /tmp fallback"
+    mkdir -p /tmp/icn_data
+    export ICN_DATA_DIR="/tmp/icn_data"
+}
+mkdir -p /app/peer_coordination 2>/dev/null || {
+    echo "⚠️  Warning: Cannot create /app/peer_coordination, using /tmp fallback"
+    mkdir -p /tmp/peer_coordination
+}
 
 # Check if this is a bootstrap node (node-a)
 IS_BOOTSTRAP_NODE=false
@@ -41,18 +49,21 @@ if [ -n "${ICN_NODE_NAME}" ]; then
     ARGS+=(--node-name "${ICN_NODE_NAME}")
 fi
 
+# Determine the data directory (fallback if permission issues)
+DATA_DIR="${ICN_DATA_DIR:-/app/data}"
+
 # Add storage path for file backend
 if [ "${ICN_STORAGE_BACKEND}" = "file" ]; then
-    ARGS+=(--storage-path "/app/data/node_store")
+    ARGS+=(--storage-path "${DATA_DIR}/node_store")
 fi
 
 # Always set storage path to avoid permission issues
-ARGS+=(--storage-path "/app/data/node_store")
-ARGS+=(--mana-ledger-path "/app/data/mana_ledger")
-ARGS+=(--reputation-db-path "/app/data/reputation_db")
-ARGS+=(--governance-db-path "/app/data/governance_db")
-ARGS+=(--node-did-path "/app/data/node_did.txt")
-ARGS+=(--node-private-key-path "/app/data/node_sk.bs58")
+ARGS+=(--storage-path "${DATA_DIR}/node_store")
+ARGS+=(--mana-ledger-path "${DATA_DIR}/mana_ledger")
+ARGS+=(--reputation-db-path "${DATA_DIR}/reputation_db")
+ARGS+=(--governance-db-path "${DATA_DIR}/governance_db")
+ARGS+=(--node-did-path "${DATA_DIR}/node_did.txt")
+ARGS+=(--node-private-key-path "${DATA_DIR}/node_sk.bs58")
 
 # Handle P2P configuration with proper coordination
 if [ "${ICN_ENABLE_P2P}" = "true" ]; then
