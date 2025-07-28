@@ -16,6 +16,7 @@ pub use error::MeshNetworkError;
 pub mod adaptive_routing;
 pub mod metrics;
 pub mod service_factory;
+pub mod bootstrap_discovery;
 pub use adaptive_routing::{
     AdaptiveNetworkService, AdaptiveRoutingConfig, AdaptiveRoutingEngine, NetworkTopology,
     RouteInfo, RouteSelectionWeights, RoutingEvent,
@@ -24,6 +25,7 @@ pub use service_factory::{
     BootstrapPeer, NetworkEnvironment, NetworkServiceConfig, NetworkServiceCreationResult,
     NetworkServiceFactory, NetworkServiceOptions, NetworkServiceOptionsBuilder,
 };
+pub use bootstrap_discovery::BootstrapDiscovery;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};

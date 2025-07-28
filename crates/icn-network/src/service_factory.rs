@@ -188,6 +188,12 @@ impl NetworkServiceFactory {
                 let mut cfg = NetworkServiceConfig::default();
                 cfg.enable_mdns = true; // Enable mDNS for local development
                 cfg.max_peers = 50; // Smaller peer limit for development
+                
+                // Add default development bootstrap peers if none provided
+                if cfg.bootstrap_peers.is_empty() {
+                    cfg.bootstrap_peers = Self::get_default_bootstrap_peers_for_env(NetworkEnvironment::Development);
+                }
+                
                 cfg
             });
 
@@ -390,6 +396,35 @@ impl NetworkServiceFactory {
             }
         }
         None
+    }
+
+    /// Get default bootstrap peers for specific environments
+    fn get_default_bootstrap_peers_for_env(env: NetworkEnvironment) -> Vec<BootstrapPeer> {
+        match env {
+            NetworkEnvironment::Production => {
+                // In production, no default bootstrap peers - they must be explicitly configured
+                Vec::new()
+            }
+            NetworkEnvironment::Development => {
+                // For development, provide some well-known development bootstrap addresses
+                vec![
+                    BootstrapPeer {
+                        peer_id: String::new(), // Will be discovered
+                        address: "/ip4/127.0.0.1/tcp/4001".to_string(),
+                        weight: Some(1),
+                        trusted: true,
+                    }
+                ]
+            }
+            NetworkEnvironment::Testing => {
+                // For testing, no bootstrap peers needed typically
+                Vec::new()
+            }
+            NetworkEnvironment::Benchmarking => {
+                // For benchmarking, no bootstrap peers needed typically
+                Vec::new()
+            }
+        }
     }
 }
 
