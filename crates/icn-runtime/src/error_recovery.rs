@@ -13,7 +13,7 @@ use log::{debug, warn, error};
 use thiserror::Error;
 
 /// Error recovery configuration for production operations
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct ErrorRecoveryConfig {
     /// Maximum number of retry attempts
     pub max_retries: u32,
@@ -116,7 +116,7 @@ pub enum CircuitState {
 /// Circuit breaker for preventing cascade failures
 pub struct CircuitBreaker {
     state: Arc<std::sync::Mutex<CircuitState>>,
-    failure_count: AtomicU64,
+    pub failure_count: AtomicU64,
     success_count: AtomicU64,
     last_failure_time: Arc<std::sync::Mutex<Option<Instant>>>,
     config: CircuitBreakerConfig,
@@ -182,7 +182,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn is_open(&self) -> bool {
+    pub fn is_open(&self) -> bool {
         let state = self.state.lock().unwrap();
         match *state {
             CircuitState::Open => {
@@ -204,7 +204,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn record_success(&self) {
+    pub fn record_success(&self) {
         let prev_success = self.success_count.fetch_add(1, Ordering::SeqCst);
         let state = self.state.lock().unwrap();
         
@@ -214,7 +214,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn record_failure(&self) {
+    pub fn record_failure(&self) {
         let prev_failure = self.failure_count.fetch_add(1, Ordering::SeqCst);
         *self.last_failure_time.lock().unwrap() = Some(Instant::now());
 
@@ -244,29 +244,6 @@ impl CircuitBreaker {
         self.failure_count.store(0, Ordering::SeqCst);
         self.success_count.store(0, Ordering::SeqCst);
         debug!("Circuit breaker closed after successful recovery");
-    }
-
-    /// Check if circuit breaker is currently open
-    pub fn is_open(&self) -> bool {
-        let state = self.state.lock().unwrap();
-        match *state {
-            CircuitState::Open => {
-                // Check if recovery timeout has passed
-                if let Some(last_failure) = *self.last_failure_time.lock().unwrap() {
-                    if last_failure.elapsed() > self.config.recovery_timeout {
-                        drop(state);
-                        self.transition_to_half_open();
-                        false
-                    } else {
-                        true
-                    }
-                } else {
-                    true
-                }
-            }
-            CircuitState::HalfOpen => false,
-            CircuitState::Closed => false,
-        }
     }
 
     /// Manually close the circuit breaker (for admin operations)
@@ -383,20 +360,45 @@ where
     C: ErrorClassifier<E>,
     E: std::fmt::Debug,
 {
-    circuit_breaker
-        .execute(service_name, || {
-            let op = operation.clone();
-            async move {
-                retry_with_backoff(
-                    || op(),
-                    retry_config,
-                    classifier,
-                    service_name,
-                ).await
-            }
-        })
-        .await
-        .and_then(|result| result)
+    // Check if circuit is open before attempting operation
+    if circuit_breaker.is_open() {
+        return Err(RecoveryError::CircuitBreakerOpen {
+            service: service_name.to_string(),
+        });
+    }
+
+    // Execute with retry logic
+    let result = retry_with_backoff(
+        || operation(),
+        retry_config,
+        classifier,
+        service_name,
+    ).await;
+
+    // Record result in circuit breaker
+    match &result {
+        Ok(_) => circuit_breaker.record_success(),
+        Err(_) => circuit_breaker.record_failure(),
+    }
+
+    result
+}
+
+/// Execute operation with both circuit breaker and retry protection
+pub async fn execute_with_recovery_and_circuit_breaker<F, Fut, T, E, C>(
+    operation: F,
+    retry_config: &ErrorRecoveryConfig,
+    classifier: &C,
+    circuit_breaker: &CircuitBreaker,
+    service_name: &str,
+) -> Result<T, RecoveryError<E>>
+where
+    F: Fn() -> Fut + Clone,
+    Fut: Future<Output = Result<T, E>>,
+    C: ErrorClassifier<E>,
+    E: std::fmt::Debug,
+{
+    resilient_operation(operation, retry_config, circuit_breaker, classifier, service_name).await
 }
 
 #[cfg(test)]

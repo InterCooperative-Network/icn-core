@@ -43,6 +43,20 @@ pub enum HostAbiError {
     InvalidInput(String),
     #[error("DAG error: {0}")]
     DagError(String),
+    #[error("Authentication failed: {0}")]
+    AuthenticationFailed(String),
+    #[error("Operation timeout: {0}")]
+    OperationTimeout(String),
+    #[error("Execution failed: {0}")]
+    ExecutionFailed(String),
+    #[error("Node not found: {0}")]
+    NodeNotFound(String),
+    #[error("Job not found: {0}")]
+    JobNotFound(String),
+    #[error("Invalid job state: {0}")]
+    InvalidJobState(String),
+    #[error("Configuration error: {0}")]
+    ConfigurationError(String),
 }
 
 impl From<CommonError> for HostAbiError {

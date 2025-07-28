@@ -64,4 +64,9 @@ impl ProofCache {
     pub fn len() -> usize {
         CACHE.lock().unwrap().len()
     }
+
+    #[cfg(test)]
+    pub fn clear() {
+        CACHE.lock().unwrap().clear();
+    }
 }
