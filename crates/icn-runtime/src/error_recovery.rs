@@ -452,7 +452,7 @@ mod tests {
         let config = ErrorRecoveryConfig::testing();
         let classifier = TestErrorClassifier;
         
-        let result = retry_with_backoff(operation, &config, &classifier, "test").await;
+        let result: Result<(), RecoveryError<TestError>> = retry_with_backoff(operation, &config, &classifier, "test").await;
         assert!(result.is_err());
         
         match result.unwrap_err() {

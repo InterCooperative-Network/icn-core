@@ -54,24 +54,50 @@ impl ErrorClassifier<HostAbiError> for ICNErrorClassifier {
 impl ErrorClassifier<CommonError> for ICNErrorClassifier {
     fn is_recoverable(&self, error: &CommonError) -> bool {
         match error {
-            // Permanent errors
+            // Permanent errors - usually indicate bugs or invalid data
             CommonError::ValidationError(_) => false,
             CommonError::InvalidParameters(_) => false,
             CommonError::DeserializationError(_) => false,
             CommonError::SerializationError(_) => false,
+            CommonError::InvalidInputError(_) => false,
+            CommonError::CryptoError(_) => false,
+            CommonError::PermissionDenied(_) => false,
+            CommonError::PolicyDenied(_) => false,
+            CommonError::IdentityError(_) => false,
+            CommonError::ConfigError(_) => false,
+            CommonError::DagValidationError(_) => false,
+            CommonError::NotImplementedError(_) => false,
+            CommonError::DeserError(_) => false,
+            CommonError::SerError(_) => false,
+            CommonError::NotImplemented(_) => false,
+            CommonError::DuplicateMessage => false,
+            CommonError::InsufficientFunds(_) => false,
             
-            // Potentially recoverable errors
+            // Potentially recoverable errors - transient issues
             CommonError::InternalError(_) => true,
-            CommonError::NotFound(_) => false, // Usually permanent
             CommonError::NetworkError(_) => true,
             CommonError::StorageError(_) => true,
             CommonError::TimeoutError(_) => true,
             CommonError::RateLimitError(_) => true,
             CommonError::ServiceUnavailable(_) => true,
+            CommonError::NetworkSetupError(_) => true,
+            CommonError::MessageSendError(_) => true,
+            CommonError::NetworkUnhealthy(_) => true,
+            CommonError::IoError(_) => true,
+            CommonError::CancelledError(_) => true,
+            CommonError::DatabaseError(_) => true,
+            CommonError::ApiError(_) => true,
+            CommonError::NodeOffline(_) => true,
+            CommonError::LockError(_) => true,
+            CommonError::CRDTError(_) => true,
             
-            // Explicitly handle all known CommonError variants to avoid masking new error types.
-            // If a new error type is added in the future, it should be explicitly classified here.
-            CommonError::UnknownError(_) => true, // Treat unknown errors as recoverable by default.
+            // Usually permanent but context-dependent
+            CommonError::ResourceNotFound(_) => false, 
+            CommonError::PeerNotFound(_) => false,
+            CommonError::NotFound(_) => false,
+            
+            // Default to recoverable for unknown error types
+            CommonError::UnknownError(_) => true,
         }
     }
 }

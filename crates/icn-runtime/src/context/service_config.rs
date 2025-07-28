@@ -361,6 +361,7 @@ impl ServiceConfigBuilder {
 }
 
 /// Complete service configuration
+#[derive(Debug)]
 pub struct ServiceConfig {
     pub environment: ServiceEnvironment,
     pub current_identity: Did,
