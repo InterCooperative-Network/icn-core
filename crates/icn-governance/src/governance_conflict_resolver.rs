@@ -6,9 +6,7 @@
 //! - Policy contradictions (new proposals that conflict with existing policies)
 //! - Escalation mechanisms for unresolved governance issues
 
-use crate::{
-    GovernanceModule, Proposal, ProposalId, ProposalStatus, ProposalType, Vote,
-};
+use crate::{GovernanceModule, Proposal, ProposalId, ProposalStatus, ProposalType, Vote};
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -64,14 +62,14 @@ pub enum GovernanceResolutionStatus {
     /// Mediation in progress
     Mediation,
     /// Voting on resolution in progress
-    ResolutionVoting { 
+    ResolutionVoting {
         resolution_proposal_id: ProposalId,
-        deadline: u64 
+        deadline: u64,
     },
     /// Conflict resolved
-    Resolved { 
+    Resolved {
         resolution: GovernanceResolution,
-        applied_at: u64 
+        applied_at: u64,
     },
     /// Resolution failed or rejected
     Failed { reason: String },
@@ -83,24 +81,24 @@ pub enum ConflictEvidence {
     /// Multiple proposals with conflicting actions
     ConflictingProposals { proposals: Vec<ProposalId> },
     /// Irregular voting pattern detected
-    IrregularVotingPattern { 
-        voter: Did, 
-        pattern_description: String 
+    IrregularVotingPattern {
+        voter: Did,
+        pattern_description: String,
     },
     /// Policy contradiction detected
-    PolicyContradiction { 
-        new_proposal: ProposalId, 
-        conflicting_policy: String 
+    PolicyContradiction {
+        new_proposal: ProposalId,
+        conflicting_policy: String,
     },
     /// Quorum manipulation evidence
-    QuorumManipulation { 
+    QuorumManipulation {
         suspicious_votes: Vec<Vote>,
-        manipulation_type: String 
+        manipulation_type: String,
     },
     /// Procedural violation evidence
-    ProceduralViolation { 
+    ProceduralViolation {
         violation_type: String,
-        details: String 
+        details: String,
     },
 }
 
@@ -125,14 +123,14 @@ pub enum GovernanceResolution {
     /// Invalidate disputed votes
     InvalidateVotes { votes: Vec<Vote> },
     /// Implement policy override
-    PolicyOverride { 
+    PolicyOverride {
         suspended_policies: Vec<String>,
-        new_policy: String 
+        new_policy: String,
     },
     /// Implement procedural correction
-    ProceduralCorrection { 
+    ProceduralCorrection {
         correction_type: String,
-        affected_proposals: Vec<ProposalId> 
+        affected_proposals: Vec<ProposalId>,
     },
     /// Escalate to manual intervention
     EscalateToManual { reason: String },
@@ -207,7 +205,10 @@ impl GovernanceConflictResolver {
     }
 
     /// Detect governance conflicts in the provided governance module
-    pub fn detect_conflicts(&mut self, governance: &GovernanceModule) -> Result<Vec<GovernanceConflict>, CommonError> {
+    pub fn detect_conflicts(
+        &mut self,
+        governance: &GovernanceModule,
+    ) -> Result<Vec<GovernanceConflict>, CommonError> {
         if !self.config.auto_detection {
             return Ok(Vec::new());
         }
@@ -233,23 +234,32 @@ impl GovernanceConflictResolver {
 
         // Add new conflicts to active tracking
         for conflict in &new_conflicts {
-            self.active_conflicts.insert(conflict.conflict_id.clone(), conflict.clone());
+            self.active_conflicts
+                .insert(conflict.conflict_id.clone(), conflict.clone());
         }
 
         Ok(new_conflicts)
     }
 
     /// Detect proposal clashes (multiple proposals targeting same resource)
-    fn detect_proposal_clashes(&self, proposals: &[Proposal]) -> Result<Vec<GovernanceConflict>, CommonError> {
+    fn detect_proposal_clashes(
+        &self,
+        proposals: &[Proposal],
+    ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
         let active_proposals: Vec<&Proposal> = proposals
             .iter()
-            .filter(|p| matches!(p.status, ProposalStatus::VotingOpen | ProposalStatus::Deliberation))
+            .filter(|p| {
+                matches!(
+                    p.status,
+                    ProposalStatus::VotingOpen | ProposalStatus::Deliberation
+                )
+            })
             .collect();
 
         // Group proposals by their target (simplified - in real implementation would be more sophisticated)
         let mut target_groups: HashMap<String, Vec<&Proposal>> = HashMap::new();
-        
+
         for proposal in &active_proposals {
             let target = self.extract_proposal_target(proposal);
             target_groups.entry(target).or_default().push(proposal);
@@ -258,15 +268,17 @@ impl GovernanceConflictResolver {
         // Check for conflicts (multiple proposals targeting same resource)
         for (target, proposals_for_target) in target_groups {
             if proposals_for_target.len() > 1 {
-                let conflict_id = format!("clash_{}_{}", 
+                let conflict_id = format!(
+                    "clash_{}_{}",
                     target,
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
-                let involved_proposals: Vec<ProposalId> = proposals_for_target
-                    .iter()
-                    .map(|p| p.id.clone())
-                    .collect();
+                let involved_proposals: Vec<ProposalId> =
+                    proposals_for_target.iter().map(|p| p.id.clone()).collect();
 
                 let affected_members: HashSet<Did> = proposals_for_target
                     .iter()
@@ -278,10 +290,13 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::ProposalClash,
                     involved_proposals,
                     affected_members,
-                    detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    detected_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     resolution_status: GovernanceResolutionStatus::Detected,
-                    evidence: vec![ConflictEvidence::ConflictingProposals { 
-                        proposals: proposals_for_target.iter().map(|p| p.id.clone()).collect()
+                    evidence: vec![ConflictEvidence::ConflictingProposals {
+                        proposals: proposals_for_target.iter().map(|p| p.id.clone()).collect(),
                     }],
                     description: format!("Multiple active proposals targeting: {}", target),
                     severity: ConflictSeverity::Medium,
@@ -306,15 +321,22 @@ impl GovernanceConflictResolver {
     }
 
     /// Detect voting disputes and irregularities
-    fn detect_voting_disputes(&self, proposals: &[Proposal]) -> Result<Vec<GovernanceConflict>, CommonError> {
+    fn detect_voting_disputes(
+        &self,
+        proposals: &[Proposal],
+    ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
-        
+
         for proposal in proposals {
             // Check for unusual voting patterns
             if let Some(anomaly) = self.detect_voting_anomaly(proposal) {
-                let conflict_id = format!("vote_dispute_{}_{}", 
+                let conflict_id = format!(
+                    "vote_dispute_{}_{}",
                     proposal.id.0,
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 conflicts.push(GovernanceConflict {
@@ -322,7 +344,10 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::VotingDispute,
                     involved_proposals: vec![proposal.id.clone()],
                     affected_members: proposal.votes.keys().cloned().collect(),
-                    detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    detected_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     resolution_status: GovernanceResolutionStatus::Detected,
                     evidence: vec![anomaly],
                     description: format!("Voting anomaly detected in proposal {}", proposal.id.0),
@@ -338,7 +363,7 @@ impl GovernanceConflictResolver {
     fn detect_voting_anomaly(&self, proposal: &Proposal) -> Option<ConflictEvidence> {
         // Check for suspicious voting patterns
         let votes: Vec<&Vote> = proposal.votes.values().collect();
-        
+
         if votes.len() < 3 {
             return None; // Need minimum votes to detect patterns
         }
@@ -346,10 +371,11 @@ impl GovernanceConflictResolver {
         // Check for rapid sequential voting (possible coordination)
         let mut sorted_votes = votes.clone();
         sorted_votes.sort_by_key(|v| v.voted_at);
-        
+
         let mut rapid_sequence_count = 0;
         for window in sorted_votes.windows(2) {
-            if window[1].voted_at - window[0].voted_at < 60 { // Less than 60 seconds apart
+            if window[1].voted_at - window[0].voted_at < 60 {
+                // Less than 60 seconds apart
                 rapid_sequence_count += 1;
             }
         }
@@ -363,8 +389,12 @@ impl GovernanceConflictResolver {
                 .collect();
 
             return Some(ConflictEvidence::IrregularVotingPattern {
-                voter: suspicious_voters.into_iter().next().unwrap_or_else(Did::default),
-                pattern_description: "Rapid sequential voting detected - possible coordination".to_string(),
+                voter: suspicious_voters
+                    .into_iter()
+                    .next()
+                    .unwrap_or_else(Did::default),
+                pattern_description: "Rapid sequential voting detected - possible coordination"
+                    .to_string(),
             });
         }
 
@@ -372,16 +402,23 @@ impl GovernanceConflictResolver {
     }
 
     /// Detect policy contradictions
-    fn detect_policy_contradictions(&self, proposals: &[Proposal]) -> Result<Vec<GovernanceConflict>, CommonError> {
+    fn detect_policy_contradictions(
+        &self,
+        proposals: &[Proposal],
+    ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
 
         for proposal in proposals {
             if proposal.status == ProposalStatus::VotingOpen {
                 // Check if this proposal contradicts existing policies
                 if let Some(contradiction) = self.check_policy_contradiction(proposal) {
-                    let conflict_id = format!("policy_contradiction_{}_{}", 
+                    let conflict_id = format!(
+                        "policy_contradiction_{}_{}",
                         proposal.id.0,
-                        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs()
                     );
 
                     conflicts.push(GovernanceConflict {
@@ -389,7 +426,10 @@ impl GovernanceConflictResolver {
                         conflict_type: GovernanceConflictType::PolicyContradiction,
                         involved_proposals: vec![proposal.id.clone()],
                         affected_members: HashSet::new(),
-                        detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                        detected_at: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
                         resolution_status: GovernanceResolutionStatus::Detected,
                         evidence: vec![contradiction],
                         description: format!("Policy contradiction in proposal {}", proposal.id.0),
@@ -406,12 +446,14 @@ impl GovernanceConflictResolver {
     fn check_policy_contradiction(&self, proposal: &Proposal) -> Option<ConflictEvidence> {
         // Simplified policy contradiction checking
         // In real implementation, this would involve sophisticated policy analysis
-        
+
         match &proposal.proposal_type {
             ProposalType::SystemParameterChange(param, _new_value) => {
                 // Check if this parameter change contradicts existing policies
                 for (policy_id, policy_content) in &self.policy_registry {
-                    if policy_content.contains(param) && policy_content.contains("shall not be changed") {
+                    if policy_content.contains(param)
+                        && policy_content.contains("shall not be changed")
+                    {
                         return Some(ConflictEvidence::PolicyContradiction {
                             new_proposal: proposal.id.clone(),
                             conflicting_policy: policy_id.clone(),
@@ -422,7 +464,9 @@ impl GovernanceConflictResolver {
             ProposalType::RemoveMember(did) => {
                 // Check if this member has special protection
                 for (policy_id, policy_content) in &self.policy_registry {
-                    if policy_content.contains(&did.to_string()) && policy_content.contains("protected") {
+                    if policy_content.contains(&did.to_string())
+                        && policy_content.contains("protected")
+                    {
                         return Some(ConflictEvidence::PolicyContradiction {
                             new_proposal: proposal.id.clone(),
                             conflicting_policy: policy_id.clone(),
@@ -437,15 +481,22 @@ impl GovernanceConflictResolver {
     }
 
     /// Detect procedural violations
-    fn detect_procedural_violations(&self, proposals: &[Proposal]) -> Result<Vec<GovernanceConflict>, CommonError> {
+    fn detect_procedural_violations(
+        &self,
+        proposals: &[Proposal],
+    ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
 
         for proposal in proposals {
             // Check for procedural violations (simplified)
             if let Some(violation) = self.check_procedural_violation(proposal) {
-                let conflict_id = format!("procedural_{}_{}", 
+                let conflict_id = format!(
+                    "procedural_{}_{}",
                     proposal.id.0,
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 conflicts.push(GovernanceConflict {
@@ -453,7 +504,10 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::ProceduralViolation,
                     involved_proposals: vec![proposal.id.clone()],
                     affected_members: HashSet::new(),
-                    detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    detected_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     resolution_status: GovernanceResolutionStatus::Detected,
                     evidence: vec![violation],
                     description: format!("Procedural violation in proposal {}", proposal.id.0),
@@ -468,7 +522,7 @@ impl GovernanceConflictResolver {
     /// Check for procedural violations in a proposal
     fn check_procedural_violation(&self, proposal: &Proposal) -> Option<ConflictEvidence> {
         // Check for basic procedural requirements
-        
+
         // Check minimum description length
         if proposal.description.len() < 10 {
             return Some(ConflictEvidence::ProceduralViolation {
@@ -479,7 +533,8 @@ impl GovernanceConflictResolver {
 
         // Check voting period duration
         let voting_duration = proposal.voting_deadline - proposal.created_at;
-        if voting_duration < 3600 { // Less than 1 hour
+        if voting_duration < 3600 {
+            // Less than 1 hour
             return Some(ConflictEvidence::ProceduralViolation {
                 violation_type: "insufficient_voting_period".to_string(),
                 details: "Voting period too short".to_string(),
@@ -490,24 +545,25 @@ impl GovernanceConflictResolver {
     }
 
     /// Resolve a governance conflict
-    pub fn resolve_conflict(&mut self, conflict_id: &str, resolver: &Did) -> Result<GovernanceResolutionStatus, CommonError> {
+    pub fn resolve_conflict(
+        &mut self,
+        conflict_id: &str,
+        resolver: &Did,
+    ) -> Result<GovernanceResolutionStatus, CommonError> {
         // Verify resolver is authorized
         if !self.governance_authorities.contains(resolver) {
             return Err(CommonError::PolicyDenied(
-                "Not authorized to resolve governance conflicts".to_string()
+                "Not authorized to resolve governance conflicts".to_string(),
             ));
         }
 
-        let conflict = self.active_conflicts.get_mut(conflict_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(
-                format!("Conflict {} not found", conflict_id)
-            ))?;
+        let conflict = self.active_conflicts.get_mut(conflict_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id))
+        })?;
 
         // Update status based on conflict type and severity
         let new_status = match (&conflict.conflict_type, &conflict.severity) {
-            (_, ConflictSeverity::Critical) => {
-                GovernanceResolutionStatus::Escalated
-            }
+            (_, ConflictSeverity::Critical) => GovernanceResolutionStatus::Escalated,
             (GovernanceConflictType::ProposalClash, _) => {
                 // Suspend conflicting proposals pending resolution
                 GovernanceResolutionStatus::UnderInvestigation
@@ -519,18 +575,24 @@ impl GovernanceConflictResolver {
             (GovernanceConflictType::PolicyContradiction, _) => {
                 // Extract actual policy information from conflict evidence
                 let (suspended_policy, new_policy) = match conflict.evidence.first() {
-                    Some(ConflictEvidence::PolicyContradiction { conflicting_policy, .. }) => {
-                        (conflicting_policy.clone(), format!("Override for {}", conflicting_policy))
-                    }
-                    _ => ("unknown_policy".to_string(), "default_override".to_string())
+                    Some(ConflictEvidence::PolicyContradiction {
+                        conflicting_policy, ..
+                    }) => (
+                        conflicting_policy.clone(),
+                        format!("Override for {}", conflicting_policy),
+                    ),
+                    _ => ("unknown_policy".to_string(), "default_override".to_string()),
                 };
-                
+
                 GovernanceResolutionStatus::Resolved {
                     resolution: GovernanceResolution::PolicyOverride {
                         suspended_policies: vec![suspended_policy],
                         new_policy,
                     },
-                    applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    applied_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                 }
             }
             (GovernanceConflictType::ProceduralViolation, ConflictSeverity::Low) => {
@@ -540,7 +602,10 @@ impl GovernanceConflictResolver {
                         correction_type: "minor_procedural_fix".to_string(),
                         affected_proposals: conflict.involved_proposals.clone(),
                     },
-                    applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    applied_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                 }
             }
             _ => GovernanceResolutionStatus::UnderInvestigation,
@@ -570,9 +635,16 @@ impl GovernanceConflictResolver {
 
     /// Check if escalation is needed based on unresolved conflicts
     pub fn check_escalation_needed(&self) -> bool {
-        let unresolved_count = self.active_conflicts
+        let unresolved_count = self
+            .active_conflicts
             .values()
-            .filter(|c| matches!(c.resolution_status, GovernanceResolutionStatus::Detected | GovernanceResolutionStatus::UnderInvestigation))
+            .filter(|c| {
+                matches!(
+                    c.resolution_status,
+                    GovernanceResolutionStatus::Detected
+                        | GovernanceResolutionStatus::UnderInvestigation
+                )
+            })
             .count();
 
         unresolved_count >= self.config.escalation_threshold
@@ -581,14 +653,20 @@ impl GovernanceConflictResolver {
     /// Process periodic maintenance tasks
     pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
         let mut timed_out_conflicts = Vec::new();
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         // Check for investigation timeouts
         let conflict_ids: Vec<String> = self.active_conflicts.keys().cloned().collect();
-        
+
         for conflict_id in conflict_ids {
             if let Some(conflict) = self.active_conflicts.get_mut(&conflict_id) {
-                if matches!(conflict.resolution_status, GovernanceResolutionStatus::UnderInvestigation) {
+                if matches!(
+                    conflict.resolution_status,
+                    GovernanceResolutionStatus::UnderInvestigation
+                ) {
                     let investigation_duration = current_time - conflict.detected_at;
                     if investigation_duration > self.config.investigation_timeout {
                         // Escalate timed-out investigations
@@ -606,14 +684,14 @@ impl GovernanceConflictResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ProposalSubmission, ProposalType, GovernanceModule};
+    use crate::{GovernanceModule, ProposalSubmission, ProposalType};
     use std::str::FromStr;
 
     #[test]
     fn test_governance_conflict_resolver_creation() {
         let config = GovernanceConflictConfig::default();
         let resolver = GovernanceConflictResolver::new(config);
-        
+
         assert_eq!(resolver.active_conflicts.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 0);
     }
@@ -622,110 +700,127 @@ mod tests {
     fn test_proposal_clash_detection() {
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
-        
+
         // Add some test members
         let alice = Did::from_str("did:example:alice").unwrap();
         let bob = Did::from_str("did:example:bob").unwrap();
         governance.add_member(alice.clone());
         governance.add_member(bob.clone());
-        
+
         // Create conflicting proposals
         let proposal1 = ProposalSubmission {
             proposer: alice.clone(),
-            proposal_type: ProposalType::SystemParameterChange("max_users".to_string(), "100".to_string()),
+            proposal_type: ProposalType::SystemParameterChange(
+                "max_users".to_string(),
+                "100".to_string(),
+            ),
             description: "Increase max users to 100".to_string(),
             duration_secs: 3600,
             quorum: None,
             threshold: None,
             content_cid: None,
         };
-        
+
         let proposal2 = ProposalSubmission {
             proposer: bob.clone(),
-            proposal_type: ProposalType::SystemParameterChange("max_users".to_string(), "50".to_string()),
+            proposal_type: ProposalType::SystemParameterChange(
+                "max_users".to_string(),
+                "50".to_string(),
+            ),
             description: "Decrease max users to 50".to_string(),
             duration_secs: 3600,
             quorum: None,
             threshold: None,
             content_cid: None,
         };
-        
+
         let id1 = governance.submit_proposal(proposal1).unwrap();
         let id2 = governance.submit_proposal(proposal2).unwrap();
-        
+
         governance.open_voting(&id1).unwrap();
         governance.open_voting(&id2).unwrap();
-        
+
         // Detect conflicts
         let conflicts = resolver.detect_conflicts(&governance).unwrap();
-        
+
         assert_eq!(conflicts.len(), 1);
-        assert_eq!(conflicts[0].conflict_type, GovernanceConflictType::ProposalClash);
+        assert_eq!(
+            conflicts[0].conflict_type,
+            GovernanceConflictType::ProposalClash
+        );
         assert_eq!(conflicts[0].involved_proposals.len(), 2);
     }
 
     #[test]
     fn test_policy_contradiction_detection() {
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
-        
+
         // Register a policy that protects certain parameters
         resolver.register_policy(
             "param_protection".to_string(),
-            "The max_users parameter shall not be changed without board approval".to_string()
+            "The max_users parameter shall not be changed without board approval".to_string(),
         );
-        
+
         let mut governance = GovernanceModule::new();
         let alice = Did::from_str("did:example:alice").unwrap();
         governance.add_member(alice.clone());
-        
+
         // Create a proposal that contradicts the policy
         let proposal = ProposalSubmission {
             proposer: alice.clone(),
-            proposal_type: ProposalType::SystemParameterChange("max_users".to_string(), "200".to_string()),
+            proposal_type: ProposalType::SystemParameterChange(
+                "max_users".to_string(),
+                "200".to_string(),
+            ),
             description: "Change max users".to_string(),
             duration_secs: 3600,
             quorum: None,
             threshold: None,
             content_cid: None,
         };
-        
+
         let id = governance.submit_proposal(proposal).unwrap();
         governance.open_voting(&id).unwrap();
-        
+
         // Detect conflicts
         let conflicts = resolver.detect_conflicts(&governance).unwrap();
-        
+
         assert_eq!(conflicts.len(), 1);
-        assert_eq!(conflicts[0].conflict_type, GovernanceConflictType::PolicyContradiction);
+        assert_eq!(
+            conflicts[0].conflict_type,
+            GovernanceConflictType::PolicyContradiction
+        );
     }
 
     #[test]
     fn test_procedural_violation_detection() {
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
-        
+
         let alice = Did::from_str("did:example:alice").unwrap();
         governance.add_member(alice.clone());
-        
+
         // Create a proposal with procedural violations (short description, short voting period)
         let proposal = ProposalSubmission {
             proposer: alice.clone(),
             proposal_type: ProposalType::GenericText("test".to_string()),
             description: "short".to_string(), // Too short
-            duration_secs: 60, // Too short (less than 1 hour)
+            duration_secs: 60,                // Too short (less than 1 hour)
             quorum: None,
             threshold: None,
             content_cid: None,
         };
-        
+
         let id = governance.submit_proposal(proposal).unwrap();
         governance.open_voting(&id).unwrap();
-        
+
         // Detect conflicts
         let conflicts = resolver.detect_conflicts(&governance).unwrap();
-        
+
         assert!(conflicts.len() >= 1);
-        assert!(conflicts.iter().any(|c| c.conflict_type == GovernanceConflictType::ProceduralViolation));
+        assert!(conflicts
+            .iter()
+            .any(|c| c.conflict_type == GovernanceConflictType::ProceduralViolation));
     }
 
     #[test]
@@ -733,7 +828,7 @@ mod tests {
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let authority = Did::from_str("did:example:authority").unwrap();
         resolver.add_governance_authority(authority.clone());
-        
+
         // Create a mock conflict
         let conflict = GovernanceConflict {
             conflict_id: "test_conflict".to_string(),
@@ -746,13 +841,20 @@ mod tests {
             description: "Test conflict".to_string(),
             severity: ConflictSeverity::Low,
         };
-        
-        resolver.active_conflicts.insert("test_conflict".to_string(), conflict);
-        
+
+        resolver
+            .active_conflicts
+            .insert("test_conflict".to_string(), conflict);
+
         // Resolve the conflict
-        let result = resolver.resolve_conflict("test_conflict", &authority).unwrap();
-        
-        assert!(matches!(result, GovernanceResolutionStatus::Resolved { .. }));
+        let result = resolver
+            .resolve_conflict("test_conflict", &authority)
+            .unwrap();
+
+        assert!(matches!(
+            result,
+            GovernanceResolutionStatus::Resolved { .. }
+        ));
         assert_eq!(resolver.active_conflicts.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 1);
     }

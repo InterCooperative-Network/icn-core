@@ -1,29 +1,29 @@
 // icn-ccl/src/lsp/hover.rs
 //! Hover information provider for CCL LSP
 
-use tower_lsp::lsp_types::*;
 use super::server::DocumentState;
+use tower_lsp::lsp_types::*;
 
 /// Provide hover information for symbols at a given position
 pub fn provide_hover(doc_state: &DocumentState, position: Position) -> Option<Hover> {
     // Get the word at the cursor position
     let word = get_word_at_position(&doc_state.text, position)?;
-    
+
     // Try to provide hover information
     if let Some(info) = get_keyword_hover(&word) {
         return Some(info);
     }
-    
+
     if let Some(info) = get_builtin_type_hover(&word) {
         return Some(info);
     }
-    
+
     if let Some(info) = get_stdlib_function_hover(&word) {
         return Some(info);
     }
-    
+
     // TODO: Add hover for user-defined symbols by analyzing the AST
-    
+
     None
 }
 
@@ -33,30 +33,30 @@ fn get_word_at_position(text: &str, position: Position) -> Option<String> {
     if position.line as usize >= lines.len() {
         return None;
     }
-    
+
     let line = lines[position.line as usize];
     let char_pos = position.character as usize;
-    
+
     // Find word boundaries
     let chars: Vec<char> = line.chars().collect();
-    
+
     // Check bounds using character count, not byte count
     if char_pos >= chars.len() {
         return None;
     }
-    
+
     // Find start of word
     let mut start = char_pos;
     while start > 0 && (chars[start - 1].is_alphanumeric() || chars[start - 1] == '_') {
         start -= 1;
     }
-    
+
     // Find end of word
     let mut end = char_pos;
     while end < chars.len() && (chars[end].is_alphanumeric() || chars[end] == '_') {
         end += 1;
     }
-    
+
     if start < end {
         Some(chars[start..end].iter().collect())
     } else {
@@ -92,7 +92,7 @@ fn get_keyword_hover(word: &str) -> Option<Hover> {
         "export" => ("Export Statement", "Exports functions or types to make them available to other contracts."),
         _ => return None,
     };
-    
+
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -122,7 +122,7 @@ fn get_builtin_type_hover(word: &str) -> Option<Hover> {
         "mana" => ("Mana Token", "The native token type used for resource allocation and governance in ICN."),
         _ => return None,
     };
-    
+
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,
@@ -148,7 +148,7 @@ fn get_stdlib_function_hover(word: &str) -> Option<Hover> {
         "get_timestamp" => ("get_timestamp() -> timestamp", "Returns the timestamp of the current block or transaction."),
         _ => return None,
     };
-    
+
     Some(Hover {
         contents: HoverContents::Markup(MarkupContent {
             kind: MarkupKind::Markdown,

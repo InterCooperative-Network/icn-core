@@ -1,8 +1,8 @@
 // icn-ccl/src/debugger/source_map.rs
 //! Source mapping between CCL and WASM for debugging
 
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Represents a location in CCL source code
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,7 +24,7 @@ pub struct WasmLocation {
 pub struct SourceMapEntry {
     pub ccl_location: SourceLocation,
     pub wasm_location: WasmLocation,
-    pub ccl_symbol: Option<String>,  // Variable or function name
+    pub ccl_symbol: Option<String>, // Variable or function name
 }
 
 /// Complete source map for a CCL contract
@@ -34,8 +34,8 @@ pub struct SourceMap {
     pub ccl_source_file: String,
     pub wasm_module: String,
     pub mappings: Vec<SourceMapEntry>,
-    pub function_map: HashMap<String, u32>,  // CCL function name -> WASM function index
-    pub variable_map: HashMap<String, u32>,  // CCL variable name -> WASM local index
+    pub function_map: HashMap<String, u32>, // CCL function name -> WASM function index
+    pub variable_map: HashMap<String, u32>, // CCL variable name -> WASM local index
 }
 
 impl SourceMap {
@@ -52,7 +52,12 @@ impl SourceMap {
     }
 
     /// Add a mapping between CCL and WASM locations
-    pub fn add_mapping(&mut self, ccl_location: SourceLocation, wasm_location: WasmLocation, symbol: Option<String>) {
+    pub fn add_mapping(
+        &mut self,
+        ccl_location: SourceLocation,
+        wasm_location: WasmLocation,
+        symbol: Option<String>,
+    ) {
         self.mappings.push(SourceMapEntry {
             ccl_location,
             wasm_location,

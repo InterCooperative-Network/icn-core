@@ -10,13 +10,10 @@ use tower_lsp::{Client, LanguageServer};
 use url::Url;
 
 use crate::{
-    ast::AstNode,
-    error::CclError,
-    parser::parse_ccl_source,
-    semantic_analyzer::SemanticAnalyzer,
+    ast::AstNode, error::CclError, parser::parse_ccl_source, semantic_analyzer::SemanticAnalyzer,
 };
 
-use super::{completion, diagnostics, hover, navigation, formatting};
+use super::{completion, diagnostics, formatting, hover, navigation};
 
 /// Document state stored for each open CCL file
 #[derive(Debug, Clone)]
@@ -46,7 +43,7 @@ impl CclLanguageServer {
     /// Parse and analyze a CCL document, updating its state
     async fn analyze_document(&self, uri: &Url, text: &str, version: i32) {
         let mut documents = self.documents.write().await;
-        
+
         let mut doc_state = DocumentState {
             uri: uri.clone(),
             text: text.to_string(),
@@ -132,7 +129,7 @@ impl LanguageServer for CclLanguageServer {
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
         let uri = params.text_document.uri;
         let version = params.text_document.version;
-        
+
         // Get the new text content (assuming full document sync)
         if let Some(change) = params.content_changes.first() {
             self.analyze_document(&uri, &change.text, version).await;
@@ -147,25 +144,25 @@ impl LanguageServer for CclLanguageServer {
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        
+
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
             let completions = completion::provide_completions(doc_state, position);
             return Ok(Some(CompletionResponse::Array(completions)));
         }
-        
+
         Ok(None)
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        
+
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
             return Ok(hover::provide_hover(doc_state, position));
         }
-        
+
         Ok(None)
     }
 
@@ -175,21 +172,21 @@ impl LanguageServer for CclLanguageServer {
     ) -> Result<Option<GotoDefinitionResponse>> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
-        
+
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
             if let Some(location) = navigation::goto_definition(doc_state, position) {
                 return Ok(Some(GotoDefinitionResponse::Scalar(location)));
             }
         }
-        
+
         Ok(None)
     }
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
         let uri = &params.text_document_position.text_document.uri;
         let position = params.text_document_position.position;
-        
+
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
             let references = navigation::find_references(doc_state, position);
@@ -197,19 +194,19 @@ impl LanguageServer for CclLanguageServer {
                 return Ok(Some(references));
             }
         }
-        
+
         Ok(None)
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
         let uri = &params.text_document.uri;
-        
+
         let documents = self.documents.read().await;
         if let Some(doc_state) = documents.get(uri) {
             let edits = formatting::format_document(doc_state, params.options);
             return Ok(Some(edits));
         }
-        
+
         Ok(None)
     }
 }

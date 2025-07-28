@@ -4,9 +4,9 @@ use std::path::PathBuf;
 fn main() {
     println!("🏛️  FOCUSED DEMOCRACY & BUDGET TEST");
     println!("===================================");
-    
+
     let test_path = PathBuf::from("focused_democracy_test.ccl");
-    
+
     match compile_ccl_file_to_wasm(&test_path) {
         Ok((wasm, metadata)) => {
             println!("🎉 FOCUSED DEMOCRACY TEST SUCCESS! 🎉");
@@ -26,7 +26,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ Focused democracy test failed: {}", e);
-            
+
             // Analyze the specific error
             let error_str = e.to_string();
             if error_str.contains("Unknown function") {

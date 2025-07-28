@@ -38,11 +38,11 @@ pub mod metrics;
 pub mod policy_testing;
 pub mod ranked_choice;
 pub mod scoped_policy;
-pub mod voting;
 pub mod security;
+pub mod voting;
 pub use security::{
-    GovernanceSecurityConfig, SecureBallotValidator, SecureBallotSigner,
-    GovernanceSecurityAudit, BallotValidationStats, GovernanceSecurityIssue
+    BallotValidationStats, GovernanceSecurityAudit, GovernanceSecurityConfig,
+    GovernanceSecurityIssue, SecureBallotSigner, SecureBallotValidator,
 };
 
 #[cfg(test)]
@@ -55,9 +55,9 @@ pub use automation::{
 };
 pub use budgeting::{apply_budget_allocation, BudgetProposal};
 pub use crdt_proposal_state::{
-    CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,
-    ProposalInfo, ProposalMetadata, ProposalStatus as CRDTProposalStatus, Vote as CRDTVote,
-    VoteDecision, VoteTally,
+    CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT, ProposalInfo,
+    ProposalMetadata, ProposalStatus as CRDTProposalStatus, Vote as CRDTVote, VoteDecision,
+    VoteTally,
 };
 pub use governance_conflict_resolver::{
     ConflictEvidence, ConflictSeverity, GovernanceConflict, GovernanceConflictConfig,
@@ -70,9 +70,9 @@ pub use policy_testing::{
 };
 pub use ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 pub use voting::{
-    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
-    RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
-    VotingPeriod, VotingSystem,
+    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election,
+    ElectionId, EligibilityRules, RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound,
+    Signature, VotingError, VotingPeriod, VotingSystem,
 };
 
 /// Trait for governance execution hooks.

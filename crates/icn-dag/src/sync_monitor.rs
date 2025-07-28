@@ -340,14 +340,18 @@ impl<S: StorageService<DagBlock>> DagSyncMonitor<S> {
 
             // Implement actual peer request logic using federation sync
             // Create a block request message for the missing block
-            println!("Requesting missing block {} from {} peers (attempt {})", 
-                cid, self.config.peer_nodes.len(), missing_block.request_count);
+            println!(
+                "Requesting missing block {} from {} peers (attempt {})",
+                cid,
+                self.config.peer_nodes.len(),
+                missing_block.request_count
+            );
 
             // In a real implementation, this would:
             // 1. Create a SyncMessage::BlockRequest
             // 2. Send it to available peers via network service
             // 3. Handle the response and update missing block status
-            
+
             Ok(true)
         } else {
             Ok(false)

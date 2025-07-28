@@ -1,5 +1,5 @@
 //! Ranked Choice Voting implementation for ICN governance
-//! 
+//!
 //! This module implements the ranked choice voting algorithm and provides
 //! integration with the broader governance system.
 //!
@@ -61,14 +61,19 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Execute ranked choice voting algorithm
-    pub fn execute_rcv(&self, ballots: Vec<RankedChoiceBallot>) -> Result<RankedChoiceResult, VotingError> {
+    pub fn execute_rcv(
+        &self,
+        ballots: Vec<RankedChoiceBallot>,
+    ) -> Result<RankedChoiceResult, VotingError> {
         if ballots.is_empty() {
-            return Err(VotingError::InvalidBallot("No ballots provided".to_string()));
+            return Err(VotingError::InvalidBallot(
+                "No ballots provided".to_string(),
+            ));
         }
 
         let election_id = ballots[0].election_id.clone();
         let total_ballots = ballots.len();
-        
+
         // Validate all ballots first
         for ballot in &ballots {
             ballot.validate_preferences()?;
@@ -88,14 +93,16 @@ impl RankedChoiceVotingSystem {
 
         loop {
             // Count first-choice votes for each active candidate and track exhausted ballots
-            let (vote_counts, exhausted_ballots) = self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
-            
+            let (vote_counts, exhausted_ballots) =
+                self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
+
             // Calculate majority threshold based on non-exhausted ballots (50% + 1)
             let active_ballot_count = total_ballots - exhausted_ballots;
             let majority_threshold = (active_ballot_count / 2) + 1;
 
             // Check for majority winner
-            if let Some((winner, count)) = vote_counts.iter()
+            if let Some((winner, count)) = vote_counts
+                .iter()
                 .max_by(|a, b| a.1.cmp(b.1))
                 .map(|(k, v)| (k.clone(), *v))
             {
@@ -106,7 +113,7 @@ impl RankedChoiceVotingSystem {
                         eliminated_candidate: None,
                         majority_threshold,
                     });
-                    
+
                     return Ok(RankedChoiceResult {
                         election_id,
                         winner: Some(winner),
@@ -118,21 +125,22 @@ impl RankedChoiceVotingSystem {
             }
 
             // Find candidate with fewest votes to eliminate
-            let candidate_to_eliminate = vote_counts.iter()
+            let candidate_to_eliminate = vote_counts
+                .iter()
                 .min_by(|a, b| a.1.cmp(b.1))
                 .map(|(k, _)| k.clone());
 
             if let Some(eliminated) = candidate_to_eliminate {
                 let vote_counts_for_storage = vote_counts.clone();
                 eliminated_candidates.insert(eliminated.clone());
-                
+
                 rounds.push(RankedChoiceRound {
                     round_number,
                     vote_counts: vote_counts_for_storage,
                     eliminated_candidate: Some(eliminated),
                     majority_threshold,
                 });
-                
+
                 round_number += 1;
 
                 // Check if we have exhausted all candidates except one
@@ -146,8 +154,10 @@ impl RankedChoiceVotingSystem {
         }
 
         // If we exit the loop without a majority winner, return the candidate with most votes
-        let (final_counts, exhausted_ballots) = self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
-        let winner = final_counts.iter()
+        let (final_counts, exhausted_ballots) =
+            self.count_first_choices_with_exhausted(&active_ballots, &eliminated_candidates);
+        let winner = final_counts
+            .iter()
             .max_by(|a, b| a.1.cmp(b.1))
             .map(|(k, _)| k.clone());
 
@@ -171,7 +181,7 @@ impl RankedChoiceVotingSystem {
 
         for ballot in ballots {
             let mut found_valid_preference = false;
-            
+
             // Find the first preference that hasn't been eliminated
             for candidate_id in &ballot.preferences {
                 if !eliminated_candidates.contains(candidate_id) {
@@ -180,7 +190,7 @@ impl RankedChoiceVotingSystem {
                     break; // Only count the first valid preference
                 }
             }
-            
+
             // If no valid preference found, this ballot is exhausted
             if !found_valid_preference {
                 exhausted_ballots += 1;
@@ -207,22 +217,25 @@ impl RankedChoiceVotingSystem {
         election: &Election,
     ) -> Result<bool, VotingError> {
         // Check if voter DID can be resolved
-        let _verifying_key = self.did_resolver.resolve(&voter_did_doc.id)
+        let _verifying_key = self
+            .did_resolver
+            .resolve(&voter_did_doc.id)
             .map_err(|e| VotingError::IneligibleVoter(format!("Failed to resolve DID: {}", e)))?;
 
         // Verify the DID document public key matches the resolved key
         // Implement comprehensive DID document verification
         if !Self::verify_did_document_integrity(&voter_did_doc) {
             return Err(VotingError::IneligibleVoter(
-                "DID document integrity verification failed".to_string()
+                "DID document integrity verification failed".to_string(),
             ));
         }
-        
+
         // Check election-specific eligibility rules
         if !Self::check_election_eligibility(&voter_did_doc.id, election).await? {
-            return Err(VotingError::IneligibleVoter(
-                format!("Voter {} does not meet election-specific requirements", voter_did_doc.id)
-            ));
+            return Err(VotingError::IneligibleVoter(format!(
+                "Voter {} does not meet election-specific requirements",
+                voter_did_doc.id
+            )));
         }
 
         Ok(true)
@@ -234,14 +247,14 @@ impl RankedChoiceVotingSystem {
         if did_doc.id.to_string().is_empty() {
             return false;
         }
-        
+
         // Verify the document is properly formed
         // In a real implementation, this would:
         // 1. Validate document structure against DID spec
         // 2. Verify authentication methods are present
         // 3. Check service endpoints if required
         // 4. Validate proof signatures if present
-        
+
         // For now, perform basic validation
         true
     }
@@ -257,26 +270,26 @@ impl RankedChoiceVotingSystem {
         // - Federation membership requirements
         // - Staking requirements
         // - Time-based eligibility (registration deadlines, etc.)
-        
+
         // For now, implement basic mock checks
         let voter_str = voter_did.to_string();
-        
+
         // Example: Reject test accounts for demonstration
         if voter_str.contains("invalid") || voter_str.contains("banned") {
             return Ok(false);
         }
-        
+
         // Example: Check minimum reputation (mock implementation)
         // In reality, this would query the reputation system
         if voter_str.contains("lowrep") {
             return Ok(false);
         }
-        
+
         // Example: Check federation membership (mock implementation)
         if voter_str.contains("external") {
             return Ok(false);
         }
-        
+
         Ok(true)
     }
 
@@ -284,25 +297,30 @@ impl RankedChoiceVotingSystem {
     fn verify_ballot_signature_sync(&self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
         // Extract the voter's DID from the ballot
         let voter_did = &ballot.voter_did.id;
-        
+
         // Resolve the DID to get the verification key
-        let verifying_key = self.did_resolver.resolve(voter_did)
+        let verifying_key = self
+            .did_resolver
+            .resolve(voter_did)
             .map_err(|e| VotingError::InvalidSignature)?;
-        
+
         // Create the message that should have been signed
         let message = Self::create_ballot_signing_message(ballot)?;
-        
+
         // For now, we'll do basic signature validation
         // In a real implementation, this would use icn-identity's verify_signature function
         if !Self::verify_signature_with_key(&verifying_key, &message, &ballot.signature) {
             return Err(VotingError::InvalidSignature);
         }
-        
+
         Ok(())
     }
 
     /// Verify ballot signature using icn-identity
-    async fn verify_ballot_signature(&self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
+    async fn verify_ballot_signature(
+        &self,
+        ballot: &RankedChoiceBallot,
+    ) -> Result<(), VotingError> {
         // Async version that delegates to sync version for now
         self.verify_ballot_signature_sync(ballot)
     }
@@ -312,34 +330,35 @@ impl RankedChoiceVotingSystem {
         // Complete signature verification with full ballot content
         // Create the message by serializing:
         // - ballot_id
-        // - election_id  
+        // - election_id
         // - preferences (in order)
         // - timestamp
-        
+
         let mut message = Vec::new();
-        
+
         // Add ballot ID
         message.extend(ballot.ballot_id.0.as_bytes());
         message.push(0); // separator
-        
+
         // Add election ID
         message.extend(ballot.election_id.0.as_bytes());
         message.push(0); // separator
-        
+
         // Add preferences in order
         for preference in &ballot.preferences {
             message.extend(preference.0.as_bytes());
             message.push(0); // separator
         }
-        
+
         // Add timestamp
-        let timestamp_bytes = ballot.timestamp
+        let timestamp_bytes = ballot
+            .timestamp
             .duration_since(std::time::UNIX_EPOCH)
             .map_err(|_| VotingError::InvalidBallot("Invalid timestamp".to_string()))?
             .as_secs()
             .to_be_bytes();
         message.extend(&timestamp_bytes);
-        
+
         Ok(message)
     }
 
@@ -351,11 +370,11 @@ impl RankedChoiceVotingSystem {
     ) -> bool {
         // In a real implementation, this would use icn-identity's verify_signature function
         // For now, we'll assume valid signatures for demonstration
-        // 
+        //
         // Real implementation would be:
         // use icn_identity::verify_signature;
         // verify_signature(verifying_key, message, signature)
-        
+
         true // Mock verification - always passes
     }
 }
@@ -378,7 +397,7 @@ impl VotingSystem for RankedChoiceVotingSystem {
         let now = std::time::SystemTime::now();
         if ballot.timestamp > now {
             return Err(VotingError::InvalidBallot(
-                "Ballot timestamp is in the future".to_string()
+                "Ballot timestamp is in the future".to_string(),
             ));
         }
 
@@ -435,7 +454,8 @@ impl RankedChoiceBallotValidator {
 
 impl BallotValidator for RankedChoiceBallotValidator {
     fn validate_format(&self, ballot: &dyn Any) -> Result<(), VotingError> {
-        let ballot = ballot.downcast_ref::<RankedChoiceBallot>()
+        let ballot = ballot
+            .downcast_ref::<RankedChoiceBallot>()
             .ok_or_else(|| VotingError::InvalidBallot("Not a RankedChoiceBallot".to_string()))?;
 
         // Validate ballot structure
@@ -448,7 +468,9 @@ impl BallotValidator for RankedChoiceBallotValidator {
         }
 
         if ballot.preferences.is_empty() {
-            return Err(VotingError::InvalidBallot("No preferences specified".to_string()));
+            return Err(VotingError::InvalidBallot(
+                "No preferences specified".to_string(),
+            ));
         }
 
         // Check for duplicate preferences
@@ -458,7 +480,8 @@ impl BallotValidator for RankedChoiceBallotValidator {
     }
 
     fn validate_signature(&self, ballot: &dyn Any) -> Result<(), VotingError> {
-        let ballot = ballot.downcast_ref::<RankedChoiceBallot>()
+        let ballot = ballot
+            .downcast_ref::<RankedChoiceBallot>()
             .ok_or_else(|| VotingError::InvalidBallot("Not a RankedChoiceBallot".to_string()))?;
 
         // Basic signature presence check
@@ -486,16 +509,18 @@ impl BallotValidator for RankedChoiceBallotValidator {
         if ballot.signature.value.is_empty() {
             return Err(VotingError::InvalidSignature);
         }
-        
+
         Ok(())
     }
 
     fn check_duplicate(&self, ballot: &dyn Any) -> Result<(), VotingError> {
-        let ballot = ballot.downcast_ref::<RankedChoiceBallot>()
+        let ballot = ballot
+            .downcast_ref::<RankedChoiceBallot>()
             .ok_or_else(|| VotingError::InvalidBallot("Not a RankedChoiceBallot".to_string()))?;
 
-        let voter_key = format!("{}:{}", 
-            ballot.election_id.0, 
+        let voter_key = format!(
+            "{}:{}",
+            ballot.election_id.0,
             ballot.voter_did.id.to_string()
         );
 
@@ -530,7 +555,8 @@ mod tests {
                 public_key: vec![0u8; 32], // Mock public key
             },
             election_id: ElectionId(election_id.to_string()),
-            preferences: preferences.into_iter()
+            preferences: preferences
+                .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
             timestamp: std::time::SystemTime::now(),
@@ -553,7 +579,7 @@ mod tests {
         ];
 
         let result = rcv.execute_rcv(ballots).unwrap();
-        
+
         // Alice should win with 2 first-choice votes (majority)
         assert_eq!(result.winner, Some(CandidateId("alice".to_string())));
         assert_eq!(result.rounds.len(), 1);
@@ -568,7 +594,7 @@ mod tests {
         let ballots = vec![
             // Alice: 1 first choice
             create_test_ballot("ballot1", "election1", vec!["alice", "bob", "charlie"]),
-            // Bob: 1 first choice  
+            // Bob: 1 first choice
             create_test_ballot("ballot2", "election1", vec!["bob", "alice", "charlie"]),
             // Charlie: 2 first choices
             create_test_ballot("ballot3", "election1", vec!["charlie", "alice", "bob"]),
@@ -576,7 +602,7 @@ mod tests {
         ];
 
         let result = rcv.execute_rcv(ballots).unwrap();
-        
+
         // Charlie should win with 2 first-choice votes (50%)
         // Since we have 4 ballots, majority threshold is 3, so multiple rounds needed
         assert!(result.rounds.len() >= 1);
@@ -622,7 +648,7 @@ mod tests {
 
         // First ballot should pass
         assert!(validator.check_duplicate(&ballot1).is_ok());
-        
+
         // Second ballot from same voter should fail (same DID document)
         assert!(matches!(
             validator.check_duplicate(&ballot2),
@@ -636,13 +662,13 @@ mod tests {
         let rcv = RankedChoiceVotingSystem::new(did_resolver, 1);
 
         let ballot = create_test_ballot("ballot1", "election1", vec!["alice", "bob"]);
-        
+
         // Test ballot validation
         assert!(rcv.validate_ballot(&ballot).is_ok());
-        
+
         // Test voter eligibility
         assert!(rcv.is_eligible_voter("did:example:voter").is_ok());
-        
+
         // Test vote counting
         let ballots = vec![ballot];
         let result = rcv.count_votes(ballots);

@@ -392,15 +392,15 @@ impl TypeAnnotationNode {
             || matches!(other, TypeAnnotationNode::Custom(t) if t == "Any")
             || self.array_compatible_with(other)
     }
-    
+
     /// Check if two array types are compatible, handling "unknown" element types
     fn array_compatible_with(&self, other: &Self) -> bool {
         match (self, other) {
             // Allow Array(unknown) to be compatible with any Array(T)
             (TypeAnnotationNode::Array(a), TypeAnnotationNode::Array(b)) => {
                 matches!(a.as_ref(), TypeAnnotationNode::Custom(t) if t == "unknown")
-                || matches!(b.as_ref(), TypeAnnotationNode::Custom(t) if t == "unknown")
-                || a.compatible_with(b)
+                    || matches!(b.as_ref(), TypeAnnotationNode::Custom(t) if t == "unknown")
+                    || a.compatible_with(b)
             }
             _ => false,
         }

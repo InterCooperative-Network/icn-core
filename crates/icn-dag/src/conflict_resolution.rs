@@ -3,7 +3,7 @@
 //! This module implements robust conflict resolution for federation/DAG synchronization,
 //! handling fork detection, resolution strategies, and maintaining consistency across nodes.
 
-use crate::{StorageService, DagBlockMetadata, metadata_from_block};
+use crate::{metadata_from_block, DagBlockMetadata, StorageService};
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet, VecDeque};
@@ -62,13 +62,23 @@ pub enum ConflictEvidence {
     /// Block has earlier timestamp
     EarlierTimestamp { block_cid: Cid, timestamp: u64 },
     /// Block has higher reputation author
-    HigherReputationAuthor { block_cid: Cid, author: Did, reputation: u64 },
+    HigherReputationAuthor {
+        block_cid: Cid,
+        author: Did,
+        reputation: u64,
+    },
     /// Block has more subsequent references
-    MoreReferences { block_cid: Cid, reference_count: usize },
+    MoreReferences {
+        block_cid: Cid,
+        reference_count: usize,
+    },
     /// Block is part of longer chain
     LongerChain { block_cid: Cid, chain_length: usize },
     /// Block validated by more nodes
-    MoreValidations { block_cid: Cid, validator_count: usize },
+    MoreValidations {
+        block_cid: Cid,
+        validator_count: usize,
+    },
 }
 
 /// Current status of conflict resolution
@@ -81,10 +91,10 @@ pub enum ResolutionStatus {
     /// Analyzing evidence and determining resolution
     Analyzing,
     /// Federation voting in progress
-    FederationVoting { 
-        votes_received: usize, 
+    FederationVoting {
+        votes_received: usize,
         votes_needed: usize,
-        deadline: u64 
+        deadline: u64,
     },
     /// Resolution determined, propagating decision
     ResolutionFound { winner: Cid },
@@ -242,8 +252,8 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
 
     /// Create a new conflict resolver with federation capabilities
     pub fn new_with_federation(
-        store: S, 
-        config: ConflictResolutionConfig, 
+        store: S,
+        config: ConflictResolutionConfig,
         node_identity: Did,
         federation_nodes: HashSet<Did>,
         reputation_provider: Option<Box<dyn ReputationProvider>>,
@@ -275,15 +285,17 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         // Verify the voter is part of the federation
         if !self.federation_nodes.contains(&vote.voter) {
             return Err(CommonError::PolicyDenied(
-                "Node not authorized to vote in federation".to_string()
+                "Node not authorized to vote in federation".to_string(),
             ));
         }
 
         // Verify the conflict exists and is in voting state
-        let conflict = self.active_conflicts.get(&vote.conflict_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(
-                format!("Conflict {} not found", vote.conflict_id)
-            ))?;
+        let conflict = self
+            .active_conflicts
+            .get(&vote.conflict_id)
+            .ok_or_else(|| {
+                CommonError::ResourceNotFound(format!("Conflict {} not found", vote.conflict_id))
+            })?;
 
         match &conflict.resolution_status {
             ResolutionStatus::FederationVoting { .. } => {
@@ -295,21 +307,26 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
                 Ok(())
             }
             _ => Err(CommonError::PolicyDenied(
-                "Conflict not in voting state".to_string()
+                "Conflict not in voting state".to_string(),
             )),
         }
     }
 
     /// Check if federation voting is complete and tally results
-    pub fn check_federation_voting(&mut self, conflict_id: &str) -> Result<Option<FederationVoteResults>, CommonError> {
-        let conflict = self.active_conflicts.get(conflict_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(
-                format!("Conflict {} not found", conflict_id)
-            ))?;
+    pub fn check_federation_voting(
+        &mut self,
+        conflict_id: &str,
+    ) -> Result<Option<FederationVoteResults>, CommonError> {
+        let conflict = self.active_conflicts.get(conflict_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id))
+        })?;
 
         let (_votes_received, votes_needed, deadline) = match &conflict.resolution_status {
-            ResolutionStatus::FederationVoting { votes_received, votes_needed, deadline } => 
-                (*votes_received, *votes_needed, *deadline),
+            ResolutionStatus::FederationVoting {
+                votes_received,
+                votes_needed,
+                deadline,
+            } => (*votes_received, *votes_needed, *deadline),
             _ => return Ok(None), // Not in voting state
         };
 
@@ -319,11 +336,14 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             .as_secs();
 
         let empty_votes = Vec::new();
-        let votes = self.federation_votes.get(conflict_id).unwrap_or(&empty_votes);
-        
+        let votes = self
+            .federation_votes
+            .get(conflict_id)
+            .unwrap_or(&empty_votes);
+
         // Check if voting period has ended or enough votes received
         let voting_complete = current_time >= deadline || votes.len() >= votes_needed;
-        
+
         if voting_complete {
             let results = self.tally_federation_votes(conflict_id)?;
             return Ok(Some(results));
@@ -358,7 +378,8 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
 
         // Add new conflicts to active tracking
         for conflict in new_conflicts.iter() {
-            self.active_conflicts.insert(conflict.conflict_id.clone(), conflict.clone());
+            self.active_conflicts
+                .insert(conflict.conflict_id.clone(), conflict.clone());
         }
 
         // Limit concurrent conflicts
@@ -370,8 +391,12 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     /// Resolve a specific conflict using the configured strategy
     pub fn resolve_conflict(&mut self, conflict_id: &str) -> Result<ResolutionStatus, CommonError> {
         // Clone the conflict to avoid borrowing issues
-        let conflict = self.active_conflicts.get(conflict_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id)))?
+        let conflict = self
+            .active_conflicts
+            .get(conflict_id)
+            .ok_or_else(|| {
+                CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id))
+            })?
             .clone();
 
         if !self.config.auto_resolve {
@@ -402,12 +427,18 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
 
         Ok(ResolutionStatus::Resolved {
             winner,
-            applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            applied_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         })
     }
 
     /// Initiate federation voting for a conflict
-    fn initiate_federation_vote(&mut self, conflict_id: &str) -> Result<ResolutionStatus, CommonError> {
+    fn initiate_federation_vote(
+        &mut self,
+        conflict_id: &str,
+    ) -> Result<ResolutionStatus, CommonError> {
         if self.federation_nodes.len() < self.config.federation_vote_config.quorum {
             return Ok(ResolutionStatus::Failed {
                 reason: format!(
@@ -436,7 +467,8 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         }
 
         // Initialize empty vote collection for this conflict
-        self.federation_votes.insert(conflict_id.to_string(), Vec::new());
+        self.federation_votes
+            .insert(conflict_id.to_string(), Vec::new());
 
         Ok(ResolutionStatus::FederationVoting {
             votes_received: 0,
@@ -446,9 +478,15 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     }
 
     /// Tally federation votes and determine winner
-    fn tally_federation_votes(&self, conflict_id: &str) -> Result<FederationVoteResults, CommonError> {
+    fn tally_federation_votes(
+        &self,
+        conflict_id: &str,
+    ) -> Result<FederationVoteResults, CommonError> {
         let empty_votes = Vec::new();
-        let votes = self.federation_votes.get(conflict_id).unwrap_or(&empty_votes);
+        let votes = self
+            .federation_votes
+            .get(conflict_id)
+            .unwrap_or(&empty_votes);
         let config = &self.config.federation_vote_config;
 
         let mut votes_per_candidate: HashMap<Cid, f64> = HashMap::new();
@@ -468,16 +506,20 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
                 1.0 // Equal weight for all votes
             };
 
-            *votes_per_candidate.entry(vote.preferred_winner.clone()).or_insert(0.0) += weight;
+            *votes_per_candidate
+                .entry(vote.preferred_winner.clone())
+                .or_insert(0.0) += weight;
             total_weight += weight;
         }
 
         // Check quorum
         let quorum_met = votes.len() >= config.quorum;
-        
+
         // Find winner if threshold is met
         let threshold_met = if quorum_met && total_weight > 0.0 {
-            votes_per_candidate.values().any(|&weight| weight / total_weight >= config.threshold)
+            votes_per_candidate
+                .values()
+                .any(|&weight| weight / total_weight >= config.threshold)
         } else {
             false
         };
@@ -502,19 +544,25 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     }
 
     /// Complete federation voting and apply the result
-    pub fn complete_federation_voting(&mut self, conflict_id: &str) -> Result<ResolutionStatus, CommonError> {
+    pub fn complete_federation_voting(
+        &mut self,
+        conflict_id: &str,
+    ) -> Result<ResolutionStatus, CommonError> {
         let results = self.tally_federation_votes(conflict_id)?;
 
         if let Some(winner) = results.winner {
             // Apply the resolution
             self.apply_resolution(conflict_id, &winner)?;
-            
+
             // Clean up votes
             self.federation_votes.remove(conflict_id);
 
             Ok(ResolutionStatus::Resolved {
                 winner,
-                applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                applied_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
             })
         } else {
             // Mark as failed if no consensus reached
@@ -559,18 +607,29 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     }
 
     /// Detect conflicts where multiple blocks claim to be roots
-    fn detect_root_conflicts(&self, dag: &DagStructure) -> Result<Option<DagConflict>, CommonError> {
+    fn detect_root_conflicts(
+        &self,
+        dag: &DagStructure,
+    ) -> Result<Option<DagConflict>, CommonError> {
         let roots = dag.find_roots();
-        
+
         if roots.len() > 1 {
-            let conflict_id = format!("root_conflict_{}", 
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+            let conflict_id = format!(
+                "root_conflict_{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            );
 
             Ok(Some(DagConflict {
                 conflict_id,
                 conflicting_blocks: roots,
                 fork_point: None,
-                detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                detected_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 conflict_type: ConflictType::RootConflict,
                 node_positions: HashMap::new(),
                 resolution_status: ResolutionStatus::Detected,
@@ -588,15 +647,23 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         // Find nodes with multiple children (potential fork points)
         for (block_cid, children) in &dag.children {
             if children.len() > 1 && !visited.contains(block_cid) {
-                let conflict_id = format!("fork_{}_{}",
+                let conflict_id = format!(
+                    "fork_{}_{}",
                     block_cid.to_string()[..8].to_lowercase(),
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
+                );
 
                 conflicts.push(DagConflict {
                     conflict_id,
                     conflicting_blocks: children.clone(),
                     fork_point: Some(block_cid.clone()),
-                    detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    detected_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     conflict_type: ConflictType::ChainFork,
                     node_positions: HashMap::new(),
                     resolution_status: ResolutionStatus::Detected,
@@ -612,14 +679,22 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     /// Detect cycles in the DAG (which shouldn't exist in a proper DAG)
     fn detect_cycles(&self, dag: &DagStructure) -> Result<Option<DagConflict>, CommonError> {
         if let Some(cycle) = dag.find_cycle() {
-            let conflict_id = format!("cycle_{}", 
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+            let conflict_id = format!(
+                "cycle_{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            );
 
             Ok(Some(DagConflict {
                 conflict_id,
                 conflicting_blocks: cycle,
                 fork_point: None,
-                detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                detected_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 conflict_type: ConflictType::CyclicDependency,
                 node_positions: HashMap::new(),
                 resolution_status: ResolutionStatus::Detected,
@@ -635,14 +710,22 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         let missing = dag.find_missing_references();
 
         if !missing.is_empty() {
-            let conflict_id = format!("missing_blocks_{}", 
-                SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
+            let conflict_id = format!(
+                "missing_blocks_{}",
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+            );
 
             conflicts.push(DagConflict {
                 conflict_id,
                 conflicting_blocks: missing,
                 fork_point: None,
-                detected_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                detected_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
                 conflict_type: ConflictType::MissingBlocks,
                 node_positions: HashMap::new(),
                 resolution_status: ResolutionStatus::Detected,
@@ -666,7 +749,8 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             }
         }
 
-        earliest_block.ok_or_else(|| CommonError::ResourceNotFound("No valid blocks found".to_string()))
+        earliest_block
+            .ok_or_else(|| CommonError::ResourceNotFound("No valid blocks found".to_string()))
     }
 
     /// Resolve conflict by choosing block from highest reputation author
@@ -728,7 +812,12 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
 
             // Timestamp factor (earlier is better)
             if let Ok(Some(block)) = self.store.get(block_cid) {
-                let age_hours = (SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() - block.timestamp) / 3600;
+                let age_hours = (SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs()
+                    - block.timestamp)
+                    / 3600;
                 score += 1.0 / (1.0 + age_hours as f64 * 0.1); // Decay with age
             }
 
@@ -744,7 +833,8 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
             scores.insert(block_cid.clone(), score);
         }
 
-        let winner = scores.into_iter()
+        let winner = scores
+            .into_iter()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(cid, _)| cid);
 
@@ -753,13 +843,17 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
 
     /// Apply the conflict resolution by updating DAG state
     fn apply_resolution(&mut self, conflict_id: &str, winner: &Cid) -> Result<(), CommonError> {
-        let conflict = self.active_conflicts.get_mut(conflict_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id)))?;
+        let conflict = self.active_conflicts.get_mut(conflict_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Conflict {} not found", conflict_id))
+        })?;
 
         // Mark as resolved
         conflict.resolution_status = ResolutionStatus::Resolved {
             winner: winner.clone(),
-            applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+            applied_at: SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs(),
         };
 
         // Remove losing blocks (optional - might want to keep for audit)
@@ -827,8 +921,11 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     /// Remove old conflicts to limit memory usage
     fn prune_old_conflicts(&mut self) {
         if self.active_conflicts.len() > self.config.max_concurrent_conflicts {
-            let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-            
+            let current_time = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs();
+
             // Remove conflicts older than timeout
             self.active_conflicts.retain(|_, conflict| {
                 current_time - conflict.detected_at < self.config.evidence_timeout
@@ -841,14 +938,10 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         &self.active_conflicts
     }
 
-
-
     /// Get resolution history
     pub fn get_resolution_history(&self) -> &VecDeque<DagConflict> {
         &self.resolution_history
     }
-
-
 }
 
 /// Internal representation of DAG structure for analysis
@@ -874,7 +967,10 @@ impl DagStructure {
     }
 
     fn add_edge(&mut self, from: Cid, to: Cid) {
-        self.children.entry(from.clone()).or_default().push(to.clone());
+        self.children
+            .entry(from.clone())
+            .or_default()
+            .push(to.clone());
         self.parents.entry(to).or_default().push(from);
     }
 
@@ -948,15 +1044,18 @@ impl DagStructure {
 mod tests {
     use super::*;
     use crate::InMemoryDagStore;
-    use icn_common::{DagLink, compute_merkle_cid};
+    use icn_common::{compute_merkle_cid, DagLink};
 
     fn create_test_block(id: &str, links: Vec<DagLink>) -> DagBlock {
         let data = format!("data for {}", id).into_bytes();
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let author = Did::new("key", "tester");
         let sig = None;
         let cid = compute_merkle_cid(0x71, &data, &links, timestamp, &author, &sig, &None);
-        
+
         DagBlock {
             cid,
             data,
@@ -973,7 +1072,7 @@ mod tests {
         let store = InMemoryDagStore::new();
         let config = ConflictResolutionConfig::default();
         let node_id = Did::new("key", "test_node");
-        
+
         let resolver = ConflictResolver::new(store, config, node_id);
         assert_eq!(resolver.active_conflicts.len(), 0);
     }
@@ -983,17 +1082,17 @@ mod tests {
         let mut store = InMemoryDagStore::new();
         let config = ConflictResolutionConfig::default();
         let node_id = Did::new("key", "test_node");
-        
+
         // Create two root blocks (no parents)
         let block1 = create_test_block("root1", vec![]);
         let block2 = create_test_block("root2", vec![]);
-        
+
         store.put(&block1).unwrap();
         store.put(&block2).unwrap();
-        
+
         let mut resolver = ConflictResolver::new(store, config, node_id);
         let conflicts = resolver.detect_conflicts().unwrap();
-        
+
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].conflict_type, ConflictType::RootConflict);
         assert_eq!(conflicts[0].conflicting_blocks.len(), 2);
@@ -1004,27 +1103,27 @@ mod tests {
         let mut store = InMemoryDagStore::new();
         let config = ConflictResolutionConfig::default();
         let node_id = Did::new("key", "test_node");
-        
+
         // Create a common ancestor
         let ancestor = create_test_block("ancestor", vec![]);
         store.put(&ancestor).unwrap();
-        
+
         // Create two children of the ancestor (fork)
         let link = DagLink {
             cid: ancestor.cid.clone(),
             name: "parent".to_string(),
             size: 0,
         };
-        
+
         let fork1 = create_test_block("fork1", vec![link.clone()]);
         let fork2 = create_test_block("fork2", vec![link]);
-        
+
         store.put(&fork1).unwrap();
         store.put(&fork2).unwrap();
-        
+
         let mut resolver = ConflictResolver::new(store, config, node_id);
         let conflicts = resolver.detect_conflicts().unwrap();
-        
+
         assert_eq!(conflicts.len(), 1);
         assert_eq!(conflicts[0].conflict_type, ConflictType::ChainFork);
         assert_eq!(conflicts[0].fork_point, Some(ancestor.cid));
@@ -1038,22 +1137,24 @@ mod tests {
             ..Default::default()
         };
         let node_id = Did::new("key", "test_node");
-        
+
         // Create blocks with different timestamps
         let mut block1 = create_test_block("early", vec![]);
         let mut block2 = create_test_block("late", vec![]);
-        
+
         block1.timestamp = 1000;
         block2.timestamp = 2000;
-        
+
         store.put(&block1).unwrap();
         store.put(&block2).unwrap();
-        
+
         let mut resolver = ConflictResolver::new(store, config, node_id);
         let conflicts = resolver.detect_conflicts().unwrap();
-        
+
         if !conflicts.is_empty() {
-            let resolution = resolver.resolve_conflict(&conflicts[0].conflict_id).unwrap();
+            let resolution = resolver
+                .resolve_conflict(&conflicts[0].conflict_id)
+                .unwrap();
             if let ResolutionStatus::Resolved { winner, .. } = resolution {
                 assert_eq!(winner, block1.cid); // Earlier block should win
             }
@@ -1068,20 +1169,20 @@ mod tests {
             ..Default::default()
         };
         let node_id = Did::new("key", "test_node");
-        
+
         let mut federation_nodes = HashSet::new();
         federation_nodes.insert(Did::new("key", "node1"));
         federation_nodes.insert(Did::new("key", "node2"));
         federation_nodes.insert(Did::new("key", "node3"));
-        
+
         let resolver = ConflictResolver::new_with_federation(
-            store, 
-            config, 
+            store,
+            config,
             node_id,
             federation_nodes.clone(),
-            None
+            None,
         );
-        
+
         assert_eq!(resolver.federation_nodes.len(), 3);
         assert!(resolver.is_federation_member(&Did::new("key", "node1")));
         assert!(!resolver.is_federation_member(&Did::new("key", "outsider")));
@@ -1095,36 +1196,33 @@ mod tests {
             ..Default::default()
         };
         config.federation_vote_config.quorum = 2;
-        
+
         let node_id = Did::new("key", "test_node");
-        
+
         // Create blocks with different timestamps
         let mut block1 = create_test_block("early", vec![]);
         let mut block2 = create_test_block("late", vec![]);
-        
+
         block1.timestamp = 1000;
         block2.timestamp = 2000;
-        
+
         store.put(&block1).unwrap();
         store.put(&block2).unwrap();
-        
+
         let mut federation_nodes = HashSet::new();
         federation_nodes.insert(Did::new("key", "node1"));
         federation_nodes.insert(Did::new("key", "node2"));
         federation_nodes.insert(Did::new("key", "node3"));
-        
-        let mut resolver = ConflictResolver::new_with_federation(
-            store, 
-            config, 
-            node_id,
-            federation_nodes,
-            None
-        );
-        
+
+        let mut resolver =
+            ConflictResolver::new_with_federation(store, config, node_id, federation_nodes, None);
+
         let conflicts = resolver.detect_conflicts().unwrap();
-        
+
         if !conflicts.is_empty() {
-            let resolution = resolver.resolve_conflict(&conflicts[0].conflict_id).unwrap();
+            let resolution = resolver
+                .resolve_conflict(&conflicts[0].conflict_id)
+                .unwrap();
             match resolution {
                 ResolutionStatus::FederationVoting { votes_needed, .. } => {
                     assert_eq!(votes_needed, 2);
@@ -1143,9 +1241,9 @@ mod tests {
         };
         config.federation_vote_config.quorum = 2;
         config.federation_vote_config.threshold = 0.6; // 60% threshold
-        
+
         let node_id = Did::new("key", "test_node");
-        
+
         let mut federation_nodes = HashSet::new();
         let voter1 = Did::new("key", "voter1");
         let voter2 = Did::new("key", "voter2");
@@ -1153,23 +1251,20 @@ mod tests {
         federation_nodes.insert(voter1.clone());
         federation_nodes.insert(voter2.clone());
         federation_nodes.insert(voter3.clone());
-        
-        let mut resolver = ConflictResolver::new_with_federation(
-            store, 
-            config, 
-            node_id,
-            federation_nodes,
-            None
-        );
-        
+
+        let mut resolver =
+            ConflictResolver::new_with_federation(store, config, node_id, federation_nodes, None);
+
         // Create a mock conflict
         let conflict_id = "test_conflict".to_string();
         let winner_cid = Cid::new_v1_sha256(0x55, b"winner");
         let loser_cid = Cid::new_v1_sha256(0x55, b"loser");
-        
+
         // Initiate voting (manually for testing)
-        resolver.federation_votes.insert(conflict_id.clone(), Vec::new());
-        
+        resolver
+            .federation_votes
+            .insert(conflict_id.clone(), Vec::new());
+
         // Cast votes
         let vote1 = FederationVote {
             voter: voter1,
@@ -1180,7 +1275,7 @@ mod tests {
             signature: None,
             reasoning: Some("Earlier block".to_string()),
         };
-        
+
         let vote2 = FederationVote {
             voter: voter2,
             conflict_id: conflict_id.clone(),
@@ -1190,13 +1285,21 @@ mod tests {
             signature: None,
             reasoning: Some("Better chain".to_string()),
         };
-        
-        resolver.federation_votes.get_mut(&conflict_id).unwrap().push(vote1);
-        resolver.federation_votes.get_mut(&conflict_id).unwrap().push(vote2);
-        
+
+        resolver
+            .federation_votes
+            .get_mut(&conflict_id)
+            .unwrap()
+            .push(vote1);
+        resolver
+            .federation_votes
+            .get_mut(&conflict_id)
+            .unwrap()
+            .push(vote2);
+
         // Tally votes
         let results = resolver.tally_federation_votes(&conflict_id).unwrap();
-        
+
         assert_eq!(results.total_votes, 2);
         assert!(results.quorum_met);
         assert!(results.threshold_met);

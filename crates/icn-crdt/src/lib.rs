@@ -1,9 +1,9 @@
 #![doc = include_str!("../README.md")]
 
 //! # ICN CRDT Crate
-//! 
-//! This crate provides Conflict-free Replicated Data Types (CRDTs) for the 
-//! InterCooperative Network (ICN) to enable real-time, conflict-free state 
+//!
+//! This crate provides Conflict-free Replicated Data Types (CRDTs) for the
+//! InterCooperative Network (ICN) to enable real-time, conflict-free state
 //! synchronization across distributed nodes, clusters, and federations.
 
 use icn_common::{CommonError, Did};
@@ -11,21 +11,21 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::hash::Hash;
 
-pub mod g_counter;
-pub mod pn_counter;
-pub mod or_set;
-pub mod vector_clock;
-pub mod lww_register;
 pub mod crdt_map;
+pub mod g_counter;
 pub mod gossip;
+pub mod lww_register;
+pub mod or_set;
+pub mod pn_counter;
+pub mod vector_clock;
 
-pub use g_counter::GCounter;
-pub use pn_counter::PNCounter;
-pub use or_set::ORSet;
-pub use vector_clock::VectorClock;
-pub use lww_register::LWWRegister;
 pub use crdt_map::CRDTMap;
-pub use gossip::{CRDTSynchronizer, GossipConfig, GossipTransport, GossipSerializable};
+pub use g_counter::GCounter;
+pub use gossip::{CRDTSynchronizer, GossipConfig, GossipSerializable, GossipTransport};
+pub use lww_register::LWWRegister;
+pub use or_set::ORSet;
+pub use pn_counter::PNCounter;
+pub use vector_clock::VectorClock;
 
 /// Unique identifier for a node in the CRDT network.
 /// This should be stable across restarts and unique across all nodes.
@@ -35,14 +35,14 @@ pub struct NodeId(pub String);
 impl NodeId {
     /// Create a new NodeId from a string.
     pub fn new(id: String) -> Self {
-        NodeId(id)  
+        NodeId(id)
     }
-    
+
     /// Create a NodeId from a DID.
     pub fn from_did(did: &Did) -> Self {
         NodeId(did.to_string())
     }
-    
+
     /// Get the string representation.
     pub fn as_str(&self) -> &str {
         &self.0
@@ -68,31 +68,31 @@ impl From<&str> for NodeId {
 }
 
 /// Core trait that all CRDT types must implement.
-/// 
+///
 /// This trait ensures that all CRDTs can be merged in a conflict-free manner
 /// and provide the mathematical guarantees required for distributed consensus.
 pub trait CRDT: Clone + Serialize {
     /// The type of operations that can be applied to this CRDT.
     type Operation: Clone + Serialize;
-    
+
     /// Merge this CRDT with another instance of the same type.
-    /// 
+    ///
     /// This operation must be:
     /// - Commutative: merge(a, b) = merge(b, a)  
     /// - Associative: merge(merge(a, b), c) = merge(a, merge(b, c))
     /// - Idempotent: merge(a, a) = a
     fn merge(&mut self, other: &Self);
-    
+
     /// Apply an operation to this CRDT.
     /// Returns Ok(()) if the operation was applied, or an error if invalid.
     fn apply_operation(&mut self, op: Self::Operation) -> Result<(), CRDTError>;
-    
+
     /// Get the current state value of this CRDT.
     fn value(&self) -> serde_json::Value;
-    
+
     /// Get a unique identifier for this CRDT instance.
     fn crdt_id(&self) -> String;
-    
+
     /// Check if this CRDT is causally ready to receive operations from the given vector clock.
     fn can_apply_operation(&self, _op: &Self::Operation, _vector_clock: &VectorClock) -> bool {
         true // Default implementation allows all operations
@@ -104,7 +104,7 @@ pub trait CRDT: Clone + Serialize {
 pub trait ObservableCRDT: CRDT {
     /// Register a callback to be invoked when the CRDT state changes.
     fn on_change(&mut self, callback: Box<dyn Fn(&Self) + Send + Sync>);
-    
+
     /// Get the current version/timestamp of this CRDT for change detection.
     fn version(&self) -> u64;
 }
@@ -113,10 +113,10 @@ pub trait ObservableCRDT: CRDT {
 pub trait CausalCRDT: CRDT {
     /// Get the current vector clock for this CRDT.
     fn vector_clock(&self) -> &VectorClock;
-    
+
     /// Update the vector clock when applying an operation.
     fn advance_clock(&mut self, node_id: &NodeId);
-    
+
     /// Check if this CRDT has observed all changes up to the given vector clock.
     fn has_seen(&self, vector_clock: &VectorClock) -> bool;
 }
@@ -126,22 +126,22 @@ pub trait CausalCRDT: CRDT {
 pub enum CRDTError {
     #[error("Invalid operation: {0}")]
     InvalidOperation(String),
-    
+
     #[error("Serialization error: {0}")]
     SerializationError(String),
-    
+
     #[error("Node not found: {0}")]
     NodeNotFound(String),
-    
+
     #[error("Vector clock error: {0}")]
     VectorClockError(String),
-    
+
     #[error("Merge conflict: {0}")]
     MergeConflict(String),
-    
+
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     #[error("Common error: {0}")]
     CommonError(#[from] CommonError),
 }
@@ -172,9 +172,14 @@ impl OperationMetadata {
             operation_id: None,
         }
     }
-    
+
     /// Create new operation metadata with an operation ID.
-    pub fn with_id(node_id: NodeId, vector_clock: VectorClock, timestamp: u64, op_id: String) -> Self {
+    pub fn with_id(
+        node_id: NodeId,
+        vector_clock: VectorClock,
+        timestamp: u64,
+        op_id: String,
+    ) -> Self {
         Self {
             node_id,
             vector_clock,
@@ -196,7 +201,10 @@ pub struct CRDTOperation<T> {
 impl<T> CRDTOperation<T> {
     /// Create a new CRDT operation.
     pub fn new(operation: T, metadata: OperationMetadata) -> Self {
-        Self { operation, metadata }
+        Self {
+            operation,
+            metadata,
+        }
     }
 }
 
@@ -270,21 +278,21 @@ impl Default for CRDTStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_node_id_creation() {
         let node_id = NodeId::new("test-node-1".to_string());
         assert_eq!(node_id.as_str(), "test-node-1");
         assert_eq!(node_id.to_string(), "test-node-1");
     }
-    
+
     #[test]
     fn test_node_id_from_did() {
         let did = Did::new("key", "test123");
         let node_id = NodeId::from_did(&did);
         assert_eq!(node_id.as_str(), "did:key:test123");
     }
-    
+
     #[test]
     fn test_crdt_config_default() {
         let config = CRDTConfig::default();
@@ -293,13 +301,13 @@ mod tests {
         assert!(config.enable_compression);
         assert_eq!(config.max_operation_age_seconds, 86400);
     }
-    
-    #[test]  
+
+    #[test]
     fn test_operation_metadata() {
         let node_id = NodeId::new("test".to_string());
         let vector_clock = VectorClock::new();
         let metadata = OperationMetadata::new(node_id.clone(), vector_clock.clone(), 1000);
-        
+
         assert_eq!(metadata.node_id, node_id);
         assert_eq!(metadata.vector_clock, vector_clock);
         assert_eq!(metadata.timestamp, 1000);

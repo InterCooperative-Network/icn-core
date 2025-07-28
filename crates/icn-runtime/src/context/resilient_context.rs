@@ -3,17 +3,17 @@
 //! This module provides an enhanced wrapper around RuntimeContext that adds
 //! error recovery capabilities to critical operations.
 
+use crate::context::errors::HostAbiError;
 use crate::context::runtime_context::RuntimeContext;
 use crate::error_recovery::{
-    ErrorRecoveryConfig, ErrorClassifier, 
-    RecoveryError, CircuitBreaker, CircuitBreakerConfig, resilient_operation
+    resilient_operation, CircuitBreaker, CircuitBreakerConfig, ErrorClassifier,
+    ErrorRecoveryConfig, RecoveryError,
 };
-use crate::context::errors::HostAbiError;
-use icn_common::{Cid, Did, CommonError};
+use icn_common::{Cid, CommonError, Did};
 use icn_mesh::JobId;
+use log::debug;
 use std::sync::Arc;
 use std::time::Duration;
-use log::debug;
 
 /// Production-ready error classifier for ICN runtime operations
 pub struct ICNErrorClassifier;
@@ -26,7 +26,7 @@ impl ErrorClassifier<HostAbiError> for ICNErrorClassifier {
             HostAbiError::AuthenticationFailed(_) => false,
             HostAbiError::InsufficientMana => false, // Don't retry mana issues
             HostAbiError::SerializationError(_) => false,
-            
+
             // Potentially recoverable errors
             HostAbiError::InternalError(_) => true,
             HostAbiError::DagOperationFailed(_) => true,
@@ -40,13 +40,13 @@ impl ErrorClassifier<HostAbiError> for ICNErrorClassifier {
             HostAbiError::InvalidJobState(_) => false, // Permanent - wrong state
             HostAbiError::ResourceLimitExceeded(_) => true, // Could be temporary
             HostAbiError::ConfigurationError(_) => false, // Permanent
-            
+
             // Default to recoverable for any other errors
             _ => {
                 // Treating unclassified errors as recoverable by default to ensure resilience.
                 // If new error types are added to HostAbiError, they should be explicitly classified here.
                 true
-            },
+            }
         }
     }
 }
@@ -72,7 +72,7 @@ impl ErrorClassifier<CommonError> for ICNErrorClassifier {
             CommonError::NotImplemented(_) => false,
             CommonError::DuplicateMessage => false,
             CommonError::InsufficientFunds(_) => false,
-            
+
             // Potentially recoverable errors - transient issues
             CommonError::InternalError(_) => true,
             CommonError::NetworkError(_) => true,
@@ -90,12 +90,12 @@ impl ErrorClassifier<CommonError> for ICNErrorClassifier {
             CommonError::NodeOffline(_) => true,
             CommonError::LockError(_) => true,
             CommonError::CRDTError(_) => true,
-            
+
             // Usually permanent but context-dependent
-            CommonError::ResourceNotFound(_) => false, 
+            CommonError::ResourceNotFound(_) => false,
             CommonError::PeerNotFound(_) => false,
             CommonError::NotFound(_) => false,
-            
+
             // Default to recoverable for unknown error types
             CommonError::UnknownError(_) => true,
         }
@@ -150,7 +150,7 @@ impl ResilientRuntimeContext {
     ) -> Result<(), RecoveryError<HostAbiError>> {
         let inner = self.inner.clone();
         let account = account.clone();
-        
+
         resilient_operation(
             || {
                 let inner = inner.clone();
@@ -161,7 +161,8 @@ impl ResilientRuntimeContext {
             &self.mana_circuit_breaker,
             &self.error_classifier,
             "spend_mana",
-        ).await
+        )
+        .await
     }
 
     /// Enhanced mana retrieval with error recovery
@@ -182,7 +183,8 @@ impl ResilientRuntimeContext {
             &self.mana_circuit_breaker,
             &self.error_classifier,
             "get_mana",
-        ).await
+        )
+        .await
     }
 
     /// Enhanced job submission with error recovery
@@ -193,19 +195,24 @@ impl ResilientRuntimeContext {
         cost_mana: u64,
     ) -> Result<JobId, RecoveryError<HostAbiError>> {
         let inner = self.inner.clone();
-        
+
         resilient_operation(
             || {
                 let inner = inner.clone();
                 let manifest_cid = manifest_cid.clone();
                 let spec_bytes = spec_bytes.clone();
-                async move { inner.handle_submit_job(manifest_cid, spec_bytes, cost_mana).await }
+                async move {
+                    inner
+                        .handle_submit_job(manifest_cid, spec_bytes, cost_mana)
+                        .await
+                }
             },
             &self.retry_config,
             &self.job_circuit_breaker,
             &self.error_classifier,
             "submit_job",
-        ).await
+        )
+        .await
     }
 
     /// Enhanced DAG operations with error recovery
@@ -215,7 +222,7 @@ impl ResilientRuntimeContext {
     ) -> Result<Cid, RecoveryError<HostAbiError>> {
         let inner = self.inner.clone();
         let receipt = receipt.clone();
-        
+
         resilient_operation(
             || {
                 let inner = inner.clone();
@@ -226,7 +233,8 @@ impl ResilientRuntimeContext {
             &self.dag_circuit_breaker,
             &self.error_classifier,
             "anchor_receipt",
-        ).await
+        )
+        .await
     }
 
     /// Enhanced job status retrieval with error recovery
@@ -236,7 +244,7 @@ impl ResilientRuntimeContext {
     ) -> Result<Option<icn_mesh::JobLifecycle>, RecoveryError<HostAbiError>> {
         let inner = self.inner.clone();
         let job_id = job_id.clone();
-        
+
         resilient_operation(
             || {
                 let inner = inner.clone();
@@ -247,7 +255,8 @@ impl ResilientRuntimeContext {
             &self.job_circuit_breaker,
             &self.error_classifier,
             "get_job_status",
-        ).await
+        )
+        .await
     }
 
     /// Get circuit breaker status for monitoring
@@ -270,9 +279,18 @@ impl ResilientRuntimeContext {
     /// Get error recovery metrics
     pub fn get_recovery_metrics(&self) -> RecoveryMetrics {
         RecoveryMetrics {
-            mana_failures: self.mana_circuit_breaker.failure_count.load(std::sync::atomic::Ordering::SeqCst),
-            dag_failures: self.dag_circuit_breaker.failure_count.load(std::sync::atomic::Ordering::SeqCst),
-            job_failures: self.job_circuit_breaker.failure_count.load(std::sync::atomic::Ordering::SeqCst),
+            mana_failures: self
+                .mana_circuit_breaker
+                .failure_count
+                .load(std::sync::atomic::Ordering::SeqCst),
+            dag_failures: self
+                .dag_circuit_breaker
+                .failure_count
+                .load(std::sync::atomic::Ordering::SeqCst),
+            job_failures: self
+                .job_circuit_breaker
+                .failure_count
+                .load(std::sync::atomic::Ordering::SeqCst),
             retry_config: self.retry_config.clone(),
         }
     }
@@ -380,7 +398,10 @@ mod tests {
 
         // Check that failures were recorded
         let metrics = resilient_ctx.get_recovery_metrics();
-        assert!(metrics.mana_failures > 0, "Circuit breaker should have recorded failures");
+        assert!(
+            metrics.mana_failures > 0,
+            "Circuit breaker should have recorded failures"
+        );
 
         // The circuit might be open now due to failures
         let status = resilient_ctx.get_circuit_breaker_status();
@@ -392,17 +413,17 @@ mod tests {
     async fn test_circuit_breaker_prevents_calls_when_open() {
         let ctx = create_test_context();
         let mut resilient_ctx = ResilientRuntimeContext::new(ctx);
-        
+
         // Manually open the mana circuit breaker
         for _ in 0..10 {
             resilient_ctx.mana_circuit_breaker.record_failure();
         }
-        
+
         let test_did = Did::from_str("did:key:test123").unwrap();
-        
+
         // This should fail due to open circuit
         let result = resilient_ctx.get_mana_resilient(&test_did).await;
-        
+
         // Verify it's a circuit breaker error
         match result {
             Err(RecoveryError::CircuitBreakerOpen { service }) => {

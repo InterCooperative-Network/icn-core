@@ -70,7 +70,10 @@ fn main() {
             let error_str = e.to_string();
 
             if error_str.contains("Unknown function") {
-                let missing_func = error_str.split("Unknown function ").nth(1).unwrap_or("unknown");
+                let missing_func = error_str
+                    .split("Unknown function ")
+                    .nth(1)
+                    .unwrap_or("unknown");
                 println!("   🚨 Missing WASM backend for: {}", missing_func);
                 println!("   💡 Solution: Add function to wasm_backend.rs imports");
             } else if error_str.contains("Type mismatch") {
@@ -82,7 +85,7 @@ fn main() {
             } else {
                 println!("   🚨 Other issue: {}", error_str);
             }
-            
+
             println!();
             println!("🛠️  **Next Steps:**");
             println!("   1. Add missing functions to WASM backend");

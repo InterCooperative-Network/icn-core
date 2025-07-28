@@ -20,9 +20,9 @@ use unsigned_varint::encode as varint_encode;
 
 pub mod security;
 pub use security::{
-    SecurityConfig, SecurityAuditResult, SecurityIssue, SecurityIssueSeverity,
-    SecureBytes, secure_sign_message, secure_verify_signature, secure_validate_did,
-    audit_cryptographic_security
+    audit_cryptographic_security, secure_sign_message, secure_validate_did,
+    secure_verify_signature, SecureBytes, SecurityAuditResult, SecurityConfig, SecurityIssue,
+    SecurityIssueSeverity,
 };
 pub mod zk;
 pub use zk::{
@@ -37,8 +37,8 @@ pub mod revocation_registry;
 pub use revocation_registry::{InMemoryRevocationRegistry, RevocationRegistry};
 pub mod key_management;
 pub use key_management::{
-    AdvancedKeyManager, KeyRotationConfig, KeyMetadata, KeyAuditEntry, 
-    KeyOperation, KeyOperationResult, KeyRotationStats
+    AdvancedKeyManager, KeyAuditEntry, KeyMetadata, KeyOperation, KeyOperationResult,
+    KeyRotationConfig, KeyRotationStats,
 };
 pub mod cooperative_schemas;
 pub use cooperative_schemas::{
@@ -133,7 +133,7 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
     // Security validation first
     let config = crate::security::SecurityConfig::default();
     crate::security::secure_validate_did(did, &config)?;
-    
+
     if did.method != "key" {
         return Err(CommonError::IdentityError(format!(
             "Unsupported DID method: {}",
@@ -151,14 +151,14 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
             "Unsupported multibase prefix: {base:?}"
         )));
     }
-    
+
     // Additional validation: ensure decoded data is reasonable length
     if data.len() < 33 || data.len() > 64 {
         return Err(CommonError::IdentityError(
             "Invalid decoded data length for did:key".into(),
         ));
     }
-    
+
     let (codec, rest) = varint_decode::u16(&data).map_err(|e| {
         CommonError::IdentityError(format!("Failed to decode multicodec prefix: {e}"))
     })?;
@@ -167,14 +167,15 @@ pub fn verifying_key_from_did_key(did: &Did) -> Result<VerifyingKey, CommonError
             "Unsupported multicodec code: {codec}"
         )));
     }
-    
+
     // Ensure exactly 32 bytes for Ed25519 public key
     if rest.len() != 32 {
-        return Err(CommonError::IdentityError(
-            format!("Invalid Ed25519 key length: expected 32 bytes, got {}", rest.len())
-        ));
+        return Err(CommonError::IdentityError(format!(
+            "Invalid Ed25519 key length: expected 32 bytes, got {}",
+            rest.len()
+        )));
     }
-    
+
     let pk_bytes: [u8; 32] = rest
         .try_into()
         .map_err(|_| CommonError::IdentityError("Invalid Ed25519 key length in did:key".into()))?;
@@ -212,12 +213,12 @@ fn is_valid_domain(domain: &str) -> bool {
     if domain.is_empty() || domain.len() > MAX_DOMAIN_LEN {
         return false;
     }
-    
+
     // Security check: prevent dangerous sequences
     if domain.contains("..") || domain.contains("//") || domain.contains('\0') {
         return false;
     }
-    
+
     // Check for malicious Unicode characters or suspicious patterns
     if !domain.is_ascii() {
         return false;
@@ -245,12 +246,19 @@ fn is_valid_domain(domain: &str) -> bool {
     if hostname.is_empty() || hostname.starts_with('-') || hostname.ends_with('-') {
         return false;
     }
-    
+
     // Additional security: prevent obvious malicious domains
     let _suspicious_patterns = [
-        "localhost", "127.0.0.1", "0.0.0.0", "::1", "169.254.", "10.", "192.168.", "172."
+        "localhost",
+        "127.0.0.1",
+        "0.0.0.0",
+        "::1",
+        "169.254.",
+        "10.",
+        "192.168.",
+        "172.",
     ];
-    
+
     // Only flag as suspicious if it's an obvious internal address
     // Real localhost usage might be legitimate in development
     if hostname == "127.0.0.1" || hostname == "0.0.0.0" || hostname == "::1" {
@@ -647,11 +655,11 @@ impl ExecutionReceipt {
     /// corresponding to the `signing_key`.
     pub fn sign_with_key(mut self, signing_key: &SigningKey) -> Result<Self, CommonError> {
         let message = self.to_signable_bytes()?;
-        
+
         // Use security-hardened signing
         let config = crate::security::SecurityConfig::default();
         let ed_signature = crate::security::secure_sign_message(signing_key, &message, &config)?;
-        
+
         self.sig = SignatureBytes::from_ed_signature(ed_signature);
         Ok(self)
     }
@@ -663,8 +671,13 @@ impl ExecutionReceipt {
 
         // Use security-hardened verification
         let config = crate::security::SecurityConfig::default();
-        let is_valid = crate::security::secure_verify_signature(verifying_key, &message, &ed_signature, &config)?;
-        
+        let is_valid = crate::security::secure_verify_signature(
+            verifying_key,
+            &message,
+            &ed_signature,
+            &config,
+        )?;
+
         if is_valid {
             Ok(())
         } else {
@@ -679,7 +692,7 @@ impl ExecutionReceipt {
         // Security validation of DID format
         let config = crate::security::SecurityConfig::default();
         crate::security::secure_validate_did(did, &config)?;
-        
+
         if &self.executor_did != did {
             return Err(CommonError::IdentityError("Executor DID mismatch".into()));
         }

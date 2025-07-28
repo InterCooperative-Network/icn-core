@@ -604,7 +604,10 @@ impl RuntimeContext {
 
         // Check DAG store type (synchronous check)
         if let Err(e) = self.dag_store.validate_for_production() {
-            errors.push(format!("❌ PRODUCTION ERROR: DAG store validation failed: {}", e));
+            errors.push(format!(
+                "❌ PRODUCTION ERROR: DAG store validation failed: {}",
+                e
+            ));
         }
 
         // Check reputation store type
@@ -631,7 +634,7 @@ impl RuntimeContext {
 
         // Validate mana ledger is persistent
         Self::validate_mana_ledger_persistence(&self.mana_ledger)?;
-        
+
         // Check if we're using production time provider
         // SystemTimeProvider is the production implementation
         log::info!("ℹ️  Using configured time provider for production.");
@@ -673,7 +676,7 @@ impl RuntimeContext {
     pub fn new_with_stubs(current_identity_str: &str) -> Result<Arc<Self>, CommonError> {
         let current_identity = Did::from_str(current_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        
+
         Self::new_for_testing(current_identity, None)
     }
 
@@ -732,8 +735,6 @@ impl RuntimeContext {
             dag_store,
         )
     }
-
-
 
     /// Create a new context with ledger path (convenience method for tests).
     ///
@@ -961,7 +962,7 @@ impl RuntimeContext {
     /// Create a new RuntimeContext with production services by default.
     ///
     /// **🏭 PRODUCTION BY DEFAULT**: This method automatically configures production services
-    /// where possible, with appropriate fallbacks. This is the recommended constructor for 
+    /// where possible, with appropriate fallbacks. This is the recommended constructor for
     /// most use cases.
     ///
     /// **Automatic Service Configuration:**
@@ -1006,20 +1007,17 @@ impl RuntimeContext {
     ) -> Result<Arc<Self>, CommonError> {
         // Validate cryptographic matching
         Self::validate_identity_signer_match(&identity, &signer)?;
-        
+
         // Create storage paths
         let storage_path = storage_path.unwrap_or_else(|| {
-            std::path::PathBuf::from(format!("./icn_production_storage_{}", 
-                std::process::id()))
+            std::path::PathBuf::from(format!("./icn_production_storage_{}", std::process::id()))
         });
-        let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| {
-            storage_path.join("mana_ledger")
-        });
-        
+        let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| storage_path.join("mana_ledger"));
+
         // Create production services
         let dag_store = super::dag_store_factory::DagStoreFactory::create_production(storage_path)?;
         let mana_ledger = super::mana::SimpleManaLedger::new(mana_ledger_path);
-        
+
         // Create production configuration
         let config = super::service_config::ServiceConfig::production(
             identity,
@@ -1031,7 +1029,7 @@ impl RuntimeContext {
             Arc::new(icn_reputation::InMemoryReputationStore::new()),
             None,
         )?;
-        
+
         Self::from_service_config(config)
     }
 
@@ -1040,33 +1038,33 @@ impl RuntimeContext {
     /// This prevents the common issue where an identity is provided with a signer
     /// that cannot create signatures verifiable by the identity's public key.
     fn validate_identity_signer_match(
-        identity: &Did, 
-        signer: &Arc<dyn Signer>
+        identity: &Did,
+        signer: &Arc<dyn Signer>,
     ) -> Result<(), CommonError> {
         use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
-        
+
         // Extract the verifying key from the identity DID
-        let verifying_key = verifying_key_from_did_key(identity)
-            .map_err(|e| CommonError::InternalError(
-                format!("Failed to extract verifying key from DID {}: {}", identity, e)
-            ))?;
-        
+        let verifying_key = verifying_key_from_did_key(identity).map_err(|e| {
+            CommonError::InternalError(format!(
+                "Failed to extract verifying key from DID {}: {}",
+                identity, e
+            ))
+        })?;
+
         // Test message for signature verification
         let test_message = b"cryptographic_validation_test_message";
-        
+
         // Sign the message with the provided signer
-        let signature_bytes = signer.sign(test_message)
-            .map_err(|e| CommonError::InternalError(
-                format!("Signer failed to sign test message: {}", e)
-            ))?;
-        
+        let signature_bytes = signer.sign(test_message).map_err(|e| {
+            CommonError::InternalError(format!("Signer failed to sign test message: {}", e))
+        })?;
+
         // Convert to EdSignature format
-        let signature_array: [u8; 64] = signature_bytes.as_slice().try_into()
-            .map_err(|_| CommonError::InternalError(
-                "Invalid signature length from signer".to_string()
-            ))?;
+        let signature_array: [u8; 64] = signature_bytes.as_slice().try_into().map_err(|_| {
+            CommonError::InternalError("Invalid signature length from signer".to_string())
+        })?;
         let signature = EdSignature::from_bytes(&signature_array);
-        
+
         // Verify the signature using the identity's public key
         if !verify_signature(&verifying_key, test_message, &signature) {
             return Err(CommonError::InternalError(
@@ -1078,8 +1076,11 @@ impl RuntimeContext {
                 )
             ));
         }
-        
-        log::info!("✅ Cryptographic validation passed: Identity {} and signer are properly matched", identity);
+
+        log::info!(
+            "✅ Cryptographic validation passed: Identity {} and signer are properly matched",
+            identity
+        );
         Ok(())
     }
 
@@ -1088,15 +1089,15 @@ impl RuntimeContext {
     /// This method performs basic validation to ensure that the mana ledger
     /// is using a persistent backend rather than in-memory storage.
     fn validate_mana_ledger_persistence(
-        mana_ledger: &super::mana::SimpleManaLedger
+        mana_ledger: &super::mana::SimpleManaLedger,
     ) -> Result<(), CommonError> {
         // Test persistence by performing a round-trip operation
         let test_did = Did::from_str("did:key:validation_test")
             .map_err(|e| CommonError::InternalError(format!("Failed to create test DID: {}", e)))?;
-        
+
         // Get initial balance (should be 0 for new DID)
         let initial_balance = mana_ledger.get_balance(&test_did);
-        
+
         // Set a test balance
         let test_balance = 12345u64;
         mana_ledger.set_balance(&test_did, test_balance)
@@ -1104,25 +1105,31 @@ impl RuntimeContext {
                 format!("❌ MANA LEDGER VALIDATION FAILED: Cannot write to mana ledger: {}. \
                         This suggests the ledger is not properly configured for persistent storage.", e)
             ))?;
-        
+
         // Verify the balance was set correctly
         let stored_balance = mana_ledger.get_balance(&test_did);
         if stored_balance != test_balance {
-            return Err(CommonError::InternalError(
-                format!("❌ MANA LEDGER VALIDATION FAILED: Balance mismatch after write. \
-                        Expected {}, got {}. This suggests persistence is not working correctly.", 
-                        test_balance, stored_balance)
-            ));
+            return Err(CommonError::InternalError(format!(
+                "❌ MANA LEDGER VALIDATION FAILED: Balance mismatch after write. \
+                        Expected {}, got {}. This suggests persistence is not working correctly.",
+                test_balance, stored_balance
+            )));
         }
-        
+
         // Cleanup: restore original balance
-        mana_ledger.set_balance(&test_did, initial_balance)
-            .map_err(|e| CommonError::InternalError(
-                format!("Failed to cleanup test balance during validation: {}", e)
-            ))?;
-        
-        log::info!("✅ Mana ledger persistence validation passed: Write/read operations successful");
-        
+        mana_ledger
+            .set_balance(&test_did, initial_balance)
+            .map_err(|e| {
+                CommonError::InternalError(format!(
+                    "Failed to cleanup test balance during validation: {}",
+                    e
+                ))
+            })?;
+
+        log::info!(
+            "✅ Mana ledger persistence validation passed: Write/read operations successful"
+        );
+
         // Additional validation: Check if this is likely a file-based or database backend
         // We can infer this by testing some backend-specific behaviors
         match Self::detect_mana_ledger_backend_type(mana_ledger) {
@@ -1131,7 +1138,10 @@ impl RuntimeContext {
                 Ok(())
             }
             Err(e) => {
-                log::warn!("⚠️  Could not definitively determine mana ledger backend type: {}", e);
+                log::warn!(
+                    "⚠️  Could not definitively determine mana ledger backend type: {}",
+                    e
+                );
                 log::warn!("⚠️  Proceeding with basic validation only");
                 Ok(()) // Don't fail validation just because we can't detect the backend
             }
@@ -1140,23 +1150,27 @@ impl RuntimeContext {
 
     /// Attempt to detect the mana ledger backend type for validation purposes.
     fn detect_mana_ledger_backend_type(
-        _mana_ledger: &super::mana::SimpleManaLedger
+        _mana_ledger: &super::mana::SimpleManaLedger,
     ) -> Result<String, CommonError> {
         // Since SimpleManaLedger wraps the actual implementation, we need to
         // use feature flags to determine what backend is likely being used
-        
+
         #[cfg(feature = "persist-sled")]
         return Ok("Sled (persistent key-value store)".to_string());
-        
+
         #[cfg(all(not(feature = "persist-sled"), feature = "persist-sqlite"))]
         return Ok("SQLite (persistent SQL database)".to_string());
-        
-        #[cfg(all(not(feature = "persist-sled"), not(feature = "persist-sqlite"), feature = "persist-rocksdb"))]
-        return Ok("RocksDB (persistent LSM-tree store)".to_string());
-        
+
         #[cfg(all(
-            not(feature = "persist-sled"), 
-            not(feature = "persist-sqlite"), 
+            not(feature = "persist-sled"),
+            not(feature = "persist-sqlite"),
+            feature = "persist-rocksdb"
+        ))]
+        return Ok("RocksDB (persistent LSM-tree store)".to_string());
+
+        #[cfg(all(
+            not(feature = "persist-sled"),
+            not(feature = "persist-sqlite"),
             not(feature = "persist-rocksdb")
         ))]
         {
@@ -1172,7 +1186,7 @@ impl RuntimeContext {
     ///
     /// **Parameters:**
     /// - `identity`: Optional DID to use (generates one if None)
-    /// - `storage_path`: Optional storage directory (uses default if None) 
+    /// - `storage_path`: Optional storage directory (uses default if None)
     /// - `mana_ledger_path`: Optional mana ledger path (uses default if None)
     pub fn new_with_identity_and_storage(
         identity: Option<Did>,
@@ -1180,7 +1194,7 @@ impl RuntimeContext {
         mana_ledger_path: Option<std::path::PathBuf>,
     ) -> Result<Arc<Self>, CommonError> {
         use icn_identity::generate_ed25519_keypair;
-        
+
         // Generate identity and signer from the same keypair when identity is not provided
         let (current_identity, signer) = if let Some(did) = identity {
             // FIXME: When identity is provided without matching signer, signatures will not verify!
@@ -1200,11 +1214,13 @@ impl RuntimeContext {
         };
 
         // Create DAG store with default or specified path
-        let storage_path = storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
+        let storage_path =
+            storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
         let dag_store = super::dag_store_factory::DagStoreFactory::create_production(storage_path)?;
 
         // Create mana ledger with default or specified path
-        let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| std::path::PathBuf::from("./mana_ledger.json"));
+        let mana_ledger_path =
+            mana_ledger_path.unwrap_or_else(|| std::path::PathBuf::from("./mana_ledger.json"));
         let mana_ledger = super::mana::SimpleManaLedger::new(mana_ledger_path);
 
         // Create production network service
@@ -1386,7 +1402,7 @@ impl RuntimeContext {
         mana_ledger_path: Option<std::path::PathBuf>,
     ) -> Result<Arc<Self>, CommonError> {
         use icn_identity::generate_ed25519_keypair;
-        
+
         // Generate identity and signer from the same keypair when identity is not provided
         let (current_identity, signer) = if let Some(did) = identity {
             // FIXME: When identity is provided without matching signer, signatures will not verify!
@@ -1406,11 +1422,13 @@ impl RuntimeContext {
         };
 
         // Create DAG store with default or specified path
-        let storage_path = storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
+        let storage_path =
+            storage_path.unwrap_or_else(|| std::path::PathBuf::from("./icn_storage"));
         let dag_store = super::dag_store_factory::DagStoreFactory::create_production(storage_path)?;
 
         // Create mana ledger with default or specified path
-        let mana_ledger_path = mana_ledger_path.unwrap_or_else(|| std::path::PathBuf::from("./mana_ledger.json"));
+        let mana_ledger_path =
+            mana_ledger_path.unwrap_or_else(|| std::path::PathBuf::from("./mana_ledger.json"));
         let mana_ledger = super::mana::SimpleManaLedger::new(mana_ledger_path);
 
         // Create production network service
@@ -1432,11 +1450,10 @@ impl RuntimeContext {
                 kademlia_replication_factor: 20,
             };
 
-            let network_service = Arc::new(
-                Libp2pNetworkService::new(config)
-                    .await
-                    .map_err(|e| CommonError::NetworkError(format!("Failed to create libp2p service: {}", e)))?,
-            );
+            let network_service =
+                Arc::new(Libp2pNetworkService::new(config).await.map_err(|e| {
+                    CommonError::NetworkError(format!("Failed to create libp2p service: {}", e))
+                })?);
 
             let did_resolver = Arc::new(icn_identity::KeyDidResolver);
             let reputation_store = Arc::new(icn_reputation::InMemoryReputationStore::new());
@@ -4583,9 +4600,9 @@ impl RuntimeContext {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
     use icn_mesh::{JobKind, Resources};
     use icn_protocol::{JobSpec, MeshJobAnnouncementMessage};
-    use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
     use std::str::FromStr;
 
     #[tokio::test]
@@ -4604,20 +4621,17 @@ mod tests {
             creator_did: did.clone(),
             max_cost_mana: 10,
             job_spec: JobSpec {
-                kind: JobKind::Echo {
+                kind: icn_protocol::JobKind::Echo {
                     payload: "hi".into(),
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: Resources {
+                required_resources: icn_protocol::ResourceRequirements {
                     cpu_cores: 2,
                     memory_mb: 512,
                     storage_mb: 0,
+                    max_execution_time_secs: 60,
                 },
-                required_capabilities: vec![],
-                required_trust_scope: None,
-                min_executor_reputation: Some(0),
-                allowed_federations: vec![],
             },
             bid_deadline: ctx.time_provider.unix_seconds() + 100,
         };
@@ -4645,20 +4659,17 @@ mod tests {
             cost_mana: 5,
             max_execution_wait_ms: None,
             spec: JobSpec {
-                kind: JobKind::Echo {
+                kind: icn_protocol::JobKind::Echo {
                     payload: "hi".into(),
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: Resources {
+                required_resources: icn_protocol::ResourceRequirements {
                     cpu_cores: 8,
                     memory_mb: 2048,
                     storage_mb: 0,
+                    max_execution_time_secs: 60,
                 },
-                required_capabilities: vec![],
-                required_trust_scope: None,
-                min_executor_reputation: Some(0),
-                allowed_federations: vec![],
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };
@@ -4671,64 +4682,66 @@ mod tests {
 
     #[tokio::test]
     async fn test_identity_signer_cryptographic_matching() {
-        use icn_identity::{verifying_key_from_did_key};
-        
+        use icn_identity::verifying_key_from_did_key;
+
         // Test the sync version
         let ctx_sync = RuntimeContext::new_with_identity_and_storage(None, None, None)
             .expect("Failed to create sync RuntimeContext");
-        
-        // Test the async version  
+
+        // Test the async version
         let ctx_async = RuntimeContext::new_async_with_identity_and_storage(None, None, None)
             .await
             .expect("Failed to create async RuntimeContext");
-        
+
         for (ctx_name, ctx) in [("sync", ctx_sync), ("async", ctx_async)] {
             // Get the identity and signer from the context
             let identity = &ctx.current_identity;
             let signer = &ctx.signer;
-            
+
             // Create a test message
             let test_message = b"test message for signature verification";
-            
+
             // Sign the message with the signer
-            let signature_bytes = signer.sign(test_message)
-                .expect("Failed to sign message");
-            
+            let signature_bytes = signer.sign(test_message).expect("Failed to sign message");
+
             // Convert to EdSignature
             let signature = EdSignature::from_bytes(
-                signature_bytes.as_slice().try_into()
-                    .expect("Invalid signature length")
-            ).expect("Failed to convert signature bytes");
-            
+                signature_bytes
+                    .as_slice()
+                    .try_into()
+                    .expect("Invalid signature length"),
+            );
+
             // Extract the verifying key from the identity DID
             let verifying_key = verifying_key_from_did_key(identity)
                 .expect("Failed to extract verifying key from DID");
-            
+
             // Verify the signature using the identity's public key
             let verification_result = verify_signature(&verifying_key, test_message, &signature);
-            
+
             assert!(
-                verification_result, 
-                "{} context: Signature verification failed! Identity DID and signer are not cryptographically matched", 
+                verification_result,
+                "{} context: Signature verification failed! Identity DID and signer are not cryptographically matched",
                 ctx_name
             );
         }
     }
-    
+
     #[tokio::test]
     async fn test_provided_identity_creates_warning_comment() {
         use std::str::FromStr;
-        
+
         // Test with provided identity (this still has the FIXME issue but maintains backward compatibility)
-        let test_did = icn_common::Did::from_str("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
-            .expect("Failed to parse test DID");
-        
+        let test_did =
+            icn_common::Did::from_str("did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK")
+                .expect("Failed to parse test DID");
+
         let ctx = RuntimeContext::new_with_identity_and_storage(Some(test_did.clone()), None, None)
             .expect("Failed to create RuntimeContext with provided identity");
-        
+
         // Verify the provided identity is used
         assert_eq!(ctx.current_identity, test_did);
-        
+
         // This case still has the cryptographic mismatch issue (noted in FIXME comment)
         // but we're maintaining backward compatibility
         // Future versions should require a matching signer parameter
@@ -4798,14 +4811,17 @@ mod configuration_tests {
         // The new RuntimeContext::new() should fail without libp2p feature
         // or return appropriate error message
         let result = RuntimeContext::new();
-        
+
         #[cfg(feature = "enable-libp2p")]
         {
             // Should fail because we're in sync context
             assert!(result.is_err());
-            assert!(result.unwrap_err().to_string().contains("synchronous context"));
+            assert!(result
+                .unwrap_err()
+                .to_string()
+                .contains("synchronous context"));
         }
-        
+
         #[cfg(not(feature = "enable-libp2p"))]
         {
             // Should fail because libp2p feature is not enabled
@@ -4820,7 +4836,7 @@ mod configuration_tests {
 
         // new_for_testing should work and be explicit about testing
         let ctx = RuntimeContext::new_for_testing(test_did.clone(), Some(42)).unwrap();
-        
+
         // Should have the correct identity and mana
         assert_eq!(ctx.current_identity, test_did);
         assert_eq!(ctx.get_mana(&test_did).await.unwrap(), 42);
@@ -4836,7 +4852,11 @@ mod configuration_tests {
         // Production defaults should require explicit configuration
         let result = ServiceConfig::production_defaults();
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("explicit services"));
+        assert!(result
+            .as_ref()
+            .unwrap_err()
+            .to_string()
+            .contains("explicit services"));
     }
 
     #[test]
@@ -4844,12 +4864,15 @@ mod configuration_tests {
         // Testing defaults should work without parameters
         let result = ServiceConfig::testing_defaults();
         assert!(result.is_ok());
-        
+
         let config = result.unwrap();
         assert_eq!(config.environment, ServiceEnvironment::Testing);
-        
+
         // Should use stub mesh network service
-        assert!(matches!(*config.mesh_network_service, MeshNetworkServiceType::Stub(_)));
+        assert!(matches!(
+            *config.mesh_network_service,
+            MeshNetworkServiceType::Stub(_)
+        ));
     }
 
     #[tokio::test]
@@ -4859,7 +4882,7 @@ mod configuration_tests {
         // The deprecated new_testing method should still work
         #[allow(deprecated)]
         let ctx = RuntimeContext::new_testing(test_did.clone(), Some(123)).unwrap();
-        
+
         assert_eq!(ctx.current_identity, test_did);
         assert_eq!(ctx.get_mana(&test_did).await.unwrap(), 123);
     }
@@ -4868,17 +4891,25 @@ mod configuration_tests {
     fn test_available_system_resources_units() {
         // Test that available_system_resources returns memory in megabytes
         let (cpu, memory_mb) = RuntimeContext::available_system_resources();
-        
+
         // CPU cores should be reasonable (1-512 cores for most systems)
         assert!(cpu > 0, "CPU core count should be greater than 0");
         assert!(cpu <= 512, "CPU core count should be reasonable (<=512)");
-        
+
         // Memory should be in megabytes, so for any modern system it should be
         // at least 100MB (very conservative) and reasonable (less than 1TB = 1,048,576 MB)
         assert!(memory_mb >= 100, "Available memory should be at least 100MB, got {}MB. If this is in KB, the bug still exists!", memory_mb);
-        assert!(memory_mb <= 1_048_576, "Available memory should be less than 1TB ({}MB), got {}MB", 1_048_576, memory_mb);
-        
+        assert!(
+            memory_mb <= 1_048_576,
+            "Available memory should be less than 1TB ({}MB), got {}MB",
+            1_048_576,
+            memory_mb
+        );
+
         // Log the values for debugging
-        println!("System resources: {} CPU cores, {} MB memory", cpu, memory_mb);
+        println!(
+            "System resources: {} CPU cores, {} MB memory",
+            cpu, memory_mb
+        );
     }
 }

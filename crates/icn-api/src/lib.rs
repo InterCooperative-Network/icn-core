@@ -26,7 +26,7 @@
 //! ```rust,no_run
 //! use icn_api::{governance_trait::GovernanceApi, identity_trait::IdentityApi};
 //! use icn_common::{Did, CommonError};
-//! 
+//!
 //! async fn example_governance_workflow() -> Result<(), CommonError> {
 //!     // Create a governance API instance (implementation-specific)
 //!     let gov_api = create_governance_api().await?;
@@ -53,7 +53,7 @@
 //!     
 //!     Ok(())
 //! }
-//! 
+//!
 //! # async fn create_governance_api() -> Result<impl GovernanceApi, CommonError> {
 //! #     // Implementation would return actual governance service
 //! #     unimplemented!()

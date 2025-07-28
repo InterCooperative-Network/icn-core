@@ -651,7 +651,7 @@ impl GovernanceAutomationEngine {
                     // Apply parameter changes to the system
                     // This would involve updating runtime configuration
                     // For now, we'll simulate successful parameter changes
-                    
+
                     // Create execution receipt for the parameter change
                     let execution_receipt = ExecutionReceipt {
                         job_id: Self::create_default_cid("param_job"),
@@ -662,7 +662,10 @@ impl GovernanceAutomationEngine {
                         sig: icn_identity::SignatureBytes(vec![0u8; 64]), // Placeholder signature
                     };
 
-                    log::info!("Parameter change executed successfully: {:?}", execution_receipt);
+                    log::info!(
+                        "Parameter change executed successfully: {:?}",
+                        execution_receipt
+                    );
                 }
                 title if title.contains("policy") => {
                     // Policy update proposal
@@ -678,7 +681,10 @@ impl GovernanceAutomationEngine {
                         sig: icn_identity::SignatureBytes(vec![0u8; 64]), // Placeholder signature
                     };
 
-                    log::info!("Policy update executed successfully: {:?}", execution_receipt);
+                    log::info!(
+                        "Policy update executed successfully: {:?}",
+                        execution_receipt
+                    );
                 }
                 _ => {
                     // Generic proposal execution
@@ -694,7 +700,10 @@ impl GovernanceAutomationEngine {
                         sig: icn_identity::SignatureBytes(vec![0u8; 64]), // Placeholder signature
                     };
 
-                    log::info!("Generic proposal executed successfully: {:?}", execution_receipt);
+                    log::info!(
+                        "Generic proposal executed successfully: {:?}",
+                        execution_receipt
+                    );
                 }
             }
 
@@ -777,8 +786,12 @@ impl GovernanceAutomationEngine {
             log::debug!("Enforcing policy: {}", policy_id);
 
             // Execute policy checks against current state
-            match Self::execute_policy_check_static(policy_contract, _mana_ledger, _reputation_store)
-                .await
+            match Self::execute_policy_check_static(
+                policy_contract,
+                _mana_ledger,
+                _reputation_store,
+            )
+            .await
             {
                 Ok(violations) => {
                     if !violations.is_empty() {
@@ -914,10 +927,10 @@ impl GovernanceAutomationEngine {
         let participation_rate = state.voting_status.participation_rate;
         let votes_cast = state.voting_status.votes_cast;
         let _eligible_voters = state.voting_status.eligible_voters;
-        
+
         // Calculate weighted prediction based on various factors
         let mut prediction_score = current_support;
-        
+
         // Factor 1: Early voting momentum
         // If early voters show strong support, it often continues
         if participation_rate > 0.1 && current_support > 0.7 {
@@ -925,7 +938,7 @@ impl GovernanceAutomationEngine {
         } else if participation_rate > 0.1 && current_support < 0.3 {
             prediction_score -= 0.1; // Penalty for weak early support
         }
-        
+
         // Factor 2: Participation rate trend
         // Higher participation tends to moderate extreme positions
         if participation_rate > 0.5 {
@@ -939,28 +952,29 @@ impl GovernanceAutomationEngine {
                 prediction_score = current_support * 1.2; // Potential for improvement
             }
         }
-        
+
         // Factor 3: Reputation-weighted prediction
         // High-reputation voters tend to influence others
         let mut high_rep_support = 0.0;
         let mut high_rep_total = 0.0;
-        
+
         for (voter_did, (vote, weight)) in &state.votes_received {
             let reputation = reputation_store.get_reputation(voter_did);
-            if reputation > 75 { // High reputation threshold
+            if reputation > 75 {
+                // High reputation threshold
                 high_rep_total += weight.total_weight;
                 if matches!(vote.option, VoteOption::Yes) {
                     high_rep_support += weight.total_weight;
                 }
             }
         }
-        
+
         if high_rep_total > 0.0 {
             let high_rep_ratio = high_rep_support / high_rep_total;
             // Weight high-reputation opinion more heavily
             prediction_score = (prediction_score * 0.7) + (high_rep_ratio * 0.3);
         }
-        
+
         // Factor 4: Proposal type influence
         // Different types of proposals have different success patterns
         let proposal_description = &state.proposal.description.to_lowercase();
@@ -969,21 +983,23 @@ impl GovernanceAutomationEngine {
             if current_support > 0.4 {
                 prediction_score += 0.15;
             }
-        } else if proposal_description.contains("controversial") || proposal_description.contains("major") {
+        } else if proposal_description.contains("controversial")
+            || proposal_description.contains("major")
+        {
             // Controversial proposals need higher thresholds
             prediction_score *= 0.9;
         }
-        
+
         // Factor 5: Time-based decay for low participation
         let time_elapsed = Instant::now().duration_since(state.submitted_at);
         if time_elapsed > Duration::from_secs(2 * 24 * 3600) && participation_rate < 0.3 {
             // Proposals losing momentum over time
             prediction_score *= 0.85;
         }
-        
+
         // Clamp prediction score to valid range
         prediction_score = prediction_score.max(0.0).min(1.0);
-        
+
         // Create prediction result
         if prediction_score > 0.5 {
             Ok(AutomationVotingResult::Passed {
@@ -1005,64 +1021,67 @@ impl GovernanceAutomationEngine {
     ) -> Result<Vec<Did>, CommonError> {
         // Implement voter eligibility logic based on multiple criteria
         let mut eligible_voters = Vec::new();
-        
+
         // Get all known DIDs from the mana ledger (these are active participants)
         // Note: This is a workaround since ManaLedger might not have list_accounts
         // In a real implementation, this would come from a member registry
         let potential_voters = vec![
             Did::new("key", "voter1"),
-            Did::new("key", "voter2"), 
+            Did::new("key", "voter2"),
             Did::new("key", "voter3"),
             Did::new("key", "active_member1"),
             Did::new("key", "active_member2"),
             Did::new("key", "governance_participant"),
         ];
-        
+
         for voter_did in potential_voters {
             let mut eligible = true;
             let mut eligibility_score = 0u32;
-            
+
             // Check reputation threshold based on proposal type
             let min_reputation = match &proposal.proposal_type {
-                ProposalType::SystemParameterChange(_, _) => 80,    // High reputation for system changes
-                ProposalType::SoftwareUpgrade(_) => 80,             // High reputation for upgrades
-                ProposalType::BudgetAllocation(_, _, _) => 60,      // Medium reputation for budget
-                ProposalType::NewMemberInvitation(_) => 50,         // Lower reputation for invitations
-                ProposalType::RemoveMember(_) => 70,                // Higher reputation for removal
-                ProposalType::Resolution(_) => 60,                  // Medium reputation for resolutions
-                ProposalType::GenericText(_) => 25,                 // Basic reputation for text proposals
+                ProposalType::SystemParameterChange(_, _) => 80, // High reputation for system changes
+                ProposalType::SoftwareUpgrade(_) => 80,          // High reputation for upgrades
+                ProposalType::BudgetAllocation(_, _, _) => 60,   // Medium reputation for budget
+                ProposalType::NewMemberInvitation(_) => 50,      // Lower reputation for invitations
+                ProposalType::RemoveMember(_) => 70,             // Higher reputation for removal
+                ProposalType::Resolution(_) => 60, // Medium reputation for resolutions
+                ProposalType::GenericText(_) => 25, // Basic reputation for text proposals
             };
-            
+
             // Additional check for stake requirements
             let min_stake = match &proposal.proposal_type {
-                ProposalType::SystemParameterChange(_, _) => 1000,  // High stake for system changes
-                ProposalType::SoftwareUpgrade(_) => 1000,           // High stake for upgrades
-                ProposalType::BudgetAllocation(_, _, _) => 500,     // Medium stake for budget
-                ProposalType::NewMemberInvitation(_) => 200,        // Lower stake for invitations
-                ProposalType::RemoveMember(_) => 800,               // Higher stake for removal
-                ProposalType::Resolution(_) => 400,                 // Medium stake for resolutions
-                ProposalType::GenericText(_) => 50,                 // Minimal stake for text proposals
+                ProposalType::SystemParameterChange(_, _) => 1000, // High stake for system changes
+                ProposalType::SoftwareUpgrade(_) => 1000,          // High stake for upgrades
+                ProposalType::BudgetAllocation(_, _, _) => 500,    // Medium stake for budget
+                ProposalType::NewMemberInvitation(_) => 200,       // Lower stake for invitations
+                ProposalType::RemoveMember(_) => 800,              // Higher stake for removal
+                ProposalType::Resolution(_) => 400,                // Medium stake for resolutions
+                ProposalType::GenericText(_) => 50, // Minimal stake for text proposals
             };
-            
+
             let voter_reputation = self.reputation_store.get_reputation(&voter_did);
             if voter_reputation < min_reputation {
                 eligible = false;
             } else {
                 eligibility_score += ((voter_reputation / 10).min(10)) as u32; // Up to 10 points from reputation
             }
-            
+
             // Check stake requirements (mana balance)
             let mana_balance = self.mana_ledger.get_balance(&voter_did);
-            
+
             if mana_balance < min_stake {
                 eligible = false;
             } else {
                 eligibility_score += (mana_balance / 100).min(10) as u32; // Up to 10 points from stake
             }
-            
+
             // Check governance participation history
             // This is a simplified check - in reality would look at voting history
-            let participation_score = self.calculate_participation_score(&voter_did).await.unwrap_or(0);
+            let participation_score = self
+                .calculate_participation_score(&voter_did)
+                .await
+                .unwrap_or(0);
             if participation_score < 20 {
                 // Require some minimum participation for non-routine proposals
                 if !matches!(proposal.proposal_type, ProposalType::GenericText(_)) {
@@ -1071,7 +1090,7 @@ impl GovernanceAutomationEngine {
             } else {
                 eligibility_score += participation_score.min(10);
             }
-            
+
             // Check proposal type-specific requirements
             match &proposal.proposal_type {
                 ProposalType::SystemParameterChange(_, _) => {
@@ -1088,26 +1107,35 @@ impl GovernanceAutomationEngine {
                 }
                 _ => {} // No additional requirements for other types
             }
-            
+
             if eligible {
                 log::debug!(
                     "Voter {} eligible for proposal {} (score: {}, reputation: {}, stake: {})",
-                    voter_did, proposal.id, eligibility_score, voter_reputation, mana_balance
+                    voter_did,
+                    proposal.id,
+                    eligibility_score,
+                    voter_reputation,
+                    mana_balance
                 );
                 eligible_voters.push(voter_did);
             } else {
                 log::debug!(
                     "Voter {} not eligible for proposal {} (reputation: {}, stake: {})",
-                    voter_did, proposal.id, voter_reputation, mana_balance
+                    voter_did,
+                    proposal.id,
+                    voter_reputation,
+                    mana_balance
                 );
             }
         }
-        
+
         log::info!(
             "Determined {} eligible voters for proposal {} (type: {})",
-            eligible_voters.len(), proposal.id, Self::proposal_type_name(&proposal.proposal_type)
+            eligible_voters.len(),
+            proposal.id,
+            Self::proposal_type_name(&proposal.proposal_type)
         );
-        
+
         Ok(eligible_voters)
     }
 
@@ -1131,11 +1159,11 @@ impl GovernanceAutomationEngine {
         // 2. Check proposal submission history
         // 3. Evaluate quality of participation (e.g., informed votes)
         // 4. Consider recency of participation
-        
+
         // For now, return a mock score based on reputation as a proxy
         let reputation = self.reputation_store.get_reputation(_voter);
         let participation_score = (reputation / 10).min(50) as u32; // Scale reputation to participation score
-        
+
         Ok(participation_score)
     }
 
@@ -1367,25 +1395,34 @@ impl GovernanceAutomationEngine {
     ) -> Result<Vec<PolicyViolation>, CommonError> {
         // Implement actual policy check logic
         let mut violations = Vec::new();
-        
+
         // Example policy checks - in a real implementation these would be
         // dynamically loaded from CCL policy contracts
-        
+
         // Check 1: Excessive mana concentration
         let high_balance_accounts = Self::find_high_balance_accounts(mana_ledger).await?;
         for (did, balance) in high_balance_accounts {
-            if balance > 10000 { // Threshold for excessive concentration
+            if balance > 10000 {
+                // Threshold for excessive concentration
                 violations.push(PolicyViolation {
                     violation_type: "excessive_mana_concentration".to_string(),
-                    severity: if balance > 50000 { "high".to_string() } else { "medium".to_string() },
+                    severity: if balance > 50000 {
+                        "high".to_string()
+                    } else {
+                        "medium".to_string()
+                    },
                     target: Some(did),
-                    details: format!("Account has {} mana, exceeding concentration threshold", balance),
+                    details: format!(
+                        "Account has {} mana, exceeding concentration threshold",
+                        balance
+                    ),
                 });
             }
         }
-        
+
         // Check 2: Low reputation with high resource usage
-        let resource_intensive_accounts = Self::find_resource_intensive_accounts(mana_ledger).await?;
+        let resource_intensive_accounts =
+            Self::find_resource_intensive_accounts(mana_ledger).await?;
         for did in resource_intensive_accounts {
             let reputation = reputation_store.get_reputation(&did);
             if reputation < 30 {
@@ -1393,11 +1430,14 @@ impl GovernanceAutomationEngine {
                     violation_type: "low_reputation_high_usage".to_string(),
                     severity: "medium".to_string(),
                     target: Some(did),
-                    details: format!("Account with reputation {} using high resources", reputation),
+                    details: format!(
+                        "Account with reputation {} using high resources",
+                        reputation
+                    ),
                 });
             }
         }
-        
+
         // Check 3: Governance participation requirements
         // (This would normally check voting participation rates)
         let inactive_high_stake_accounts = Self::find_inactive_stakeholders(mana_ledger).await?;
@@ -1409,18 +1449,18 @@ impl GovernanceAutomationEngine {
                 details: "High-stake account with low governance participation".to_string(),
             });
         }
-        
+
         log::info!(
             "Policy check completed. Found {} violations for policy contract",
             violations.len()
         );
-        
+
         Ok(violations)
     }
 
     /// Find accounts with high mana balances
     async fn find_high_balance_accounts(
-        mana_ledger: &Arc<dyn ManaLedger>
+        mana_ledger: &Arc<dyn ManaLedger>,
     ) -> Result<Vec<(Did, u64)>, CommonError> {
         // In a real implementation, this would iterate through all accounts
         // For now, return mock data for demonstration
@@ -1429,21 +1469,22 @@ impl GovernanceAutomationEngine {
             Did::new("key", "active_trader"),
             Did::new("key", "validator_node"),
         ];
-        
+
         let mut high_balance_accounts = Vec::new();
         for did in test_accounts {
             let balance = mana_ledger.get_balance(&did);
-            if balance > 1000 { // Arbitrary threshold for "high balance"
+            if balance > 1000 {
+                // Arbitrary threshold for "high balance"
                 high_balance_accounts.push((did, balance));
             }
         }
-        
+
         Ok(high_balance_accounts)
     }
 
     /// Find accounts with high resource usage patterns
     async fn find_resource_intensive_accounts(
-        _mana_ledger: &Arc<dyn ManaLedger>
+        _mana_ledger: &Arc<dyn ManaLedger>,
     ) -> Result<Vec<Did>, CommonError> {
         // In a real implementation, this would analyze transaction patterns
         // and resource consumption metrics
@@ -1455,7 +1496,7 @@ impl GovernanceAutomationEngine {
 
     /// Find high-stake accounts with low governance participation
     async fn find_inactive_stakeholders(
-        mana_ledger: &Arc<dyn ManaLedger>
+        mana_ledger: &Arc<dyn ManaLedger>,
     ) -> Result<Vec<Did>, CommonError> {
         // In a real implementation, this would cross-reference high balances
         // with governance participation records
@@ -1463,16 +1504,17 @@ impl GovernanceAutomationEngine {
             Did::new("key", "passive_holder"),
             Did::new("key", "dormant_whale"),
         ];
-        
+
         let mut inactive_stakeholders = Vec::new();
         for did in test_accounts {
             let balance = mana_ledger.get_balance(&did);
-            if balance > 5000 { // High stake threshold
+            if balance > 5000 {
+                // High stake threshold
                 // In reality, would check governance participation here
                 inactive_stakeholders.push(did);
             }
         }
-        
+
         Ok(inactive_stakeholders)
     }
 
@@ -1493,7 +1535,7 @@ impl GovernanceAutomationEngine {
         event_tx: &mpsc::UnboundedSender<GovernanceEvent>,
     ) -> Result<(), CommonError> {
         // Implement actual policy violation handling
-        
+
         // Determine enforcement action based on violation severity and type
         let enforcement_action = match violation.severity.as_str() {
             "high" => {
@@ -1508,7 +1550,7 @@ impl GovernanceAutomationEngine {
                         log::warn!("HIGH SEVERITY: Low reputation with high resource usage");
                         "resource_restrictions_applied"
                     }
-                    _ => "account_flagged_for_review"
+                    _ => "account_flagged_for_review",
                 }
             }
             "medium" => {
@@ -1523,7 +1565,7 @@ impl GovernanceAutomationEngine {
                         log::info!("MEDIUM SEVERITY: Issuing usage guidelines");
                         "usage_guidelines_issued"
                     }
-                    _ => "formal_warning_issued"
+                    _ => "formal_warning_issued",
                 }
             }
             "low" => {
@@ -1533,12 +1575,12 @@ impl GovernanceAutomationEngine {
                         log::info!("LOW SEVERITY: Encouraging governance participation");
                         "participation_encouragement_sent"
                     }
-                    _ => "informal_warning_issued"
+                    _ => "informal_warning_issued",
                 }
             }
-            _ => "violation_logged"
+            _ => "violation_logged",
         };
-        
+
         // Apply specific enforcement actions based on violation type
         if let Some(target_did) = &violation.target {
             match violation.violation_type.as_str() {
@@ -1559,7 +1601,7 @@ impl GovernanceAutomationEngine {
                 }
             }
         }
-        
+
         // Record enforcement action for audit trail
         log::info!(
             "Policy enforcement for {}: {} -> {} (target: {:?})",
@@ -1568,10 +1610,10 @@ impl GovernanceAutomationEngine {
             enforcement_action,
             violation.target
         );
-        
+
         // Notify relevant stakeholders
         Self::notify_stakeholders(policy_id, violation, enforcement_action).await?;
-        
+
         // Send policy enforcement event
         let _ = event_tx.send(GovernanceEvent::PolicyEnforced {
             policy_id: policy_id.to_string(),
@@ -1592,17 +1634,19 @@ impl GovernanceAutomationEngine {
         // 1. Identify stakeholders who should be notified (governance committee, affected parties)
         // 2. Send notifications through appropriate channels (governance announcements, direct messages)
         // 3. Create governance records for transparency
-        
+
         log::info!(
             "GOVERNANCE NOTIFICATION: Policy {} enforcement - {} applied for {} violation{}",
             policy_id,
             action_taken,
             violation.violation_type,
-            violation.target.as_ref()
+            violation
+                .target
+                .as_ref()
                 .map(|did| format!(" (target: {})", did))
                 .unwrap_or_default()
         );
-        
+
         // In a real system, would send actual notifications here
         Ok(())
     }
@@ -1612,7 +1656,7 @@ impl GovernanceAutomationEngine {
         // Create a deterministic CID based on the prefix
         // This is just for testing - in production you'd use actual content hashes
         let content = format!("{}_placeholder_content", prefix);
-        
+
         // Use the new_v1_sha256 method to create a proper CID
         Cid::new_v1_sha256(0x71, content.as_bytes()) // 0x71 is DAG-CBOR codec
     }
@@ -1658,8 +1702,8 @@ pub enum AutomationVotingResult {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Proposal, ProposalId, ProposalStatus, ProposalType};
     use icn_common::SystemTimeProvider;
-    use crate::{Proposal, ProposalId, ProposalType, ProposalStatus};
     use std::collections::HashMap;
 
     #[test]
@@ -1699,7 +1743,7 @@ mod tests {
             content_cid: None,
             votes: HashMap::new(),
         };
-        
+
         let mut state = ProposalAutomationState {
             proposal,
             submitted_at: Instant::now(),

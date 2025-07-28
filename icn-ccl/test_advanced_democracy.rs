@@ -90,7 +90,7 @@ fn main() {
             } else {
                 println!("   • Unknown issue: {}", error_str);
             }
-            
+
             println!();
             println!("💡 Next Steps:");
             println!("   1. Check stdlib function registration");

@@ -185,13 +185,13 @@ impl StdLibrary {
         });
 
         // === LIQUID DEMOCRACY PRIMITIVES ===
-        
+
         self.register_function(StdFunction {
             name: "create_delegation".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,    // delegator
-                TypeAnnotationNode::Did,    // delegate
-                TypeAnnotationNode::String, // scope (topic/category)
+                TypeAnnotationNode::Did,     // delegator
+                TypeAnnotationNode::Did,     // delegate
+                TypeAnnotationNode::String,  // scope (topic/category)
                 TypeAnnotationNode::Integer, // weight (0-100)
             ],
             return_type: TypeAnnotationNode::Integer,
@@ -230,7 +230,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // scope
             ],
             return_type: TypeAnnotationNode::Did,
-            description: "Resolve who will cast the final vote through delegation chain".to_string(),
+            description: "Resolve who will cast the final vote through delegation chain"
+                .to_string(),
             category: StdCategory::Governance,
         });
 
@@ -266,7 +267,8 @@ impl StdLibrary {
                 TypeAnnotationNode::Integer, // credits_spent
             ],
             return_type: TypeAnnotationNode::Bool,
-            description: "Submit a quadratic vote with specified allocation and credit cost".to_string(),
+            description: "Submit a quadratic vote with specified allocation and credit cost"
+                .to_string(),
             category: StdCategory::Governance,
         });
 
@@ -285,19 +287,20 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "calculate_reputation_weight".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,     // voter
-                TypeAnnotationNode::String,  // reputation_category
+                TypeAnnotationNode::Did,    // voter
+                TypeAnnotationNode::String, // reputation_category
             ],
             return_type: TypeAnnotationNode::Integer,
-            description: "Calculate voting weight based on reputation in specific category".to_string(),
+            description: "Calculate voting weight based on reputation in specific category"
+                .to_string(),
             category: StdCategory::Governance,
         });
 
         self.register_function(StdFunction {
             name: "calculate_stake_weight".to_string(),
             params: vec![
-                TypeAnnotationNode::Did,     // voter
-                TypeAnnotationNode::String,  // token_class
+                TypeAnnotationNode::Did,    // voter
+                TypeAnnotationNode::String, // token_class
             ],
             return_type: TypeAnnotationNode::Integer,
             description: "Calculate voting weight based on token stake".to_string(),
@@ -322,9 +325,9 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "create_multi_stage_proposal".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // title
-                TypeAnnotationNode::String, // description
-                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)), // stage_names
+                TypeAnnotationNode::String,                                       // title
+                TypeAnnotationNode::String,                                       // description
+                TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::String)),  // stage_names
                 TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // stage_durations
             ],
             return_type: TypeAnnotationNode::String, // proposal_id
@@ -355,12 +358,13 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "schedule_automated_execution".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // proposal_id
+                TypeAnnotationNode::String,                          // proposal_id
                 TypeAnnotationNode::Custom("Timestamp".to_string()), // execution_time
-                TypeAnnotationNode::String, // execution_function
+                TypeAnnotationNode::String,                          // execution_function
             ],
             return_type: TypeAnnotationNode::String, // execution_id
-            description: "Schedule automated execution of proposal if it passes all stages".to_string(),
+            description: "Schedule automated execution of proposal if it passes all stages"
+                .to_string(),
             category: StdCategory::Governance,
         });
     }
@@ -756,7 +760,8 @@ impl StdLibrary {
                 TypeAnnotationNode::String, // distribution_method ("equal", "proportional", "quadratic")
             ],
             return_type: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Integer)), // amounts
-            description: "Calculate and distribute dividends to members based on shares".to_string(),
+            description: "Calculate and distribute dividends to members based on shares"
+                .to_string(),
             category: StdCategory::Economics,
         });
 
@@ -789,8 +794,8 @@ impl StdLibrary {
         self.register_function(StdFunction {
             name: "execute_dividend_payment".to_string(),
             params: vec![
-                TypeAnnotationNode::String, // pool_id
-                TypeAnnotationNode::Did,    // member
+                TypeAnnotationNode::String,  // pool_id
+                TypeAnnotationNode::Did,     // member
                 TypeAnnotationNode::Integer, // amount
             ],
             return_type: TypeAnnotationNode::Bool,
@@ -1729,12 +1734,14 @@ impl StdLibrary {
     }
 
     /// Register a macro definition
-    pub fn register_macro(&mut self, name: String, params: Vec<String>, body: Vec<crate::ast::StatementNode>) {
-        self.macros.insert(name.clone(), MacroDefinition {
-            name,
-            params,
-            body,
-        });
+    pub fn register_macro(
+        &mut self,
+        name: String,
+        params: Vec<String>,
+        body: Vec<crate::ast::StatementNode>,
+    ) {
+        self.macros
+            .insert(name.clone(), MacroDefinition { name, params, body });
     }
 
     /// Get a macro definition by name

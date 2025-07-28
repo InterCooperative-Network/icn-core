@@ -3,7 +3,7 @@ use icn_ccl::compile_ccl_source_to_wasm;
 fn main() {
     println!("🔍 TESTING COMPREHENSIVE COMPONENTS");
     println!("=====================================");
-    
+
     // Test the exact structs from comprehensive test
     let test1 = r#"
         struct Vote {
@@ -23,12 +23,12 @@ fn main() {
             return true;
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(test1) {
         Ok(_) => println!("✅ Test 1 (struct definitions): PASSED"),
         Err(e) => println!("❌ Test 1 (struct definitions): FAILED - {}", e),
     }
-    
+
     // Test the exact function from comprehensive test
     let test2 = r#"
         struct Vote {
@@ -64,12 +64,12 @@ fn main() {
             return true;
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(test2) {
         Ok(_) => println!("✅ Test 2 (calculate_result function): PASSED"),
         Err(e) => println!("❌ Test 2 (calculate_result function): FAILED - {}", e),
     }
-    
+
     // Test constants
     let test3 = r#"
         const SCALING: Bool = true;
@@ -79,7 +79,7 @@ fn main() {
             return SCALING;
         }
     "#;
-    
+
     match compile_ccl_source_to_wasm(test3) {
         Ok(_) => println!("✅ Test 3 (constants): PASSED"),
         Err(e) => println!("❌ Test 3 (constants): FAILED - {}", e),

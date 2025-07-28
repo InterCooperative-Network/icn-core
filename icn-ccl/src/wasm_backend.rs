@@ -951,11 +951,11 @@ impl WasmBackend {
         next_index += 1;
 
         // === LIQUID DEMOCRACY FUNCTIONS ===
-        
+
         let ty_create_delegation = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // delegator, delegate, scope, weight
-            vec![ValType::I32], // success bool
+            vec![ValType::I32],                                           // success bool
         );
         imports.import(
             "icn",
@@ -968,7 +968,7 @@ impl WasmBackend {
         let ty_revoke_delegation = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32], // delegator, delegate, scope
-            vec![ValType::I32], // success bool
+            vec![ValType::I32],                             // success bool
         );
         imports.import(
             "icn",
@@ -981,7 +981,7 @@ impl WasmBackend {
         let ty_calculate_delegated_power = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // delegate, scope
-            vec![ValType::I32], // total power
+            vec![ValType::I32],               // total power
         );
         imports.import(
             "icn",
@@ -994,7 +994,7 @@ impl WasmBackend {
         let ty_get_delegation_chain = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // original_voter, scope
-            vec![ValType::I32], // array pointer to delegation chain
+            vec![ValType::I32],               // array pointer to delegation chain
         );
         imports.import(
             "icn",
@@ -1007,7 +1007,7 @@ impl WasmBackend {
         let ty_resolve_delegated_vote = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, scope
-            vec![ValType::I32], // final voter DID
+            vec![ValType::I32],                             // final voter DID
         );
         imports.import(
             "icn",
@@ -1033,7 +1033,7 @@ impl WasmBackend {
         let ty_submit_quadratic_vote = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, vote_allocation, credits_spent
-            vec![ValType::I32], // success bool
+            vec![ValType::I32],                                           // success bool
         );
         imports.import(
             "icn",
@@ -1061,7 +1061,7 @@ impl WasmBackend {
         let ty_calculate_reputation_weight = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // voter, reputation_category
-            vec![ValType::I32], // calculated weight
+            vec![ValType::I32],               // calculated weight
         );
         imports.import(
             "icn",
@@ -1074,7 +1074,7 @@ impl WasmBackend {
         let ty_calculate_stake_weight = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // voter, token_class
-            vec![ValType::I32], // calculated weight
+            vec![ValType::I32],               // calculated weight
         );
         imports.import(
             "icn",
@@ -1087,7 +1087,7 @@ impl WasmBackend {
         let ty_submit_weighted_vote = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // voter, proposal_id, vote_choice, calculated_weight
-            vec![ValType::I32], // success bool
+            vec![ValType::I32],                                           // success bool
         );
         imports.import(
             "icn",
@@ -1102,7 +1102,7 @@ impl WasmBackend {
         let ty_create_multi_stage_proposal = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // title, description, stage_names, stage_durations
-            vec![ValType::I32], // proposal_id
+            vec![ValType::I32],                                           // proposal_id
         );
         imports.import(
             "icn",
@@ -1140,7 +1140,13 @@ impl WasmBackend {
 
         let ty_create_budget = types.len() as u32;
         types.ty().function(
-            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // name, amount, token_class, categories, allocations
+            vec![
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+            ], // name, amount, token_class, categories, allocations
             vec![ValType::I32], // budget_id
         );
         imports.import(
@@ -1154,7 +1160,7 @@ impl WasmBackend {
         let ty_calculate_surplus = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // treasury_id, period
-            vec![ValType::I32], // surplus amount
+            vec![ValType::I32],               // surplus amount
         );
         imports.import(
             "icn",
@@ -1168,7 +1174,7 @@ impl WasmBackend {
         let ty_get_budget_balance = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32], // budget_id, category
-            vec![ValType::I32], // remaining balance
+            vec![ValType::I32],               // remaining balance
         );
         imports.import(
             "icn",
@@ -1181,7 +1187,7 @@ impl WasmBackend {
         let ty_create_dividend_pool = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32], // name, amount, token_class, criteria
-            vec![ValType::I32], // pool_id
+            vec![ValType::I32],                                           // pool_id
         );
         imports.import(
             "icn",
@@ -1193,7 +1199,13 @@ impl WasmBackend {
 
         let ty_allocate_budget_funds = types.len() as u32;
         types.ty().function(
-            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, category, recipient, amount, purpose
+            vec![
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+            ], // budget_id, category, recipient, amount, purpose
             vec![ValType::I32], // success
         );
         imports.import(
@@ -1206,7 +1218,13 @@ impl WasmBackend {
 
         let ty_transfer_between_categories = types.len() as u32;
         types.ty().function(
-            vec![ValType::I32, ValType::I32, ValType::I32, ValType::I32, ValType::I32], // budget_id, from_cat, to_cat, amount, auth
+            vec![
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+                ValType::I32,
+            ], // budget_id, from_cat, to_cat, amount, auth
             vec![ValType::I32], // success
         );
         imports.import(
@@ -1220,7 +1238,7 @@ impl WasmBackend {
         let ty_execute_dividend_payment = types.len() as u32;
         types.ty().function(
             vec![ValType::I32, ValType::I32, ValType::I32], // pool_id, member, amount
-            vec![ValType::I32], // success
+            vec![ValType::I32],                             // success
         );
         imports.import(
             "icn",
@@ -3860,7 +3878,12 @@ impl WasmBackend {
                 instrs.push(Instruction::I32Add);
 
                 // Load the field value (assume i64 for integers)
-                if member == "name" || member == "title" || member == "choice" || member == "status" || member == "voter" {
+                if member == "name"
+                    || member == "title"
+                    || member == "choice"
+                    || member == "status"
+                    || member == "voter"
+                {
                     // String fields return the pointer (i32)
                     instrs.push(Instruction::I32Load(wasm_encoder::MemArg {
                         offset: 0,
@@ -4438,7 +4461,7 @@ impl WasmBackend {
                 // This is a simplified version - real implementation would use struct metadata
                 let field_offset = match member.as_str() {
                     "id" => 0,
-                    "title" | "voter" | "choice" => 8, 
+                    "title" | "voter" | "choice" => 8,
                     "votes" => 16,
                     "status" | "weight" => 24,
                     _ => 0, // Default to first field
@@ -4449,9 +4472,13 @@ impl WasmBackend {
                 instrs.push(Instruction::I32Const(field_offset));
                 instrs.push(Instruction::I32Add);
                 instrs.push(Instruction::LocalGet(value_local));
-                
+
                 // For string fields, store as pointer (I32). For other fields, store as I64
-                if member == "title" || member == "voter" || member == "choice" || member == "status" {
+                if member == "title"
+                    || member == "voter"
+                    || member == "choice"
+                    || member == "status"
+                {
                     instrs.push(Instruction::I32WrapI64); // Convert string pointer to I32
                     instrs.push(Instruction::I32Store(wasm_encoder::MemArg {
                         offset: 0,
@@ -5001,11 +5028,11 @@ fn map_val_type(ty: &TypeAnnotationNode) -> Result<ValType, CclError> {
             Ok(ValType::I64)
         }
         TypeAnnotationNode::Option(_) | TypeAnnotationNode::Result { .. } => Ok(ValType::I64),
-        TypeAnnotationNode::Custom(name) => {
+        TypeAnnotationNode::Custom(_name) => {
             // Custom types (structs, enums) are represented as pointers in WASM
             // This includes user-defined structs like ReputationProposal, ReputationVote, etc.
             Ok(ValType::I32)
-        },
+        }
     }
 }
 
@@ -5013,11 +5040,15 @@ impl WasmBackend {
     /// Collect all user-defined function names from the AST for pre-registration
     fn collect_user_functions(&self, ast: &AstNode) -> Result<Vec<String>, CclError> {
         let mut functions = Vec::new();
-        
+
         match ast {
             AstNode::Policy(items) => {
                 for item in items {
-                    if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { name, .. }) = item {
+                    if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition {
+                        name,
+                        ..
+                    }) = item
+                    {
                         functions.push(name.clone());
                     }
                 }
@@ -5044,7 +5075,7 @@ impl WasmBackend {
             }
             _ => {} // No functions in other node types
         }
-        
+
         Ok(functions)
     }
 

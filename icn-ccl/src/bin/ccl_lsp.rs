@@ -1,6 +1,6 @@
 // icn-ccl/src/bin/ccl_lsp.rs
 //! CCL Language Server Protocol implementation
-//! 
+//!
 //! This binary provides LSP support for CCL (Cooperative Contract Language) files,
 //! enabling features like autocompletion, go-to-definition, diagnostics, and hover
 //! information in IDEs that support LSP.

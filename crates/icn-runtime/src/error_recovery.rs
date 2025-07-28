@@ -3,14 +3,14 @@
 //! This module provides robust error handling patterns including retry mechanisms,
 //! circuit breakers, and graceful degradation for critical operations.
 
+use log::{debug, error, warn};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::time::sleep;
-use log::{debug, warn, error};
 use thiserror::Error;
+use tokio::time::sleep;
 
 /// Error recovery configuration for production operations
 #[derive(Debug, Clone, serde::Serialize)]
@@ -89,7 +89,7 @@ pub enum RecoveryError<E> {
 pub trait ErrorClassifier<E> {
     /// Returns true if the error is recoverable and operation should be retried
     fn is_recoverable(&self, error: &E) -> bool;
-    
+
     /// Returns true if the error indicates a permanent failure
     fn is_permanent(&self, error: &E) -> bool {
         !self.is_recoverable(error)
@@ -155,7 +155,11 @@ impl CircuitBreaker {
     }
 
     /// Execute operation with circuit breaker protection
-    pub async fn execute<F, Fut, T, E>(&self, service_name: &str, operation: F) -> Result<T, RecoveryError<E>>
+    pub async fn execute<F, Fut, T, E>(
+        &self,
+        service_name: &str,
+        operation: F,
+    ) -> Result<T, RecoveryError<E>>
     where
         F: FnOnce() -> Fut,
         Fut: Future<Output = Result<T, E>>,
@@ -207,7 +211,7 @@ impl CircuitBreaker {
     pub fn record_success(&self) {
         let prev_success = self.success_count.fetch_add(1, Ordering::SeqCst);
         let state = self.state.lock().unwrap();
-        
+
         if *state == CircuitState::HalfOpen && prev_success + 1 >= self.config.success_threshold {
             drop(state);
             self.transition_to_closed();
@@ -227,7 +231,10 @@ impl CircuitBreaker {
         let mut state = self.state.lock().unwrap();
         if *state != CircuitState::Open {
             *state = CircuitState::Open;
-            warn!("Circuit breaker opened due to {} consecutive failures", self.failure_count.load(Ordering::SeqCst));
+            warn!(
+                "Circuit breaker opened due to {} consecutive failures",
+                self.failure_count.load(Ordering::SeqCst)
+            );
         }
     }
 
@@ -273,21 +280,37 @@ where
     let mut delay = config.initial_delay;
 
     for attempt in 0..=config.max_retries {
-        debug!("Attempting operation {} (attempt {}/{})", service_name, attempt + 1, config.max_retries + 1);
+        debug!(
+            "Attempting operation {} (attempt {}/{})",
+            service_name,
+            attempt + 1,
+            config.max_retries + 1
+        );
 
         match operation().await {
             Ok(result) => {
                 if attempt > 0 {
-                    debug!("Operation {} succeeded after {} retries", service_name, attempt);
+                    debug!(
+                        "Operation {} succeeded after {} retries",
+                        service_name, attempt
+                    );
                 }
                 return Ok(result);
             }
             Err(error) => {
-                debug!("Operation {} failed on attempt {}: {:?}", service_name, attempt + 1, error);
+                debug!(
+                    "Operation {} failed on attempt {}: {:?}",
+                    service_name,
+                    attempt + 1,
+                    error
+                );
 
                 // Check if error is recoverable
                 if classifier.is_permanent(&error) {
-                    warn!("Operation {} failed with permanent error: {:?}", service_name, error);
+                    warn!(
+                        "Operation {} failed with permanent error: {:?}",
+                        service_name, error
+                    );
                     return Err(RecoveryError::ExhaustedRetries {
                         attempts: attempt + 1,
                         last_error: error,
@@ -311,14 +334,19 @@ where
                     sleep(total_delay).await;
 
                     // Calculate next delay with exponential backoff
-                    let next_delay_ms = (delay.as_millis() as f64 * config.backoff_multiplier) as u64;
+                    let next_delay_ms =
+                        (delay.as_millis() as f64 * config.backoff_multiplier) as u64;
                     delay = Duration::from_millis(next_delay_ms).min(config.max_delay);
                 }
             }
         }
     }
 
-    error!("Operation {} exhausted all {} retry attempts", service_name, config.max_retries + 1);
+    error!(
+        "Operation {} exhausted all {} retry attempts",
+        service_name,
+        config.max_retries + 1
+    );
     Err(RecoveryError::ExhaustedRetries {
         attempts: config.max_retries + 1,
         last_error: last_error.unwrap(), // Safe unwrap - we had at least one attempt
@@ -338,7 +366,10 @@ where
     match tokio::time::timeout(timeout_duration, operation()).await {
         Ok(result) => Ok(result),
         Err(elapsed) => {
-            warn!("Operation {} timed out after {:?}", service_name, timeout_duration);
+            warn!(
+                "Operation {} timed out after {:?}",
+                service_name, timeout_duration
+            );
             Err(RecoveryError::Timeout {
                 duration: timeout_duration,
             })
@@ -368,12 +399,7 @@ where
     }
 
     // Execute with retry logic
-    let result = retry_with_backoff(
-        || operation(),
-        retry_config,
-        classifier,
-        service_name,
-    ).await;
+    let result = retry_with_backoff(|| operation(), retry_config, classifier, service_name).await;
 
     // Record result in circuit breaker
     match &result {
@@ -398,7 +424,14 @@ where
     C: ErrorClassifier<E>,
     E: std::fmt::Debug,
 {
-    resilient_operation(operation, retry_config, circuit_breaker, classifier, service_name).await
+    resilient_operation(
+        operation,
+        retry_config,
+        circuit_breaker,
+        classifier,
+        service_name,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -406,7 +439,7 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
     use std::sync::Arc;
-    
+
     #[derive(Debug, PartialEq)]
     struct TestError {
         recoverable: bool,
@@ -424,7 +457,7 @@ mod tests {
     async fn test_retry_eventually_succeeds() {
         let attempt_count = Arc::new(AtomicU32::new(0));
         let attempt_count_clone = attempt_count.clone();
-        
+
         let operation = move || {
             let count = attempt_count_clone.clone();
             async move {
@@ -439,7 +472,7 @@ mod tests {
 
         let config = ErrorRecoveryConfig::testing();
         let classifier = TestErrorClassifier;
-        
+
         let result = retry_with_backoff(operation, &config, &classifier, "test").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "success");
@@ -451,10 +484,11 @@ mod tests {
         let operation = || async { Err(TestError { recoverable: false }) };
         let config = ErrorRecoveryConfig::testing();
         let classifier = TestErrorClassifier;
-        
-        let result: Result<(), RecoveryError<TestError>> = retry_with_backoff(operation, &config, &classifier, "test").await;
+
+        let result: Result<(), RecoveryError<TestError>> =
+            retry_with_backoff(operation, &config, &classifier, "test").await;
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
             RecoveryError::ExhaustedRetries { attempts, .. } => {
                 assert_eq!(attempts, 1); // Should fail immediately for permanent errors
@@ -471,24 +505,28 @@ mod tests {
             success_threshold: 1,
         };
         let circuit_breaker = CircuitBreaker::new(config);
-        
+
         // First failure
-        let result1 = circuit_breaker.execute("test", || async {
-            Err::<(), TestError>(TestError { recoverable: true })
-        }).await;
+        let result1 = circuit_breaker
+            .execute("test", || async {
+                Err::<(), TestError>(TestError { recoverable: true })
+            })
+            .await;
         assert!(result1.is_err());
-        
+
         // Second failure - should open circuit
-        let result2 = circuit_breaker.execute("test", || async {
-            Err::<(), TestError>(TestError { recoverable: true })
-        }).await;
+        let result2 = circuit_breaker
+            .execute("test", || async {
+                Err::<(), TestError>(TestError { recoverable: true })
+            })
+            .await;
         assert!(result2.is_err());
-        
+
         // Third attempt - should be rejected due to open circuit
-        let result3 = circuit_breaker.execute("test", || async {
-            Ok::<(), TestError>(())
-        }).await;
-        
+        let result3 = circuit_breaker
+            .execute("test", || async { Ok::<(), TestError>(()) })
+            .await;
+
         match result3.unwrap_err() {
             RecoveryError::CircuitBreakerOpen { .. } => {
                 // Expected
@@ -503,10 +541,10 @@ mod tests {
             sleep(Duration::from_millis(200)).await;
             "result"
         };
-        
+
         let result = with_timeout(slow_operation, Duration::from_millis(100), "test").await;
         assert!(result.is_err());
-        
+
         match result.unwrap_err() {
             RecoveryError::Timeout { .. } => {
                 // Expected

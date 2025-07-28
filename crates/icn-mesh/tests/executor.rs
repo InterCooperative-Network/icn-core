@@ -1,7 +1,9 @@
 use icn_common::Did;
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
-use icn_mesh::{select_executor, JobId, JobSpec, MeshJobBid, Resources, SelectionPolicy, NoOpCapabilityChecker};
+use icn_mesh::{
+    select_executor, JobId, JobSpec, MeshJobBid, NoOpCapabilityChecker, Resources, SelectionPolicy,
+};
 use icn_reputation::InMemoryReputationStore;
 use std::collections::HashMap;
 use std::str::FromStr;

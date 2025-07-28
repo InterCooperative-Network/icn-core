@@ -3,7 +3,7 @@
 //! This module implements the network protocol for synchronizing DAG state
 //! across federation nodes, including efficient delta sync and conflict resolution.
 
-use crate::{StorageService, conflict_resolution::ConflictResolver};
+use crate::{conflict_resolution::ConflictResolver, StorageService};
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -222,29 +222,48 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle incoming sync message from a peer
-    pub fn handle_sync_message(&mut self, message: SyncMessage) -> Result<Option<SyncMessage>, CommonError> {
+    pub fn handle_sync_message(
+        &mut self,
+        message: SyncMessage,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         match message {
-            SyncMessage::SyncStatusRequest { from_node, last_known_root } => {
-                self.handle_status_request(from_node, last_known_root)
-            }
-            SyncMessage::BlockRequest { from_node, requested_blocks, priority } => {
-                self.handle_block_request(from_node, requested_blocks, priority)
-            }
-            SyncMessage::BlockResponse { from_node, blocks, missing_blocks } => {
-                self.handle_block_response(from_node, blocks, missing_blocks)
-            }
-            SyncMessage::DeltaSyncRequest { from_node, since_root, since_timestamp, max_blocks } => {
-                self.handle_delta_sync_request(from_node, since_root, since_timestamp, max_blocks)
-            }
-            SyncMessage::BlockAnnouncement { from_node, new_blocks, priority } => {
-                self.handle_block_announcement(from_node, new_blocks, priority)
-            }
-            SyncMessage::ConflictReport { from_node, conflict_id, conflicting_blocks, evidence } => {
-                self.handle_conflict_report(from_node, conflict_id, conflicting_blocks, evidence)
-            }
-            SyncMessage::ConflictResolution { from_node, conflict_id, winner, supporting_nodes } => {
-                self.handle_conflict_resolution(from_node, conflict_id, winner, supporting_nodes)
-            }
+            SyncMessage::SyncStatusRequest {
+                from_node,
+                last_known_root,
+            } => self.handle_status_request(from_node, last_known_root),
+            SyncMessage::BlockRequest {
+                from_node,
+                requested_blocks,
+                priority,
+            } => self.handle_block_request(from_node, requested_blocks, priority),
+            SyncMessage::BlockResponse {
+                from_node,
+                blocks,
+                missing_blocks,
+            } => self.handle_block_response(from_node, blocks, missing_blocks),
+            SyncMessage::DeltaSyncRequest {
+                from_node,
+                since_root,
+                since_timestamp,
+                max_blocks,
+            } => self.handle_delta_sync_request(from_node, since_root, since_timestamp, max_blocks),
+            SyncMessage::BlockAnnouncement {
+                from_node,
+                new_blocks,
+                priority,
+            } => self.handle_block_announcement(from_node, new_blocks, priority),
+            SyncMessage::ConflictReport {
+                from_node,
+                conflict_id,
+                conflicting_blocks,
+                evidence,
+            } => self.handle_conflict_report(from_node, conflict_id, conflicting_blocks, evidence),
+            SyncMessage::ConflictResolution {
+                from_node,
+                conflict_id,
+                winner,
+                supporting_nodes,
+            } => self.handle_conflict_resolution(from_node, conflict_id, winner, supporting_nodes),
             _ => Ok(None), // Other message types handled elsewhere
         }
     }
@@ -252,18 +271,21 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     /// Initialize sync with a new peer
     pub fn initiate_sync_with_peer(&mut self, peer_id: Did) -> Result<SyncMessage, CommonError> {
         let current_root = self.get_current_root()?;
-        
+
         // Initialize peer state if not exists
         if !self.peer_states.contains_key(&peer_id) {
-            self.peer_states.insert(peer_id.clone(), PeerSyncState {
-                peer_id: peer_id.clone(),
-                last_known_root: None,
-                last_sync: 0,
-                sync_status: SyncOperationStatus::Idle,
-                known_blocks: HashSet::new(),
-                requested_blocks: HashSet::new(),
-                failed_attempts: 0,
-            });
+            self.peer_states.insert(
+                peer_id.clone(),
+                PeerSyncState {
+                    peer_id: peer_id.clone(),
+                    last_known_root: None,
+                    last_sync: 0,
+                    sync_status: SyncOperationStatus::Idle,
+                    known_blocks: HashSet::new(),
+                    requested_blocks: HashSet::new(),
+                    failed_attempts: 0,
+                },
+            );
         }
 
         // Update peer state
@@ -278,18 +300,38 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Perform delta sync with peer from a specific point
-    pub fn request_delta_sync(&mut self, peer_id: Did, since_root: Option<Cid>) -> Result<SyncMessage, CommonError> {
-        let operation_id = format!("delta_{}_{}", peer_id, 
-            SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs());
-        
-        self.active_syncs.insert(operation_id.clone(), SyncOperation {
-            operation_id: operation_id.clone(),
-            peer_id: peer_id.clone(),
-            operation_type: SyncOperationType::DeltaSync { since: since_root.clone() },
-            started_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
-            blocks: HashSet::new(),
-            status: SyncOperationStatus::DeltaSync { since: since_root.clone() },
-        });
+    pub fn request_delta_sync(
+        &mut self,
+        peer_id: Did,
+        since_root: Option<Cid>,
+    ) -> Result<SyncMessage, CommonError> {
+        let operation_id = format!(
+            "delta_{}_{}",
+            peer_id,
+            SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+        );
+
+        self.active_syncs.insert(
+            operation_id.clone(),
+            SyncOperation {
+                operation_id: operation_id.clone(),
+                peer_id: peer_id.clone(),
+                operation_type: SyncOperationType::DeltaSync {
+                    since: since_root.clone(),
+                },
+                started_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
+                blocks: HashSet::new(),
+                status: SyncOperationStatus::DeltaSync {
+                    since: since_root.clone(),
+                },
+            },
+        );
 
         Ok(SyncMessage::DeltaSyncRequest {
             from_node: self.node_id.clone(),
@@ -300,28 +342,34 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle sync status request from peer
-    fn handle_status_request(&mut self, _from_node: Did, _last_known_root: Option<Cid>) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_status_request(
+        &mut self,
+        _from_node: Did,
+        _last_known_root: Option<Cid>,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         let current_root = self.get_current_root()?;
         let blocks = self.store.list_blocks()?;
         let block_count = blocks.len();
         let available_blocks: Vec<Cid> = blocks.iter().map(|b| b.cid.clone()).collect();
-        
-        let last_update = blocks.iter()
-            .map(|b| b.timestamp)
-            .max()
-            .unwrap_or(0);
+
+        let last_update = blocks.iter().map(|b| b.timestamp).max().unwrap_or(0);
 
         Ok(Some(SyncMessage::SyncStatusResponse {
             from_node: self.node_id.clone(),
             current_root,
-            block_count,  
+            block_count,
             last_update,
             available_blocks,
         }))
     }
 
     /// Handle block request from peer
-    fn handle_block_request(&mut self, _from_node: Did, requested_blocks: Vec<Cid>, _priority: RequestPriority) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_block_request(
+        &mut self,
+        _from_node: Did,
+        requested_blocks: Vec<Cid>,
+        _priority: RequestPriority,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         let mut blocks = Vec::new();
         let mut missing_blocks = Vec::new();
 
@@ -340,13 +388,18 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle block response from peer
-    fn handle_block_response(&mut self, from_node: Did, blocks: Vec<DagBlock>, _missing_blocks: Vec<Cid>) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_block_response(
+        &mut self,
+        from_node: Did,
+        blocks: Vec<DagBlock>,
+        _missing_blocks: Vec<Cid>,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         // Store received blocks
         for block in blocks {
             // Verify block integrity before storing
             icn_common::verify_block_integrity(&block)?;
             self.store.put(&block)?;
-            
+
             // Update peer state
             if let Some(peer_state) = self.peer_states.get_mut(&from_node) {
                 peer_state.known_blocks.insert(block.cid.clone());
@@ -366,16 +419,22 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle delta sync request from peer
-    fn handle_delta_sync_request(&mut self, _from_node: Did, since_root: Option<Cid>, _since_timestamp: Option<u64>, max_blocks: usize) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_delta_sync_request(
+        &mut self,
+        _from_node: Did,
+        since_root: Option<Cid>,
+        _since_timestamp: Option<u64>,
+        max_blocks: usize,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         let blocks = self.store.list_blocks()?;
         let mut delta_blocks = Vec::new();
-        
+
         // If since_root is provided, find blocks newer than that point
         if let Some(since_cid) = since_root {
             // Simple implementation: return blocks not in the chain from since_cid
             let chain_from_since = self.get_chain_from_block(&since_cid)?;
             let chain_cids: HashSet<_> = chain_from_since.iter().collect();
-            
+
             for block in blocks {
                 if !chain_cids.contains(&block.cid) && delta_blocks.len() < max_blocks {
                     delta_blocks.push(block);
@@ -400,7 +459,12 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle block announcement from peer
-    fn handle_block_announcement(&mut self, from_node: Did, new_blocks: Vec<Cid>, priority: AnnouncementPriority) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_block_announcement(
+        &mut self,
+        from_node: Did,
+        new_blocks: Vec<Cid>,
+        priority: AnnouncementPriority,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         // Update peer state with known blocks
         if let Some(peer_state) = self.peer_states.get_mut(&from_node) {
             for cid in &new_blocks {
@@ -435,26 +499,45 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     }
 
     /// Handle conflict report from peer
-    fn handle_conflict_report(&mut self, _from_node: Did, conflict_id: String, conflicting_blocks: Vec<Cid>, _evidence: Vec<u8>) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_conflict_report(
+        &mut self,
+        _from_node: Did,
+        conflict_id: String,
+        conflicting_blocks: Vec<Cid>,
+        _evidence: Vec<u8>,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         if !self.config.enable_conflict_resolution {
             return Ok(None);
         }
 
         // TODO: Implement conflict analysis and resolution
         // For now, just log the conflict
-                println!("Conflict reported: {} with blocks {:?}", conflict_id, conflicting_blocks);
+        println!(
+            "Conflict reported: {} with blocks {:?}",
+            conflict_id, conflicting_blocks
+        );
 
         Ok(None)
     }
 
     /// Handle conflict resolution from peer
-    fn handle_conflict_resolution(&mut self, _from_node: Did, conflict_id: String, winner: Cid, supporting_nodes: Vec<Did>) -> Result<Option<SyncMessage>, CommonError> {
+    fn handle_conflict_resolution(
+        &mut self,
+        _from_node: Did,
+        conflict_id: String,
+        winner: Cid,
+        supporting_nodes: Vec<Did>,
+    ) -> Result<Option<SyncMessage>, CommonError> {
         if !self.config.enable_conflict_resolution {
             return Ok(None);
         }
 
-        println!("Conflict {} resolved: winner {} supported by {} nodes", 
-            conflict_id, winner, supporting_nodes.len());
+        println!(
+            "Conflict {} resolved: winner {} supported by {} nodes",
+            conflict_id,
+            winner,
+            supporting_nodes.len()
+        );
 
         Ok(None)
     }
@@ -474,7 +557,8 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
             }
         }
 
-        let roots: Vec<_> = blocks.iter()
+        let roots: Vec<_> = blocks
+            .iter()
             .filter(|b| !referenced.contains(&b.cid))
             .map(|b| (b.cid.clone(), b.timestamp)) // Use timestamp as height proxy
             .collect();
@@ -511,7 +595,10 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
         if let Some(peer_state) = self.peer_states.get_mut(peer_id) {
             if peer_state.requested_blocks.is_empty() {
                 peer_state.sync_status = SyncOperationStatus::Idle;
-                peer_state.last_sync = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+                peer_state.last_sync = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs();
                 peer_state.failed_attempts = 0;
             }
         }
@@ -521,20 +608,24 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     fn detect_and_report_conflicts(&mut self) -> Result<(), CommonError> {
         if let Some(ref mut resolver) = self.conflict_resolver {
             let conflicts = resolver.detect_conflicts()?;
-            
+
             for conflict in conflicts {
-                println!("Detected conflict: {} of type {:?}", 
-                    conflict.conflict_id, conflict.conflict_type);
-                
+                println!(
+                    "Detected conflict: {} of type {:?}",
+                    conflict.conflict_id, conflict.conflict_type
+                );
+
                 // In a full implementation, we would broadcast conflict reports to peers
                 // For now, just try to resolve locally
                 if let Ok(status) = resolver.resolve_conflict(&conflict.conflict_id) {
-                    println!("Conflict {} resolved with status: {:?}", 
-                        conflict.conflict_id, status);
+                    println!(
+                        "Conflict {} resolved with status: {:?}",
+                        conflict.conflict_id, status
+                    );
                 }
             }
         }
-        
+
         Ok(())
     }
 
@@ -542,7 +633,9 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
     pub fn get_sync_stats(&self) -> SyncStats {
         let total_peers = self.peer_states.len();
         let active_syncs = self.active_syncs.len();
-        let healthy_peers = self.peer_states.values()
+        let healthy_peers = self
+            .peer_states
+            .values()
             .filter(|p| p.failed_attempts < 3)
             .count();
 
@@ -550,7 +643,9 @@ impl<S: StorageService<DagBlock>> FederationSync<S> {
             total_peers,
             healthy_peers,
             active_syncs,
-            last_sync: self.peer_states.values()
+            last_sync: self
+                .peer_states
+                .values()
                 .map(|p| p.last_sync)
                 .max()
                 .unwrap_or(0),
@@ -584,11 +679,14 @@ mod tests {
 
     fn create_test_block(id: &str) -> DagBlock {
         let data = format!("data for {}", id).into_bytes();
-        let timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let author = Did::new("key", "tester");
         let sig = None;
         let cid = compute_merkle_cid(0x71, &data, &[], timestamp, &author, &sig, &None);
-        
+
         DagBlock {
             cid,
             data,
@@ -605,7 +703,7 @@ mod tests {
         let store = InMemoryDagStore::new();
         let node_id = Did::new("key", "test_node");
         let config = FederationSyncConfig::default();
-        
+
         let sync = FederationSync::new(store, node_id, config);
         assert_eq!(sync.peer_states.len(), 0);
         assert_eq!(sync.active_syncs.len(), 0);
@@ -616,17 +714,17 @@ mod tests {
         let mut store = InMemoryDagStore::new();
         let node_id = Did::new("key", "test_node");
         let config = FederationSyncConfig::default();
-        
+
         // Add a test block
         let block = create_test_block("test");
         store.put(&block).unwrap();
-        
+
         let mut sync = FederationSync::new(store, node_id, config);
         let from_node = Did::new("key", "peer_node");
-        
+
         let response = sync.handle_status_request(from_node, None).unwrap();
         assert!(response.is_some());
-        
+
         if let Some(SyncMessage::SyncStatusResponse { block_count, .. }) = response {
             assert_eq!(block_count, 1);
         } else {
@@ -639,22 +737,25 @@ mod tests {
         let mut store = InMemoryDagStore::new();
         let node_id = Did::new("key", "test_node");
         let config = FederationSyncConfig::default();
-        
+
         // Add a test block
         let block = create_test_block("test");
         store.put(&block).unwrap();
-        
+
         let mut sync = FederationSync::new(store, node_id, config);
         let from_node = Did::new("key", "peer_node");
-        
-        let response = sync.handle_block_request(
-            from_node, 
-            vec![block.cid.clone()], 
-            RequestPriority::Normal
-        ).unwrap();
-        
+
+        let response = sync
+            .handle_block_request(from_node, vec![block.cid.clone()], RequestPriority::Normal)
+            .unwrap();
+
         assert!(response.is_some());
-        if let Some(SyncMessage::BlockResponse { blocks, missing_blocks, .. }) = response {
+        if let Some(SyncMessage::BlockResponse {
+            blocks,
+            missing_blocks,
+            ..
+        }) = response
+        {
             assert_eq!(blocks.len(), 1);
             assert_eq!(missing_blocks.len(), 0);
             assert_eq!(blocks[0].cid, block.cid);
@@ -668,18 +769,18 @@ mod tests {
         let store = InMemoryDagStore::new();
         let node_id = Did::new("key", "test_node");
         let config = FederationSyncConfig::default();
-        
+
         let mut sync = FederationSync::new(store, node_id.clone(), config);
         let peer_id = Did::new("key", "peer_node");
-        
+
         let message = sync.initiate_sync_with_peer(peer_id.clone()).unwrap();
-        
+
         if let SyncMessage::SyncStatusRequest { from_node, .. } = message {
             assert_eq!(from_node, node_id);
         } else {
             panic!("Expected SyncStatusRequest");
         }
-        
+
         // Check that peer state was created
         assert!(sync.peer_states.contains_key(&peer_id));
     }

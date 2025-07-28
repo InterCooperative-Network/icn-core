@@ -72,15 +72,15 @@ pub enum EconomicResolutionStatus {
     /// Arbitration process initiated
     Arbitration { arbitrator: Did, deadline: u64 },
     /// Community voting on resolution
-    CommunityVoting { 
+    CommunityVoting {
         voting_deadline: u64,
         votes_for: u64,
-        votes_against: u64 
+        votes_against: u64,
     },
     /// Dispute resolved
-    Resolved { 
+    Resolved {
         resolution: EconomicResolution,
-        applied_at: u64 
+        applied_at: u64,
     },
     /// Resolution rejected or failed
     Failed { reason: String },
@@ -94,30 +94,30 @@ pub enum EconomicEvidence {
     /// Transaction records as evidence
     TransactionRecords { transactions: Vec<String> },
     /// Balance discrepancies
-    BalanceDiscrepancy { 
+    BalanceDiscrepancy {
         account: Did,
         expected_balance: u64,
         actual_balance: u64,
-        asset_type: String 
+        asset_type: String,
     },
     /// Resource allocation logs
-    ResourceAllocationLog { 
+    ResourceAllocationLog {
         allocation_id: String,
-        disputed_allocation: String 
+        disputed_allocation: String,
     },
     /// Price manipulation evidence
-    PriceManipulation { 
+    PriceManipulation {
         asset: String,
-        suspicious_prices: Vec<(u64, u64)> // (timestamp, price)
+        suspicious_prices: Vec<(u64, u64)>, // (timestamp, price)
     },
     /// Double spending evidence
-    DoubleSpendingEvidence { 
-        conflicting_transactions: Vec<String>
+    DoubleSpendingEvidence {
+        conflicting_transactions: Vec<String>,
     },
     /// Witness testimony or external verification
-    ExternalVerification { 
+    ExternalVerification {
         verifier: Did,
-        verification_details: String 
+        verification_details: String,
     },
 }
 
@@ -142,7 +142,9 @@ pub enum EconomicResolution {
     /// Adjust account balances
     AdjustBalances { adjustments: Vec<BalanceAdjustment> },
     /// Redistribute resources
-    RedistributeResources { redistributions: Vec<ResourceRedistribution> },
+    RedistributeResources {
+        redistributions: Vec<ResourceRedistribution>,
+    },
     /// Impose penalties or fees
     ImposePenalties { penalties: Vec<EconomicPenalty> },
     /// Provide compensation
@@ -257,9 +259,9 @@ impl Default for EconomicDisputeConfig {
             auto_detection: true,
             auto_resolution_threshold: DisputeSeverity::Medium,
             investigation_timeout: 172800, // 48 hours
-            mediation_timeout: 86400, // 24 hours
-            arbitration_timeout: 86400, // 24 hours
-            voting_period: 259200, // 72 hours
+            mediation_timeout: 86400,      // 24 hours
+            arbitration_timeout: 86400,    // 24 hours
+            voting_period: 259200,         // 72 hours
             minimum_dispute_amount: 10,
             reputation_based_arbitration: true,
             max_disputes_per_account: 5,
@@ -329,13 +331,19 @@ impl EconomicDisputeResolver {
         self.validate_dispute(&dispute)?;
 
         // Check if account has too many active disputes
-        let account_disputes = self.active_disputes.values()
-            .filter(|d| d.parties.iter().any(|party| dispute.parties.contains(party)))
+        let account_disputes = self
+            .active_disputes
+            .values()
+            .filter(|d| {
+                d.parties
+                    .iter()
+                    .any(|party| dispute.parties.contains(party))
+            })
             .count();
 
         if account_disputes >= self.config.max_disputes_per_account {
             return Err(CommonError::PolicyDenied(
-                "Too many active disputes for this account".to_string()
+                "Too many active disputes for this account".to_string(),
             ));
         }
 
@@ -344,7 +352,10 @@ impl EconomicDisputeResolver {
             let mut resolved_dispute = dispute;
             resolved_dispute.resolution_status = EconomicResolutionStatus::Resolved {
                 resolution: auto_resolution,
-                applied_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                applied_at: SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap()
+                    .as_secs(),
             };
             let dispute_id = resolved_dispute.dispute_id.clone();
             self.resolution_history.push(resolved_dispute);
@@ -364,7 +375,7 @@ impl EconomicDisputeResolver {
         if let Some(amount) = dispute.disputed_amount {
             if amount < self.config.minimum_dispute_amount {
                 return Err(CommonError::PolicyDenied(
-                    "Dispute amount below minimum threshold".to_string()
+                    "Dispute amount below minimum threshold".to_string(),
                 ));
             }
         }
@@ -372,14 +383,14 @@ impl EconomicDisputeResolver {
         // Check that parties are not empty
         if dispute.parties.is_empty() {
             return Err(CommonError::InvalidInputError(
-                "Dispute must involve at least one party".to_string()
+                "Dispute must involve at least one party".to_string(),
             ));
         }
 
         // Check that evidence is provided
         if dispute.evidence.is_empty() {
             return Err(CommonError::InvalidInputError(
-                "Dispute must include supporting evidence".to_string()
+                "Dispute must include supporting evidence".to_string(),
             ));
         }
 
@@ -387,7 +398,10 @@ impl EconomicDisputeResolver {
     }
 
     /// Check if a dispute can be automatically resolved
-    fn check_auto_resolution(&self, dispute: &EconomicDispute) -> Result<Option<EconomicResolution>, CommonError> {
+    fn check_auto_resolution(
+        &self,
+        dispute: &EconomicDispute,
+    ) -> Result<Option<EconomicResolution>, CommonError> {
         // Only auto-resolve low severity disputes below threshold
         if dispute.severity > self.config.auto_resolution_threshold {
             return Ok(None);
@@ -397,7 +411,10 @@ impl EconomicDisputeResolver {
             EconomicDisputeType::DoubleSpending => {
                 // Auto-resolve clear double spending cases
                 for evidence in &dispute.evidence {
-                    if let EconomicEvidence::DoubleSpendingEvidence { conflicting_transactions } = evidence {
+                    if let EconomicEvidence::DoubleSpendingEvidence {
+                        conflicting_transactions,
+                    } = evidence
+                    {
                         if conflicting_transactions.len() >= 2 {
                             return Ok(Some(EconomicResolution::ReverseTransactions {
                                 transaction_ids: conflicting_transactions.clone(),
@@ -411,12 +428,16 @@ impl EconomicDisputeResolver {
                 if let Some(amount) = dispute.disputed_amount {
                     if amount <= self.config.minimum_dispute_amount * 2 {
                         return Ok(Some(EconomicResolution::Compensation {
-                            compensations: dispute.parties.iter().map(|party| Compensation {
-                                recipient: party.clone(),
-                                compensation_type: CompensationType::ManaCredit,
-                                amount: amount / dispute.parties.len() as u64,
-                                reason: "Auto-resolved token dispute".to_string(),
-                            }).collect(),
+                            compensations: dispute
+                                .parties
+                                .iter()
+                                .map(|party| Compensation {
+                                    recipient: party.clone(),
+                                    compensation_type: CompensationType::ManaCredit,
+                                    amount: amount / dispute.parties.len() as u64,
+                                    reason: "Auto-resolved token dispute".to_string(),
+                                })
+                                .collect(),
                         }));
                     }
                 }
@@ -444,14 +465,16 @@ impl EconomicDisputeResolver {
         detected_disputes.extend(self.detect_double_spending(mana_ledger, recent_transactions)?);
 
         // Detect balance discrepancies
-        detected_disputes.extend(self.detect_balance_discrepancies(mana_ledger, recent_transactions)?);
+        detected_disputes
+            .extend(self.detect_balance_discrepancies(mana_ledger, recent_transactions)?);
 
         // Detect price manipulation
         detected_disputes.extend(self.detect_price_manipulation(recent_transactions)?);
 
         // Add detected disputes to active tracking
         for dispute in &detected_disputes {
-            self.active_disputes.insert(dispute.dispute_id.clone(), dispute.clone());
+            self.active_disputes
+                .insert(dispute.dispute_id.clone(), dispute.clone());
         }
 
         Ok(detected_disputes)
@@ -459,9 +482,9 @@ impl EconomicDisputeResolver {
 
     /// Detect double spending patterns
     fn detect_double_spending<M: ManaLedger>(
-        &self, 
+        &self,
         mana_ledger: &M,
-        transactions: &[ManaTransaction]
+        transactions: &[ManaTransaction],
     ) -> Result<Vec<EconomicDispute>, CommonError> {
         let mut disputes = Vec::new();
         let mut transaction_map: HashMap<String, Vec<&ManaTransaction>> = HashMap::new();
@@ -480,9 +503,13 @@ impl EconomicDisputeResolver {
                 let account_balance = mana_ledger.get_balance(&txs[0].did);
 
                 if total_amount.abs() as u64 > account_balance {
-                    let dispute_id = format!("double_spend_{}_{}", 
+                    let dispute_id = format!(
+                        "double_spend_{}_{}",
                         key,
-                        SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                        SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs()
                     );
 
                     disputes.push(EconomicDispute {
@@ -491,10 +518,16 @@ impl EconomicDisputeResolver {
                         parties: vec![txs[0].did.clone()],
                         disputed_amount: Some(total_amount.abs() as u64),
                         disputed_asset: "mana".to_string(),
-                        filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                        filed_at: SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_secs(),
                         resolution_status: EconomicResolutionStatus::Filed,
                         evidence: vec![EconomicEvidence::DoubleSpendingEvidence {
-                            conflicting_transactions: txs.iter().map(|tx| tx.transaction_id.clone()).collect(),
+                            conflicting_transactions: txs
+                                .iter()
+                                .map(|tx| tx.transaction_id.clone())
+                                .collect(),
                         }],
                         description: "Potential double spending detected".to_string(),
                         severity: DisputeSeverity::High,
@@ -508,7 +541,7 @@ impl EconomicDisputeResolver {
     }
 
     /// Detect balance discrepancies by looking for inconsistent transaction patterns
-    /// 
+    ///
     /// Since we don't have access to historical balances, this function detects
     /// potential discrepancies by looking for suspicious transaction patterns:
     /// 1. Negative balances that shouldn't exist
@@ -524,24 +557,32 @@ impl EconomicDisputeResolver {
 
         // Group transactions by account
         for tx in transactions {
-            account_transactions.entry(tx.did.clone()).or_default().push(tx);
+            account_transactions
+                .entry(tx.did.clone())
+                .or_default()
+                .push(tx);
         }
 
         // Check each account for suspicious patterns
         for (did, txs) in account_transactions {
             let current_balance = mana_ledger.get_balance(&did);
             let net_change: i64 = txs.iter().map(|tx| tx.amount).sum();
-            let total_debits: u64 = txs.iter()
+            let total_debits: u64 = txs
+                .iter()
                 .filter(|tx| tx.amount < 0)
                 .map(|tx| (-tx.amount) as u64)
                 .sum();
-            
+
             // Pattern 1: Check if total debits exceed what seems reasonable for current balance
             // This could indicate transactions were processed when balance was insufficient
             if total_debits > current_balance + (self.config.minimum_dispute_amount * 10) {
-                let dispute_id = format!("excessive_debits_{}_{}", 
+                let dispute_id = format!(
+                    "excessive_debits_{}_{}",
                     did.to_string(),
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 disputes.push(EconomicDispute {
@@ -568,9 +609,13 @@ impl EconomicDisputeResolver {
             // Pattern 2: Check for accounts with zero balance but positive net changes
             // This might indicate missing credit transactions
             if current_balance == 0 && net_change > 0 {
-                let dispute_id = format!("missing_credits_{}_{}", 
+                let dispute_id = format!(
+                    "missing_credits_{}_{}",
                     did.to_string(),
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 disputes.push(EconomicDispute {
@@ -597,9 +642,13 @@ impl EconomicDisputeResolver {
             // Pattern 3: Check for extremely large negative net changes compared to current balance
             // This might indicate unauthorized debits or double-spending
             if net_change < 0 && (-net_change) as u64 > current_balance * 2 && current_balance > 0 {
-                let dispute_id = format!("excessive_negative_change_{}_{}", 
+                let dispute_id = format!(
+                    "excessive_negative_change_{}_{}",
                     did.to_string(),
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 disputes.push(EconomicDispute {
@@ -627,7 +676,10 @@ impl EconomicDisputeResolver {
     }
 
     /// Detect price manipulation patterns
-    fn detect_price_manipulation(&self, transactions: &[ManaTransaction]) -> Result<Vec<EconomicDispute>, CommonError> {
+    fn detect_price_manipulation(
+        &self,
+        transactions: &[ManaTransaction],
+    ) -> Result<Vec<EconomicDispute>, CommonError> {
         let mut disputes = Vec::new();
 
         // Simplified price manipulation detection
@@ -640,21 +692,27 @@ impl EconomicDisputeResolver {
         }
 
         let mean: f64 = amounts.iter().map(|&x| x as f64).sum::<f64>() / amounts.len() as f64;
-        let variance: f64 = amounts.iter()
+        let variance: f64 = amounts
+            .iter()
             .map(|&x| {
                 let diff = x as f64 - mean;
                 diff * diff
             })
-            .sum::<f64>() / amounts.len() as f64;
+            .sum::<f64>()
+            / amounts.len() as f64;
         let std_dev = variance.sqrt();
 
         // Look for transactions that are unusually large (potential manipulation)
         for tx in transactions {
             let z_score = (tx.amount as f64 - mean).abs() / std_dev;
             if z_score > 3.0 && tx.amount.abs() as u64 > self.config.minimum_dispute_amount * 5 {
-                let dispute_id = format!("price_manipulation_{}_{}", 
+                let dispute_id = format!(
+                    "price_manipulation_{}_{}",
                     tx.transaction_id,
-                    SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs()
+                    SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs()
                 );
 
                 disputes.push(EconomicDispute {
@@ -663,7 +721,10 @@ impl EconomicDisputeResolver {
                     parties: vec![tx.did.clone()],
                     disputed_amount: Some(tx.amount.abs() as u64),
                     disputed_asset: "mana".to_string(),
-                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    filed_at: SystemTime::now()
+                        .duration_since(UNIX_EPOCH)
+                        .unwrap()
+                        .as_secs(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::PriceManipulation {
                         asset: "mana".to_string(),
@@ -673,7 +734,7 @@ impl EconomicDisputeResolver {
                     severity: DisputeSeverity::Medium,
                     scope: None,
                 });
-                
+
                 // Only flag one per detection cycle
                 break;
             }
@@ -683,24 +744,36 @@ impl EconomicDisputeResolver {
     }
 
     /// Resolve a dispute
-    pub fn resolve_dispute(&mut self, dispute_id: &str, resolver: &Did) -> Result<EconomicResolutionStatus, CommonError> {
+    pub fn resolve_dispute(
+        &mut self,
+        dispute_id: &str,
+        resolver: &Did,
+    ) -> Result<EconomicResolutionStatus, CommonError> {
         // Verify resolver is authorized
-        if !self.economic_authorities.contains(resolver) && !self.qualified_arbitrators.contains(resolver) {
+        if !self.economic_authorities.contains(resolver)
+            && !self.qualified_arbitrators.contains(resolver)
+        {
             return Err(CommonError::PolicyDenied(
-                "Not authorized to resolve economic disputes".to_string()
+                "Not authorized to resolve economic disputes".to_string(),
             ));
         }
 
-        let dispute = self.active_disputes.get(dispute_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(
-                format!("Dispute {} not found", dispute_id)
-            ))?.clone();
+        let dispute = self
+            .active_disputes
+            .get(dispute_id)
+            .ok_or_else(|| {
+                CommonError::ResourceNotFound(format!("Dispute {} not found", dispute_id))
+            })?
+            .clone();
 
         // Determine resolution based on dispute type and evidence
         let resolution = self.determine_resolution(&dispute)?;
 
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
-        
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         // Update the dispute status
         if let Some(active_dispute) = self.active_disputes.get_mut(dispute_id) {
             active_dispute.resolution_status = EconomicResolutionStatus::Resolved {
@@ -720,14 +793,20 @@ impl EconomicDisputeResolver {
     }
 
     /// Determine appropriate resolution for a dispute
-    fn determine_resolution(&self, dispute: &EconomicDispute) -> Result<EconomicResolution, CommonError> {
+    fn determine_resolution(
+        &self,
+        dispute: &EconomicDispute,
+    ) -> Result<EconomicResolution, CommonError> {
         match &dispute.dispute_type {
             EconomicDisputeType::DoubleSpending => {
                 // Reverse the conflicting transactions
-                let transaction_ids = dispute.evidence.iter()
+                let transaction_ids = dispute
+                    .evidence
+                    .iter()
                     .filter_map(|e| match e {
-                        EconomicEvidence::DoubleSpendingEvidence { conflicting_transactions } => 
-                            Some(conflicting_transactions.clone()),
+                        EconomicEvidence::DoubleSpendingEvidence {
+                            conflicting_transactions,
+                        } => Some(conflicting_transactions.clone()),
                         _ => None,
                     })
                     .flatten()
@@ -737,9 +816,16 @@ impl EconomicDisputeResolver {
             }
             EconomicDisputeType::ManaDispute => {
                 // Adjust balances based on evidence
-                let adjustments = dispute.evidence.iter()
+                let adjustments = dispute
+                    .evidence
+                    .iter()
                     .filter_map(|e| match e {
-                        EconomicEvidence::BalanceDiscrepancy { account, expected_balance, actual_balance, .. } => {
+                        EconomicEvidence::BalanceDiscrepancy {
+                            account,
+                            expected_balance,
+                            actual_balance,
+                            ..
+                        } => {
                             let adjustment = *expected_balance as i64 - *actual_balance as i64;
                             Some(BalanceAdjustment {
                                 account: account.clone(),
@@ -756,21 +842,28 @@ impl EconomicDisputeResolver {
             }
             EconomicDisputeType::PricingDispute => {
                 // Provide compensation for price manipulation victims
-                let compensations = dispute.parties.iter().map(|party| {
-                    Compensation {
-                        recipient: party.clone(),
-                        compensation_type: CompensationType::ManaCredit,
-                        amount: dispute.disputed_amount.unwrap_or(0) / 2, // Split the disputed amount
-                        reason: "Price manipulation compensation".to_string(),
-                    }
-                }).collect();
+                let compensations = dispute
+                    .parties
+                    .iter()
+                    .map(|party| {
+                        Compensation {
+                            recipient: party.clone(),
+                            compensation_type: CompensationType::ManaCredit,
+                            amount: dispute.disputed_amount.unwrap_or(0) / 2, // Split the disputed amount
+                            reason: "Price manipulation compensation".to_string(),
+                        }
+                    })
+                    .collect();
 
                 Ok(EconomicResolution::Compensation { compensations })
             }
             _ => {
                 // For other dispute types, escalate to governance
                 Ok(EconomicResolution::EscalateToGovernance {
-                    reason: format!("Complex dispute type requires governance decision: {:?}", dispute.dispute_type),
+                    reason: format!(
+                        "Complex dispute type requires governance decision: {:?}",
+                        dispute.dispute_type
+                    ),
                 })
             }
         }
@@ -787,14 +880,19 @@ impl EconomicDisputeResolver {
             EconomicResolution::ReverseTransactions { transaction_ids } => {
                 // TODO: Implement transaction reversal logic
                 // This is a critical operation that needs proper implementation
-                todo!("Reversing transactions is not yet implemented. Transaction IDs: {:?}", transaction_ids);
+                todo!(
+                    "Reversing transactions is not yet implemented. Transaction IDs: {:?}",
+                    transaction_ids
+                );
             }
             EconomicResolution::AdjustBalances { adjustments } => {
                 for adjustment in adjustments {
                     if adjustment.adjustment_amount > 0 {
-                        mana_ledger.credit(&adjustment.account, adjustment.adjustment_amount as u64)?;
+                        mana_ledger
+                            .credit(&adjustment.account, adjustment.adjustment_amount as u64)?;
                     } else if adjustment.adjustment_amount < 0 {
-                        mana_ledger.spend(&adjustment.account, (-adjustment.adjustment_amount) as u64)?;
+                        mana_ledger
+                            .spend(&adjustment.account, (-adjustment.adjustment_amount) as u64)?;
                     }
                 }
                 Ok(())
@@ -807,8 +905,10 @@ impl EconomicDisputeResolver {
                         }
                         CompensationType::TokenCredit { token_class } => {
                             // Would credit tokens in real implementation
-                            println!("Would credit {} tokens of class {} to {}", 
-                                compensation.amount, token_class, compensation.recipient);
+                            println!(
+                                "Would credit {} tokens of class {} to {}",
+                                compensation.amount, token_class, compensation.recipient
+                            );
                         }
                         _ => {
                             // Handle other compensation types
@@ -820,7 +920,10 @@ impl EconomicDisputeResolver {
             }
             EconomicResolution::NoActionRequired => Ok(()),
             _ => {
-                println!("Resolution requires manual implementation: {:?}", resolution);
+                println!(
+                    "Resolution requires manual implementation: {:?}",
+                    resolution
+                );
                 Ok(())
             }
         }
@@ -839,25 +942,30 @@ impl EconomicDisputeResolver {
     /// Process periodic maintenance tasks
     pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
         let mut timed_out_disputes = Vec::new();
-        let current_time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+        let current_time = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
 
         // Check for investigation timeouts
         let dispute_ids: Vec<String> = self.active_disputes.keys().cloned().collect();
-        
+
         for dispute_id in dispute_ids {
             if let Some(dispute) = self.active_disputes.get_mut(&dispute_id) {
                 let dispute_age = current_time - dispute.filed_at;
-                
+
                 match &dispute.resolution_status {
                     EconomicResolutionStatus::UnderInvestigation => {
                         if dispute_age > self.config.investigation_timeout {
-                            dispute.resolution_status = EconomicResolutionStatus::EscalatedToGovernance;
+                            dispute.resolution_status =
+                                EconomicResolutionStatus::EscalatedToGovernance;
                             timed_out_disputes.push(dispute_id);
                         }
                     }
                     EconomicResolutionStatus::Mediation => {
                         if dispute_age > self.config.mediation_timeout {
-                            dispute.resolution_status = EconomicResolutionStatus::EscalatedToGovernance;
+                            dispute.resolution_status =
+                                EconomicResolutionStatus::EscalatedToGovernance;
                             timed_out_disputes.push(dispute_id);
                         }
                     }
@@ -904,7 +1012,9 @@ mod tests {
             let mut balances = self.balances.lock().unwrap();
             let current = *balances.get(did).unwrap_or(&0);
             if current < amount {
-                return Err(CommonError::PolicyDenied("Insufficient balance".to_string()));
+                return Err(CommonError::PolicyDenied(
+                    "Insufficient balance".to_string(),
+                ));
             }
             balances.insert(did.clone(), current - amount);
             Ok(())
@@ -922,7 +1032,7 @@ mod tests {
     fn test_economic_dispute_resolver_creation() {
         let config = EconomicDisputeConfig::default();
         let resolver = EconomicDisputeResolver::new(config);
-        
+
         assert_eq!(resolver.active_disputes.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 0);
     }
@@ -930,7 +1040,7 @@ mod tests {
     #[test]
     fn test_file_dispute() {
         let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
-        
+
         let dispute = EconomicDispute {
             dispute_id: "test_dispute".to_string(),
             dispute_type: EconomicDisputeType::ManaDispute,
@@ -949,7 +1059,7 @@ mod tests {
             severity: DisputeSeverity::Medium,
             scope: None,
         };
-        
+
         let result = resolver.file_dispute(dispute).unwrap();
         assert_eq!(result, "test_dispute");
         assert_eq!(resolver.active_disputes.len(), 1);
@@ -958,7 +1068,7 @@ mod tests {
     #[test]
     fn test_auto_resolution() {
         let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
-        
+
         // Create a small dispute that should be auto-resolved
         let dispute = EconomicDispute {
             dispute_id: "auto_resolve_test".to_string(),
@@ -975,10 +1085,10 @@ mod tests {
             severity: DisputeSeverity::Low,
             scope: None,
         };
-        
+
         let result = resolver.file_dispute(dispute).unwrap();
         assert_eq!(result, "auto_resolve_test");
-        
+
         // Should be auto-resolved and moved to history
         assert_eq!(resolver.active_disputes.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 1);
@@ -988,7 +1098,7 @@ mod tests {
     fn test_double_spending_detection() {
         let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
         let ledger = MockManaLedger::default();
-        
+
         let transactions = vec![
             ManaTransaction {
                 transaction_id: "tx1".to_string(),
@@ -1007,10 +1117,15 @@ mod tests {
                 context: HashMap::new(),
             },
         ];
-        
-        let disputes = resolver.detect_double_spending(&ledger, &transactions).unwrap();
+
+        let disputes = resolver
+            .detect_double_spending(&ledger, &transactions)
+            .unwrap();
         assert_eq!(disputes.len(), 1);
-        assert_eq!(disputes[0].dispute_type, EconomicDisputeType::DoubleSpending);
+        assert_eq!(
+            disputes[0].dispute_type,
+            EconomicDisputeType::DoubleSpending
+        );
     }
 
     #[test]
@@ -1018,65 +1133,69 @@ mod tests {
         let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
         let ledger = MockManaLedger::default();
         let test_did = Did::default();
-        
+
         // Set up account with current balance of 50
         ledger.set_balance(&test_did, 50).unwrap();
-        
+
         // Test pattern 1: Excessive debits (total debits exceed reasonable balance limit)
-        let transactions = vec![
-            ManaTransaction {
-                transaction_id: "tx1".to_string(),
-                did: test_did.clone(),
-                amount: -200, // Large debit that exceeds balance + threshold
-                transaction_type: TransactionType::ManaTransfer,
-                timestamp: 1000,
-                context: HashMap::new(),
-            },
-        ];
-        
-        let disputes = resolver.detect_balance_discrepancies(&ledger, &transactions).unwrap();
+        let transactions = vec![ManaTransaction {
+            transaction_id: "tx1".to_string(),
+            did: test_did.clone(),
+            amount: -200, // Large debit that exceeds balance + threshold
+            transaction_type: TransactionType::ManaTransfer,
+            timestamp: 1000,
+            context: HashMap::new(),
+        }];
+
+        let disputes = resolver
+            .detect_balance_discrepancies(&ledger, &transactions)
+            .unwrap();
         assert_eq!(disputes.len(), 1);
         assert_eq!(disputes[0].dispute_type, EconomicDisputeType::ManaDispute);
         assert!(disputes[0].description.contains("excessive debits"));
-        
+
         // Test pattern 2: Zero balance with positive net change
         // Create a different DID by using a different default instance
-        let zero_balance_did = Did::default(); 
+        let zero_balance_did = Did::default();
         ledger.set_balance(&zero_balance_did, 0).unwrap();
-        
-        let transactions2 = vec![
-            ManaTransaction {
-                transaction_id: "tx2".to_string(),
-                did: zero_balance_did.clone(),
-                amount: 100, // Positive change but zero balance suggests missing credits
-                transaction_type: TransactionType::ManaTransfer,
-                timestamp: 1000,
-                context: HashMap::new(),
-            },
-        ];
-        
-        let disputes2 = resolver.detect_balance_discrepancies(&ledger, &transactions2).unwrap();
+
+        let transactions2 = vec![ManaTransaction {
+            transaction_id: "tx2".to_string(),
+            did: zero_balance_did.clone(),
+            amount: 100, // Positive change but zero balance suggests missing credits
+            transaction_type: TransactionType::ManaTransfer,
+            timestamp: 1000,
+            context: HashMap::new(),
+        }];
+
+        let disputes2 = resolver
+            .detect_balance_discrepancies(&ledger, &transactions2)
+            .unwrap();
         assert_eq!(disputes2.len(), 1);
-        assert!(disputes2[0].description.contains("zero balance but recent transactions"));
-        
-        // Test pattern 3: Excessive negative change  
+        assert!(disputes2[0]
+            .description
+            .contains("zero balance but recent transactions"));
+
+        // Test pattern 3: Excessive negative change
         let high_balance_did = Did::default();
         ledger.set_balance(&high_balance_did, 100).unwrap();
-        
-        let transactions3 = vec![
-            ManaTransaction {
-                transaction_id: "tx3".to_string(),
-                did: high_balance_did.clone(),
-                amount: -300, // Net change way exceeds current balance (100 * 2 = 200)
-                transaction_type: TransactionType::ManaTransfer,
-                timestamp: 1000,
-                context: HashMap::new(),
-            },
-        ];
-        
-        let disputes3 = resolver.detect_balance_discrepancies(&ledger, &transactions3).unwrap();
+
+        let transactions3 = vec![ManaTransaction {
+            transaction_id: "tx3".to_string(),
+            did: high_balance_did.clone(),
+            amount: -300, // Net change way exceeds current balance (100 * 2 = 200)
+            transaction_type: TransactionType::ManaTransfer,
+            timestamp: 1000,
+            context: HashMap::new(),
+        }];
+
+        let disputes3 = resolver
+            .detect_balance_discrepancies(&ledger, &transactions3)
+            .unwrap();
         assert_eq!(disputes3.len(), 1);
-        assert!(disputes3[0].description.contains("Excessive negative transaction flow"));
+        assert!(disputes3[0]
+            .description
+            .contains("Excessive negative transaction flow"));
     }
 
     #[test]
@@ -1084,7 +1203,7 @@ mod tests {
         let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
         let authority = Did::default();
         resolver.add_economic_authority(authority.clone());
-        
+
         let dispute = EconomicDispute {
             dispute_id: "resolve_test".to_string(),
             dispute_type: EconomicDisputeType::ManaDispute,
@@ -1103,10 +1222,14 @@ mod tests {
             severity: DisputeSeverity::Medium,
             scope: None,
         };
-        
-        resolver.active_disputes.insert("resolve_test".to_string(), dispute);
-        
-        let result = resolver.resolve_dispute("resolve_test", &authority).unwrap();
+
+        resolver
+            .active_disputes
+            .insert("resolve_test".to_string(), dispute);
+
+        let result = resolver
+            .resolve_dispute("resolve_test", &authority)
+            .unwrap();
         assert!(matches!(result, EconomicResolutionStatus::Resolved { .. }));
         assert_eq!(resolver.active_disputes.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 1);

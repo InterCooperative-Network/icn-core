@@ -10,9 +10,9 @@ use super::runtime_context::MeshNetworkServiceType;
 use super::signers::Signer;
 use super::stubs::{StubDagStore, StubMeshNetworkService};
 use super::{DagStorageService, DagStoreMutexType};
+use downcast_rs::Downcast;
 use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
-use downcast_rs::Downcast;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -237,7 +237,7 @@ impl ServiceConfigBuilder {
             ServiceEnvironment::Testing => {
                 let service = Arc::new(MeshNetworkServiceType::Stub(StubMeshNetworkService::new()));
 
-                // Ensure we're not accidentally using stubs in production builds  
+                // Ensure we're not accidentally using stubs in production builds
                 #[cfg(all(feature = "production", not(feature = "allow-stubs")))]
                 {
                     return Err(CommonError::InternalError(
@@ -267,12 +267,14 @@ impl ServiceConfigBuilder {
                             "DAG store is required for production environment. Use ServiceConfigBuilder::with_dag_store() or DagStoreFactory::create_production().".to_string()
                         ));
                     }
-                    
+
                     // Development builds can auto-create a production store
                     #[cfg(not(feature = "production"))]
                     {
                         // Try to create a default production store in development
-                        log::warn!("No explicit DAG store provided. Creating default persistent store.");
+                        log::warn!(
+                            "No explicit DAG store provided. Creating default persistent store."
+                        );
                         let default_path = std::path::PathBuf::from("./default_dag_store");
                         DagStoreFactory::create_production(default_path)
                     }
@@ -289,7 +291,7 @@ impl ServiceConfigBuilder {
                         let default_path = std::path::PathBuf::from("./dev_dag_store");
                         DagStoreFactory::create_production(default_path)
                     }
-                    
+
                     #[cfg(not(any(feature = "persist-sled", feature = "persist-rocksdb")))]
                     {
                         // Fallback to testing store
@@ -361,7 +363,6 @@ impl ServiceConfigBuilder {
 }
 
 /// Complete service configuration
-#[derive(Debug)]
 pub struct ServiceConfig {
     pub environment: ServiceEnvironment,
     pub current_identity: Did,
@@ -379,9 +380,7 @@ impl ServiceConfig {
     /// Validate that the configuration is appropriate for the environment
     pub fn validate(&self) -> Result<(), CommonError> {
         match self.environment {
-            ServiceEnvironment::Production => {
-                self.validate_production_services()
-            }
+            ServiceEnvironment::Production => self.validate_production_services(),
             ServiceEnvironment::Development | ServiceEnvironment::Testing => {
                 // Allow any configuration for dev/test
                 Ok(())
@@ -412,7 +411,11 @@ impl ServiceConfig {
         self.dag_store.validate_for_production()?;
 
         // Check reputation store type - in-memory is acceptable for now but warn
-        if self.reputation_store.as_any().is::<icn_reputation::InMemoryReputationStore>() {
+        if self
+            .reputation_store
+            .as_any()
+            .is::<icn_reputation::InMemoryReputationStore>()
+        {
             log::warn!("⚠️ PRODUCTION WARNING: Using in-memory reputation store. Consider using persistent reputation storage for production.");
         }
 
@@ -439,13 +442,13 @@ impl ServiceConfig {
     /// **🧪 TESTING**: This creates a testing configuration with stub services.
     pub fn testing_defaults() -> Result<Self, CommonError> {
         use icn_identity::generate_ed25519_keypair;
-        
+
         // Generate a test identity
         let (_, verifying_key) = generate_ed25519_keypair();
         let test_identity_str = icn_identity::did_key_from_verifying_key(&verifying_key);
         let test_identity = Did::from_str(&test_identity_str)
             .map_err(|e| CommonError::InternalError(format!("Invalid DID: {}", e)))?;
-        
+
         Self::testing(test_identity, Some(1000)) // 1000 initial mana for testing
     }
 
@@ -572,6 +575,12 @@ impl ServiceConfig {
             None
         };
 
-        Self::development(current_identity, signer, mana_ledger, network_service, dag_store)
+        Self::development(
+            current_identity,
+            signer,
+            mana_ledger,
+            network_service,
+            dag_store,
+        )
     }
 }

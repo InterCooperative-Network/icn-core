@@ -16,7 +16,7 @@
 //!
 //! ## Overview
 //!
-//! The ICN Runtime manages the execution environment where governance contracts (CCL), 
+//! The ICN Runtime manages the execution environment where governance contracts (CCL),
 //! mesh jobs, and node operations run securely and efficiently.
 //!
 //! ### Key Components
@@ -73,14 +73,14 @@
 //!
 //! ```rust,no_run
 //! use icn_runtime::config::{StorageConfig, NetworkConfig};
-//! 
+//!
 //! // Configure different storage backends
 //! let storage_config = StorageConfig {
 //!     backend: "postgresql".to_string(),  // or "rocksdb", "sled", "memory"
 //!     connection_string: Some("postgresql://localhost/icn".to_string()),
 //!     ..Default::default()
 //! };
-//! 
+//!
 //! // Configure networking
 //! let network_config = NetworkConfig {
 //!     p2p_enabled: true,
@@ -1150,8 +1150,7 @@ mod tests {
     // Helper function to create a RuntimeContext with stubbed services for testing.
     fn create_test_context() -> Arc<RuntimeContext> {
         let test_did = Did::from_str(TEST_IDENTITY_DID_STR).expect("Invalid test DID");
-        RuntimeContext::new_for_testing(test_did, None)
-            .expect("Failed to create test context")
+        RuntimeContext::new_for_testing(test_did, None).expect("Failed to create test context")
     }
 
     fn create_test_context_with_mana(initial_mana: u64) -> Arc<RuntimeContext> {

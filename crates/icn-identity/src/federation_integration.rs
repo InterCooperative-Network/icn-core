@@ -3,10 +3,7 @@
 //! This module provides comprehensive integration between federation management
 //! and the runtime, network, and governance layers.
 
-use crate::{
-    Did, DidResolver, FederationManager,
-    FederationRegistry, TrustLevel,
-};
+use crate::{Did, DidResolver, FederationManager, FederationRegistry, TrustLevel};
 use icn_common::{Cid, CommonError, TimeProvider};
 // Temporarily simplified to avoid circular dependencies
 // use icn_network::{NetworkService, AdaptiveRoutingEngine, PeerId};
@@ -995,12 +992,12 @@ impl FederationIntegrationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement federation discovery logic
-        
+
         // 1. Query network service for federation peers
         let discovered_peers = network_service
             .discover_peers(Some("federation".to_string()))
             .await?;
-        
+
         // 2. For each discovered peer, attempt to establish contact
         for peer in &discovered_peers {
             // Send federation handshake message
@@ -1010,7 +1007,7 @@ impl FederationIntegrationEngine {
                 "capabilities": ["identity", "governance", "economics"],
                 "federation_id": config.federation_id
             });
-            
+
             match network_service
                 .send_message(peer, handshake_msg.to_string().into_bytes())
                 .await
@@ -1046,7 +1043,7 @@ impl FederationIntegrationEngine {
                         discovery_method: DiscoveryMethod::NetworkDiscovery,
                         timestamp: time_provider.unix_seconds() * 1000,
                     };
-                    
+
                     // Send discovery event
                     if let Err(_) = event_tx.send(discovery_event) {
                         log::warn!("Failed to send federation discovery event");
@@ -1057,8 +1054,11 @@ impl FederationIntegrationEngine {
                 }
             }
         }
-        
-        log::info!("Federation discovery completed. Discovered {} potential federations", discovered_peers.len());
+
+        log::info!(
+            "Federation discovery completed. Discovered {} potential federations",
+            discovered_peers.len()
+        );
         Ok(())
     }
 
@@ -1070,36 +1070,45 @@ impl FederationIntegrationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement trust management logic
-        
+
         // 1. Process trust relationship updates
         let relationships = trust_relationships.read().unwrap();
         for (federation_id, relationship) in relationships.iter() {
             // Evaluate current trust level based on reputation
-            let current_reputation = reputation_store.get_reputation(&Did::new("federation", federation_id));
-            
+            let current_reputation =
+                reputation_store.get_reputation(&Did::new("federation", federation_id));
+
             // Define trust thresholds
             let trust_threshold = match config.min_trust_score {
                 score if score >= 0.8 => 80,
                 score if score >= 0.5 => 50,
                 _ => 20,
             };
-            
+
             // Update trust status based on reputation
             if current_reputation >= trust_threshold {
-                log::info!("Federation {} maintains trust level {:?} (reputation: {})", 
-                    federation_id, relationship.trust_score, current_reputation);
+                log::info!(
+                    "Federation {} maintains trust level {:?} (reputation: {})",
+                    federation_id,
+                    relationship.trust_score,
+                    current_reputation
+                );
             } else {
-                log::warn!("Federation {} trust degraded (reputation: {} < threshold: {})", 
-                    federation_id, current_reputation, trust_threshold);
-                
+                log::warn!(
+                    "Federation {} trust degraded (reputation: {} < threshold: {})",
+                    federation_id,
+                    current_reputation,
+                    trust_threshold
+                );
+
                 // Could implement trust degradation logic here
                 // For now, just log the issue
             }
         }
-        
+
         // 2. Cleanup expired trust relationships
         // This would typically involve checking timestamps and removing old relationships
-        
+
         // 3. Periodic trust assessment
         // Evaluate overall trust health across all federations
         let federation_count = relationships.len();
@@ -1107,12 +1116,16 @@ impl FederationIntegrationEngine {
             let avg_reputation: u64 = relationships
                 .keys()
                 .map(|id| reputation_store.get_reputation(&Did::new("federation", id)))
-                .sum::<u64>() / federation_count as u64;
-            
-            log::info!("Trust management completed. {} federations, avg reputation: {}", 
-                federation_count, avg_reputation);
+                .sum::<u64>()
+                / federation_count as u64;
+
+            log::info!(
+                "Trust management completed. {} federations, avg reputation: {}",
+                federation_count,
+                avg_reputation
+            );
         }
-        
+
         Ok(())
     }
 
@@ -1124,27 +1137,27 @@ impl FederationIntegrationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement resource sharing coordination logic
-        
+
         // 1. Evaluate available resources for sharing
         let available_resources = vec!["compute", "storage", "identity_verification"];
-        
+
         // 2. Process resource sharing requests
         for resource_type in &available_resources {
             // Check resource availability and capacity
             let capacity = match *resource_type {
-                "compute" => 100, // Example: 100 compute units available
-                "storage" => 1000, // Example: 1000GB storage available
+                "compute" => 100,              // Example: 100 compute units available
+                "storage" => 1000,             // Example: 1000GB storage available
                 "identity_verification" => 50, // Example: 50 verifications per hour
                 _ => 0,
             };
-            
+
             // Share resources with trusted federations
             let mut allocation_limits = HashMap::new();
             allocation_limits.insert("max_capacity".to_string(), (capacity / 2) as f64);
-            
+
             let mut exchange_rates = HashMap::new();
             exchange_rates.insert("mana_per_unit".to_string(), 1.0);
-            
+
             let sharing_terms = SharingTerms {
                 allocation_limits,
                 exchange_rates,
@@ -1155,20 +1168,27 @@ impl FederationIntegrationEngine {
                     max_error_rate: 0.01,
                 },
                 duration: Some(Duration::from_secs(3600)), // 1 hour
-                termination_conditions: vec!["low_trust".to_string(), "capacity_exceeded".to_string()],
+                termination_conditions: vec![
+                    "low_trust".to_string(),
+                    "capacity_exceeded".to_string(),
+                ],
             };
-            
-            log::info!("Resource sharing configured for {}: allocation_limits={:?}, exchange_rates={:?}", 
-                resource_type, sharing_terms.allocation_limits, sharing_terms.exchange_rates);
+
+            log::info!(
+                "Resource sharing configured for {}: allocation_limits={:?}, exchange_rates={:?}",
+                resource_type,
+                sharing_terms.allocation_limits,
+                sharing_terms.exchange_rates
+            );
         }
-        
+
         // 3. Send resource sharing announcement
         let mut allocation_limits = HashMap::new();
         allocation_limits.insert("max_capacity".to_string(), 50.0);
-        
+
         let mut exchange_rates = HashMap::new();
         exchange_rates.insert("mana_per_unit".to_string(), 1.0);
-        
+
         let sharing_terms = SharingTerms {
             allocation_limits,
             exchange_rates,
@@ -1181,7 +1201,7 @@ impl FederationIntegrationEngine {
             duration: Some(Duration::from_secs(3600)), // 1 hour
             termination_conditions: vec!["low_trust".to_string()],
         };
-        
+
         let sharing_event = FederationEvent::ResourceSharingStarted {
             federation_id: config.federation_id.clone(),
             resource_type: ResourceType::Compute {
@@ -1192,12 +1212,15 @@ impl FederationIntegrationEngine {
             sharing_terms,
             timestamp: time_provider.unix_seconds() * 1000,
         };
-        
+
         if let Err(_) = event_tx.send(sharing_event) {
             log::warn!("Failed to send resource sharing event");
         }
-        
-        log::info!("Resource sharing coordination completed for {} resource types", available_resources.len());
+
+        log::info!(
+            "Resource sharing coordination completed for {} resource types",
+            available_resources.len()
+        );
         Ok(())
     }
 
@@ -1209,42 +1232,57 @@ impl FederationIntegrationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement cross-federation governance logic
-        
+
         // 1. Process pending cross-federation proposals
         let proposals = cross_federation_proposals.read().unwrap();
         for (proposal_id, proposal) in proposals.iter() {
             log::info!("Processing cross-federation proposal: {}", proposal_id);
-            
+
             // Check proposal status and voting period
             let current_time = Instant::now();
             let proposal_age = current_time.duration_since(proposal.created_at).as_millis() as u64;
             let voting_period = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
-            
+
             if proposal_age > voting_period {
                 log::info!("Proposal {} has reached voting deadline", proposal_id);
-                
+
                 // Evaluate proposal outcome
-                let votes_for = proposal.voting_status.values().filter(|&&vote| vote).count();
-                let votes_against = proposal.voting_status.values().filter(|&&vote| !vote).count();
+                let votes_for = proposal
+                    .voting_status
+                    .values()
+                    .filter(|&&vote| vote)
+                    .count();
+                let votes_against = proposal
+                    .voting_status
+                    .values()
+                    .filter(|&&vote| !vote)
+                    .count();
                 let total_votes = votes_for + votes_against;
                 if total_votes > 0 {
                     let approval_rate = (votes_for as f64) / (total_votes as f64);
                     let threshold = 0.6; // 60% approval required
-                    
+
                     if approval_rate >= threshold {
-                        log::info!("Proposal {} approved ({:.1}% approval)", 
-                            proposal_id, approval_rate * 100.0);
-                        
+                        log::info!(
+                            "Proposal {} approved ({:.1}% approval)",
+                            proposal_id,
+                            approval_rate * 100.0
+                        );
+
                         // Execute approved proposal via governance automation
                         // (This would typically trigger specific governance actions)
                     } else {
-                        log::info!("Proposal {} rejected ({:.1}% approval, {:.1}% required)", 
-                            proposal_id, approval_rate * 100.0, threshold * 100.0);
+                        log::info!(
+                            "Proposal {} rejected ({:.1}% approval, {:.1}% required)",
+                            proposal_id,
+                            approval_rate * 100.0,
+                            threshold * 100.0
+                        );
                     }
                 }
             }
         }
-        
+
         // 2. Send governance update events
         if !proposals.is_empty() {
             let governance_event = FederationEvent::CrossFederationProposal {
@@ -1256,13 +1294,16 @@ impl FederationIntegrationEngine {
                 },
                 timestamp: time_provider.unix_seconds() * 1000,
             };
-            
+
             if let Err(_) = event_tx.send(governance_event) {
                 log::warn!("Failed to send governance update event");
             }
         }
-        
-        log::info!("Cross-federation governance management completed for {} proposals", proposals.len());
+
+        log::info!(
+            "Cross-federation governance management completed for {} proposals",
+            proposals.len()
+        );
         Ok(())
     }
 
@@ -1274,7 +1315,7 @@ impl FederationIntegrationEngine {
         time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement federation synchronization logic
-        
+
         // 1. Synchronize federation state with peers
         let sync_data = serde_json::json!({
             "federation_id": config.federation_id,
@@ -1283,24 +1324,24 @@ impl FederationIntegrationEngine {
             "state_hash": "abc123def456", // Would be actual state hash
             "member_count": 10, // Example member count
         });
-        
+
         // 2. Send synchronization requests to all known federations
         let federation_peers = vec!["federation_1", "federation_2"]; // Would be retrieved from registry
-        
+
         for peer in &federation_peers {
             let sync_message = serde_json::json!({
                 "type": "federation_sync",
                 "data": sync_data,
                 "requestor": config.federation_id
             });
-            
+
             // Send sync message via network service (stubbed for now)
             // TODO: Implement network service integration when available
             log::info!("Would send synchronization request to federation: {}", peer);
         }
-        
+
         // 3. Process incoming synchronization data (would be implemented in message handler)
-        
+
         // 4. Send synchronization completion event
         let sync_event = FederationEvent::SynchronizationCompleted {
             federation_id: config.federation_id.clone(),
@@ -1308,12 +1349,15 @@ impl FederationIntegrationEngine {
             sync_duration: Duration::from_secs(60), // Placeholder duration
             timestamp: time_provider.unix_seconds() * 1000,
         };
-        
+
         if let Err(_) = event_tx.send(sync_event) {
             log::warn!("Failed to send synchronization event");
         }
-        
-        log::info!("Federation synchronization completed with {} peers", federation_peers.len());
+
+        log::info!(
+            "Federation synchronization completed with {} peers",
+            federation_peers.len()
+        );
         Ok(())
     }
 
@@ -1325,15 +1369,16 @@ impl FederationIntegrationEngine {
         config: &FederationIntegrationConfig,
     ) -> Result<(), CommonError> {
         // Implement recommendation generation logic
-        
+
         // 1. Analyze federation performance and relationships
         let mut recommendations = Vec::new();
-        
+
         // 2. Generate trust-based recommendations
         let trust_relationships = trust_relationships.read().unwrap();
         for (federation_id, relationship) in trust_relationships.iter() {
-            let reputation = reputation_store.get_reputation(&Did::new("federation", federation_id));
-            
+            let reputation =
+                reputation_store.get_reputation(&Did::new("federation", federation_id));
+
             if reputation > 80 {
                 recommendations.push(serde_json::json!({
                     "federation_id": federation_id,
@@ -1350,7 +1395,7 @@ impl FederationIntegrationEngine {
                 }));
             }
         }
-        
+
         // 3. Generate resource optimization recommendations
         recommendations.push(serde_json::json!({
             "federation_id": config.federation_id,
@@ -1358,7 +1403,7 @@ impl FederationIntegrationEngine {
             "score": 75,
             "reason": "Consider expanding compute resource sharing"
         }));
-        
+
         // 4. Generate governance recommendations
         if trust_relationships.len() > 5 {
             recommendations.push(serde_json::json!({
@@ -1368,8 +1413,11 @@ impl FederationIntegrationEngine {
                 "reason": "Large federation network - consider governance optimization"
             }));
         }
-        
-        log::info!("Generated {} federation recommendations", recommendations.len());
+
+        log::info!(
+            "Generated {} federation recommendations",
+            recommendations.len()
+        );
         Ok(())
     }
 

@@ -122,7 +122,7 @@ impl SemanticAnalyzer {
         match node {
             AstNode::Program(nodes) => {
                 // Two-pass analysis: first collect all function signatures, then analyze bodies
-                
+
                 // Pass 1: Register all function signatures and struct types
                 for node in nodes {
                     match node {
@@ -383,7 +383,7 @@ impl SemanticAnalyzer {
     /// Analyze function body (second pass after all signatures are registered)
     fn analyze_function_body(
         &mut self,
-        name: &str,
+        _name: &str,
         type_parameters: &[crate::ast::TypeParameterNode],
         parameters: &[ParameterNode],
         return_type: Option<&TypeExprNode>,
@@ -1606,7 +1606,8 @@ impl SemanticAnalyzer {
                     TypeAnnotationNode::Array(expected_element) => {
                         // Allow pushing any element into an Array(unknown) array
                         if self.is_unknown_array_element_type(expected_element)
-                            || element_type.compatible_with(expected_element) {
+                            || element_type.compatible_with(expected_element)
+                        {
                             Ok(Some(TypeAnnotationNode::Integer)) // Return new length
                         } else {
                             Err(CclError::TypeMismatchError {
@@ -1616,7 +1617,9 @@ impl SemanticAnalyzer {
                         }
                     }
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: array_type,
                     }),
                 }
@@ -1634,7 +1637,9 @@ impl SemanticAnalyzer {
                 match array_type {
                     TypeAnnotationNode::Array(_) => Ok(Some(TypeAnnotationNode::Integer)),
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: array_type,
                     }),
                 }
@@ -1654,7 +1659,8 @@ impl SemanticAnalyzer {
                 match &array_type {
                     TypeAnnotationNode::Array(expected_element) => {
                         if self.is_unknown_array_element_type(expected_element)
-                            || element_type.compatible_with(expected_element) {
+                            || element_type.compatible_with(expected_element)
+                        {
                             Ok(Some(TypeAnnotationNode::Bool))
                         } else {
                             Err(CclError::TypeMismatchError {
@@ -1664,7 +1670,9 @@ impl SemanticAnalyzer {
                         }
                     }
                     _ => Err(CclError::TypeMismatchError {
-                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom("T".to_string()))),
+                        expected: TypeAnnotationNode::Array(Box::new(TypeAnnotationNode::Custom(
+                            "T".to_string(),
+                        ))),
                         found: array_type,
                     }),
                 }

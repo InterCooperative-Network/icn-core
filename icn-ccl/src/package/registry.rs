@@ -1,8 +1,8 @@
 // icn-ccl/src/package/registry.rs
 //! CCL package registry for sharing governance patterns and modules
 
-use serde::{Deserialize, Serialize};
 use super::manifest::{Author, Metadata};
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
 /// Package information in the registry
@@ -15,8 +15,8 @@ pub struct PackageInfo {
     pub license: Option<String>,
     pub repository: Option<String>,
     pub download_url: String,
-    pub checksum: String,  // SHA-256 of package contents
-    pub published_at: String,  // ISO 8601 timestamp
+    pub checksum: String,     // SHA-256 of package contents
+    pub published_at: String, // ISO 8601 timestamp
     pub metadata: Option<Metadata>,
 }
 
@@ -36,22 +36,23 @@ impl Registry {
     }
 
     /// Get default ICN registry
-    pub fn default() -> Self {
+    pub fn default_registry() -> Self {
         Self::new("https://registry.icn.org".to_string())
     }
 
     /// Search for packages
     pub fn search(&self, query: &str) -> Result<Vec<PackageInfo>, RegistryError> {
         let url = format!("{}/api/v1/packages/search?q={}", self.base_url, query);
-        
-        let response = self.client
+
+        let response = self
+            .client
             .get(&url)
             .send()
             .map_err(|e| RegistryError::NetworkError(e.to_string()))?;
 
         if !response.status().is_success() {
             return Err(RegistryError::ApiError(format!(
-                "Search failed with status: {}", 
+                "Search failed with status: {}",
                 response.status()
             )));
         }
@@ -64,14 +65,19 @@ impl Registry {
     }
 
     /// Get package information
-    pub fn get_package(&self, name: &str, version: Option<&str>) -> Result<PackageInfo, RegistryError> {
+    pub fn get_package(
+        &self,
+        name: &str,
+        version: Option<&str>,
+    ) -> Result<PackageInfo, RegistryError> {
         let url = if let Some(version) = version {
             format!("{}/api/v1/packages/{}/{}", self.base_url, name, version)
         } else {
             format!("{}/api/v1/packages/{}", self.base_url, name)
         };
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .map_err(|e| RegistryError::NetworkError(e.to_string()))?;
@@ -82,7 +88,7 @@ impl Registry {
 
         if !response.status().is_success() {
             return Err(RegistryError::ApiError(format!(
-                "Get package failed with status: {}", 
+                "Get package failed with status: {}",
                 response.status()
             )));
         }
@@ -98,7 +104,8 @@ impl Registry {
     pub fn get_versions(&self, name: &str) -> Result<Vec<String>, RegistryError> {
         let url = format!("{}/api/v1/packages/{}/versions", self.base_url, name);
 
-        let response = self.client
+        let response = self
+            .client
             .get(&url)
             .send()
             .map_err(|e| RegistryError::NetworkError(e.to_string()))?;
@@ -109,7 +116,7 @@ impl Registry {
 
         if !response.status().is_success() {
             return Err(RegistryError::ApiError(format!(
-                "Get versions failed with status: {}", 
+                "Get versions failed with status: {}",
                 response.status()
             )));
         }
@@ -124,15 +131,16 @@ impl Registry {
     /// Download package
     pub fn download_package(&self, name: &str, version: &str) -> Result<Vec<u8>, RegistryError> {
         let package_info = self.get_package(name, Some(version))?;
-        
-        let response = self.client
+
+        let response = self
+            .client
             .get(&package_info.download_url)
             .send()
             .map_err(|e| RegistryError::NetworkError(e.to_string()))?;
 
         if !response.status().is_success() {
             return Err(RegistryError::ApiError(format!(
-                "Download failed with status: {}", 
+                "Download failed with status: {}",
                 response.status()
             )));
         }
@@ -154,9 +162,15 @@ impl Registry {
     }
 
     /// Publish a package (requires authentication)
-    pub fn publish_package(&self, _package_data: &[u8], _auth_token: &str) -> Result<(), RegistryError> {
+    pub fn publish_package(
+        &self,
+        _package_data: &[u8],
+        _auth_token: &str,
+    ) -> Result<(), RegistryError> {
         // TODO: Implement package publishing
-        Err(RegistryError::NotImplemented("Package publishing not yet implemented".to_string()))
+        Err(RegistryError::NotImplemented(
+            "Package publishing not yet implemented".to_string(),
+        ))
     }
 }
 
@@ -164,6 +178,7 @@ impl Registry {
 #[derive(Debug, Deserialize)]
 struct SearchResult {
     packages: Vec<PackageInfo>,
+    #[allow(dead_code)]
     total: u32,
 }
 
@@ -178,19 +193,19 @@ struct VersionsResult {
 pub enum RegistryError {
     #[error("Network error: {0}")]
     NetworkError(String),
-    
+
     #[error("API error: {0}")]
     ApiError(String),
-    
+
     #[error("Parse error: {0}")]
     ParseError(String),
-    
+
     #[error("Package not found: {0}")]
     PackageNotFound(String),
-    
+
     #[error("Checksum mismatch")]
     ChecksumMismatch,
-    
+
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 }

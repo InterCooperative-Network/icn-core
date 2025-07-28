@@ -95,8 +95,7 @@ fn verify_verification_key(vk_bytes: &[u8], issuer: &Did) -> Result<(), ZkError>
     let dir = dirs.home_dir().join(".icn/zk");
     // Use DID-specific filename to avoid conflicts between different DIDs
     let sig_filename = format!("verifying_key_{}.sig", issuer.id_string.replace(':', "_"));
-    let sig_bytes =
-        fs::read(dir.join(&sig_filename)).map_err(|_| ZkError::VerificationFailed)?;
+    let sig_bytes = fs::read(dir.join(&sig_filename)).map_err(|_| ZkError::VerificationFailed)?;
     if sig_bytes.len() != SIGNATURE_LENGTH {
         return Err(ZkError::InvalidProof);
     }
@@ -944,14 +943,20 @@ mod tests {
         let issuer_did = if parts.len() >= 3 {
             Did::new(parts[1], parts[2])
         } else {
-            panic!("Invalid DID format: expected 'did:method:identifier', got '{}'", issuer_did_string);
+            panic!(
+                "Invalid DID format: expected 'did:method:identifier', got '{}'",
+                issuer_did_string
+            );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
         std::fs::create_dir_all(&dir).unwrap();
         // Use DID-specific filename to avoid test conflicts
-        let sig_filename = format!("verifying_key_{}.sig", issuer_did.id_string.replace(':', "_"));
+        let sig_filename = format!(
+            "verifying_key_{}.sig",
+            issuer_did.id_string.replace(':', "_")
+        );
         std::fs::write(dir.join(&sig_filename), sig.to_bytes()).unwrap();
 
         let verifier = Groth16Verifier::new(
@@ -979,21 +984,27 @@ mod tests {
             // If mutex is poisoned, just use the guard anyway
             poisoned.into_inner()
         });
-        
+
         // Clear caches AFTER creating verifier to ensure clean slate
         // (verifier creation may have added items to cache)
         vk_cache::PreparedVkCache::clear();
         proof_cache::ProofCache::clear();
-        
+
         // First verification - record initial cache size
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len_after_first = vk_cache::PreparedVkCache::len();
-        assert!(cache_len_after_first > 0, "First verification should add items to VK cache");
-        
+        assert!(
+            cache_len_after_first > 0,
+            "First verification should add items to VK cache"
+        );
+
         // Second verification should reuse cache (cache size should not increase)
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len_after_second = vk_cache::PreparedVkCache::len();
-        assert_eq!(cache_len_after_second, cache_len_after_first, "Second verification should reuse cached VK, not add new items");
+        assert_eq!(
+            cache_len_after_second, cache_len_after_first,
+            "Second verification should reuse cached VK, not add new items"
+        );
     }
 
     #[test]
@@ -1043,14 +1054,20 @@ mod tests {
         let issuer_did = if parts.len() >= 3 {
             Did::new(parts[1], parts[2])
         } else {
-            panic!("Invalid DID format: expected 'did:method:identifier', got '{}'", issuer_did_string);
+            panic!(
+                "Invalid DID format: expected 'did:method:identifier', got '{}'",
+                issuer_did_string
+            );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
         std::fs::create_dir_all(&dir).unwrap();
         // Use DID-specific filename to avoid test conflicts
-        let sig_filename = format!("verifying_key_{}.sig", issuer_did.id_string.replace(':', "_"));
+        let sig_filename = format!(
+            "verifying_key_{}.sig",
+            issuer_did.id_string.replace(':', "_")
+        );
         std::fs::write(dir.join(&sig_filename), sig.to_bytes()).unwrap();
 
         // Verifier has incorrect default inputs
@@ -1103,14 +1120,20 @@ mod tests {
         let issuer_did = if parts.len() >= 3 {
             Did::new(parts[1], parts[2])
         } else {
-            panic!("Invalid DID format: expected 'did:method:identifier', got '{}'", issuer_did_string);
+            panic!(
+                "Invalid DID format: expected 'did:method:identifier', got '{}'",
+                issuer_did_string
+            );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);
         let dirs = dirs_next::BaseDirs::new().unwrap();
         let dir = dirs.home_dir().join(".icn/zk");
         std::fs::create_dir_all(&dir).unwrap();
         // Use DID-specific filename to avoid test conflicts
-        let sig_filename = format!("verifying_key_{}.sig", issuer_did.id_string.replace(':', "_"));
+        let sig_filename = format!(
+            "verifying_key_{}.sig",
+            issuer_did.id_string.replace(':', "_")
+        );
         std::fs::write(dir.join(&sig_filename), sig.to_bytes()).unwrap();
 
         let verifier = Groth16Verifier::new(
@@ -1138,20 +1161,26 @@ mod tests {
             // If mutex is poisoned, just use the guard anyway
             poisoned.into_inner()
         });
-        
+
         // Clear caches AFTER creating verifier to ensure clean slate
         // (verifier creation may have added items to cache)
         vk_cache::PreparedVkCache::clear();
         proof_cache::ProofCache::clear();
-        
+
         // First verification - record initial cache size
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len_after_first = proof_cache::ProofCache::len();
-        assert!(cache_len_after_first > 0, "First verification should add items to proof cache");
-        
+        assert!(
+            cache_len_after_first > 0,
+            "First verification should add items to proof cache"
+        );
+
         // Second verification should reuse cache (cache size should not increase)
         assert!(verifier.verify_proof(&proof).unwrap());
         let cache_len_after_second = proof_cache::ProofCache::len();
-        assert_eq!(cache_len_after_second, cache_len_after_first, "Second verification should reuse cached proof result, not add new items");
+        assert_eq!(
+            cache_len_after_second, cache_len_after_first,
+            "Second verification should reuse cached proof result, not add new items"
+        );
     }
 }
