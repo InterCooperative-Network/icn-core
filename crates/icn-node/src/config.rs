@@ -6,6 +6,7 @@ use icn_dag::sled_store::SledDagStore;
 #[cfg(feature = "persist-sqlite")]
 use icn_dag::sqlite_store::SqliteDagStore;
 use icn_dag::{CompatAsyncStore, TokioFileDagStore};
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -334,8 +335,20 @@ impl NodeConfig {
             .parse::<bool>());
         set_from_env!(self.p2p.enable_mdns, "ICN_ENABLE_MDNS", |v: &str| v
             .parse::<bool>());
-        set_from_env!(self.test_mode, "ICN_TEST_MODE", |v: &str| v.parse::<bool>());
-        set_from_env!(self.dev, "ICN_DEV", |v: &str| v.parse::<bool>());
+        set_from_env!(self.test_mode, "ICN_TEST_MODE", |v: &str| {
+            let result = v.parse::<bool>();
+            if result.is_ok() && result.as_ref().unwrap() == &true {
+                info!("🔧 ENV Override: ICN_TEST_MODE = true");
+            }
+            result
+        });
+        set_from_env!(self.dev, "ICN_DEV", |v: &str| {
+            let result = v.parse::<bool>();
+            if result.is_ok() && result.as_ref().unwrap() == &true {
+                info!("🔧 ENV Override: ICN_DEV = true (enabling development mode)");
+            }
+            result
+        });
         set_from_env!(
             self.http.open_rate_limit,
             "ICN_OPEN_RATE_LIMIT",
@@ -496,9 +509,11 @@ impl NodeConfig {
             self.p2p.enable_mdns = true;
         }
         if cli.test_mode {
+            info!("🔧 CLI Override: test_mode = true");
             self.test_mode = true;
         }
         if cli.dev {
+            info!("🔧 CLI Override: dev = true (enabling development mode)");
             self.dev = true;
         }
         if cli.demo {
