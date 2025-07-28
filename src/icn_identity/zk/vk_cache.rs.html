@@ -36,4 +36,9 @@
 <a href=#36 id=36 data-nosnippet>36</a>    </span><span class="kw">pub fn </span>len() -&gt; usize {
 <a href=#37 id=37 data-nosnippet>37</a>        CACHE.lock().unwrap().len()
 <a href=#38 id=38 data-nosnippet>38</a>    }
-<a href=#39 id=39 data-nosnippet>39</a>}</code></pre></div></section></main></body></html>
+<a href=#39 id=39 data-nosnippet>39</a>
+<a href=#40 id=40 data-nosnippet>40</a>    <span class="attr">#[cfg(test)]
+<a href=#41 id=41 data-nosnippet>41</a>    </span><span class="kw">pub fn </span>clear() {
+<a href=#42 id=42 data-nosnippet>42</a>        CACHE.lock().unwrap().clear();
+<a href=#43 id=43 data-nosnippet>43</a>    }
+<a href=#44 id=44 data-nosnippet>44</a>}</code></pre></div></section></main></body></html>

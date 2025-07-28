@@ -4590,278 +4590,289 @@
 <a href=#4590 id=4590 data-nosnippet>4590</a>        <span class="kw">use </span>icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
 <a href=#4591 id=4591 data-nosnippet>4591</a>        <span class="kw">use </span>icn_runtime::executor::WasmExecutor;
 <a href=#4592 id=4592 data-nosnippet>4592</a>
-<a href=#4593 id=4593 data-nosnippet>4593</a>        <span class="kw">let </span>(app, ctx) =
-<a href=#4594 id=4594 data-nosnippet>4594</a>            app_router_with_options(RuntimeMode::Testing, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-<a href=#4595 id=4595 data-nosnippet>4595</a>                .<span class="kw">await</span>;
-<a href=#4596 id=4596 data-nosnippet>4596</a>
-<a href=#4597 id=4597 data-nosnippet>4597</a>        <span class="comment">// Compile a tiny CCL contract
-<a href=#4598 id=4598 data-nosnippet>4598</a>        </span><span class="kw">let </span>(wasm, <span class="kw">_</span>) =
-<a href=#4599 id=4599 data-nosnippet>4599</a>            compile_ccl_source_to_wasm(<span class="string">"fn run() -&gt; Integer { return 7; }"</span>).expect(<span class="string">"compile ccl"</span>);
-<a href=#4600 id=4600 data-nosnippet>4600</a>
-<a href=#4601 id=4601 data-nosnippet>4601</a>        <span class="comment">// Store WASM in DAG via HTTP
-<a href=#4602 id=4602 data-nosnippet>4602</a>        </span><span class="kw">let </span>put_req = Request::builder()
-<a href=#4603 id=4603 data-nosnippet>4603</a>            .method(<span class="string">"POST"</span>)
-<a href=#4604 id=4604 data-nosnippet>4604</a>            .uri(<span class="string">"/dag/put"</span>)
-<a href=#4605 id=4605 data-nosnippet>4605</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#4606 id=4606 data-nosnippet>4606</a>            .body(Body::from(
-<a href=#4607 id=4607 data-nosnippet>4607</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({ <span class="string">"data"</span>: wasm })).unwrap(),
-<a href=#4608 id=4608 data-nosnippet>4608</a>            ))
-<a href=#4609 id=4609 data-nosnippet>4609</a>            .unwrap();
-<a href=#4610 id=4610 data-nosnippet>4610</a>        <span class="kw">let </span>put_resp = app.clone().oneshot(put_req).<span class="kw">await</span>.unwrap();
-<a href=#4611 id=4611 data-nosnippet>4611</a>        <span class="macro">assert_eq!</span>(put_resp.status(), StatusCode::CREATED);
-<a href=#4612 id=4612 data-nosnippet>4612</a>        <span class="kw">let </span>cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
-<a href=#4613 id=4613 data-nosnippet>4613</a>            .<span class="kw">await
-<a href=#4614 id=4614 data-nosnippet>4614</a>            </span>.unwrap();
-<a href=#4615 id=4615 data-nosnippet>4615</a>        <span class="kw">let </span>wasm_cid_str: String = serde_json::from_slice(<span class="kw-2">&amp;</span>cid_bytes).unwrap();
-<a href=#4616 id=4616 data-nosnippet>4616</a>        <span class="kw">let </span>wasm_cid = parse_cid_from_string(<span class="kw-2">&amp;</span>wasm_cid_str).unwrap();
-<a href=#4617 id=4617 data-nosnippet>4617</a>
-<a href=#4618 id=4618 data-nosnippet>4618</a>        <span class="comment">// Submit job referencing the WASM CID
-<a href=#4619 id=4619 data-nosnippet>4619</a>        </span><span class="kw">let </span>job_req = SubmitJobRequest {
-<a href=#4620 id=4620 data-nosnippet>4620</a>            manifest_cid: wasm_cid.to_string(),
-<a href=#4621 id=4621 data-nosnippet>4621</a>            spec_bytes: <span class="prelude-val">Some</span>(
-<a href=#4622 id=4622 data-nosnippet>4622</a>                BASE64_STANDARD.encode(bincode::serialize(<span class="kw-2">&amp;</span>icn_mesh::JobSpec::default()).unwrap()),
-<a href=#4623 id=4623 data-nosnippet>4623</a>            ),
-<a href=#4624 id=4624 data-nosnippet>4624</a>            spec_json: <span class="prelude-val">None</span>,
-<a href=#4625 id=4625 data-nosnippet>4625</a>            cost_mana: <span class="number">0</span>,
-<a href=#4626 id=4626 data-nosnippet>4626</a>        };
-<a href=#4627 id=4627 data-nosnippet>4627</a>        <span class="kw">let </span>job_req_json = serde_json::to_string(<span class="kw-2">&amp;</span>job_req).unwrap();
-<a href=#4628 id=4628 data-nosnippet>4628</a>        <span class="kw">let </span>submit_resp = app
-<a href=#4629 id=4629 data-nosnippet>4629</a>            .clone()
-<a href=#4630 id=4630 data-nosnippet>4630</a>            .oneshot(
-<a href=#4631 id=4631 data-nosnippet>4631</a>                Request::builder()
-<a href=#4632 id=4632 data-nosnippet>4632</a>                    .method(<span class="string">"POST"</span>)
-<a href=#4633 id=4633 data-nosnippet>4633</a>                    .uri(<span class="string">"/mesh/submit"</span>)
-<a href=#4634 id=4634 data-nosnippet>4634</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#4635 id=4635 data-nosnippet>4635</a>                    .body(Body::from(job_req_json))
-<a href=#4636 id=4636 data-nosnippet>4636</a>                    .unwrap(),
-<a href=#4637 id=4637 data-nosnippet>4637</a>            )
-<a href=#4638 id=4638 data-nosnippet>4638</a>            .<span class="kw">await
-<a href=#4639 id=4639 data-nosnippet>4639</a>            </span>.unwrap();
-<a href=#4640 id=4640 data-nosnippet>4640</a>        <span class="macro">assert_eq!</span>(submit_resp.status(), StatusCode::ACCEPTED);
-<a href=#4641 id=4641 data-nosnippet>4641</a>        <span class="kw">let </span>body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
-<a href=#4642 id=4642 data-nosnippet>4642</a>            .<span class="kw">await
-<a href=#4643 id=4643 data-nosnippet>4643</a>            </span>.unwrap();
-<a href=#4644 id=4644 data-nosnippet>4644</a>        <span class="kw">let </span>submit_json: serde_json::Value = serde_json::from_slice(<span class="kw-2">&amp;</span>body).unwrap();
-<a href=#4645 id=4645 data-nosnippet>4645</a>        <span class="kw">let </span>job_id_str = submit_json[<span class="string">"job_id"</span>].as_str().unwrap();
-<a href=#4646 id=4646 data-nosnippet>4646</a>        <span class="kw">let </span>job_id = parse_cid_from_string(job_id_str).unwrap();
-<a href=#4647 id=4647 data-nosnippet>4647</a>
-<a href=#4648 id=4648 data-nosnippet>4648</a>        <span class="comment">// Execute the job using WasmExecutor and anchor the receipt
-<a href=#4649 id=4649 data-nosnippet>4649</a>        </span><span class="kw">let </span>(sk, vk) = generate_ed25519_keypair();
-<a href=#4650 id=4650 data-nosnippet>4650</a>        <span class="kw">let </span>exec_did = did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk);
-<a href=#4651 id=4651 data-nosnippet>4651</a>        <span class="kw">let </span>exec_did = Did::from_str(<span class="kw-2">&amp;</span>exec_did).unwrap();
-<a href=#4652 id=4652 data-nosnippet>4652</a>        <span class="kw">let </span>signer =
-<a href=#4653 id=4653 data-nosnippet>4653</a>            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
-<a href=#4654 id=4654 data-nosnippet>4654</a>        <span class="kw">let </span>executor = WasmExecutor::new(
-<a href=#4655 id=4655 data-nosnippet>4655</a>            ctx.clone(),
-<a href=#4656 id=4656 data-nosnippet>4656</a>            signer,
-<a href=#4657 id=4657 data-nosnippet>4657</a>            icn_runtime::executor::WasmExecutorConfig::default(),
-<a href=#4658 id=4658 data-nosnippet>4658</a>        );
-<a href=#4659 id=4659 data-nosnippet>4659</a>        <span class="kw">let </span>job = ActualMeshJob {
-<a href=#4660 id=4660 data-nosnippet>4660</a>            id: JobId(job_id.clone()),
-<a href=#4661 id=4661 data-nosnippet>4661</a>            manifest_cid: wasm_cid.clone(),
-<a href=#4662 id=4662 data-nosnippet>4662</a>            spec: JobSpec::default(),
-<a href=#4663 id=4663 data-nosnippet>4663</a>            creator_did: ctx.current_identity.clone(),
-<a href=#4664 id=4664 data-nosnippet>4664</a>            cost_mana: <span class="number">0</span>,
-<a href=#4665 id=4665 data-nosnippet>4665</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
-<a href=#4666 id=4666 data-nosnippet>4666</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
-<a href=#4667 id=4667 data-nosnippet>4667</a>        };
-<a href=#4668 id=4668 data-nosnippet>4668</a>        <span class="kw">let </span>receipt_cid = executor
-<a href=#4669 id=4669 data-nosnippet>4669</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
-<a href=#4670 id=4670 data-nosnippet>4670</a>            .<span class="kw">await
-<a href=#4671 id=4671 data-nosnippet>4671</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
-<a href=#4672 id=4672 data-nosnippet>4672</a>
-<a href=#4673 id=4673 data-nosnippet>4673</a>        <span class="comment">// Fetch the anchored receipt via HTTP
-<a href=#4674 id=4674 data-nosnippet>4674</a>        </span><span class="kw">let </span>get_req = Request::builder()
-<a href=#4675 id=4675 data-nosnippet>4675</a>            .method(<span class="string">"POST"</span>)
-<a href=#4676 id=4676 data-nosnippet>4676</a>            .uri(<span class="string">"/dag/get"</span>)
-<a href=#4677 id=4677 data-nosnippet>4677</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#4678 id=4678 data-nosnippet>4678</a>            .body(Body::from(
-<a href=#4679 id=4679 data-nosnippet>4679</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
-<a href=#4680 id=4680 data-nosnippet>4680</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
-<a href=#4681 id=4681 data-nosnippet>4681</a>                }))
-<a href=#4682 id=4682 data-nosnippet>4682</a>                .unwrap(),
-<a href=#4683 id=4683 data-nosnippet>4683</a>            ))
-<a href=#4684 id=4684 data-nosnippet>4684</a>            .unwrap();
-<a href=#4685 id=4685 data-nosnippet>4685</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
-<a href=#4686 id=4686 data-nosnippet>4686</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
-<a href=#4687 id=4687 data-nosnippet>4687</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
-<a href=#4688 id=4688 data-nosnippet>4688</a>            .<span class="kw">await
-<a href=#4689 id=4689 data-nosnippet>4689</a>            </span>.unwrap();
-<a href=#4690 id=4690 data-nosnippet>4690</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
-<a href=#4691 id=4691 data-nosnippet>4691</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
-<a href=#4692 id=4692 data-nosnippet>4692</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
-<a href=#4693 id=4693 data-nosnippet>4693</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
-<a href=#4694 id=4694 data-nosnippet>4694</a>    }
-<a href=#4695 id=4695 data-nosnippet>4695</a>
-<a href=#4696 id=4696 data-nosnippet>4696</a>    <span class="attr">#[tokio::test]
-<a href=#4697 id=4697 data-nosnippet>4697</a>    </span><span class="kw">async fn </span>network_connect_endpoint_basic() {
-<a href=#4698 id=4698 data-nosnippet>4698</a>        <span class="kw">let </span>app = test_app().<span class="kw">await</span>;
-<a href=#4699 id=4699 data-nosnippet>4699</a>        <span class="kw">let </span>payload = <span class="macro">serde_json::json!</span>({ <span class="string">"peer"</span>: <span class="string">"/ip4/127.0.0.1/tcp/1234" </span>});
-<a href=#4700 id=4700 data-nosnippet>4700</a>        <span class="kw">let </span>response = app
-<a href=#4701 id=4701 data-nosnippet>4701</a>            .oneshot(
-<a href=#4702 id=4702 data-nosnippet>4702</a>                Request::builder()
-<a href=#4703 id=4703 data-nosnippet>4703</a>                    .method(<span class="string">"POST"</span>)
-<a href=#4704 id=4704 data-nosnippet>4704</a>                    .uri(<span class="string">"/network/connect"</span>)
-<a href=#4705 id=4705 data-nosnippet>4705</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
-<a href=#4706 id=4706 data-nosnippet>4706</a>                    .body(Body::from(payload.to_string()))
-<a href=#4707 id=4707 data-nosnippet>4707</a>                    .unwrap(),
-<a href=#4708 id=4708 data-nosnippet>4708</a>            )
-<a href=#4709 id=4709 data-nosnippet>4709</a>            .<span class="kw">await
-<a href=#4710 id=4710 data-nosnippet>4710</a>            </span>.unwrap();
-<a href=#4711 id=4711 data-nosnippet>4711</a>        <span class="macro">assert_eq!</span>(response.status(), StatusCode::OK);
-<a href=#4712 id=4712 data-nosnippet>4712</a>    }
-<a href=#4713 id=4713 data-nosnippet>4713</a>}
-<a href=#4714 id=4714 data-nosnippet>4714</a>
-<a href=#4715 id=4715 data-nosnippet>4715</a><span class="comment">// --- Cooperative Discovery Handlers ---
-<a href=#4716 id=4716 data-nosnippet>4716</a>
-<a href=#4717 id=4717 data-nosnippet>4717</a></span><span class="kw">use </span>icn_identity::{
-<a href=#4718 id=4718 data-nosnippet>4718</a>    CooperativeProfile, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
-<a href=#4719 id=4719 data-nosnippet>4719</a>    TrustRelationship,
-<a href=#4720 id=4720 data-nosnippet>4720</a>};
-<a href=#4721 id=4721 data-nosnippet>4721</a>
-<a href=#4722 id=4722 data-nosnippet>4722</a><span class="comment">// POST /cooperative/register - Register a cooperative profile
-<a href=#4723 id=4723 data-nosnippet>4723</a></span><span class="kw">async fn </span>cooperative_register_handler(
-<a href=#4724 id=4724 data-nosnippet>4724</a>    State(state): State&lt;AppState&gt;,
-<a href=#4725 id=4725 data-nosnippet>4725</a>    Json(profile): Json&lt;CooperativeProfile&gt;,
-<a href=#4726 id=4726 data-nosnippet>4726</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4727 id=4727 data-nosnippet>4727</a>    <span class="kw">match </span>state
-<a href=#4728 id=4728 data-nosnippet>4728</a>        .cooperative_registry
-<a href=#4729 id=4729 data-nosnippet>4729</a>        .register_cooperative(profile)
-<a href=#4730 id=4730 data-nosnippet>4730</a>        .<span class="kw">await
-<a href=#4731 id=4731 data-nosnippet>4731</a>    </span>{
-<a href=#4732 id=4732 data-nosnippet>4732</a>        <span class="prelude-val">Ok</span>(cid) =&gt; (
-<a href=#4733 id=4733 data-nosnippet>4733</a>            StatusCode::CREATED,
-<a href=#4734 id=4734 data-nosnippet>4734</a>            Json(<span class="macro">serde_json::json!</span>({ <span class="string">"cid"</span>: cid.to_string(), <span class="string">"status"</span>: <span class="string">"registered" </span>})),
-<a href=#4735 id=4735 data-nosnippet>4735</a>        )
-<a href=#4736 id=4736 data-nosnippet>4736</a>            .into_response(),
-<a href=#4737 id=4737 data-nosnippet>4737</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#4738 id=4738 data-nosnippet>4738</a>            <span class="macro">format!</span>(<span class="string">"Registration failed: {}"</span>, e),
-<a href=#4739 id=4739 data-nosnippet>4739</a>            StatusCode::BAD_REQUEST,
-<a href=#4740 id=4740 data-nosnippet>4740</a>        )
-<a href=#4741 id=4741 data-nosnippet>4741</a>        .into_response(),
-<a href=#4742 id=4742 data-nosnippet>4742</a>    }
-<a href=#4743 id=4743 data-nosnippet>4743</a>}
-<a href=#4744 id=4744 data-nosnippet>4744</a>
-<a href=#4745 id=4745 data-nosnippet>4745</a><span class="comment">// POST /cooperative/search - Search for cooperatives
-<a href=#4746 id=4746 data-nosnippet>4746</a></span><span class="kw">async fn </span>cooperative_search_handler(
-<a href=#4747 id=4747 data-nosnippet>4747</a>    State(state): State&lt;AppState&gt;,
-<a href=#4748 id=4748 data-nosnippet>4748</a>    Json(filter): Json&lt;CooperativeSearchFilter&gt;,
-<a href=#4749 id=4749 data-nosnippet>4749</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4750 id=4750 data-nosnippet>4750</a>    <span class="kw">match </span>state.cooperative_registry.search_cooperatives(filter).<span class="kw">await </span>{
-<a href=#4751 id=4751 data-nosnippet>4751</a>        <span class="prelude-val">Ok</span>(results) =&gt; (StatusCode::OK, Json(results)).into_response(),
-<a href=#4752 id=4752 data-nosnippet>4752</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#4753 id=4753 data-nosnippet>4753</a>            <span class="macro">format!</span>(<span class="string">"Search failed: {}"</span>, e),
-<a href=#4754 id=4754 data-nosnippet>4754</a>            StatusCode::BAD_REQUEST,
-<a href=#4755 id=4755 data-nosnippet>4755</a>        )
-<a href=#4756 id=4756 data-nosnippet>4756</a>        .into_response(),
-<a href=#4757 id=4757 data-nosnippet>4757</a>    }
-<a href=#4758 id=4758 data-nosnippet>4758</a>}
-<a href=#4759 id=4759 data-nosnippet>4759</a>
-<a href=#4760 id=4760 data-nosnippet>4760</a><span class="comment">// GET /cooperative/profile/{did} - Get a cooperative profile
-<a href=#4761 id=4761 data-nosnippet>4761</a></span><span class="kw">async fn </span>cooperative_get_profile_handler(
-<a href=#4762 id=4762 data-nosnippet>4762</a>    State(state): State&lt;AppState&gt;,
-<a href=#4763 id=4763 data-nosnippet>4763</a>    AxumPath(did_str): AxumPath&lt;String&gt;,
-<a href=#4764 id=4764 data-nosnippet>4764</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4765 id=4765 data-nosnippet>4765</a>    <span class="kw">match </span>Did::from_str(<span class="kw-2">&amp;</span>did_str) {
-<a href=#4766 id=4766 data-nosnippet>4766</a>        <span class="prelude-val">Ok</span>(did) =&gt; <span class="kw">match </span>state.cooperative_registry.get_cooperative(<span class="kw-2">&amp;</span>did).<span class="kw">await </span>{
-<a href=#4767 id=4767 data-nosnippet>4767</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(profile)) =&gt; (StatusCode::OK, Json(profile)).into_response(),
-<a href=#4768 id=4768 data-nosnippet>4768</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
-<a href=#4769 id=4769 data-nosnippet>4769</a>                map_rust_error_to_json_response(<span class="string">"Cooperative not found"</span>, StatusCode::NOT_FOUND)
-<a href=#4770 id=4770 data-nosnippet>4770</a>                    .into_response()
-<a href=#4771 id=4771 data-nosnippet>4771</a>            }
-<a href=#4772 id=4772 data-nosnippet>4772</a>            <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#4773 id=4773 data-nosnippet>4773</a>                <span class="macro">format!</span>(<span class="string">"Query failed: {}"</span>, e),
-<a href=#4774 id=4774 data-nosnippet>4774</a>                StatusCode::INTERNAL_SERVER_ERROR,
-<a href=#4775 id=4775 data-nosnippet>4775</a>            )
-<a href=#4776 id=4776 data-nosnippet>4776</a>            .into_response(),
-<a href=#4777 id=4777 data-nosnippet>4777</a>        },
-<a href=#4778 id=4778 data-nosnippet>4778</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#4779 id=4779 data-nosnippet>4779</a>            map_rust_error_to_json_response(<span class="macro">format!</span>(<span class="string">"Invalid DID: {}"</span>, e), StatusCode::BAD_REQUEST)
-<a href=#4780 id=4780 data-nosnippet>4780</a>                .into_response()
-<a href=#4781 id=4781 data-nosnippet>4781</a>        }
-<a href=#4782 id=4782 data-nosnippet>4782</a>    }
-<a href=#4783 id=4783 data-nosnippet>4783</a>}
-<a href=#4784 id=4784 data-nosnippet>4784</a>
-<a href=#4785 id=4785 data-nosnippet>4785</a><span class="comment">// POST /cooperative/trust - Add a trust relationship
-<a href=#4786 id=4786 data-nosnippet>4786</a></span><span class="kw">async fn </span>cooperative_add_trust_handler(
-<a href=#4787 id=4787 data-nosnippet>4787</a>    State(state): State&lt;AppState&gt;,
-<a href=#4788 id=4788 data-nosnippet>4788</a>    Json(trust): Json&lt;TrustRelationship&gt;,
-<a href=#4789 id=4789 data-nosnippet>4789</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4790 id=4790 data-nosnippet>4790</a>    <span class="kw">match </span>state
-<a href=#4791 id=4791 data-nosnippet>4791</a>        .cooperative_registry
-<a href=#4792 id=4792 data-nosnippet>4792</a>        .add_trust_relationship(trust)
-<a href=#4793 id=4793 data-nosnippet>4793</a>        .<span class="kw">await
-<a href=#4794 id=4794 data-nosnippet>4794</a>    </span>{
-<a href=#4795 id=4795 data-nosnippet>4795</a>        <span class="prelude-val">Ok</span>(cid) =&gt; (
-<a href=#4796 id=4796 data-nosnippet>4796</a>            StatusCode::CREATED,
-<a href=#4797 id=4797 data-nosnippet>4797</a>            Json(<span class="macro">serde_json::json!</span>({ <span class="string">"cid"</span>: cid.to_string(), <span class="string">"status"</span>: <span class="string">"trust_added" </span>})),
-<a href=#4798 id=4798 data-nosnippet>4798</a>        )
-<a href=#4799 id=4799 data-nosnippet>4799</a>            .into_response(),
-<a href=#4800 id=4800 data-nosnippet>4800</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#4801 id=4801 data-nosnippet>4801</a>            <span class="macro">format!</span>(<span class="string">"Failed to add trust relationship: {}"</span>, e),
-<a href=#4802 id=4802 data-nosnippet>4802</a>            StatusCode::BAD_REQUEST,
-<a href=#4803 id=4803 data-nosnippet>4803</a>        )
-<a href=#4804 id=4804 data-nosnippet>4804</a>        .into_response(),
-<a href=#4805 id=4805 data-nosnippet>4805</a>    }
-<a href=#4806 id=4806 data-nosnippet>4806</a>}
-<a href=#4807 id=4807 data-nosnippet>4807</a>
-<a href=#4808 id=4808 data-nosnippet>4808</a><span class="comment">// GET /cooperative/trust/{did} - Get trust relationships for a cooperative
-<a href=#4809 id=4809 data-nosnippet>4809</a></span><span class="kw">async fn </span>cooperative_get_trust_handler(
-<a href=#4810 id=4810 data-nosnippet>4810</a>    State(state): State&lt;AppState&gt;,
-<a href=#4811 id=4811 data-nosnippet>4811</a>    AxumPath(did_str): AxumPath&lt;String&gt;,
-<a href=#4812 id=4812 data-nosnippet>4812</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4813 id=4813 data-nosnippet>4813</a>    <span class="kw">match </span>Did::from_str(<span class="kw-2">&amp;</span>did_str) {
-<a href=#4814 id=4814 data-nosnippet>4814</a>        <span class="prelude-val">Ok</span>(did) =&gt; {
-<a href=#4815 id=4815 data-nosnippet>4815</a>            <span class="kw">let </span>relationships = state.cooperative_registry.get_trust_relationships(<span class="kw-2">&amp;</span>did);
-<a href=#4816 id=4816 data-nosnippet>4816</a>            (StatusCode::OK, Json(relationships)).into_response()
-<a href=#4817 id=4817 data-nosnippet>4817</a>        }
-<a href=#4818 id=4818 data-nosnippet>4818</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#4819 id=4819 data-nosnippet>4819</a>            map_rust_error_to_json_response(<span class="macro">format!</span>(<span class="string">"Invalid DID: {}"</span>, e), StatusCode::BAD_REQUEST)
-<a href=#4820 id=4820 data-nosnippet>4820</a>                .into_response()
-<a href=#4821 id=4821 data-nosnippet>4821</a>        }
-<a href=#4822 id=4822 data-nosnippet>4822</a>    }
-<a href=#4823 id=4823 data-nosnippet>4823</a>}
-<a href=#4824 id=4824 data-nosnippet>4824</a>
-<a href=#4825 id=4825 data-nosnippet>4825</a><span class="comment">// GET /cooperative/capabilities/{capability_type} - Find providers of a capability
-<a href=#4826 id=4826 data-nosnippet>4826</a></span><span class="kw">async fn </span>cooperative_get_capability_providers_handler(
-<a href=#4827 id=4827 data-nosnippet>4827</a>    State(state): State&lt;AppState&gt;,
-<a href=#4828 id=4828 data-nosnippet>4828</a>    AxumPath(capability_type): AxumPath&lt;String&gt;,
-<a href=#4829 id=4829 data-nosnippet>4829</a>) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4830 id=4830 data-nosnippet>4830</a>    <span class="kw">match </span>state
-<a href=#4831 id=4831 data-nosnippet>4831</a>        .cooperative_registry
-<a href=#4832 id=4832 data-nosnippet>4832</a>        .find_capability_providers(<span class="kw-2">&amp;</span>capability_type)
-<a href=#4833 id=4833 data-nosnippet>4833</a>        .<span class="kw">await
-<a href=#4834 id=4834 data-nosnippet>4834</a>    </span>{
-<a href=#4835 id=4835 data-nosnippet>4835</a>        <span class="prelude-val">Ok</span>(providers) =&gt; (StatusCode::OK, Json(providers)).into_response(),
-<a href=#4836 id=4836 data-nosnippet>4836</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
-<a href=#4837 id=4837 data-nosnippet>4837</a>            <span class="macro">format!</span>(<span class="string">"Query failed: {}"</span>, e),
-<a href=#4838 id=4838 data-nosnippet>4838</a>            StatusCode::INTERNAL_SERVER_ERROR,
-<a href=#4839 id=4839 data-nosnippet>4839</a>        )
-<a href=#4840 id=4840 data-nosnippet>4840</a>        .into_response(),
-<a href=#4841 id=4841 data-nosnippet>4841</a>    }
-<a href=#4842 id=4842 data-nosnippet>4842</a>}
-<a href=#4843 id=4843 data-nosnippet>4843</a>
-<a href=#4844 id=4844 data-nosnippet>4844</a><span class="comment">// GET /cooperative/registry/stats - Get registry statistics
-<a href=#4845 id=4845 data-nosnippet>4845</a></span><span class="kw">async fn </span>cooperative_registry_stats_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
-<a href=#4846 id=4846 data-nosnippet>4846</a>    <span class="kw">let </span>stats = state.cooperative_registry.get_registry_stats();
-<a href=#4847 id=4847 data-nosnippet>4847</a>    (StatusCode::OK, Json(stats)).into_response()
-<a href=#4848 id=4848 data-nosnippet>4848</a>}
-<a href=#4849 id=4849 data-nosnippet>4849</a>
-<a href=#4850 id=4850 data-nosnippet>4850</a><span class="comment">// --- Test module (can be expanded later) ---
-<a href=#4851 id=4851 data-nosnippet>4851</a>
-<a href=#4852 id=4852 data-nosnippet>4852</a></span><span class="doccomment">/// Load demo data for demonstration and testing purposes
-<a href=#4853 id=4853 data-nosnippet>4853</a></span><span class="kw">async fn </span>load_demo_data(
-<a href=#4854 id=4854 data-nosnippet>4854</a>    rt_ctx: <span class="kw-2">&amp;</span>Arc&lt;icn_runtime::context::RuntimeContext&gt;,
-<a href=#4855 id=4855 data-nosnippet>4855</a>    node_did: <span class="kw-2">&amp;</span>Did,
-<a href=#4856 id=4856 data-nosnippet>4856</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#4857 id=4857 data-nosnippet>4857</a>    <span class="macro">info!</span>(<span class="string">"Loading demo data..."</span>);
-<a href=#4858 id=4858 data-nosnippet>4858</a>
-<a href=#4859 id=4859 data-nosnippet>4859</a>    <span class="comment">// TODO: Add demo governance proposals
-<a href=#4860 id=4860 data-nosnippet>4860</a>    </span><span class="macro">info!</span>(<span class="string">"Demo governance proposals (placeholder)"</span>);
-<a href=#4861 id=4861 data-nosnippet>4861</a>
-<a href=#4862 id=4862 data-nosnippet>4862</a>    <span class="comment">// TODO: Add demo mesh jobs
-<a href=#4863 id=4863 data-nosnippet>4863</a>    </span><span class="macro">info!</span>(<span class="string">"Demo mesh jobs (placeholder)"</span>);
-<a href=#4864 id=4864 data-nosnippet>4864</a>
-<a href=#4865 id=4865 data-nosnippet>4865</a>    <span class="macro">info!</span>(<span class="string">"Demo data loading complete!"</span>);
-<a href=#4866 id=4866 data-nosnippet>4866</a>    <span class="prelude-val">Ok</span>(())
-<a href=#4867 id=4867 data-nosnippet>4867</a>}</code></pre></div></section></main></body></html>
+<a href=#4593 id=4593 data-nosnippet>4593</a>        <span class="kw">let </span>(app, ctx) = app_router_with_options(
+<a href=#4594 id=4594 data-nosnippet>4594</a>            RuntimeMode::Testing,
+<a href=#4595 id=4595 data-nosnippet>4595</a>            <span class="prelude-val">None</span>,
+<a href=#4596 id=4596 data-nosnippet>4596</a>            <span class="prelude-val">None</span>,
+<a href=#4597 id=4597 data-nosnippet>4597</a>            <span class="prelude-val">None</span>,
+<a href=#4598 id=4598 data-nosnippet>4598</a>            <span class="prelude-val">None</span>,
+<a href=#4599 id=4599 data-nosnippet>4599</a>            <span class="prelude-val">None</span>,
+<a href=#4600 id=4600 data-nosnippet>4600</a>            <span class="prelude-val">None</span>,
+<a href=#4601 id=4601 data-nosnippet>4601</a>            <span class="prelude-val">None</span>,
+<a href=#4602 id=4602 data-nosnippet>4602</a>            <span class="prelude-val">None</span>,
+<a href=#4603 id=4603 data-nosnippet>4603</a>            <span class="prelude-val">None</span>,
+<a href=#4604 id=4604 data-nosnippet>4604</a>            <span class="prelude-val">None</span>,
+<a href=#4605 id=4605 data-nosnippet>4605</a>        )
+<a href=#4606 id=4606 data-nosnippet>4606</a>        .<span class="kw">await</span>;
+<a href=#4607 id=4607 data-nosnippet>4607</a>
+<a href=#4608 id=4608 data-nosnippet>4608</a>        <span class="comment">// Compile a tiny CCL contract
+<a href=#4609 id=4609 data-nosnippet>4609</a>        </span><span class="kw">let </span>(wasm, <span class="kw">_</span>) =
+<a href=#4610 id=4610 data-nosnippet>4610</a>            compile_ccl_source_to_wasm(<span class="string">"fn run() -&gt; Integer { return 7; }"</span>).expect(<span class="string">"compile ccl"</span>);
+<a href=#4611 id=4611 data-nosnippet>4611</a>
+<a href=#4612 id=4612 data-nosnippet>4612</a>        <span class="comment">// Store WASM in DAG via HTTP
+<a href=#4613 id=4613 data-nosnippet>4613</a>        </span><span class="kw">let </span>put_req = Request::builder()
+<a href=#4614 id=4614 data-nosnippet>4614</a>            .method(<span class="string">"POST"</span>)
+<a href=#4615 id=4615 data-nosnippet>4615</a>            .uri(<span class="string">"/dag/put"</span>)
+<a href=#4616 id=4616 data-nosnippet>4616</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#4617 id=4617 data-nosnippet>4617</a>            .body(Body::from(
+<a href=#4618 id=4618 data-nosnippet>4618</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({ <span class="string">"data"</span>: wasm })).unwrap(),
+<a href=#4619 id=4619 data-nosnippet>4619</a>            ))
+<a href=#4620 id=4620 data-nosnippet>4620</a>            .unwrap();
+<a href=#4621 id=4621 data-nosnippet>4621</a>        <span class="kw">let </span>put_resp = app.clone().oneshot(put_req).<span class="kw">await</span>.unwrap();
+<a href=#4622 id=4622 data-nosnippet>4622</a>        <span class="macro">assert_eq!</span>(put_resp.status(), StatusCode::CREATED);
+<a href=#4623 id=4623 data-nosnippet>4623</a>        <span class="kw">let </span>cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
+<a href=#4624 id=4624 data-nosnippet>4624</a>            .<span class="kw">await
+<a href=#4625 id=4625 data-nosnippet>4625</a>            </span>.unwrap();
+<a href=#4626 id=4626 data-nosnippet>4626</a>        <span class="kw">let </span>wasm_cid_str: String = serde_json::from_slice(<span class="kw-2">&amp;</span>cid_bytes).unwrap();
+<a href=#4627 id=4627 data-nosnippet>4627</a>        <span class="kw">let </span>wasm_cid = parse_cid_from_string(<span class="kw-2">&amp;</span>wasm_cid_str).unwrap();
+<a href=#4628 id=4628 data-nosnippet>4628</a>
+<a href=#4629 id=4629 data-nosnippet>4629</a>        <span class="comment">// Submit job referencing the WASM CID
+<a href=#4630 id=4630 data-nosnippet>4630</a>        </span><span class="kw">let </span>job_req = SubmitJobRequest {
+<a href=#4631 id=4631 data-nosnippet>4631</a>            manifest_cid: wasm_cid.to_string(),
+<a href=#4632 id=4632 data-nosnippet>4632</a>            spec_bytes: <span class="prelude-val">Some</span>(
+<a href=#4633 id=4633 data-nosnippet>4633</a>                BASE64_STANDARD.encode(bincode::serialize(<span class="kw-2">&amp;</span>icn_mesh::JobSpec::default()).unwrap()),
+<a href=#4634 id=4634 data-nosnippet>4634</a>            ),
+<a href=#4635 id=4635 data-nosnippet>4635</a>            spec_json: <span class="prelude-val">None</span>,
+<a href=#4636 id=4636 data-nosnippet>4636</a>            cost_mana: <span class="number">0</span>,
+<a href=#4637 id=4637 data-nosnippet>4637</a>        };
+<a href=#4638 id=4638 data-nosnippet>4638</a>        <span class="kw">let </span>job_req_json = serde_json::to_string(<span class="kw-2">&amp;</span>job_req).unwrap();
+<a href=#4639 id=4639 data-nosnippet>4639</a>        <span class="kw">let </span>submit_resp = app
+<a href=#4640 id=4640 data-nosnippet>4640</a>            .clone()
+<a href=#4641 id=4641 data-nosnippet>4641</a>            .oneshot(
+<a href=#4642 id=4642 data-nosnippet>4642</a>                Request::builder()
+<a href=#4643 id=4643 data-nosnippet>4643</a>                    .method(<span class="string">"POST"</span>)
+<a href=#4644 id=4644 data-nosnippet>4644</a>                    .uri(<span class="string">"/mesh/submit"</span>)
+<a href=#4645 id=4645 data-nosnippet>4645</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#4646 id=4646 data-nosnippet>4646</a>                    .body(Body::from(job_req_json))
+<a href=#4647 id=4647 data-nosnippet>4647</a>                    .unwrap(),
+<a href=#4648 id=4648 data-nosnippet>4648</a>            )
+<a href=#4649 id=4649 data-nosnippet>4649</a>            .<span class="kw">await
+<a href=#4650 id=4650 data-nosnippet>4650</a>            </span>.unwrap();
+<a href=#4651 id=4651 data-nosnippet>4651</a>        <span class="macro">assert_eq!</span>(submit_resp.status(), StatusCode::ACCEPTED);
+<a href=#4652 id=4652 data-nosnippet>4652</a>        <span class="kw">let </span>body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
+<a href=#4653 id=4653 data-nosnippet>4653</a>            .<span class="kw">await
+<a href=#4654 id=4654 data-nosnippet>4654</a>            </span>.unwrap();
+<a href=#4655 id=4655 data-nosnippet>4655</a>        <span class="kw">let </span>submit_json: serde_json::Value = serde_json::from_slice(<span class="kw-2">&amp;</span>body).unwrap();
+<a href=#4656 id=4656 data-nosnippet>4656</a>        <span class="kw">let </span>job_id_str = submit_json[<span class="string">"job_id"</span>].as_str().unwrap();
+<a href=#4657 id=4657 data-nosnippet>4657</a>        <span class="kw">let </span>job_id = parse_cid_from_string(job_id_str).unwrap();
+<a href=#4658 id=4658 data-nosnippet>4658</a>
+<a href=#4659 id=4659 data-nosnippet>4659</a>        <span class="comment">// Execute the job using WasmExecutor and anchor the receipt
+<a href=#4660 id=4660 data-nosnippet>4660</a>        </span><span class="kw">let </span>(sk, vk) = generate_ed25519_keypair();
+<a href=#4661 id=4661 data-nosnippet>4661</a>        <span class="kw">let </span>exec_did = did_key_from_verifying_key(<span class="kw-2">&amp;</span>vk);
+<a href=#4662 id=4662 data-nosnippet>4662</a>        <span class="kw">let </span>exec_did = Did::from_str(<span class="kw-2">&amp;</span>exec_did).unwrap();
+<a href=#4663 id=4663 data-nosnippet>4663</a>        <span class="kw">let </span>signer =
+<a href=#4664 id=4664 data-nosnippet>4664</a>            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
+<a href=#4665 id=4665 data-nosnippet>4665</a>        <span class="kw">let </span>executor = WasmExecutor::new(
+<a href=#4666 id=4666 data-nosnippet>4666</a>            ctx.clone(),
+<a href=#4667 id=4667 data-nosnippet>4667</a>            signer,
+<a href=#4668 id=4668 data-nosnippet>4668</a>            icn_runtime::executor::WasmExecutorConfig::default(),
+<a href=#4669 id=4669 data-nosnippet>4669</a>        );
+<a href=#4670 id=4670 data-nosnippet>4670</a>        <span class="kw">let </span>job = ActualMeshJob {
+<a href=#4671 id=4671 data-nosnippet>4671</a>            id: JobId(job_id.clone()),
+<a href=#4672 id=4672 data-nosnippet>4672</a>            manifest_cid: wasm_cid.clone(),
+<a href=#4673 id=4673 data-nosnippet>4673</a>            spec: JobSpec::default(),
+<a href=#4674 id=4674 data-nosnippet>4674</a>            creator_did: ctx.current_identity.clone(),
+<a href=#4675 id=4675 data-nosnippet>4675</a>            cost_mana: <span class="number">0</span>,
+<a href=#4676 id=4676 data-nosnippet>4676</a>            max_execution_wait_ms: <span class="prelude-val">None</span>,
+<a href=#4677 id=4677 data-nosnippet>4677</a>            signature: SignatureBytes(<span class="macro">vec!</span>[]),
+<a href=#4678 id=4678 data-nosnippet>4678</a>        };
+<a href=#4679 id=4679 data-nosnippet>4679</a>        <span class="kw">let </span>receipt_cid = executor
+<a href=#4680 id=4680 data-nosnippet>4680</a>            .execute_and_anchor_job(<span class="kw-2">&amp;</span>job)
+<a href=#4681 id=4681 data-nosnippet>4681</a>            .<span class="kw">await
+<a href=#4682 id=4682 data-nosnippet>4682</a>            </span>.expect(<span class="string">"exec and anchor"</span>);
+<a href=#4683 id=4683 data-nosnippet>4683</a>
+<a href=#4684 id=4684 data-nosnippet>4684</a>        <span class="comment">// Fetch the anchored receipt via HTTP
+<a href=#4685 id=4685 data-nosnippet>4685</a>        </span><span class="kw">let </span>get_req = Request::builder()
+<a href=#4686 id=4686 data-nosnippet>4686</a>            .method(<span class="string">"POST"</span>)
+<a href=#4687 id=4687 data-nosnippet>4687</a>            .uri(<span class="string">"/dag/get"</span>)
+<a href=#4688 id=4688 data-nosnippet>4688</a>            .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#4689 id=4689 data-nosnippet>4689</a>            .body(Body::from(
+<a href=#4690 id=4690 data-nosnippet>4690</a>                serde_json::to_vec(<span class="kw-2">&amp;</span><span class="macro">serde_json::json!</span>({
+<a href=#4691 id=4691 data-nosnippet>4691</a>                    <span class="string">"cid"</span>: receipt_cid.to_string()
+<a href=#4692 id=4692 data-nosnippet>4692</a>                }))
+<a href=#4693 id=4693 data-nosnippet>4693</a>                .unwrap(),
+<a href=#4694 id=4694 data-nosnippet>4694</a>            ))
+<a href=#4695 id=4695 data-nosnippet>4695</a>            .unwrap();
+<a href=#4696 id=4696 data-nosnippet>4696</a>        <span class="kw">let </span>get_resp = app.clone().oneshot(get_req).<span class="kw">await</span>.unwrap();
+<a href=#4697 id=4697 data-nosnippet>4697</a>        <span class="macro">assert_eq!</span>(get_resp.status(), StatusCode::OK);
+<a href=#4698 id=4698 data-nosnippet>4698</a>        <span class="kw">let </span>receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
+<a href=#4699 id=4699 data-nosnippet>4699</a>            .<span class="kw">await
+<a href=#4700 id=4700 data-nosnippet>4700</a>            </span>.unwrap();
+<a href=#4701 id=4701 data-nosnippet>4701</a>        <span class="kw">let </span>receipt: icn_identity::ExecutionReceipt =
+<a href=#4702 id=4702 data-nosnippet>4702</a>            serde_json::from_slice(<span class="kw-2">&amp;</span>receipt_bytes).unwrap();
+<a href=#4703 id=4703 data-nosnippet>4703</a>        <span class="macro">assert_eq!</span>(receipt.job_id, job_id);
+<a href=#4704 id=4704 data-nosnippet>4704</a>        <span class="macro">assert_eq!</span>(receipt.executor_did, exec_did);
+<a href=#4705 id=4705 data-nosnippet>4705</a>    }
+<a href=#4706 id=4706 data-nosnippet>4706</a>
+<a href=#4707 id=4707 data-nosnippet>4707</a>    <span class="attr">#[tokio::test]
+<a href=#4708 id=4708 data-nosnippet>4708</a>    </span><span class="kw">async fn </span>network_connect_endpoint_basic() {
+<a href=#4709 id=4709 data-nosnippet>4709</a>        <span class="kw">let </span>app = test_app().<span class="kw">await</span>;
+<a href=#4710 id=4710 data-nosnippet>4710</a>        <span class="kw">let </span>payload = <span class="macro">serde_json::json!</span>({ <span class="string">"peer"</span>: <span class="string">"/ip4/127.0.0.1/tcp/1234" </span>});
+<a href=#4711 id=4711 data-nosnippet>4711</a>        <span class="kw">let </span>response = app
+<a href=#4712 id=4712 data-nosnippet>4712</a>            .oneshot(
+<a href=#4713 id=4713 data-nosnippet>4713</a>                Request::builder()
+<a href=#4714 id=4714 data-nosnippet>4714</a>                    .method(<span class="string">"POST"</span>)
+<a href=#4715 id=4715 data-nosnippet>4715</a>                    .uri(<span class="string">"/network/connect"</span>)
+<a href=#4716 id=4716 data-nosnippet>4716</a>                    .header(<span class="string">"content-type"</span>, <span class="string">"application/json"</span>)
+<a href=#4717 id=4717 data-nosnippet>4717</a>                    .body(Body::from(payload.to_string()))
+<a href=#4718 id=4718 data-nosnippet>4718</a>                    .unwrap(),
+<a href=#4719 id=4719 data-nosnippet>4719</a>            )
+<a href=#4720 id=4720 data-nosnippet>4720</a>            .<span class="kw">await
+<a href=#4721 id=4721 data-nosnippet>4721</a>            </span>.unwrap();
+<a href=#4722 id=4722 data-nosnippet>4722</a>        <span class="macro">assert_eq!</span>(response.status(), StatusCode::OK);
+<a href=#4723 id=4723 data-nosnippet>4723</a>    }
+<a href=#4724 id=4724 data-nosnippet>4724</a>}
+<a href=#4725 id=4725 data-nosnippet>4725</a>
+<a href=#4726 id=4726 data-nosnippet>4726</a><span class="comment">// --- Cooperative Discovery Handlers ---
+<a href=#4727 id=4727 data-nosnippet>4727</a>
+<a href=#4728 id=4728 data-nosnippet>4728</a></span><span class="kw">use </span>icn_identity::{
+<a href=#4729 id=4729 data-nosnippet>4729</a>    CooperativeProfile, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
+<a href=#4730 id=4730 data-nosnippet>4730</a>    TrustRelationship,
+<a href=#4731 id=4731 data-nosnippet>4731</a>};
+<a href=#4732 id=4732 data-nosnippet>4732</a>
+<a href=#4733 id=4733 data-nosnippet>4733</a><span class="comment">// POST /cooperative/register - Register a cooperative profile
+<a href=#4734 id=4734 data-nosnippet>4734</a></span><span class="kw">async fn </span>cooperative_register_handler(
+<a href=#4735 id=4735 data-nosnippet>4735</a>    State(state): State&lt;AppState&gt;,
+<a href=#4736 id=4736 data-nosnippet>4736</a>    Json(profile): Json&lt;CooperativeProfile&gt;,
+<a href=#4737 id=4737 data-nosnippet>4737</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4738 id=4738 data-nosnippet>4738</a>    <span class="kw">match </span>state
+<a href=#4739 id=4739 data-nosnippet>4739</a>        .cooperative_registry
+<a href=#4740 id=4740 data-nosnippet>4740</a>        .register_cooperative(profile)
+<a href=#4741 id=4741 data-nosnippet>4741</a>        .<span class="kw">await
+<a href=#4742 id=4742 data-nosnippet>4742</a>    </span>{
+<a href=#4743 id=4743 data-nosnippet>4743</a>        <span class="prelude-val">Ok</span>(cid) =&gt; (
+<a href=#4744 id=4744 data-nosnippet>4744</a>            StatusCode::CREATED,
+<a href=#4745 id=4745 data-nosnippet>4745</a>            Json(<span class="macro">serde_json::json!</span>({ <span class="string">"cid"</span>: cid.to_string(), <span class="string">"status"</span>: <span class="string">"registered" </span>})),
+<a href=#4746 id=4746 data-nosnippet>4746</a>        )
+<a href=#4747 id=4747 data-nosnippet>4747</a>            .into_response(),
+<a href=#4748 id=4748 data-nosnippet>4748</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
+<a href=#4749 id=4749 data-nosnippet>4749</a>            <span class="macro">format!</span>(<span class="string">"Registration failed: {}"</span>, e),
+<a href=#4750 id=4750 data-nosnippet>4750</a>            StatusCode::BAD_REQUEST,
+<a href=#4751 id=4751 data-nosnippet>4751</a>        )
+<a href=#4752 id=4752 data-nosnippet>4752</a>        .into_response(),
+<a href=#4753 id=4753 data-nosnippet>4753</a>    }
+<a href=#4754 id=4754 data-nosnippet>4754</a>}
+<a href=#4755 id=4755 data-nosnippet>4755</a>
+<a href=#4756 id=4756 data-nosnippet>4756</a><span class="comment">// POST /cooperative/search - Search for cooperatives
+<a href=#4757 id=4757 data-nosnippet>4757</a></span><span class="kw">async fn </span>cooperative_search_handler(
+<a href=#4758 id=4758 data-nosnippet>4758</a>    State(state): State&lt;AppState&gt;,
+<a href=#4759 id=4759 data-nosnippet>4759</a>    Json(filter): Json&lt;CooperativeSearchFilter&gt;,
+<a href=#4760 id=4760 data-nosnippet>4760</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4761 id=4761 data-nosnippet>4761</a>    <span class="kw">match </span>state.cooperative_registry.search_cooperatives(filter).<span class="kw">await </span>{
+<a href=#4762 id=4762 data-nosnippet>4762</a>        <span class="prelude-val">Ok</span>(results) =&gt; (StatusCode::OK, Json(results)).into_response(),
+<a href=#4763 id=4763 data-nosnippet>4763</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
+<a href=#4764 id=4764 data-nosnippet>4764</a>            <span class="macro">format!</span>(<span class="string">"Search failed: {}"</span>, e),
+<a href=#4765 id=4765 data-nosnippet>4765</a>            StatusCode::BAD_REQUEST,
+<a href=#4766 id=4766 data-nosnippet>4766</a>        )
+<a href=#4767 id=4767 data-nosnippet>4767</a>        .into_response(),
+<a href=#4768 id=4768 data-nosnippet>4768</a>    }
+<a href=#4769 id=4769 data-nosnippet>4769</a>}
+<a href=#4770 id=4770 data-nosnippet>4770</a>
+<a href=#4771 id=4771 data-nosnippet>4771</a><span class="comment">// GET /cooperative/profile/{did} - Get a cooperative profile
+<a href=#4772 id=4772 data-nosnippet>4772</a></span><span class="kw">async fn </span>cooperative_get_profile_handler(
+<a href=#4773 id=4773 data-nosnippet>4773</a>    State(state): State&lt;AppState&gt;,
+<a href=#4774 id=4774 data-nosnippet>4774</a>    AxumPath(did_str): AxumPath&lt;String&gt;,
+<a href=#4775 id=4775 data-nosnippet>4775</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4776 id=4776 data-nosnippet>4776</a>    <span class="kw">match </span>Did::from_str(<span class="kw-2">&amp;</span>did_str) {
+<a href=#4777 id=4777 data-nosnippet>4777</a>        <span class="prelude-val">Ok</span>(did) =&gt; <span class="kw">match </span>state.cooperative_registry.get_cooperative(<span class="kw-2">&amp;</span>did).<span class="kw">await </span>{
+<a href=#4778 id=4778 data-nosnippet>4778</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(profile)) =&gt; (StatusCode::OK, Json(profile)).into_response(),
+<a href=#4779 id=4779 data-nosnippet>4779</a>            <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
+<a href=#4780 id=4780 data-nosnippet>4780</a>                map_rust_error_to_json_response(<span class="string">"Cooperative not found"</span>, StatusCode::NOT_FOUND)
+<a href=#4781 id=4781 data-nosnippet>4781</a>                    .into_response()
+<a href=#4782 id=4782 data-nosnippet>4782</a>            }
+<a href=#4783 id=4783 data-nosnippet>4783</a>            <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
+<a href=#4784 id=4784 data-nosnippet>4784</a>                <span class="macro">format!</span>(<span class="string">"Query failed: {}"</span>, e),
+<a href=#4785 id=4785 data-nosnippet>4785</a>                StatusCode::INTERNAL_SERVER_ERROR,
+<a href=#4786 id=4786 data-nosnippet>4786</a>            )
+<a href=#4787 id=4787 data-nosnippet>4787</a>            .into_response(),
+<a href=#4788 id=4788 data-nosnippet>4788</a>        },
+<a href=#4789 id=4789 data-nosnippet>4789</a>        <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#4790 id=4790 data-nosnippet>4790</a>            map_rust_error_to_json_response(<span class="macro">format!</span>(<span class="string">"Invalid DID: {}"</span>, e), StatusCode::BAD_REQUEST)
+<a href=#4791 id=4791 data-nosnippet>4791</a>                .into_response()
+<a href=#4792 id=4792 data-nosnippet>4792</a>        }
+<a href=#4793 id=4793 data-nosnippet>4793</a>    }
+<a href=#4794 id=4794 data-nosnippet>4794</a>}
+<a href=#4795 id=4795 data-nosnippet>4795</a>
+<a href=#4796 id=4796 data-nosnippet>4796</a><span class="comment">// POST /cooperative/trust - Add a trust relationship
+<a href=#4797 id=4797 data-nosnippet>4797</a></span><span class="kw">async fn </span>cooperative_add_trust_handler(
+<a href=#4798 id=4798 data-nosnippet>4798</a>    State(state): State&lt;AppState&gt;,
+<a href=#4799 id=4799 data-nosnippet>4799</a>    Json(trust): Json&lt;TrustRelationship&gt;,
+<a href=#4800 id=4800 data-nosnippet>4800</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4801 id=4801 data-nosnippet>4801</a>    <span class="kw">match </span>state
+<a href=#4802 id=4802 data-nosnippet>4802</a>        .cooperative_registry
+<a href=#4803 id=4803 data-nosnippet>4803</a>        .add_trust_relationship(trust)
+<a href=#4804 id=4804 data-nosnippet>4804</a>        .<span class="kw">await
+<a href=#4805 id=4805 data-nosnippet>4805</a>    </span>{
+<a href=#4806 id=4806 data-nosnippet>4806</a>        <span class="prelude-val">Ok</span>(cid) =&gt; (
+<a href=#4807 id=4807 data-nosnippet>4807</a>            StatusCode::CREATED,
+<a href=#4808 id=4808 data-nosnippet>4808</a>            Json(<span class="macro">serde_json::json!</span>({ <span class="string">"cid"</span>: cid.to_string(), <span class="string">"status"</span>: <span class="string">"trust_added" </span>})),
+<a href=#4809 id=4809 data-nosnippet>4809</a>        )
+<a href=#4810 id=4810 data-nosnippet>4810</a>            .into_response(),
+<a href=#4811 id=4811 data-nosnippet>4811</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
+<a href=#4812 id=4812 data-nosnippet>4812</a>            <span class="macro">format!</span>(<span class="string">"Failed to add trust relationship: {}"</span>, e),
+<a href=#4813 id=4813 data-nosnippet>4813</a>            StatusCode::BAD_REQUEST,
+<a href=#4814 id=4814 data-nosnippet>4814</a>        )
+<a href=#4815 id=4815 data-nosnippet>4815</a>        .into_response(),
+<a href=#4816 id=4816 data-nosnippet>4816</a>    }
+<a href=#4817 id=4817 data-nosnippet>4817</a>}
+<a href=#4818 id=4818 data-nosnippet>4818</a>
+<a href=#4819 id=4819 data-nosnippet>4819</a><span class="comment">// GET /cooperative/trust/{did} - Get trust relationships for a cooperative
+<a href=#4820 id=4820 data-nosnippet>4820</a></span><span class="kw">async fn </span>cooperative_get_trust_handler(
+<a href=#4821 id=4821 data-nosnippet>4821</a>    State(state): State&lt;AppState&gt;,
+<a href=#4822 id=4822 data-nosnippet>4822</a>    AxumPath(did_str): AxumPath&lt;String&gt;,
+<a href=#4823 id=4823 data-nosnippet>4823</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4824 id=4824 data-nosnippet>4824</a>    <span class="kw">match </span>Did::from_str(<span class="kw-2">&amp;</span>did_str) {
+<a href=#4825 id=4825 data-nosnippet>4825</a>        <span class="prelude-val">Ok</span>(did) =&gt; {
+<a href=#4826 id=4826 data-nosnippet>4826</a>            <span class="kw">let </span>relationships = state.cooperative_registry.get_trust_relationships(<span class="kw-2">&amp;</span>did);
+<a href=#4827 id=4827 data-nosnippet>4827</a>            (StatusCode::OK, Json(relationships)).into_response()
+<a href=#4828 id=4828 data-nosnippet>4828</a>        }
+<a href=#4829 id=4829 data-nosnippet>4829</a>        <span class="prelude-val">Err</span>(e) =&gt; {
+<a href=#4830 id=4830 data-nosnippet>4830</a>            map_rust_error_to_json_response(<span class="macro">format!</span>(<span class="string">"Invalid DID: {}"</span>, e), StatusCode::BAD_REQUEST)
+<a href=#4831 id=4831 data-nosnippet>4831</a>                .into_response()
+<a href=#4832 id=4832 data-nosnippet>4832</a>        }
+<a href=#4833 id=4833 data-nosnippet>4833</a>    }
+<a href=#4834 id=4834 data-nosnippet>4834</a>}
+<a href=#4835 id=4835 data-nosnippet>4835</a>
+<a href=#4836 id=4836 data-nosnippet>4836</a><span class="comment">// GET /cooperative/capabilities/{capability_type} - Find providers of a capability
+<a href=#4837 id=4837 data-nosnippet>4837</a></span><span class="kw">async fn </span>cooperative_get_capability_providers_handler(
+<a href=#4838 id=4838 data-nosnippet>4838</a>    State(state): State&lt;AppState&gt;,
+<a href=#4839 id=4839 data-nosnippet>4839</a>    AxumPath(capability_type): AxumPath&lt;String&gt;,
+<a href=#4840 id=4840 data-nosnippet>4840</a>) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4841 id=4841 data-nosnippet>4841</a>    <span class="kw">match </span>state
+<a href=#4842 id=4842 data-nosnippet>4842</a>        .cooperative_registry
+<a href=#4843 id=4843 data-nosnippet>4843</a>        .find_capability_providers(<span class="kw-2">&amp;</span>capability_type)
+<a href=#4844 id=4844 data-nosnippet>4844</a>        .<span class="kw">await
+<a href=#4845 id=4845 data-nosnippet>4845</a>    </span>{
+<a href=#4846 id=4846 data-nosnippet>4846</a>        <span class="prelude-val">Ok</span>(providers) =&gt; (StatusCode::OK, Json(providers)).into_response(),
+<a href=#4847 id=4847 data-nosnippet>4847</a>        <span class="prelude-val">Err</span>(e) =&gt; map_rust_error_to_json_response(
+<a href=#4848 id=4848 data-nosnippet>4848</a>            <span class="macro">format!</span>(<span class="string">"Query failed: {}"</span>, e),
+<a href=#4849 id=4849 data-nosnippet>4849</a>            StatusCode::INTERNAL_SERVER_ERROR,
+<a href=#4850 id=4850 data-nosnippet>4850</a>        )
+<a href=#4851 id=4851 data-nosnippet>4851</a>        .into_response(),
+<a href=#4852 id=4852 data-nosnippet>4852</a>    }
+<a href=#4853 id=4853 data-nosnippet>4853</a>}
+<a href=#4854 id=4854 data-nosnippet>4854</a>
+<a href=#4855 id=4855 data-nosnippet>4855</a><span class="comment">// GET /cooperative/registry/stats - Get registry statistics
+<a href=#4856 id=4856 data-nosnippet>4856</a></span><span class="kw">async fn </span>cooperative_registry_stats_handler(State(state): State&lt;AppState&gt;) -&gt; <span class="kw">impl </span>IntoResponse {
+<a href=#4857 id=4857 data-nosnippet>4857</a>    <span class="kw">let </span>stats = state.cooperative_registry.get_registry_stats();
+<a href=#4858 id=4858 data-nosnippet>4858</a>    (StatusCode::OK, Json(stats)).into_response()
+<a href=#4859 id=4859 data-nosnippet>4859</a>}
+<a href=#4860 id=4860 data-nosnippet>4860</a>
+<a href=#4861 id=4861 data-nosnippet>4861</a><span class="comment">// --- Test module (can be expanded later) ---
+<a href=#4862 id=4862 data-nosnippet>4862</a>
+<a href=#4863 id=4863 data-nosnippet>4863</a></span><span class="doccomment">/// Load demo data for demonstration and testing purposes
+<a href=#4864 id=4864 data-nosnippet>4864</a></span><span class="kw">async fn </span>load_demo_data(
+<a href=#4865 id=4865 data-nosnippet>4865</a>    rt_ctx: <span class="kw-2">&amp;</span>Arc&lt;icn_runtime::context::RuntimeContext&gt;,
+<a href=#4866 id=4866 data-nosnippet>4866</a>    node_did: <span class="kw-2">&amp;</span>Did,
+<a href=#4867 id=4867 data-nosnippet>4867</a>) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#4868 id=4868 data-nosnippet>4868</a>    <span class="macro">info!</span>(<span class="string">"Loading demo data..."</span>);
+<a href=#4869 id=4869 data-nosnippet>4869</a>
+<a href=#4870 id=4870 data-nosnippet>4870</a>    <span class="comment">// TODO: Add demo governance proposals
+<a href=#4871 id=4871 data-nosnippet>4871</a>    </span><span class="macro">info!</span>(<span class="string">"Demo governance proposals (placeholder)"</span>);
+<a href=#4872 id=4872 data-nosnippet>4872</a>
+<a href=#4873 id=4873 data-nosnippet>4873</a>    <span class="comment">// TODO: Add demo mesh jobs
+<a href=#4874 id=4874 data-nosnippet>4874</a>    </span><span class="macro">info!</span>(<span class="string">"Demo mesh jobs (placeholder)"</span>);
+<a href=#4875 id=4875 data-nosnippet>4875</a>
+<a href=#4876 id=4876 data-nosnippet>4876</a>    <span class="macro">info!</span>(<span class="string">"Demo data loading complete!"</span>);
+<a href=#4877 id=4877 data-nosnippet>4877</a>    <span class="prelude-val">Ok</span>(())
+<a href=#4878 id=4878 data-nosnippet>4878</a>}</code></pre></div></section></main></body></html>

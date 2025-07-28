@@ -392,15 +392,15 @@
 <a href=#392 id=392 data-nosnippet>392</a>            || <span class="macro">matches!</span>(other, TypeAnnotationNode::Custom(t) <span class="kw">if </span>t == <span class="string">"Any"</span>)
 <a href=#393 id=393 data-nosnippet>393</a>            || <span class="self">self</span>.array_compatible_with(other)
 <a href=#394 id=394 data-nosnippet>394</a>    }
-<a href=#395 id=395 data-nosnippet>395</a>    
+<a href=#395 id=395 data-nosnippet>395</a>
 <a href=#396 id=396 data-nosnippet>396</a>    <span class="doccomment">/// Check if two array types are compatible, handling "unknown" element types
 <a href=#397 id=397 data-nosnippet>397</a>    </span><span class="kw">fn </span>array_compatible_with(<span class="kw-2">&amp;</span><span class="self">self</span>, other: <span class="kw-2">&amp;</span><span class="self">Self</span>) -&gt; bool {
 <a href=#398 id=398 data-nosnippet>398</a>        <span class="kw">match </span>(<span class="self">self</span>, other) {
 <a href=#399 id=399 data-nosnippet>399</a>            <span class="comment">// Allow Array(unknown) to be compatible with any Array(T)
 <a href=#400 id=400 data-nosnippet>400</a>            </span>(TypeAnnotationNode::Array(a), TypeAnnotationNode::Array(b)) =&gt; {
 <a href=#401 id=401 data-nosnippet>401</a>                <span class="macro">matches!</span>(a.as_ref(), TypeAnnotationNode::Custom(t) <span class="kw">if </span>t == <span class="string">"unknown"</span>)
-<a href=#402 id=402 data-nosnippet>402</a>                || <span class="macro">matches!</span>(b.as_ref(), TypeAnnotationNode::Custom(t) <span class="kw">if </span>t == <span class="string">"unknown"</span>)
-<a href=#403 id=403 data-nosnippet>403</a>                || a.compatible_with(b)
+<a href=#402 id=402 data-nosnippet>402</a>                    || <span class="macro">matches!</span>(b.as_ref(), TypeAnnotationNode::Custom(t) <span class="kw">if </span>t == <span class="string">"unknown"</span>)
+<a href=#403 id=403 data-nosnippet>403</a>                    || a.compatible_with(b)
 <a href=#404 id=404 data-nosnippet>404</a>            }
 <a href=#405 id=405 data-nosnippet>405</a>            <span class="kw">_ </span>=&gt; <span class="bool-val">false</span>,
 <a href=#406 id=406 data-nosnippet>406</a>        }

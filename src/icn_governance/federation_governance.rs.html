@@ -479,16 +479,16 @@
 <a href=#479 id=479 data-nosnippet>479</a>        // 1. Query the federation registry/membership system
 <a href=#480 id=480 data-nosnippet>480</a>        // 2. Count active members
 <a href=#481 id=481 data-nosnippet>481</a>        // 3. Apply any federation-specific rules for quorum calculations
-<a href=#482 id=482 data-nosnippet>482</a>        
+<a href=#482 id=482 data-nosnippet>482</a>
 <a href=#483 id=483 data-nosnippet>483</a>        // For now, implement a mock lookup based on federation ID
 <a href=#484 id=484 data-nosnippet>484</a>        </span><span class="kw">match </span>federation.<span class="number">0</span>.as_str() {
-<a href=#485 id=485 data-nosnippet>485</a>            <span class="string">"main" </span>| <span class="string">"primary" </span>=&gt; <span class="number">12</span>,         <span class="comment">// Main federation has more members
-<a href=#486 id=486 data-nosnippet>486</a>            </span><span class="string">"development" </span>| <span class="string">"test" </span>=&gt; <span class="number">5</span>,      <span class="comment">// Development federations are smaller
-<a href=#487 id=487 data-nosnippet>487</a>            </span><span class="string">"research" </span>=&gt; <span class="number">8</span>,                  <span class="comment">// Research federation medium size
-<a href=#488 id=488 data-nosnippet>488</a>            </span><span class="string">"regional" </span>=&gt; <span class="number">6</span>,                  <span class="comment">// Regional federations vary
-<a href=#489 id=489 data-nosnippet>489</a>            </span>id <span class="kw">if </span>id.starts_with(<span class="string">"large_"</span>) =&gt; <span class="number">25</span>,  <span class="comment">// Large federations
-<a href=#490 id=490 data-nosnippet>490</a>            </span>id <span class="kw">if </span>id.starts_with(<span class="string">"small_"</span>) =&gt; <span class="number">3</span>,   <span class="comment">// Small federations
-<a href=#491 id=491 data-nosnippet>491</a>            </span><span class="kw">_ </span>=&gt; <span class="number">10</span>,                          <span class="comment">// Default size for unknown federations
+<a href=#485 id=485 data-nosnippet>485</a>            <span class="string">"main" </span>| <span class="string">"primary" </span>=&gt; <span class="number">12</span>,             <span class="comment">// Main federation has more members
+<a href=#486 id=486 data-nosnippet>486</a>            </span><span class="string">"development" </span>| <span class="string">"test" </span>=&gt; <span class="number">5</span>,          <span class="comment">// Development federations are smaller
+<a href=#487 id=487 data-nosnippet>487</a>            </span><span class="string">"research" </span>=&gt; <span class="number">8</span>,                      <span class="comment">// Research federation medium size
+<a href=#488 id=488 data-nosnippet>488</a>            </span><span class="string">"regional" </span>=&gt; <span class="number">6</span>,                      <span class="comment">// Regional federations vary
+<a href=#489 id=489 data-nosnippet>489</a>            </span>id <span class="kw">if </span>id.starts_with(<span class="string">"large_"</span>) =&gt; <span class="number">25</span>, <span class="comment">// Large federations
+<a href=#490 id=490 data-nosnippet>490</a>            </span>id <span class="kw">if </span>id.starts_with(<span class="string">"small_"</span>) =&gt; <span class="number">3</span>,  <span class="comment">// Small federations
+<a href=#491 id=491 data-nosnippet>491</a>            </span><span class="kw">_ </span>=&gt; <span class="number">10</span>,                              <span class="comment">// Default size for unknown federations
 <a href=#492 id=492 data-nosnippet>492</a>        </span>}
 <a href=#493 id=493 data-nosnippet>493</a>    }
 <a href=#494 id=494 data-nosnippet>494</a>

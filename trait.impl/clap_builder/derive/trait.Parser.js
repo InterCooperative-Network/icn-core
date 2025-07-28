@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["ccl_cli",[["impl Parser for <a class=\"struct\" href=\"ccl_cli/struct.Cli.html\" title=\"struct ccl_cli::Cli\">Cli</a>"]]],["icn_cli",[["impl Parser for <a class=\"struct\" href=\"icn_cli/struct.Cli.html\" title=\"struct icn_cli::Cli\">Cli</a>"]]],["icn_node",[["impl Parser for <a class=\"struct\" href=\"icn_node/node/struct.Cli.html\" title=\"struct icn_node::node::Cli\">Cli</a>"]]],["job_audit",[["impl Parser for <a class=\"struct\" href=\"job_audit/struct.Cli.html\" title=\"struct job_audit::Cli\">Cli</a>"]]]]);
+    var implementors = Object.fromEntries([["ccl_cli",[["impl Parser for <a class=\"struct\" href=\"ccl_cli/struct.Cli.html\" title=\"struct ccl_cli::Cli\">Cli</a>"]]],["icn_cli",[["impl Parser for <a class=\"struct\" href=\"icn_cli/struct.Cli.html\" title=\"struct icn_cli::Cli\">Cli</a>"]]],["icn_node",[["impl Parser for <a class=\"struct\" href=\"icn_node/node/struct.Cli.html\" title=\"struct icn_node::node::Cli\">Cli</a>"]]],["job_audit",[["impl Parser for <a class=\"struct\" href=\"job_audit/struct.Cli.html\" title=\"struct job_audit::Cli\">Cli</a>"]]],["load_test_client",[["impl Parser for <a class=\"struct\" href=\"load_test_client/struct.Cli.html\" title=\"struct load_test_client::Cli\">Cli</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[124,125,139,131]}
+//{"start":57,"fragment_lengths":[124,125,139,131,152]}

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CircuitState","RecoveryError"],"fn":["execute_with_recovery_and_circuit_breaker","resilient_operation","retry_with_backoff","with_timeout"],"struct":["CircuitBreaker","CircuitBreakerConfig","DefaultErrorClassifier","ErrorRecoveryConfig"],"trait":["ErrorClassifier"]};

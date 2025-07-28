@@ -38,11 +38,11 @@
 <a href=#38 id=38 data-nosnippet>38</a><span class="kw">pub mod </span>policy_testing;
 <a href=#39 id=39 data-nosnippet>39</a><span class="kw">pub mod </span>ranked_choice;
 <a href=#40 id=40 data-nosnippet>40</a><span class="kw">pub mod </span>scoped_policy;
-<a href=#41 id=41 data-nosnippet>41</a><span class="kw">pub mod </span>voting;
-<a href=#42 id=42 data-nosnippet>42</a><span class="kw">pub mod </span>security;
+<a href=#41 id=41 data-nosnippet>41</a><span class="kw">pub mod </span>security;
+<a href=#42 id=42 data-nosnippet>42</a><span class="kw">pub mod </span>voting;
 <a href=#43 id=43 data-nosnippet>43</a><span class="kw">pub use </span>security::{
-<a href=#44 id=44 data-nosnippet>44</a>    GovernanceSecurityConfig, SecureBallotValidator, SecureBallotSigner,
-<a href=#45 id=45 data-nosnippet>45</a>    GovernanceSecurityAudit, BallotValidationStats, GovernanceSecurityIssue
+<a href=#44 id=44 data-nosnippet>44</a>    BallotValidationStats, GovernanceSecurityAudit, GovernanceSecurityConfig,
+<a href=#45 id=45 data-nosnippet>45</a>    GovernanceSecurityIssue, SecureBallotSigner, SecureBallotValidator,
 <a href=#46 id=46 data-nosnippet>46</a>};
 <a href=#47 id=47 data-nosnippet>47</a>
 <a href=#48 id=48 data-nosnippet>48</a><span class="attr">#[cfg(test)]
@@ -55,9 +55,9 @@
 <a href=#55 id=55 data-nosnippet>55</a>};
 <a href=#56 id=56 data-nosnippet>56</a><span class="kw">pub use </span>budgeting::{apply_budget_allocation, BudgetProposal};
 <a href=#57 id=57 data-nosnippet>57</a><span class="kw">pub use </span>crdt_proposal_state::{
-<a href=#58 id=58 data-nosnippet>58</a>    CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT,
-<a href=#59 id=59 data-nosnippet>59</a>    ProposalInfo, ProposalMetadata, ProposalStatus <span class="kw">as </span>CRDTProposalStatus, Vote <span class="kw">as </span>CRDTVote,
-<a href=#60 id=60 data-nosnippet>60</a>    VoteDecision, VoteTally,
+<a href=#58 id=58 data-nosnippet>58</a>    CRDTProposalState, CRDTProposalStateConfig, CRDTProposalStateStats, ProposalCRDT, ProposalInfo,
+<a href=#59 id=59 data-nosnippet>59</a>    ProposalMetadata, ProposalStatus <span class="kw">as </span>CRDTProposalStatus, Vote <span class="kw">as </span>CRDTVote, VoteDecision,
+<a href=#60 id=60 data-nosnippet>60</a>    VoteTally,
 <a href=#61 id=61 data-nosnippet>61</a>};
 <a href=#62 id=62 data-nosnippet>62</a><span class="kw">pub use </span>governance_conflict_resolver::{
 <a href=#63 id=63 data-nosnippet>63</a>    ConflictEvidence, ConflictSeverity, GovernanceConflict, GovernanceConflictConfig,
@@ -70,9 +70,9 @@
 <a href=#70 id=70 data-nosnippet>70</a>};
 <a href=#71 id=71 data-nosnippet>71</a><span class="kw">pub use </span>ranked_choice::{RankedChoiceBallotValidator, RankedChoiceVotingSystem};
 <a href=#72 id=72 data-nosnippet>72</a><span class="kw">pub use </span>voting::{
-<a href=#73 id=73 data-nosnippet>73</a>    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election, ElectionId, EligibilityRules,
-<a href=#74 id=74 data-nosnippet>74</a>    RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound, Signature, VotingError,
-<a href=#75 id=75 data-nosnippet>75</a>    VotingPeriod, VotingSystem,
+<a href=#73 id=73 data-nosnippet>73</a>    BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election,
+<a href=#74 id=74 data-nosnippet>74</a>    ElectionId, EligibilityRules, RankedChoiceBallot, RankedChoiceResult, RankedChoiceRound,
+<a href=#75 id=75 data-nosnippet>75</a>    Signature, VotingError, VotingPeriod, VotingSystem,
 <a href=#76 id=76 data-nosnippet>76</a>};
 <a href=#77 id=77 data-nosnippet>77</a>
 <a href=#78 id=78 data-nosnippet>78</a><span class="doccomment">/// Trait for governance execution hooks.
