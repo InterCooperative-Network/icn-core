@@ -1954,8 +1954,19 @@ impl RuntimeContext {
             HostAbiError::DagOperationFailed(format!("Failed to serialize job: {}", e))
         })?;
 
+        // Compute the proper Merkle CID based on the content
+        let computed_cid = icn_common::compute_merkle_cid(
+            0x71, // Raw codec
+            &job_bytes,
+            &[], // Job nodes have no parents initially
+            job.submitted_at,
+            &job.submitter_did,
+            &None,
+            &None,
+        );
+
         let dag_block = DagBlock {
-            cid: job.id.0.clone(), // Use job ID as the CID
+            cid: computed_cid,
             data: job_bytes,
             links: vec![], // Job nodes have no parents initially
             timestamp: job.submitted_at,
@@ -1978,18 +1989,23 @@ impl RuntimeContext {
             HostAbiError::DagOperationFailed(format!("Failed to serialize bid: {}", e))
         })?;
 
-        // Create CID for this bid
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(&bid_bytes);
-        let bid_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
-
         // Create link to parent job
         let job_link = icn_common::DagLink {
             cid: bid.job_id.0.clone(),
             name: "parent_job".to_string(),
             size: 0, // Size will be calculated by DAG store
         };
+
+        // Compute the proper Merkle CID based on the content
+        let bid_cid = icn_common::compute_merkle_cid(
+            0x55, // CBOR codec for bids
+            &bid_bytes,
+            &[job_link.clone()],
+            bid.submitted_at,
+            &bid.executor_did,
+            &None,
+            &None,
+        );
 
         let dag_block = DagBlock {
             cid: bid_cid.clone(),
@@ -2018,18 +2034,23 @@ impl RuntimeContext {
             HostAbiError::DagOperationFailed(format!("Failed to serialize assignment: {}", e))
         })?;
 
-        // Create CID for this assignment
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(&assignment_bytes);
-        let assignment_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
-
         // Create link to parent job
         let job_link = icn_common::DagLink {
             cid: assignment.job_id.0.clone(),
             name: "parent_job".to_string(),
             size: 0,
         };
+
+        // Compute the proper Merkle CID based on the content
+        let assignment_cid = icn_common::compute_merkle_cid(
+            0x55, // CBOR codec for assignments
+            &assignment_bytes,
+            &[job_link.clone()],
+            assignment.assigned_at,
+            &self.current_identity,
+            &None,
+            &None,
+        );
 
         let dag_block = DagBlock {
             cid: assignment_cid.clone(),
@@ -2055,18 +2076,23 @@ impl RuntimeContext {
             HostAbiError::DagOperationFailed(format!("Failed to serialize receipt: {}", e))
         })?;
 
-        // Create CID for this receipt
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(&receipt_bytes);
-        let receipt_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
-
         // Create link to parent job
         let job_link = icn_common::DagLink {
             cid: receipt.job_id.0.clone(),
             name: "parent_job".to_string(),
             size: 0,
         };
+
+        // Compute the proper Merkle CID based on the content
+        let receipt_cid = icn_common::compute_merkle_cid(
+            0x55, // CBOR codec for receipts
+            &receipt_bytes,
+            &[job_link.clone()],
+            receipt.completed_at,
+            &receipt.executor_did,
+            &None,
+            &None,
+        );
 
         let dag_block = DagBlock {
             cid: receipt_cid.clone(),
