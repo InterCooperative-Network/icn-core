@@ -69,8 +69,9 @@ impl ErrorClassifier<CommonError> for ICNErrorClassifier {
             CommonError::RateLimitError(_) => true,
             CommonError::ServiceUnavailable(_) => true,
             
-            // Default to recoverable for any other errors
-            _ => true,
+            // Explicitly handle all known CommonError variants to avoid masking new error types.
+            // If a new error type is added in the future, it should be explicitly classified here.
+            CommonError::UnknownError(_) => true, // Treat unknown errors as recoverable by default.
         }
     }
 }
