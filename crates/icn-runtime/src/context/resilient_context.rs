@@ -42,7 +42,11 @@ impl ErrorClassifier<HostAbiError> for ICNErrorClassifier {
             HostAbiError::ConfigurationError(_) => false, // Permanent
             
             // Default to recoverable for any other errors
-            _ => true,
+            _ => {
+                // Treating unclassified errors as recoverable by default to ensure resilience.
+                // If new error types are added to HostAbiError, they should be explicitly classified here.
+                true
+            },
         }
     }
 }
