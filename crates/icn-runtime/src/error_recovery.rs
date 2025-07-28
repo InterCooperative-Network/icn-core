@@ -204,7 +204,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn record_success(&self) {
+    pub fn record_success(&self) {
         let prev_success = self.success_count.fetch_add(1, Ordering::SeqCst);
         let state = self.state.lock().unwrap();
         
@@ -214,7 +214,7 @@ impl CircuitBreaker {
         }
     }
 
-    fn record_failure(&self) {
+    pub fn record_failure(&self) {
         let prev_failure = self.failure_count.fetch_add(1, Ordering::SeqCst);
         *self.last_failure_time.lock().unwrap() = Some(Instant::now());
 
@@ -360,12 +360,45 @@ where
     C: ErrorClassifier<E>,
     E: std::fmt::Debug,
 {
-    retry_with_backoff(
+    // Check if circuit is open before attempting operation
+    if circuit_breaker.is_open() {
+        return Err(RecoveryError::CircuitBreakerOpen {
+            service: service_name.to_string(),
+        });
+    }
+
+    // Execute with retry logic
+    let result = retry_with_backoff(
         || operation(),
         retry_config,
         classifier,
         service_name,
-    ).await
+    ).await;
+
+    // Record result in circuit breaker
+    match &result {
+        Ok(_) => circuit_breaker.record_success(),
+        Err(_) => circuit_breaker.record_failure(),
+    }
+
+    result
+}
+
+/// Execute operation with both circuit breaker and retry protection
+pub async fn execute_with_recovery_and_circuit_breaker<F, Fut, T, E, C>(
+    operation: F,
+    retry_config: &ErrorRecoveryConfig,
+    classifier: &C,
+    circuit_breaker: &CircuitBreaker,
+    service_name: &str,
+) -> Result<T, RecoveryError<E>>
+where
+    F: Fn() -> Fut + Clone,
+    Fut: Future<Output = Result<T, E>>,
+    C: ErrorClassifier<E>,
+    E: std::fmt::Debug,
+{
+    resilient_operation(operation, retry_config, circuit_breaker, classifier, service_name).await
 }
 
 #[cfg(test)]
