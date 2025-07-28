@@ -77,8 +77,7 @@ if [ "${ICN_ENABLE_MDNS}" = "true" ]; then
     ARGS+=(--enable-mdns)
 fi
 
-# Add log level configuration for debugging
-ARGS+=(--log-level "${ICN_LOG_LEVEL:-debug}")
+# Note: Log level is controlled via RUST_LOG environment variable, not CLI argument
 
 echo "🔧 Command: icn-node ${ARGS[*]}"
 
