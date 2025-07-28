@@ -7,7 +7,7 @@ echo "🔧 Building ICN for devnet deployment..."
 
 # Set environment variables to work around LLVM/Rust compiler issues
 export RUST_MIN_STACK=16777216  # 16MB stack as suggested by error
-export RUSTFLAGS="-C debuginfo=1 -C opt-level=1"  # Reduce debug info complexity
+export RUSTFLAGS="-C debuginfo=1 -C opt-level=1 -C lto=off"  # Disable LTO to avoid LLVM crashes
 export CARGO_PROFILE_DEV_DEBUG=1  # Limit debug info level
 export CARGO_PROFILE_RELEASE_DEBUG=1
 
