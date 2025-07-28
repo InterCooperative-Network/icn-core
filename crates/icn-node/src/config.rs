@@ -409,6 +409,21 @@ impl NodeConfig {
                 self.key_rotation_days = days;
             }
         }
+        
+        // P2P configuration environment variables
+        if let Ok(val) = std::env::var("ICN_P2P_LISTEN_ADDR") {
+            self.p2p.listen_address = val;
+        }
+        if let Ok(val) = std::env::var("ICN_BOOTSTRAP_PEERS") {
+            // Parse comma-separated bootstrap peers
+            let peers: Vec<String> = val.split(',')
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .collect();
+            if !peers.is_empty() {
+                self.p2p.bootstrap_peers = Some(peers);
+            }
+        }
     }
 
     /// Apply CLI overrides onto this configuration.
