@@ -12,7 +12,10 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{Cid, CommonError, Did, NodeInfo, TimeProvider, SystemTimeProvider, FixedTimeProvider};
+#[allow(unused_imports)]
+use icn_common::{
+    Cid, CommonError, Did, FixedTimeProvider, NodeInfo, SystemTimeProvider, TimeProvider,
+};
 #[cfg(feature = "federation")]
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
@@ -1015,7 +1018,10 @@ impl GovernanceModule {
     }
 
     /// Automatically close all proposals whose voting deadlines have passed.
-    pub fn close_expired_proposals(&mut self, time_provider: &dyn TimeProvider) -> Result<(), CommonError> {
+    pub fn close_expired_proposals(
+        &mut self,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), CommonError> {
         let now = time_provider.unix_seconds();
         match &mut self.backend {
             Backend::InMemory { proposals } => {

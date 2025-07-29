@@ -399,6 +399,7 @@ impl VotingSystem for RankedChoiceVotingSystem {
         self.verify_ballot_signature_sync(ballot)?;
 
         // Check ballot timestamp is reasonable
+        #[allow(clippy::disallowed_methods)]
         let now = std::time::SystemTime::now();
         if ballot.timestamp > now {
             return Err(VotingError::InvalidBallot(

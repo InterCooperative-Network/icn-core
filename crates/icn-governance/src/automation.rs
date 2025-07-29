@@ -414,9 +414,9 @@ impl GovernanceAutomationEngine {
                     .insert(voter.clone(), (vote.clone(), vote_weight.clone()));
 
                 // Calculate voting status without async calls within the lock
-                let (_support_count, _total_weighted_votes, total_eligible_voters) = 
+                let (_support_count, _total_weighted_votes, total_eligible_voters) =
                     self.calculate_vote_counts_sync(state);
-                
+
                 state.voting_status.votes_cast = state.votes_received.len();
                 state.voting_status.eligible_voters = total_eligible_voters as usize;
                 state.voting_status.participation_rate = if total_eligible_voters > 0 {
@@ -431,8 +431,9 @@ impl GovernanceAutomationEngine {
                 };
 
                 let needs_quorum = !state.voting_status.quorum_reached;
-                let needs_execution = state.voting_status.support_percentage >= self.config.auto_execution_threshold;
-                
+                let needs_execution =
+                    state.voting_status.support_percentage >= self.config.auto_execution_threshold;
+
                 (needs_quorum, needs_execution)
             } else {
                 (false, false)
@@ -446,11 +447,11 @@ impl GovernanceAutomationEngine {
                 let proposals = self.active_proposals.read().unwrap();
                 proposals.get(&proposal_id).cloned()
             };
-            
+
             if let Some(state) = state_copy {
                 // Recalculate detailed voting status with async operations
                 let updated_status = self.calculate_voting_status(&state).await?;
-                
+
                 // Update the state with the new status
                 {
                     let mut proposals = self.active_proposals.write().unwrap();
@@ -458,25 +459,26 @@ impl GovernanceAutomationEngine {
                         state.voting_status = updated_status;
                     }
                 }
-                
+
                 // Check if quorum was reached by getting the status again
                 let quorum_reached = {
                     let proposals = self.active_proposals.read().unwrap();
-                    proposals.get(&proposal_id)
+                    proposals
+                        .get(&proposal_id)
                         .map(|state| state.voting_status.quorum_reached)
                         .unwrap_or(false)
                 };
-                
+
                 if quorum_reached {
                     // Get the voting result with a separate async call
                     let state_for_result = {
                         let proposals = self.active_proposals.read().unwrap();
                         proposals.get(&proposal_id).cloned()
                     };
-                    
+
                     if let Some(state) = state_for_result {
                         let voting_result = self.determine_voting_result(&state).await?;
-                        
+
                         let _ = self.event_tx.send(GovernanceEvent::QuorumReached {
                             proposal_id: proposal_id.clone(),
                             result: voting_result.clone(),
@@ -1331,15 +1333,16 @@ impl GovernanceAutomationEngine {
             let active_proposals = self.active_proposals.read().unwrap();
             if let Some(proposal_state) = active_proposals.get(proposal_id) {
                 let can_execute = proposal_state.voting_status.quorum_reached
-                    && proposal_state.voting_status.support_percentage >= self.config.auto_execution_threshold
+                    && proposal_state.voting_status.support_percentage
+                        >= self.config.auto_execution_threshold
                     && !proposal_state.execution_attempted;
-                
+
                 (can_execute, proposal_state.execution_attempted)
             } else {
                 (false, false)
             }
         }; // Lock is dropped here
-        
+
         if !can_execute {
             if execution_attempted {
                 log::debug!("Proposal {:?} execution already attempted", proposal_id);

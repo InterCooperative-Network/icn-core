@@ -5,7 +5,7 @@
 //! protection against various attack vectors.
 
 use crate::voting::{RankedChoiceBallot, Signature, VotingError};
-use icn_common::Signable;
+use icn_common::{Signable, TimeProvider};
 use icn_identity::{
     security::{secure_validate_did, secure_verify_signature, SecurityConfig},
     verifying_key_from_did_key, EdSignature,
@@ -63,7 +63,11 @@ impl SecureBallotValidator {
     }
 
     /// Comprehensive ballot validation with security checks
-    pub fn validate_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
+    pub fn validate_ballot(
+        &mut self,
+        ballot: &RankedChoiceBallot,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), VotingError> {
         // 1. Validate DID format
         secure_validate_did(&ballot.voter_did.id, &self.config.crypto_config)
             .map_err(|_e| VotingError::InvalidSignature)?;
@@ -72,7 +76,7 @@ impl SecureBallotValidator {
         self.validate_ballot_structure(ballot)?;
 
         // 3. Validate timestamp
-        self.validate_timestamp(ballot)?;
+        self.validate_timestamp(ballot, time_provider)?;
 
         // 4. Check for replay attacks
         if self.config.replay_protection {
@@ -139,8 +143,12 @@ impl SecureBallotValidator {
     }
 
     /// Validate ballot timestamp
-    fn validate_timestamp(&self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
-        let now = SystemTime::now();
+    fn validate_timestamp(
+        &self,
+        ballot: &RankedChoiceBallot,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), VotingError> {
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         let ballot_time = ballot.timestamp;
 
         // Check if timestamp is too far in the future

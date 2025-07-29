@@ -52,7 +52,7 @@
 //! assert_eq!(ballot.first_choice(), Some(&CandidateId("alice".to_string())));
 //! ```
 
-use icn_common::{Cid, Did, DidDocument, Signable};
+use icn_common::{Cid, Did, DidDocument, Signable, TimeProvider};
 use icn_dag::StorageService;
 use std::any::Any;
 use std::time::SystemTime;
@@ -192,19 +192,21 @@ pub struct VotingPeriod {
 
 impl VotingPeriod {
     /// Check if the voting period is currently active
-    pub fn is_active(&self) -> bool {
-        let now = SystemTime::now();
+    pub fn is_active(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         now >= self.start_time && now <= self.end_time
     }
 
     /// Check if the voting period has ended
-    pub fn has_ended(&self) -> bool {
-        SystemTime::now() > self.end_time
+    pub fn has_ended(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        now > self.end_time
     }
 
     /// Check if the voting period has not started yet
-    pub fn has_not_started(&self) -> bool {
-        SystemTime::now() < self.start_time
+    pub fn has_not_started(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        now < self.start_time
     }
 }
 
@@ -452,13 +454,14 @@ impl RankedChoiceBallot {
         election_id: ElectionId,
         preferences: Vec<CandidateId>,
         signature: Signature,
+        time_provider: &dyn TimeProvider,
     ) -> Self {
         Self {
             ballot_id,
             voter_did,
             election_id,
             preferences,
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature,
         }
     }
@@ -676,6 +679,7 @@ where
         &mut self,
         election_id: &ElectionId,
         ballot_cids: Vec<Cid>,
+        time_provider: &dyn TimeProvider,
     ) -> Result<Cid, VotingError> {
         use icn_common::{DagBlock, DagLink};
 
@@ -698,10 +702,7 @@ where
             cid: Cid::new_v1_sha256(0x71, &election_data),
             data: election_data,
             links,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: time_provider.unix_seconds(),
             author_did: Did::new("system", "governance"), // System-generated block
             signature: None,
             scope: None,
@@ -718,6 +719,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::FixedTimeProvider;
 
     fn create_test_did_document() -> DidDocument {
         DidDocument {
@@ -746,7 +748,8 @@ mod tests {
 
     #[test]
     fn test_voting_period_active() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now - std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(60);
 
@@ -755,14 +758,15 @@ mod tests {
             end_time: end,
         };
 
-        assert!(period.is_active());
-        assert!(!period.has_ended());
-        assert!(!period.has_not_started());
+        assert!(period.is_active(&time_provider));
+        assert!(!period.has_ended(&time_provider));
+        assert!(!period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_voting_period_ended() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now - std::time::Duration::from_secs(120);
         let end = now - std::time::Duration::from_secs(60);
 
@@ -771,14 +775,15 @@ mod tests {
             end_time: end,
         };
 
-        assert!(!period.is_active());
-        assert!(period.has_ended());
-        assert!(!period.has_not_started());
+        assert!(!period.is_active(&time_provider));
+        assert!(period.has_ended(&time_provider));
+        assert!(!period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_voting_period_not_started() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now + std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(120);
 
@@ -787,13 +792,14 @@ mod tests {
             end_time: end,
         };
 
-        assert!(!period.is_active());
-        assert!(!period.has_ended());
-        assert!(period.has_not_started());
+        assert!(!period.is_active(&time_provider));
+        assert!(!period.has_ended(&time_provider));
+        assert!(period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_ranked_choice_ballot_preferences_validation() {
+        let time_provider = FixedTimeProvider::new(1000);
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
             voter_did: create_test_did_document(),
@@ -803,7 +809,7 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("charlie".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -824,7 +830,7 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("alice".to_string()), // Duplicate
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -848,7 +854,7 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("charlie".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -881,7 +887,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -925,7 +931,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
