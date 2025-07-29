@@ -1848,7 +1848,8 @@ impl RuntimeContext {
         self.spend_mana(&self.current_identity, adjusted_cost)
             .await?;
 
-        // 4. Generate job ID from deterministic hash
+        // 4. Generate temporary job ID from deterministic hash
+        // This will be updated to the actual DAG CID after storage
         use sha2::{Digest, Sha256};
         let mut hasher = Sha256::new();
         hasher.update(manifest_cid.to_string().as_bytes());
@@ -1856,14 +1857,14 @@ impl RuntimeContext {
         hasher.update(self.current_identity.to_string().as_bytes());
         hasher.update(adjusted_cost.to_le_bytes());
         hasher.update(self.time_provider.unix_seconds().to_le_bytes());
-        let job_id_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
-        let job_id = JobId::from(job_id_cid);
+        let temp_job_id_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
+        let temp_job_id = JobId::from(temp_job_id_cid);
 
-        log::debug!("[handle_submit_job] Generated job ID: {}", job_id);
+        log::debug!("[handle_submit_job] Generated temporary job ID: {}", temp_job_id);
 
-        // 5. Create the Job DAG node
-        let job = Job {
-            id: job_id.clone(),
+        // 5. Create the Job DAG node with temporary ID
+        let mut job = Job {
+            id: temp_job_id.clone(),
             manifest_cid: manifest_cid.clone(),
             spec_bytes: spec_bytes.clone(),
             spec_json: None,
@@ -1874,19 +1875,26 @@ impl RuntimeContext {
             resource_requirements: job_spec.required_resources.clone(),
         };
 
-        // 6. Store job in DAG
+        // 6. Store job in DAG and get the actual computed CID
         let job_dag_cid = self.store_job_in_dag(&job).await?;
+        
+        // 7. Update the job ID to match the actual DAG storage CID
+        let actual_job_id = JobId::from(job_dag_cid.clone());
+        job.id = actual_job_id.clone();
+        
         log::info!(
-            "[handle_submit_job] Job stored in DAG with CID: {}",
-            job_dag_cid
+            "[handle_submit_job] Job stored in DAG with CID: {} (updated job ID from {} to {})",
+            job_dag_cid,
+            temp_job_id,
+            actual_job_id
         );
 
-        // 7. Update job state tracking
-        self.job_states.insert(job_id.clone(), JobState::Pending);
+        // 8. Update job state tracking with the actual job ID
+        self.job_states.insert(actual_job_id.clone(), JobState::Pending);
 
-        // 8. Create ActualMeshJob for network announcement
+        // 9. Create ActualMeshJob for network announcement with the actual job ID
         let actual_job = ActualMeshJob {
-            id: job_id.clone(),
+            id: actual_job_id.clone(),
             manifest_cid,
             spec: job_spec,
             creator_did: self.current_identity.clone(),
@@ -1895,7 +1903,7 @@ impl RuntimeContext {
             signature: icn_identity::SignatureBytes(vec![]), // Will be signed by mesh service
         };
 
-        // 9. Announce job to mesh network for bidding
+        // 10. Announce job to mesh network for bidding
         if let Err(e) = self.mesh_network_service.announce_job(&actual_job).await {
             log::warn!(
                 "[handle_submit_job] Failed to announce job to mesh network: {}",
@@ -1905,9 +1913,9 @@ impl RuntimeContext {
             log::info!("[handle_submit_job] Job announced to mesh network");
         }
 
-        // 10. Start the async job lifecycle management
+        // 11. Start the async job lifecycle management
         let ctx = Arc::clone(self);
-        let job_id_for_task = job_id.clone();
+        let job_id_for_task = actual_job_id.clone();
         tokio::spawn(async move {
             log::info!(
                 "[handle_submit_job] Spawning lifecycle management task for job: {}",
@@ -1922,9 +1930,9 @@ impl RuntimeContext {
 
         log::info!(
             "[handle_submit_job] Job submission completed successfully: {}",
-            job_id
+            actual_job_id
         );
-        Ok(job_id)
+        Ok(actual_job_id)
     }
 
     /// Internal queue mesh job method (DEPRECATED - use handle_submit_job instead).
