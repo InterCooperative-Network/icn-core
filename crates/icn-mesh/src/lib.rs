@@ -351,7 +351,7 @@ pub trait DynamicCapabilityChecker: Send + Sync {
     fn get_current_resources(&self, executor_did: &Did) -> Option<Resources>;
 
     /// Check if an executor is currently available for new jobs.
-    fn is_executor_available(&self, executor_did: &Did) -> bool {
+    fn is_executor_available(&self, _executor_did: &Did) -> bool {
         true // Default implementation assumes availability
     }
 }
@@ -434,6 +434,7 @@ impl ReputationExecutorSelector {
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
+#[allow(clippy::too_many_arguments)]
 pub fn select_executor(
     job_id: &JobId,
     job_spec: &JobSpec,
