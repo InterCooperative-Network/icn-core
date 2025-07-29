@@ -262,9 +262,9 @@ impl ServiceConfigBuilder {
                     // Production builds should fail if no explicit store is provided
                     #[cfg(feature = "production")]
                     {
-                        return Err(CommonError::InternalError(
+                        Err(CommonError::InternalError(
                             "DAG store is required for production environment. Use ServiceConfigBuilder::with_dag_store() or DagStoreFactory::create_production().".to_string()
-                        ));
+                        ))
                     }
 
                     // Development builds can auto-create a production store

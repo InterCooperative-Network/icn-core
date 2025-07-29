@@ -340,6 +340,7 @@ impl DagStoreFactory {
             return Ok(DagStoreBackend::PostgreSQL);
         }
 
+        #[allow(unreachable_code)]
         Err(CommonError::ConfigError(
             "No persistent DAG storage backend available for production. Enable at least one of: persist-sled, persist-rocksdb, persist-sqlite, persist-postgres".to_string()
         ))
