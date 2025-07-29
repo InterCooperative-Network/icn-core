@@ -2,7 +2,7 @@ use icn_common::{Cid, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, MeshJobBid, Resources};
 use icn_runtime::context::{
-    LocalMeshSubmitReceiptMessage, MeshNetworkService, MeshNetworkServiceType, RuntimeContext,
+    LocalMeshSubmitReceiptMessage, MeshNetworkServiceType, RuntimeContext,
     StubMeshNetworkService,
 };
 use std::str::FromStr;
@@ -25,7 +25,7 @@ async fn test_manual_bid_injection_full_lifecycle() {
     // Create a test runtime context with stub services
     let submitter_did =
         Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
-    let mut context = RuntimeContext::new_testing(submitter_did.clone(), Some(1000))
+    let mut context = RuntimeContext::new_for_testing(submitter_did.clone(), Some(1000))
         .expect("Failed to create test context");
 
     // Get the stub network service for manual bid injection
@@ -42,7 +42,7 @@ async fn test_manual_bid_injection_full_lifecycle() {
     // Submit the job to start the lifecycle
     let job_manager = context.clone();
     let job_handle =
-        tokio::spawn(async move { job_manager.handle_mesh_job_lifecycle(test_job).await });
+        tokio::spawn(async move { RuntimeContext::handle_mesh_job_lifecycle(test_job).await });
 
     // Give the job manager a moment to announce the job
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -132,11 +132,11 @@ async fn test_manual_bid_injection_full_lifecycle() {
 
     // Check final mana balances
     let submitter_balance = context
-        .get_mana_balance(&submitter_did)
+        .get_mana(&submitter_did)
         .await
         .expect("Failed to get submitter balance");
     let executor_balance = context
-        .get_mana_balance(selected_executor)
+        .get_mana(selected_executor)
         .await
         .expect("Failed to get executor balance");
 
@@ -174,7 +174,7 @@ async fn test_no_bids_timeout() {
 
     let submitter_did =
         Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
-    let context = RuntimeContext::new_testing(submitter_did.clone(), Some(1000))
+    let context = RuntimeContext::new_for_testing(submitter_did.clone(), Some(1000))
         .expect("Failed to create test context");
 
     let test_job = create_test_echo_job(&submitter_did);
@@ -185,7 +185,7 @@ async fn test_no_bids_timeout() {
     // Submit job but don't inject any bids
     let job_manager = context.clone();
     let job_handle =
-        tokio::spawn(async move { job_manager.handle_mesh_job_lifecycle(test_job).await });
+        tokio::spawn(async move { RuntimeContext::handle_mesh_job_lifecycle(test_job).await });
 
     // Wait for the job to timeout (should be quick since no bids)
     let result = timeout(Duration::from_secs(45), job_handle).await;
@@ -205,7 +205,7 @@ async fn test_no_bids_timeout() {
 
     // Check that submitter's mana was refunded (since job failed due to no bids)
     let final_balance = context
-        .get_mana_balance(&submitter_did)
+        .get_mana(&submitter_did)
         .await
         .expect("Failed to get final balance");
 
@@ -231,7 +231,7 @@ async fn test_multiple_jobs_selective_bidding() {
 
     let submitter_did =
         Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktH").unwrap();
-    let context = RuntimeContext::new_testing(submitter_did.clone(), Some(2000))
+    let context = RuntimeContext::new_for_testing(submitter_did.clone(), Some(2000))
         .expect("Failed to create test context");
 
     let stub_service = get_stub_network_service(&context);
@@ -248,9 +248,9 @@ async fn test_multiple_jobs_selective_bidding() {
     let context1 = context.clone();
     let context2 = context.clone();
 
-    let job1_handle = tokio::spawn(async move { context1.handle_mesh_job_lifecycle(job1).await });
+    let job1_handle = tokio::spawn(async move { RuntimeContext::handle_mesh_job_lifecycle(job1).await });
 
-    let job2_handle = tokio::spawn(async move { context2.handle_mesh_job_lifecycle(job2).await });
+    let job2_handle = tokio::spawn(async move { RuntimeContext::handle_mesh_job_lifecycle(job2).await });
 
     // Wait for announcements
     tokio::time::sleep(Duration::from_millis(500)).await;
@@ -306,11 +306,12 @@ fn get_stub_network_service(context: &Arc<RuntimeContext>) -> Arc<StubMeshNetwor
 
 fn create_test_echo_job(submitter_did: &Did) -> ActualMeshJob {
     ActualMeshJob {
-        id: JobId::new(),
-        manifest_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e")
-            .unwrap(),
+        id: JobId(Cid::new_v1_sha256(0x55, b"job")),
+        manifest_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e").unwrap(),
         creator_did: submitter_did.clone(),
         cost_mana: 50,
+        max_execution_wait_ms: None,
+        signature: SignatureBytes(vec![]),
         spec: JobSpec {
             kind: JobKind::Echo {
                 payload: "Hello from manual bid test!".to_string(),
@@ -330,38 +331,44 @@ fn create_test_bids(job_id: &JobId) -> Vec<MeshJobBid> {
     vec![
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkrJvwAfLVgFntBzYCBLXXNGMNPdpJcRw4Qc9vq8vN8oSz")
-                .unwrap(),
+            executor_did: Did::from_str("did:key:z6MkrJvwAfLVgFntBzYCBLXXNGMNPdpJcRw4Qc9vq8vN8oSz").unwrap(),
             price_mana: 30, // Lowest price - should be selected
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 100,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         },
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkoTHsgNNrby8JzCNQ1iRLyW5QQ6R8Xuu6AA8igGrMVPUM")
-                .unwrap(),
+            executor_did: Did::from_str("did:key:z6MkoTHsgNNrby8JzCNQ1iRLyW5QQ6R8Xuu6AA8igGrMVPUM").unwrap(),
             price_mana: 40,
             resources: Resources {
                 cpu_cores: 1,
                 memory_mb: 120,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         },
         MeshJobBid {
             job_id: job_id.clone(),
-            executor_did: Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktM")
-                .unwrap(),
+            executor_did: Did::from_str("did:key:z6MkpTHR8VNsBxYAAWHut2Geadd9jSwuBV8xRoAnwWsdvktM").unwrap(),
             price_mana: 35,
             resources: Resources {
                 cpu_cores: 2,
                 memory_mb: 150,
                 storage_mb: 0,
             },
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         },
     ]
@@ -371,10 +378,9 @@ fn create_test_receipt(job_id: &JobId, executor_did: &Did) -> ExecutionReceipt {
     ExecutionReceipt {
         job_id: Cid::from(job_id.clone()),
         executor_did: executor_did.clone(),
-        result_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e")
-            .unwrap(),
+        result_cid: Cid::from_str("bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e").unwrap(),
         cpu_ms: 150,
         success: true,
-        signature: SignatureBytes(vec![]),
+        sig: SignatureBytes(vec![]),
     }
 }

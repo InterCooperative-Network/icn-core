@@ -14,7 +14,7 @@ async fn anchor_receipt_uses_time_provider() {
     let did = Did::from_str(did_str).unwrap();
     let signer = Arc::new(StubSigner::new());
 
-    let ctx = RuntimeContext::new_with_ledger_path_and_time(
+    let ctx = RuntimeContext::new(
         did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
         provider.clone(),
@@ -34,7 +34,7 @@ async fn anchor_receipt_uses_time_provider() {
     let cid = host_anchor_receipt(&ctx, &json, &ReputationUpdater::new())
         .await
         .unwrap();
-    let store = ctx.dag_store.lock().await;
+    let store = ctx.dag_store.store.lock().await;
     let block = store.get(&cid).await.unwrap().unwrap();
     assert_eq!(block.timestamp, provider.unix_seconds());
 }
