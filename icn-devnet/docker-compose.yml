@@ -1,4 +1,4 @@
-version: '3.8'
+# version: '3.8'  # Removed - this attribute is obsolete
 
 services:
   # Node A - Bootstrap node and primary HTTP gateway
@@ -52,7 +52,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-b-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5002:7845"  # HTTP API
       - "4002:4001"  # P2P networking
@@ -90,7 +90,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-c-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5003:7845"  # HTTP API
       - "4003:4001"  # P2P networking
@@ -128,7 +128,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-d-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5004:7845"  # HTTP API
       - "4004:4001"  # P2P networking
@@ -166,7 +166,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-e-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5005:7845"  # HTTP API
       - "4005:4001"  # P2P networking
@@ -203,7 +203,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-f-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5006:7845"  # HTTP API
       - "4006:4001"  # P2P networking
@@ -240,7 +240,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-g-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5007:7845"  # HTTP API
       - "4007:4001"  # P2P networking
@@ -277,7 +277,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-h-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5008:7845"  # HTTP API
       - "4008:4001"  # P2P networking
@@ -314,7 +314,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-i-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5009:7845"  # HTTP API
       - "4009:4001"  # P2P networking
@@ -351,7 +351,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-j-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/ip4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
     ports:
       - "5010:7845"  # HTTP API
       - "4010:4001"  # P2P networking

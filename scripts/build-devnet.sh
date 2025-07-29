@@ -7,9 +7,10 @@ echo "🔧 Building ICN for devnet deployment..."
 
 # Set environment variables to work around LLVM/Rust compiler issues
 export RUST_MIN_STACK=16777216  # 16MB stack as suggested by error
-export RUSTFLAGS="-C debuginfo=1 -C opt-level=1"  # Reduce debug info complexity
+export RUSTFLAGS="-C debuginfo=1 -C opt-level=1 -C lto=off"  # Disable LTO to avoid bitcode conflicts
 export CARGO_PROFILE_DEV_DEBUG=1  # Limit debug info level
 export CARGO_PROFILE_RELEASE_DEBUG=1
+export CARGO_PROFILE_RELEASE_LTO=false  # Explicitly disable LTO for release builds
 
 # Increase system limits if possible
 ulimit -s 32768 2>/dev/null || echo "Warning: Could not increase stack size"
@@ -37,7 +38,7 @@ if [ $? -eq 0 ]; then
     
     echo "🔧 Attempting debug builds with limited debug info..."
     # Try debug build with very limited debug info
-    RUSTFLAGS="-C debuginfo=0" cargo build --package icn-node --features with-libp2p || {
+    RUSTFLAGS="-C debuginfo=0 -C lto=off" cargo build --package icn-node --features with-libp2p || {
         echo "⚠️ Debug build failed, using release build for devnet"
         # Copy release binary to debug location for devnet
         mkdir -p target/debug
@@ -45,7 +46,7 @@ if [ $? -eq 0 ]; then
     }
     
     # Try CLI debug build
-    RUSTFLAGS="-C debuginfo=0" cargo build --package icn-cli || {
+    RUSTFLAGS="-C debuginfo=0 -C lto=off" cargo build --package icn-cli || {
         echo "⚠️ CLI debug build failed, using release build"
         # Copy release CLI binary to debug location
         mkdir -p target/debug
