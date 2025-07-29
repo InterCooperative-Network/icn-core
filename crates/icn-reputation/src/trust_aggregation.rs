@@ -624,8 +624,10 @@ mod tests {
 
     #[test]
     fn test_weighted_mean_combination() {
-        let mut config = AggregationConfig::default();
-        config.combination_method = CombinationMethod::WeightedMean;
+        let config = AggregationConfig {
+            combination_method: CombinationMethod::WeightedMean,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let mut signal_scores = HashMap::new();
@@ -641,8 +643,10 @@ mod tests {
 
     #[test]
     fn test_geometric_mean_combination() {
-        let mut config = AggregationConfig::default();
-        config.combination_method = CombinationMethod::WeightedGeometricMean;
+        let config = AggregationConfig {
+            combination_method: CombinationMethod::WeightedGeometricMean,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let mut signal_scores = HashMap::new();
@@ -776,9 +780,11 @@ mod tests {
 
     #[test]
     fn test_confidence_decay_for_insufficient_signals() {
-        let mut config = AggregationConfig::default();
-        config.min_signals = 3;
-        config.confidence_decay = 0.2;
+        let config = AggregationConfig {
+            min_signals: 3,
+            confidence_decay: 0.2,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let base_confidence = 0.8;

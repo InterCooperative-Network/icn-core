@@ -13,7 +13,7 @@ fn delegation_chain_a_b_c() {
     let (sk_b, vk_b) = generate_ed25519_keypair();
     let did_b = Did::from_str(&did_key_from_verifying_key(&vk_b)).unwrap();
 
-    let (sk_c, vk_c) = generate_ed25519_keypair();
+    let (_sk_c, vk_c) = generate_ed25519_keypair();
     let did_c = Did::from_str(&did_key_from_verifying_key(&vk_c)).unwrap();
 
     let d1 = DelegatedCredential::new(did_a.clone(), did_b.clone(), &sk_a);

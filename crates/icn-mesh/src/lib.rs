@@ -1520,11 +1520,11 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high.clone(), 10);
         latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &spec,
@@ -1582,7 +1582,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 15);
         latency.set_latency(b.clone(), 5);
         let spec = JobSpec::default();
@@ -1643,7 +1643,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high_rep.clone(), 20);
         latency.set_latency(cheap.clone(), 5);
 
@@ -1698,7 +1698,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 50);
         latency.set_latency(b.clone(), 10);
         let selected = select_executor(
@@ -1773,7 +1773,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(fast.clone(), 5);
         latency.set_latency(slow.clone(), 50);
 
@@ -1819,7 +1819,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(bidder.clone(), 15);
         let score = score_bid(
             &bid,
@@ -1841,7 +1841,7 @@ mod tests {
         let policy = SelectionPolicy::default();
 
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1893,7 +1893,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1945,8 +1945,8 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(did_a.clone(), 5);
         latency.set_latency(did_b.clone(), 30);
         let score_a = score_bid(
@@ -2052,7 +2052,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2121,7 +2121,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2188,7 +2188,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2257,7 +2257,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let _capability_checker = TestCapabilityChecker::new();
+        let capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,

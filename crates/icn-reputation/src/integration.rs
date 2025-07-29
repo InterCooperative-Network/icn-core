@@ -1093,7 +1093,7 @@ mod tests {
 
     #[test]
     fn test_trust_level_hierarchy() {
-        let levels = vec![
+        let levels = [
             TrustLevel::Untrusted,
             TrustLevel::Basic,
             TrustLevel::Established,
