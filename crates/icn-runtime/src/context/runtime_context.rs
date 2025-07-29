@@ -102,7 +102,7 @@ use bincode;
 use dashmap::DashMap;
 use icn_common::{
     compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider,
-    SystemInfoProvider, TimeProvider,
+    SystemInfoProvider, SystemTimeProvider, TimeProvider,
 };
 use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
@@ -3042,6 +3042,7 @@ impl RuntimeContext {
             None
         };
 
+        let time_provider = SystemTimeProvider;
         let pid = gov
             .submit_proposal(ProposalSubmission {
                 proposer: self.current_identity.clone(),
@@ -3051,7 +3052,7 @@ impl RuntimeContext {
                 quorum: payload.quorum,
                 threshold: payload.threshold,
                 content_cid,
-            })
+            }, &time_provider)
             .map_err(|e| {
                 HostAbiError::InternalError(format!("Failed to submit proposal: {}", e))
             })?;
@@ -3097,7 +3098,8 @@ impl RuntimeContext {
         };
 
         let mut gov = self.governance_module.lock().await;
-        gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
+        let time_provider = SystemTimeProvider;
+        gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option, &time_provider)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
 
         let vote = icn_governance::Vote {
@@ -3128,8 +3130,9 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
 
         let mut gov = self.governance_module.lock().await;
+        let time_provider = SystemTimeProvider;
         let (status, (yes, no, abstain)) = gov
-            .close_voting_period(&proposal_id)
+            .close_voting_period(&proposal_id, &time_provider)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to close voting: {}", e)))?;
 
         let proposal = gov

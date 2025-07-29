@@ -269,11 +269,7 @@ impl GovernanceConflictResolver {
         // Check for conflicts (multiple proposals targeting same resource)
         for (target, proposals_for_target) in target_groups {
             if proposals_for_target.len() > 1 {
-                let conflict_id = format!(
-                    "clash_{}_{}",
-                    target,
-                    time_provider.unix_seconds()
-                );
+                let conflict_id = format!("clash_{}_{}", target, time_provider.unix_seconds());
 
                 let involved_proposals: Vec<ProposalId> =
                     proposals_for_target.iter().map(|p| p.id.clone()).collect();

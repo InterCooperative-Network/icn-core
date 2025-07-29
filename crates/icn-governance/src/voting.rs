@@ -193,19 +193,22 @@ pub struct VotingPeriod {
 impl VotingPeriod {
     /// Check if the voting period is currently active
     pub fn is_active(&self, time_provider: &dyn TimeProvider) -> bool {
-        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         now >= self.start_time && now <= self.end_time
     }
 
     /// Check if the voting period has ended
     pub fn has_ended(&self, time_provider: &dyn TimeProvider) -> bool {
-        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         now > self.end_time
     }
 
     /// Check if the voting period has not started yet
     pub fn has_not_started(&self, time_provider: &dyn TimeProvider) -> bool {
-        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         now < self.start_time
     }
 }
@@ -461,7 +464,8 @@ impl RankedChoiceBallot {
             voter_did,
             election_id,
             preferences,
-            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds()),
+            timestamp: SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature,
         }
     }
@@ -809,7 +813,8 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("charlie".to_string()),
             ],
-            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds()),
+            timestamp: SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],

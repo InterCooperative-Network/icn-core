@@ -148,7 +148,8 @@ impl SecureBallotValidator {
         ballot: &RankedChoiceBallot,
         time_provider: &dyn TimeProvider,
     ) -> Result<(), VotingError> {
-        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         let ballot_time = ballot.timestamp;
 
         // Check if timestamp is too far in the future

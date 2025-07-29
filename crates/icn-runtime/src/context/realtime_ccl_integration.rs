@@ -9,7 +9,7 @@ use super::{
     MessagePriority, PropagationPriority, SmartP2pRouter,
 };
 use bincode;
-use icn_common::{Cid, Did, TimeProvider};
+use icn_common::{Cid, Did, SystemTimeProvider, TimeProvider};
 use icn_governance::{GovernanceModule, Proposal, ProposalId};
 use icn_reputation::ReputationStore;
 use serde::{Deserialize, Serialize};
@@ -829,7 +829,8 @@ impl CclIntegrationCoordinator {
         };
 
         // Submit to governance module
-        match governance.submit_proposal(proposal_submission) {
+        let time_provider = SystemTimeProvider;
+        match governance.submit_proposal(proposal_submission, &time_provider) {
             Ok(proposal_id) => {
                 info!(
                     "Proposal submitted to governance module with ID: {:?}",
@@ -884,8 +885,9 @@ impl CclIntegrationCoordinator {
         };
 
         // Submit vote to governance
+        let time_provider = SystemTimeProvider;
         governance
-            .cast_vote(self.node_identity.clone(), proposal_id, vote_option_enum)
+            .cast_vote(self.node_identity.clone(), proposal_id, vote_option_enum, &time_provider)
             .map_err(|e| HostAbiError::GovernanceError(format!("Failed to submit vote: {}", e)))?;
 
         // Also anchor vote in DAG for transparency and verification

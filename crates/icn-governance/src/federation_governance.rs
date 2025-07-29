@@ -880,17 +880,17 @@ impl FederationGovernanceEngine {
             // For now, automatically approve if basic requirements are met
             // In practice, this would trigger committee review process
             return Ok(MembershipApplicationResult::Approved {
-                probationary_until: gate.probationary_period.map(|period| {
-                    time_provider.unix_seconds() + period
-                }),
+                probationary_until: gate
+                    .probationary_period
+                    .map(|period| time_provider.unix_seconds() + period),
                 granted_contexts: valid_contexts,
             });
         }
 
         Ok(MembershipApplicationResult::Approved {
-            probationary_until: gate.probationary_period.map(|period| {
-                time_provider.unix_seconds() + period
-            }),
+            probationary_until: gate
+                .probationary_period
+                .map(|period| time_provider.unix_seconds() + period),
             granted_contexts: valid_contexts,
         })
     }
