@@ -452,6 +452,7 @@ pub trait FederationMembershipService: Send + Sync {
 /// Implementation of FederationMembershipService
 pub struct DefaultFederationMembershipService {
     registry: Arc<dyn FederationRegistry>,
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
 }
 

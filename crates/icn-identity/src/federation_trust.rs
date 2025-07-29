@@ -46,6 +46,7 @@ impl TrustContext {
     }
 
     /// Parse trust context from string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(s: &str) -> Self {
         match s {
             "governance" => TrustContext::Governance,
@@ -1035,8 +1036,10 @@ pub struct FederationTrustBootstrap {
     /// Local federation metadata
     local_federation: FederationMetadata,
     /// Trust policy engine
+    #[allow(dead_code)]
     trust_engine: TrustPolicyEngine,
     /// DID verifier
+    #[allow(dead_code)]
     did_verifier: FederationDidVerifier,
     /// Bootstrap sessions in progress
     active_sessions: HashMap<String, BootstrapSession>,

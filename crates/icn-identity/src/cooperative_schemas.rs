@@ -196,7 +196,9 @@ impl CooperativeProfile {
 
 /// Helper for creating standard cooperative membership credentials
 pub struct CooperativeMembershipBuilder {
+    #[allow(dead_code)]
     issuer: Did,
+    #[allow(dead_code)]
     holder: Did,
     cooperative_name: String,
     role: String,
@@ -247,7 +249,9 @@ impl CooperativeMembershipBuilder {
 
 /// Helper for creating service provider credentials
 pub struct ServiceProviderBuilder {
+    #[allow(dead_code)]
     issuer: Did,
+    #[allow(dead_code)]
     holder: Did,
     service_types: Vec<String>,
     verified_at: u64,

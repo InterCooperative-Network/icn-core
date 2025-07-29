@@ -114,6 +114,7 @@ impl CooperativeRegistry {
     }
 
     /// Compute a deterministic CID for a cooperative profile based on DID
+    #[allow(dead_code)]
     fn compute_profile_cid(&self, did: &Did) -> Cid {
         let did_data = did.to_string().as_bytes().to_vec();
         icn_common::compute_merkle_cid(
@@ -339,13 +340,7 @@ impl CooperativeRegistry {
         required: &crate::cooperative_schemas::TrustLevel,
     ) -> bool {
         use crate::cooperative_schemas::TrustLevel::*;
-        match (actual, required) {
-            (Full, _) => true,
-            (Partial, Partial) | (Partial, Basic) | (Partial, None) => true,
-            (Basic, Basic) | (Basic, None) => true,
-            (None, None) => true,
-            _ => false,
-        }
+        matches!((actual, required), (Full, _) | (Partial, Partial) | (Partial, Basic) | (Partial, None) | (Basic, Basic) | (Basic, None) | (None, None))
     }
 
     /// Check if trust is inherited (simplified implementation)
