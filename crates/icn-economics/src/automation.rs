@@ -1081,6 +1081,7 @@ impl EconomicAutomationEngine {
         let reputation_store = self.reputation_store.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
+        let time_provider = self.time_provider.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(config.allocation_optimization_interval);
@@ -1094,6 +1095,7 @@ impl EconomicAutomationEngine {
                     &reputation_store,
                     &config,
                     &event_tx,
+                    &time_provider,
                 )
                 .await
                 {
@@ -1172,6 +1174,7 @@ impl EconomicAutomationEngine {
         let pricing_models = self.pricing_models.clone();
         let config = self.config.clone();
         let event_tx = self.event_tx.clone();
+        let time_provider = self.time_provider.clone();
 
         let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(10)); // Every 10 seconds
@@ -1184,6 +1187,7 @@ impl EconomicAutomationEngine {
                     &pricing_models,
                     &config,
                     &event_tx,
+                    &time_provider,
                 )
                 .await
                 {
@@ -1319,6 +1323,7 @@ impl EconomicAutomationEngine {
         _reputation_store: &Arc<dyn ReputationStore>,
         _config: &EconomicAutomationConfig,
         _event_tx: &mpsc::UnboundedSender<EconomicEvent>,
+        time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement resource allocation optimization
         log::debug!("Running resource allocation optimization");
@@ -1378,7 +1383,7 @@ impl EconomicAutomationEngine {
                 amount: optimization.suggested_allocation,
                 recipient: Did::from_str("did:icn:system").unwrap_or_default(),
                 allocation_strategy: AllocationStrategy::FairAllocation,
-                timestamp: self.time_provider.unix_seconds() * 1000, // Convert to milliseconds
+                timestamp: time_provider.unix_seconds() * 1000, // Convert to milliseconds
             });
         }
 
@@ -1508,10 +1513,11 @@ impl EconomicAutomationEngine {
         pricing_models: &Arc<RwLock<HashMap<String, DynamicPricingModel>>>,
         config: &EconomicAutomationConfig,
         event_tx: &mpsc::UnboundedSender<EconomicEvent>,
+        time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         let mut state = market_making_state.write().unwrap();
         let models = pricing_models.read().unwrap();
-        let timestamp = self.time_provider.unix_seconds() * 1000; // Convert to milliseconds
+        let timestamp = time_provider.unix_seconds() * 1000; // Convert to milliseconds
 
         for (resource, model) in models.iter() {
             let buy_price = model.current_price * (1.0 - config.market_making_spread / 2.0);

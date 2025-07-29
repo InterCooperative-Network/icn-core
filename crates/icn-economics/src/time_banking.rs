@@ -155,6 +155,7 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
     resource_ledger: &L,
     time_store: &T,
     config: TimeTokenConfig,
+    time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for time banking
     let token_class = resource_ledger.get_class(&config.time_token_class).ok_or_else(|| {
@@ -178,7 +179,7 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
     let record_id = format!(
         "time_{}_{}",
         config.worker.to_string().replace(':', "_"),
-        chrono::Utc::now().timestamp()
+        time_provider.unix_seconds()
     );
 
     // Create time banking record
@@ -190,8 +191,8 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
         description: config.description,
         hours: config.hours,
         skill_level: config.skill_level,
-        performed_at: chrono::Utc::now().timestamp() as u64,
-        recorded_at: chrono::Utc::now().timestamp() as u64,
+        performed_at: time_provider.unix_seconds(),
+        recorded_at: time_provider.unix_seconds(),
         status: TimeRecordStatus::Recorded,
         metadata: HashMap::new(),
     };

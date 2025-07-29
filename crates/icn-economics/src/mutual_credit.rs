@@ -162,6 +162,7 @@ pub trait MutualCreditStore: Send + Sync {
 pub struct InMemoryMutualCreditStore {
     credit_lines: std::sync::Mutex<HashMap<String, CreditLine>>,
     transactions: std::sync::Mutex<HashMap<String, MutualCreditTransaction>>,
+    agreements: std::sync::Mutex<HashMap<String, MutualCreditAgreement>>,
 }
 
 impl InMemoryMutualCreditStore {
@@ -258,6 +259,44 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
     }
 }
 
+/// Status of a mutual credit agreement
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MutualCreditStatus {
+    /// Agreement is active
+    Active,
+    /// Agreement has been fully repaid
+    Repaid,
+    /// Agreement is in default
+    Defaulted,
+    /// Agreement has been cancelled
+    Cancelled,
+}
+
+/// A mutual credit agreement between two parties
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MutualCreditAgreement {
+    /// Unique identifier for this agreement
+    pub agreement_id: String,
+    /// DID of the creditor (lender)
+    pub creditor: Did,
+    /// DID of the debtor (borrower)
+    pub debtor: Did,
+    /// Amount of credit extended
+    pub amount: u64,
+    /// Token class being used
+    pub token_class: TokenClassId,
+    /// Purpose or description of the credit
+    pub purpose: String,
+    /// When the agreement was issued (Unix timestamp)
+    pub issue_date: u64,
+    /// When repayment is due (Unix timestamp)
+    pub repayment_deadline: u64,
+    /// Current status of the agreement
+    pub status: MutualCreditStatus,
+    /// History of repayments made
+    pub repayment_history: Vec<String>,
+}
+
 /// Configuration for extending mutual credit
 #[derive(Debug, Clone)]
 pub struct MutualCreditConfig {
@@ -274,6 +313,7 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     resource_ledger: &L,
     credit_store: &C,
     config: MutualCreditConfig,
+    time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for mutual credit
     let token_class_info = resource_ledger.get_class(&config.token_class).ok_or_else(|| {
@@ -287,9 +327,9 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     }
 
     // Check if creditor has sufficient balance to extend credit
-    let creditor_balance = resource_ledger.get_balance(&config.token_class, &config.creditor)?;
+    let creditor_balance = resource_ledger.get_balance(&config.token_class, &config.creditor);
     if creditor_balance < config.amount {
-        return Err(CommonError::InsufficientFunds);
+        return Err(CommonError::InsufficientFunds("Creditor has insufficient balance".to_string()));
     }
 
     // Generate credit agreement ID
@@ -298,7 +338,7 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         config.creditor.to_string().replace(':', "_"),
         config.debtor.to_string().replace(':', "_"),
         config.amount,
-        chrono::Utc::now().timestamp()
+        time_provider.unix_seconds()
     );
 
     // Create the mutual credit agreement
@@ -309,10 +349,8 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         amount: config.amount,
         token_class: config.token_class.clone(),
         purpose: config.purpose,
-        issue_date: chrono::Utc::now().timestamp() as u64,
-        repayment_deadline: (chrono::Utc::now()
-            + chrono::Duration::days(config.repayment_period_days as i64))
-        .timestamp() as u64,
+        issue_date: time_provider.unix_seconds(),
+        repayment_deadline: time_provider.unix_seconds() + (config.repayment_period_days * 24 * 60 * 60),
         status: MutualCreditStatus::Active,
         repayment_history: Vec::new(),
     };

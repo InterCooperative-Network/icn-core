@@ -8,7 +8,10 @@
 //! - Mutual credit disagreements
 
 use crate::{ManaLedger, ResourceLedger};
-use icn_common::{CommonError, Did, NodeScope, TimeProvider, FixedTimeProvider};
+use icn_common::{CommonError, Did, NodeScope, TimeProvider};
+
+#[cfg(test)]
+use icn_common::FixedTimeProvider;
 use icn_core_traits::economics::ManaTransaction;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
@@ -584,7 +587,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some(total_debits - current_balance),
                     disputed_asset: "mana".to_string(),
-                    filed_at: self.time_provider.now() as u64,
+                                         filed_at: self.time_provider.unix_seconds(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did.clone(),
@@ -614,7 +617,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some(net_change as u64),
                     disputed_asset: "mana".to_string(),
-                    filed_at: self.time_provider.now() as u64,
+                                         filed_at: self.time_provider.unix_seconds(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did.clone(),
@@ -644,7 +647,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some((-net_change) as u64),
                     disputed_asset: "mana".to_string(),
-                    filed_at: self.time_provider.now() as u64,
+                                         filed_at: self.time_provider.unix_seconds(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did,
@@ -705,7 +708,7 @@ impl EconomicDisputeResolver {
                     parties: vec![tx.did.clone()],
                     disputed_amount: Some(tx.amount.unsigned_abs()),
                     disputed_asset: "mana".to_string(),
-                    filed_at: self.time_provider.now() as u64,
+                                         filed_at: self.time_provider.unix_seconds(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::PriceManipulation {
                         asset: "mana".to_string(),

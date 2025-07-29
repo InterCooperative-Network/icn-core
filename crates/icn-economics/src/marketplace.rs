@@ -458,8 +458,11 @@ impl MarketplaceOffer {
             quantity: config.quantity,
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
-            status: OfferStatus::Active,
+            scope: None,
             created_at: 0, // Will be set by the marketplace
+            expires_at: None,
+            status: OfferStatus::Active,
+            metadata: HashMap::new(),
         }
     }
 
@@ -469,15 +472,18 @@ impl MarketplaceOffer {
             offer_id: config.offer_id,
             seller: config.seller,
             item_type: ItemType::Service {
-                category: config.category,
-                duration_hours: config.duration_hours,
+                service_type: config.category,
+                duration: Some(format!("{} hours", config.duration_hours)),
             },
             description: config.description,
             quantity: config.quantity,
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
-            status: OfferStatus::Active,
+            scope: None,
             created_at: 0, // Will be set by the marketplace
+            expires_at: None,
+            status: OfferStatus::Active,
+            metadata: HashMap::new(),
         }
     }
 
@@ -487,15 +493,18 @@ impl MarketplaceOffer {
             offer_id: config.offer_id,
             seller: config.seller,
             item_type: ItemType::LaborHours {
-                skill_level: config.skill_level,
-                duration_hours: config.duration_hours,
+                skill_type: format!("{} ({}h)", config.skill_level, config.duration_hours),
+                experience_level: config.skill_level,
             },
             description: config.description,
             quantity: config.quantity,
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
-            status: OfferStatus::Active,
+            scope: None,
             created_at: 0, // Will be set by the marketplace
+            expires_at: None,
+            status: OfferStatus::Active,
+            metadata: HashMap::new(),
         }
     }
 }

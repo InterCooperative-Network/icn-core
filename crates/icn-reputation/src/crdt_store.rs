@@ -149,16 +149,22 @@ impl CRDTReputationStore {
 
         let current_score = self.get_reputation(did);
 
-        if score > current_score {
-            // Need to add the difference
-            let add_amount = score - current_score;
-            self.adjust_reputation(did, add_amount as i64)?;
-        } else if score < current_score {
-            // Need to subtract the difference
-            let sub_amount = current_score - score;
-            self.adjust_reputation(did, -(sub_amount as i64))?;
+        use std::cmp::Ordering;
+        match score.cmp(&current_score) {
+            Ordering::Greater => {
+                // Need to add the difference
+                let add_amount = score - current_score;
+                self.adjust_reputation(did, add_amount as i64)?;
+            }
+            Ordering::Less => {
+                // Need to subtract the difference
+                let sub_amount = current_score - score;
+                self.adjust_reputation(did, -(sub_amount as i64))?;
+            }
+            Ordering::Equal => {
+                // If scores are equal, no operation needed
+            }
         }
-        // If scores are equal, no operation needed
 
         Ok(())
     }
