@@ -31,7 +31,7 @@ libp2p = { version = "0.56", optional = true }
 downcast-rs = "2.0.1"
 futures = "0.3"
 wasmtime = { version = "35", features = ["async"] }
-wasmparser = "0.121"
+wasmparser = "0.236"
 bincode = "1.3"
 once_cell = "1"
 prometheus-client = "0.22"
