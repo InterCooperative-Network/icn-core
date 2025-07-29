@@ -843,14 +843,12 @@ impl ResourceLedger for SledResourceLedger {
 
     fn list_classes(&self) -> Vec<(TokenClassId, TokenClass)> {
         let mut classes = Vec::new();
-        for result in self.classes.iter() {
-            if let Ok((key, value)) = result {
-                if let (Ok(class_id), Ok(class)) = (
-                    std::str::from_utf8(&key),
-                    bincode::deserialize::<TokenClass>(&value),
-                ) {
-                    classes.push((class_id.to_string(), class));
-                }
+        for (key, value) in self.classes.iter().flatten() {
+            if let (Ok(class_id), Ok(class)) = (
+                std::str::from_utf8(&key),
+                bincode::deserialize::<TokenClass>(&value),
+            ) {
+                classes.push((class_id.to_string(), class));
             }
         }
         classes

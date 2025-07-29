@@ -559,9 +559,11 @@ mod tests {
 
     #[test]
     fn test_crdt_group_membership_auto_create() {
-        let mut config = CRDTGroupMembershipConfig::default();
-        config.node_id = "test_node".to_string();
-        config.auto_create_groups = true;
+        let config = CRDTGroupMembershipConfig {
+            node_id: "test_node".to_string(),
+            auto_create_groups: true,
+            ..Default::default()
+        };
 
         let manager = CRDTGroupMembership::new(config);
 
@@ -573,9 +575,11 @@ mod tests {
 
     #[test]
     fn test_crdt_group_membership_max_members() {
-        let mut config = CRDTGroupMembershipConfig::default();
-        config.node_id = "test_node".to_string();
-        config.max_members_per_group = 2;
+        let config = CRDTGroupMembershipConfig {
+            node_id: "test_node".to_string(),
+            max_members_per_group: 2,
+            ..Default::default()
+        };
 
         let manager = CRDTGroupMembership::new(config);
 

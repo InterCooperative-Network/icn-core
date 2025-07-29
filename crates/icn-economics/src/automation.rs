@@ -391,6 +391,8 @@ pub enum AllocationStatus {
     Executing,
     /// Successfully completed
     Completed,
+    /// Partially completed with some failures
+    PartiallyCompleted { successful: usize, failed: usize },
     /// Failed during execution
     Failed { reason: String },
     /// Cancelled before execution
@@ -723,13 +725,17 @@ impl EconomicAutomationEngine {
     /// Calculate optimal mana price for a job
     pub async fn calculate_optimal_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
         // Get current pricing model
-        let pricing_models = self.pricing_models.read().unwrap();
         let job_type = job
             .job_type
             .clone()
             .unwrap_or_else(|| "default".to_string());
 
-        if let Some(model) = pricing_models.get(&job_type) {
+        let model_opt = {
+            let pricing_models = self.pricing_models.read().unwrap();
+            pricing_models.get(&job_type).cloned()
+        };
+
+        if let Some(model) = model_opt {
             // Calculate price based on demand, quality, and market conditions
             let base_price = model.base_price;
             let demand_multiplier = self.calculate_demand_multiplier(&job_type).await?;
@@ -750,61 +756,79 @@ impl EconomicAutomationEngine {
         &self,
         plan_id: &str,
     ) -> Result<AllocationExecutionResult, CommonError> {
-        let mut allocation_plans = self.allocation_plans.write().unwrap();
+        // Get and update plan status to Executing
+        let (allocations, allocation_id, resource_type, strategy, created_at) = {
+            let mut allocation_plans = self.allocation_plans.write().unwrap();
+            if let Some(plan) = allocation_plans.get_mut(plan_id) {
+                plan.status = AllocationStatus::Executing;
+                (
+                    plan.allocations.clone(),
+                    plan.allocation_id.clone(),
+                    plan.resource_type.clone(),
+                    plan.strategy.clone(),
+                    plan.created_at,
+                )
+            } else {
+                return Err(CommonError::InternalError(format!(
+                    "Allocation plan {plan_id} not found"
+                )));
+            }
+        };
 
-        if let Some(plan) = allocation_plans.get_mut(plan_id) {
-            plan.status = AllocationStatus::Executing;
+        // Execute allocations without holding the lock
+        let mut successful_allocations = 0;
+        let mut failed_allocations = 0;
+        let mut total_allocated = 0;
 
-            let mut successful_allocations = 0;
-            let mut failed_allocations = 0;
-            let mut total_allocated = 0;
+        for (did, allocation) in &allocations {
+            match self.execute_individual_allocation(did, allocation).await {
+                Ok(amount) => {
+                    successful_allocations += 1;
+                    total_allocated += amount;
 
-            for (did, allocation) in &plan.allocations {
-                match self.execute_individual_allocation(did, allocation).await {
-                    Ok(amount) => {
-                        successful_allocations += 1;
-                        total_allocated += amount;
-
-                        // Emit allocation event
-                        let _ = self.event_tx.send(EconomicEvent::ResourceAllocated {
-                            allocation_id: plan.allocation_id.clone(),
-                            resource_type: plan.resource_type.clone(),
-                            amount,
-                            recipient: did.clone(),
-                            allocation_strategy: plan.strategy.clone(),
-                            timestamp: self.time_provider.unix_seconds(),
-                        });
-                    }
-                    Err(e) => {
-                        log::error!("Failed to allocate to {did}: {e}");
-                        failed_allocations += 1;
-                    }
+                    // Emit allocation event
+                    let _ = self.event_tx.send(EconomicEvent::ResourceAllocated {
+                        allocation_id: allocation_id.clone(),
+                        resource_type: resource_type.clone(),
+                        amount,
+                        recipient: did.clone(),
+                        allocation_strategy: strategy.clone(),
+                        timestamp: self.time_provider.unix_seconds(),
+                    });
+                }
+                Err(e) => {
+                    log::error!("Failed to allocate to {did}: {e}");
+                    failed_allocations += 1;
                 }
             }
-
-            // Update plan status
-            plan.status = if failed_allocations == 0 {
-                AllocationStatus::Completed
-            } else if successful_allocations > 0 {
-                AllocationStatus::Completed // Partial success
-            } else {
-                AllocationStatus::Failed {
-                    reason: "All allocations failed".to_string(),
-                }
-            };
-
-            Ok(AllocationExecutionResult {
-                plan_id: plan_id.to_string(),
-                successful_allocations,
-                failed_allocations,
-                total_allocated,
-                execution_time: Instant::now().duration_since(plan.created_at),
-            })
-        } else {
-            Err(CommonError::InternalError(format!(
-                "Allocation plan {plan_id} not found"
-            )))
         }
+
+        // Update plan status after all allocations are done
+        {
+            let mut allocation_plans = self.allocation_plans.write().unwrap();
+            if let Some(plan) = allocation_plans.get_mut(plan_id) {
+                plan.status = if failed_allocations == 0 {
+                    AllocationStatus::Completed
+                } else if successful_allocations > 0 {
+                    AllocationStatus::PartiallyCompleted {
+                        successful: successful_allocations,
+                        failed: failed_allocations,
+                    }
+                } else {
+                    AllocationStatus::Failed {
+                        reason: "All allocations failed".to_string(),
+                    }
+                };
+            }
+        }
+
+        Ok(AllocationExecutionResult {
+            plan_id: plan_id.to_string(),
+            successful_allocations,
+            failed_allocations,
+            total_allocated,
+            execution_time: Instant::now().duration_since(created_at),
+        })
     }
 
     /// Apply economic penalty for policy violation
@@ -959,7 +983,7 @@ impl EconomicAutomationEngine {
                     );
                 } else {
                     // Apply severity-based reputation penalty
-                    let penalty_percent = penalty.severity.min(1.0).max(0.0);
+                    let penalty_percent = penalty.severity.clamp(0.0, 1.0);
                     let estimated_penalty = (current_reputation as f64 * penalty_percent) as u64;
 
                     // Record failed executions proportional to the severity
@@ -1354,10 +1378,7 @@ impl EconomicAutomationEngine {
                 amount: optimization.suggested_allocation,
                 recipient: Did::from_str("did:icn:system").unwrap_or_default(),
                 allocation_strategy: AllocationStrategy::FairAllocation,
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_millis() as u64,
+                timestamp: self.time_provider.unix_seconds() * 1000, // Convert to milliseconds
             });
         }
 
@@ -1490,10 +1511,7 @@ impl EconomicAutomationEngine {
     ) -> Result<(), CommonError> {
         let mut state = market_making_state.write().unwrap();
         let models = pricing_models.read().unwrap();
-        let timestamp = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_millis() as u64;
+        let timestamp = self.time_provider.unix_seconds() * 1000; // Convert to milliseconds
 
         for (resource, model) in models.iter() {
             let buy_price = model.current_price * (1.0 - config.market_making_spread / 2.0);
@@ -1638,7 +1656,7 @@ impl EconomicAutomationEngine {
 
         let final_multiplier: f64 =
             base_multiplier * demand_signal * market_multiplier * trend_multiplier;
-        Ok(final_multiplier.min(5.0).max(0.1)) // Cap between 0.1x and 5.0x
+        Ok(final_multiplier.clamp(0.1, 5.0)) // Cap between 0.1x and 5.0x
     }
 
     async fn calculate_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
@@ -1714,20 +1732,19 @@ impl EconomicAutomationEngine {
         };
 
         // Factor in recipient's current mana balance to prevent over-allocation
-        let balance_factor = match self.mana_ledger.get_balance(recipient) {
-            current_balance => {
-                let mana_accounts = self.mana_accounts.read().unwrap();
-                if let Some(account) = mana_accounts.get(recipient) {
-                    let capacity_ratio = current_balance as f64 / account.capacity as f64;
-                    match capacity_ratio {
-                        r if r > 0.9 => 0.1, // Near capacity - minimal allocation
-                        r if r > 0.7 => 0.5, // High balance - reduced allocation
-                        r if r > 0.3 => 1.0, // Normal allocation
-                        _ => 1.2,            // Low balance - increased allocation
-                    }
-                } else {
-                    1.0 // Default if no account state tracked
+        let current_balance = self.mana_ledger.get_balance(recipient);
+        let balance_factor = {
+            let mana_accounts = self.mana_accounts.read().unwrap();
+            if let Some(account) = mana_accounts.get(recipient) {
+                let capacity_ratio = current_balance as f64 / account.capacity as f64;
+                match capacity_ratio {
+                    r if r > 0.9 => 0.1, // Near capacity - minimal allocation
+                    r if r > 0.7 => 0.5, // High balance - reduced allocation
+                    r if r > 0.3 => 1.0, // Normal allocation
+                    _ => 1.2,            // Low balance - increased allocation
                 }
+            } else {
+                1.0 // Default if no account state tracked
             }
         };
 

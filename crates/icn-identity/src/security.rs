@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn test_secure_verify_bad_signature() {
         let config = SecurityConfig::default();
-        let (sk, pk) = generate_ed25519_keypair();
+        let (sk, _pk) = generate_ed25519_keypair();
         let (_, other_pk) = generate_ed25519_keypair();
         let message = b"test message";
 

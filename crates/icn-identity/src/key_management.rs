@@ -224,7 +224,7 @@ impl AdvancedKeyManager {
         // Move metadata to new DID
         let updated_metadata = metadata.clone();
         let rotation_count = metadata.rotation_count;
-        drop(metadata); // Release the mutable reference
+        // The mutable reference is automatically dropped here
         metadata_map.remove(did);
         metadata_map.insert(new_did.clone(), updated_metadata);
 

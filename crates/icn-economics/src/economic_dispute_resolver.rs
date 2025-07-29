@@ -8,11 +8,11 @@
 //! - Mutual credit disagreements
 
 use crate::{ManaLedger, ResourceLedger};
-use icn_common::{CommonError, Did, NodeScope};
+use icn_common::{CommonError, Did, NodeScope, TimeProvider, FixedTimeProvider};
 use icn_core_traits::economics::ManaTransaction;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Arc;
 
 /// Types of economic disputes that can occur
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -276,6 +276,7 @@ pub struct EconomicDisputeResolver {
     resolution_history: Vec<EconomicDispute>,
     economic_authorities: HashSet<Did>,
     qualified_arbitrators: HashSet<Did>,
+    time_provider: Arc<dyn TimeProvider>,
     #[allow(dead_code)]
     reputation_provider: Option<Box<dyn ReputationProvider>>,
 }
@@ -290,13 +291,14 @@ pub trait ReputationProvider: Send + Sync {
 
 impl EconomicDisputeResolver {
     /// Create a new economic dispute resolver
-    pub fn new(config: EconomicDisputeConfig) -> Self {
+    pub fn new(config: EconomicDisputeConfig, time_provider: Arc<dyn TimeProvider>) -> Self {
         Self {
             config,
             active_disputes: HashMap::new(),
             resolution_history: Vec::new(),
             economic_authorities: HashSet::new(),
             qualified_arbitrators: HashSet::new(),
+            time_provider,
             reputation_provider: None,
         }
     }
@@ -304,6 +306,7 @@ impl EconomicDisputeResolver {
     /// Create a new resolver with reputation provider
     pub fn new_with_reputation(
         config: EconomicDisputeConfig,
+        time_provider: Arc<dyn TimeProvider>,
         reputation_provider: Box<dyn ReputationProvider>,
     ) -> Self {
         Self {
@@ -312,6 +315,7 @@ impl EconomicDisputeResolver {
             resolution_history: Vec::new(),
             economic_authorities: HashSet::new(),
             qualified_arbitrators: HashSet::new(),
+            time_provider,
             reputation_provider: Some(reputation_provider),
         }
     }
@@ -353,10 +357,7 @@ impl EconomicDisputeResolver {
             let mut resolved_dispute = dispute;
             resolved_dispute.resolution_status = EconomicResolutionStatus::Resolved {
                 resolution: auto_resolution,
-                applied_at: SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
+                applied_at: self.time_provider.unix_seconds(),
             };
             let dispute_id = resolved_dispute.dispute_id.clone();
             self.resolution_history.push(resolved_dispute);
@@ -507,10 +508,7 @@ impl EconomicDisputeResolver {
                     let dispute_id = format!(
                         "double_spend_{}_{}",
                         key,
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs()
+                                                 self.time_provider.unix_seconds()
                     );
 
                     disputes.push(EconomicDispute {
@@ -519,10 +517,7 @@ impl EconomicDisputeResolver {
                         parties: vec![txs[0].did.clone()],
                         disputed_amount: Some(total_amount.unsigned_abs()),
                         disputed_asset: "mana".to_string(),
-                        filed_at: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs(),
+                        filed_at: self.time_provider.unix_seconds(),
                         resolution_status: EconomicResolutionStatus::Filed,
                         evidence: vec![EconomicEvidence::DoubleSpendingEvidence {
                             conflicting_transactions: txs
@@ -580,10 +575,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "excessive_debits_{}_{}",
                     did,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                                             self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -592,7 +584,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some(total_debits - current_balance),
                     disputed_asset: "mana".to_string(),
-                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    filed_at: self.time_provider.now() as u64,
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did.clone(),
@@ -613,10 +605,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "missing_credits_{}_{}",
                     did,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                                             self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -625,7 +614,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some(net_change as u64),
                     disputed_asset: "mana".to_string(),
-                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    filed_at: self.time_provider.now() as u64,
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did.clone(),
@@ -646,10 +635,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "excessive_negative_change_{}_{}",
                     did,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                                             self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -658,7 +644,7 @@ impl EconomicDisputeResolver {
                     parties: vec![did.clone()],
                     disputed_amount: Some((-net_change) as u64),
                     disputed_asset: "mana".to_string(),
-                    filed_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    filed_at: self.time_provider.now() as u64,
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did,
@@ -710,10 +696,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "price_manipulation_{}_{}",
                     tx.transaction_id,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                                             self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -722,10 +705,7 @@ impl EconomicDisputeResolver {
                     parties: vec![tx.did.clone()],
                     disputed_amount: Some(tx.amount.unsigned_abs()),
                     disputed_asset: "mana".to_string(),
-                    filed_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    filed_at: self.time_provider.now() as u64,
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::PriceManipulation {
                         asset: "mana".to_string(),
@@ -770,10 +750,7 @@ impl EconomicDisputeResolver {
         // Determine resolution based on dispute type and evidence
         let resolution = self.determine_resolution(&dispute)?;
 
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+                 let current_time = self.time_provider.unix_seconds();
 
         // Update the dispute status
         if let Some(active_dispute) = self.active_disputes.get_mut(dispute_id) {
@@ -940,10 +917,7 @@ impl EconomicDisputeResolver {
     /// Process periodic maintenance tasks
     pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
         let mut timed_out_disputes = Vec::new();
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+                 let current_time = self.time_provider.unix_seconds();
 
         // Check for investigation timeouts
         let dispute_ids: Vec<String> = self.active_disputes.keys().cloned().collect();
@@ -1029,7 +1003,8 @@ mod tests {
     #[test]
     fn test_economic_dispute_resolver_creation() {
         let config = EconomicDisputeConfig::default();
-        let resolver = EconomicDisputeResolver::new(config);
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let resolver = EconomicDisputeResolver::new(config, time_provider);
 
         assert_eq!(resolver.active_disputes.len(), 0);
         assert_eq!(resolver.resolution_history.len(), 0);
@@ -1037,7 +1012,9 @@ mod tests {
 
     #[test]
     fn test_file_dispute() {
-        let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let config = EconomicDisputeConfig::default();
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let mut resolver = EconomicDisputeResolver::new(config, time_provider);
 
         let dispute = EconomicDispute {
             dispute_id: "test_dispute".to_string(),
@@ -1065,7 +1042,9 @@ mod tests {
 
     #[test]
     fn test_auto_resolution() {
-        let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let config = EconomicDisputeConfig::default();
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let mut resolver = EconomicDisputeResolver::new(config, time_provider);
 
         // Create a small dispute that should be auto-resolved
         let dispute = EconomicDispute {
@@ -1094,7 +1073,9 @@ mod tests {
 
     #[test]
     fn test_double_spending_detection() {
-        let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let config = EconomicDisputeConfig::default();
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let resolver = EconomicDisputeResolver::new(config, time_provider);
         let ledger = MockManaLedger::default();
 
         let transactions = vec![
@@ -1128,7 +1109,9 @@ mod tests {
 
     #[test]
     fn test_balance_discrepancy_detection() {
-        let resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let config = EconomicDisputeConfig::default();
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let resolver = EconomicDisputeResolver::new(config, time_provider);
         let ledger = MockManaLedger::default();
         let test_did = Did::default();
 
@@ -1198,7 +1181,9 @@ mod tests {
 
     #[test]
     fn test_dispute_resolution() {
-        let mut resolver = EconomicDisputeResolver::new(EconomicDisputeConfig::default());
+        let config = EconomicDisputeConfig::default();
+                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let mut resolver = EconomicDisputeResolver::new(config, time_provider);
         let authority = Did::default();
         resolver.add_economic_authority(authority.clone());
 
