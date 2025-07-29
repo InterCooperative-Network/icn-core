@@ -1,4 +1,4 @@
-use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
+use icn_common::{CommonError, Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs::{rename, File, OpenOptions};
@@ -431,8 +431,7 @@ impl ResourceLedger for FileResourceLedger {
         let mut data = self.data.lock().unwrap();
         if data.classes.contains_key(class_id) {
             return Err(CommonError::InvalidInputError(format!(
-                "Token class {} already exists",
-                class_id
+                "Token class {class_id} already exists"
             )));
         }
         data.classes.insert(class_id.clone(), class);
@@ -457,8 +456,7 @@ impl ResourceLedger for FileResourceLedger {
             self.persist_locked(&data)
         } else {
             Err(CommonError::InvalidInputError(format!(
-                "Token class {} not found",
-                class_id
+                "Token class {class_id} not found"
             )))
         }
     }
@@ -571,7 +569,7 @@ impl ResourceLedger for FileResourceLedger {
 
         // Get token class to check transferability rules
         let token_class = data.classes.get(class_id).ok_or_else(|| {
-            CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+            CommonError::InvalidInputError(format!("Token class {class_id} not found"))
         })?;
 
         // Check transferability rules
@@ -747,7 +745,7 @@ impl SledResourceLedger {
     }
 
     fn balance_key(class: &TokenClassId, did: &Did) -> Vec<u8> {
-        format!("{class}:{}", did).into_bytes()
+        format!("{class}:{did}").into_bytes()
     }
 
     fn write_class(&self, id: &TokenClassId, class: &TokenClass) -> Result<(), CommonError> {
@@ -817,8 +815,7 @@ impl ResourceLedger for SledResourceLedger {
     fn create_class(&self, id: &TokenClassId, class: TokenClass) -> Result<(), CommonError> {
         if self.read_class(id)?.is_some() {
             return Err(CommonError::InvalidInputError(format!(
-                "Token class {} already exists",
-                id
+                "Token class {id} already exists"
             )));
         }
         self.write_class(id, &class)
@@ -839,8 +836,7 @@ impl ResourceLedger for SledResourceLedger {
             self.write_class(id, &class)
         } else {
             Err(CommonError::InvalidInputError(format!(
-                "Token class {} not found",
-                id
+                "Token class {id} not found"
             )))
         }
     }
@@ -908,7 +904,7 @@ impl ResourceLedger for SledResourceLedger {
     ) -> Result<bool, CommonError> {
         // Get token class to check transferability rules
         let token_class = self.get_class(class_id).ok_or_else(|| {
-            CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+            CommonError::InvalidInputError(format!("Token class {class_id} not found"))
         })?;
 
         // Check transferability rules

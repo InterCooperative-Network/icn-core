@@ -623,7 +623,7 @@ impl ReputationIntegrationEngine {
                 .map(|(executor, score, _)| ExecutorAlternative {
                     executor: executor.clone(),
                     score: *score,
-                    rejection_reason: format!("Lower score: {:.3}", score),
+                    rejection_reason: format!("Lower score: {score:.3}"),
                 })
                 .collect();
 
@@ -674,7 +674,7 @@ impl ReputationIntegrationEngine {
                 .map(|(route, score, _)| RouteAlternative {
                     route: route.clone(),
                     score: *score,
-                    rejection_reason: format!("Lower score: {:.3}", score),
+                    rejection_reason: format!("Lower score: {score:.3}"),
                 })
                 .collect();
 
@@ -768,7 +768,7 @@ impl ReputationIntegrationEngine {
                 if let Err(e) =
                     Self::update_reputation_cache(&reputation_cache, &reputation_store).await
                 {
-                    log::error!("Error updating reputation cache: {}", e);
+                    log::error!("Error updating reputation cache: {e}");
                 }
             }
         });
@@ -793,7 +793,7 @@ impl ReputationIntegrationEngine {
                     Self::update_executor_rankings(&executor_rankings, &reputation_store, &config)
                         .await
                 {
-                    log::error!("Error updating executor rankings: {}", e);
+                    log::error!("Error updating executor rankings: {e}");
                 }
             }
         });
@@ -821,7 +821,7 @@ impl ReputationIntegrationEngine {
                 )
                 .await
                 {
-                    log::error!("Error updating routing preferences: {}", e);
+                    log::error!("Error updating routing preferences: {e}");
                 }
             }
         });
@@ -851,7 +851,7 @@ impl ReputationIntegrationEngine {
                 )
                 .await
                 {
-                    log::error!("Error updating governance weights: {}", e);
+                    log::error!("Error updating governance weights: {e}");
                 }
             }
         });

@@ -9,7 +9,7 @@
 
 use crate::{ManaLedger, ResourceLedger};
 use icn_common::{CommonError, Did, NodeScope};
-use icn_core_traits::economics::{ManaTransaction, TransactionType};
+use icn_core_traits::economics::ManaTransaction;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -502,7 +502,7 @@ impl EconomicDisputeResolver {
                 let total_amount: i64 = txs.iter().map(|tx| tx.amount).sum();
                 let account_balance = mana_ledger.get_balance(&txs[0].did);
 
-                if total_amount.abs() as u64 > account_balance {
+                if total_amount.unsigned_abs() > account_balance {
                     let dispute_id = format!(
                         "double_spend_{}_{}",
                         key,
@@ -516,7 +516,7 @@ impl EconomicDisputeResolver {
                         dispute_id,
                         dispute_type: EconomicDisputeType::DoubleSpending,
                         parties: vec![txs[0].did.clone()],
-                        disputed_amount: Some(total_amount.abs() as u64),
+                        disputed_amount: Some(total_amount.unsigned_abs()),
                         disputed_asset: "mana".to_string(),
                         filed_at: SystemTime::now()
                             .duration_since(UNIX_EPOCH)
@@ -578,7 +578,7 @@ impl EconomicDisputeResolver {
             if total_debits > current_balance + (self.config.minimum_dispute_amount * 10) {
                 let dispute_id = format!(
                     "excessive_debits_{}_{}",
-                    did.to_string(),
+                    did,
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -595,11 +595,11 @@ impl EconomicDisputeResolver {
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::BalanceDiscrepancy {
                         account: did.clone(),
-                        expected_balance: if total_debits > current_balance { 0 } else { current_balance - total_debits },
+                        expected_balance: current_balance.saturating_sub(total_debits),
                         actual_balance: current_balance,
                         asset_type: "mana".to_string(),
                     }],
-                    description: format!("Suspicious transaction pattern: total debits ({}) exceed reasonable balance limit for account with balance {}", total_debits, current_balance),
+                    description: format!("Suspicious transaction pattern: total debits ({total_debits}) exceed reasonable balance limit for account with balance {current_balance}"),
                     severity: DisputeSeverity::High,
                     scope: None,
                 });
@@ -611,7 +611,7 @@ impl EconomicDisputeResolver {
             if current_balance == 0 && net_change > 0 {
                 let dispute_id = format!(
                     "missing_credits_{}_{}",
-                    did.to_string(),
+                    did,
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -632,7 +632,7 @@ impl EconomicDisputeResolver {
                         actual_balance: current_balance,
                         asset_type: "mana".to_string(),
                     }],
-                    description: format!("Account has zero balance but recent transactions show net positive change of {}", net_change),
+                    description: format!("Account has zero balance but recent transactions show net positive change of {net_change}"),
                     severity: DisputeSeverity::Medium,
                     scope: None,
                 });
@@ -644,7 +644,7 @@ impl EconomicDisputeResolver {
             if net_change < 0 && (-net_change) as u64 > current_balance * 2 && current_balance > 0 {
                 let dispute_id = format!(
                     "excessive_negative_change_{}_{}",
-                    did.to_string(),
+                    did,
                     SystemTime::now()
                         .duration_since(UNIX_EPOCH)
                         .unwrap()
@@ -705,7 +705,7 @@ impl EconomicDisputeResolver {
         // Look for transactions that are unusually large (potential manipulation)
         for tx in transactions {
             let z_score = (tx.amount as f64 - mean).abs() / std_dev;
-            if z_score > 3.0 && tx.amount.abs() as u64 > self.config.minimum_dispute_amount * 5 {
+            if z_score > 3.0 && tx.amount.unsigned_abs() > self.config.minimum_dispute_amount * 5 {
                 let dispute_id = format!(
                     "price_manipulation_{}_{}",
                     tx.transaction_id,
@@ -719,7 +719,7 @@ impl EconomicDisputeResolver {
                     dispute_id,
                     dispute_type: EconomicDisputeType::PricingDispute,
                     parties: vec![tx.did.clone()],
-                    disputed_amount: Some(tx.amount.abs() as u64),
+                    disputed_amount: Some(tx.amount.unsigned_abs()),
                     disputed_asset: "mana".to_string(),
                     filed_at: SystemTime::now()
                         .duration_since(UNIX_EPOCH)
@@ -728,7 +728,7 @@ impl EconomicDisputeResolver {
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::PriceManipulation {
                         asset: "mana".to_string(),
-                        suspicious_prices: vec![(tx.timestamp, tx.amount.abs() as u64)],
+                        suspicious_prices: vec![(tx.timestamp, tx.amount.unsigned_abs())],
                     }],
                     description: "Potential price manipulation detected".to_string(),
                     severity: DisputeSeverity::Medium,
@@ -762,7 +762,7 @@ impl EconomicDisputeResolver {
             .active_disputes
             .get(dispute_id)
             .ok_or_else(|| {
-                CommonError::ResourceNotFound(format!("Dispute {} not found", dispute_id))
+                CommonError::ResourceNotFound(format!("Dispute {dispute_id} not found"))
             })?
             .clone();
 
@@ -912,7 +912,7 @@ impl EconomicDisputeResolver {
                         }
                         _ => {
                             // Handle other compensation types
-                            println!("Would apply compensation: {:?}", compensation);
+                            println!("Would apply compensation: {compensation:?}");
                         }
                     }
                 }
@@ -921,8 +921,7 @@ impl EconomicDisputeResolver {
             EconomicResolution::NoActionRequired => Ok(()),
             _ => {
                 println!(
-                    "Resolution requires manual implementation: {:?}",
-                    resolution
+                    "Resolution requires manual implementation: {resolution:?}"
                 );
                 Ok(())
             }

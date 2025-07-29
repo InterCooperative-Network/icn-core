@@ -206,8 +206,7 @@ impl EnhancedDidResolver {
         }
 
         Err(CommonError::IdentityError(format!(
-            "Failed to resolve DID {} with any available method",
-            did
+            "Failed to resolve DID {did} with any available method"
         )))
     }
 
@@ -230,8 +229,7 @@ impl EnhancedDidResolver {
                 }
             }
             _ => Err(CommonError::IdentityError(format!(
-                "Unsupported DID method: {}",
-                method
+                "Unsupported DID method: {method}"
             ))),
         }
     }

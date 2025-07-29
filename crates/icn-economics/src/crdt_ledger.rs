@@ -54,7 +54,7 @@ impl CRDTManaLedger {
         let node_id = NodeId::new(config.node_id);
         let balance_map = CRDTMap::new("mana_balances".to_string());
 
-        let mut ledger = Self {
+        let ledger = Self {
             node_id,
             balance_map: Arc::new(RwLock::new(balance_map)),
             event_store: None,
@@ -64,7 +64,7 @@ impl CRDTManaLedger {
         for (did_str, amount) in config.initial_balances {
             if let Ok(did) = Did::from_str(&did_str) {
                 if let Err(e) = ledger.set_balance(&did, amount) {
-                    warn!("Failed to set initial balance for {}: {}", did_str, e);
+                    warn!("Failed to set initial balance for {did_str}: {e}");
                 }
             }
         }
@@ -169,7 +169,7 @@ impl CRDTManaLedger {
         if let Some(event_store) = &self.event_store {
             if let Ok(mut store) = event_store.write() {
                 if let Err(e) = store.append(&event) {
-                    warn!("Failed to record ledger event: {}", e);
+                    warn!("Failed to record ledger event: {e}");
                 }
             }
         }
@@ -188,13 +188,13 @@ impl CRDTManaLedger {
             Ok(counter.clone())
         } else {
             // Create new counter for this DID
-            let counter_id = format!("mana_{}", did_str);
+            let counter_id = format!("mana_{did_str}");
             let counter = PNCounter::new(counter_id);
 
             map.put(did_str, counter.clone(), self.node_id.clone())
-                .map_err(|e| CommonError::CRDTError(format!("Failed to create counter: {}", e)))?;
+                .map_err(|e| CommonError::CRDTError(format!("Failed to create counter: {e}")))?;
 
-            debug!("Created new mana counter for DID: {}", did);
+            debug!("Created new mana counter for DID: {did}");
             Ok(counter)
         }
     }
@@ -208,7 +208,7 @@ impl CRDTManaLedger {
 
         let did_str = did.to_string();
         map.put(did_str, counter, self.node_id.clone())
-            .map_err(|e| CommonError::CRDTError(format!("Failed to update counter: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to update counter: {e}")))?;
 
         Ok(())
     }
@@ -270,7 +270,7 @@ impl ManaLedger for CRDTManaLedger {
     }
 
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-        debug!("Setting balance for DID {} to {}", did, amount);
+        debug!("Setting balance for DID {did} to {amount}");
 
         let current_balance = self.get_balance(did);
 
@@ -298,14 +298,13 @@ impl ManaLedger for CRDTManaLedger {
             return Ok(());
         }
 
-        debug!("Spending {} mana for DID {}", amount, did);
+        debug!("Spending {amount} mana for DID {did}");
 
         // Check if we have sufficient balance
         let current_balance = self.get_balance(did);
         if current_balance < amount {
             return Err(CommonError::InsufficientFunds(format!(
-                "Insufficient mana: has {}, needs {}",
-                current_balance, amount
+                "Insufficient mana: has {current_balance}, needs {amount}"
             )));
         }
 
@@ -313,7 +312,7 @@ impl ManaLedger for CRDTManaLedger {
         let mut counter = self.get_or_create_counter(did)?;
         counter
             .decrement(&self.node_id, amount)
-            .map_err(|e| CommonError::CRDTError(format!("Failed to decrement counter: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to decrement counter: {e}")))?;
 
         // Update the counter in the map
         self.update_counter(did, counter)?;
@@ -323,7 +322,7 @@ impl ManaLedger for CRDTManaLedger {
             amount,
         });
 
-        debug!("Successfully spent {} mana for DID {}", amount, did);
+        debug!("Successfully spent {amount} mana for DID {did}");
         Ok(())
     }
 
@@ -332,13 +331,13 @@ impl ManaLedger for CRDTManaLedger {
             return Ok(());
         }
 
-        debug!("Crediting {} mana to DID {}", amount, did);
+        debug!("Crediting {amount} mana to DID {did}");
 
         // Get the counter and perform increment
         let mut counter = self.get_or_create_counter(did)?;
         counter
             .increment(&self.node_id, amount)
-            .map_err(|e| CommonError::CRDTError(format!("Failed to increment counter: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to increment counter: {e}")))?;
 
         // Update the counter in the map
         self.update_counter(did, counter)?;
@@ -348,7 +347,7 @@ impl ManaLedger for CRDTManaLedger {
             amount,
         });
 
-        debug!("Successfully credited {} mana to DID {}", amount, did);
+        debug!("Successfully credited {amount} mana to DID {did}");
         Ok(())
     }
 
@@ -357,7 +356,7 @@ impl ManaLedger for CRDTManaLedger {
             return Ok(());
         }
 
-        debug!("Crediting {} mana to all accounts", amount);
+        debug!("Crediting {amount} mana to all accounts");
 
         let accounts = self.all_accounts();
         for did in accounts {

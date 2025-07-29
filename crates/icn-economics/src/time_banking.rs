@@ -1,4 +1,4 @@
-use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType, TransferRecord};
+use crate::{ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -152,7 +152,7 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
 ) -> Result<String, CommonError> {
     // Validate that the token class is for time banking
     let token_class = resource_ledger.get_class(time_token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", time_token_class))
+        CommonError::InvalidInputError(format!("Token class {time_token_class} not found"))
     })?;
 
     if token_class.token_type != TokenType::TimeBanking {
@@ -196,7 +196,7 @@ pub fn verify_time_record<T: TimeBankingStore>(
     verifier: &Did,
 ) -> Result<(), CommonError> {
     let mut record = time_store.get_time_record(record_id).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Time record {} not found", record_id))
+        CommonError::InvalidInputError(format!("Time record {record_id} not found"))
     })?;
 
     // Only beneficiary can verify
@@ -296,7 +296,7 @@ impl TimeRecord {
     ) -> Self {
         let now = SystemTimeProvider.unix_seconds();
         Self {
-            record_id: format!("time_{}_{}", worker, now),
+            record_id: format!("time_{worker}_{now}"),
             worker,
             beneficiary,
             work_type,

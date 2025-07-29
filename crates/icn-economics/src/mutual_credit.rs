@@ -1,4 +1,4 @@
-use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType};
+use crate::{ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -257,7 +257,7 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
 ) -> Result<String, CommonError> {
     // Validate that the token class is for mutual credit
     let token_class_info = resource_ledger.get_class(token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", token_class))
+        CommonError::InvalidInputError(format!("Token class {token_class} not found"))
     })?;
 
     if token_class_info.token_type != TokenType::MutualCredit {
@@ -351,8 +351,7 @@ pub fn repay_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         .get_credit_transaction(transaction_id)
         .ok_or_else(|| {
             CommonError::InvalidInputError(format!(
-                "Credit transaction {} not found",
-                transaction_id
+                "Credit transaction {transaction_id} not found"
             ))
         })?;
 

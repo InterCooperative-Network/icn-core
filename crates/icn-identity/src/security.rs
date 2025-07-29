@@ -12,7 +12,7 @@ use ed25519_dalek::Signer;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 /// Security configuration for cryptographic operations
 #[derive(Debug, Clone, Serialize, Deserialize)]

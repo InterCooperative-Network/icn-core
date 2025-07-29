@@ -255,7 +255,7 @@ impl CRDTSynchronizer {
             interval.tick().await;
 
             if let Err(e) = self.perform_gossip_round().await {
-                error!("Gossip round failed: {}", e);
+                error!("Gossip round failed: {e}");
             }
 
             // Cleanup old operations
@@ -293,7 +293,7 @@ impl CRDTSynchronizer {
                     stats.successful_communications += 1;
                 }
                 Err(e) => {
-                    warn!("Failed to gossip with peer {}: {}", peer.node_id, e);
+                    warn!("Failed to gossip with peer {}: {e}", peer.node_id);
                     let mut stats = self.stats.lock().await;
                     stats.failed_communications += 1;
                 }
@@ -495,7 +495,7 @@ impl CRDTSynchronizer {
             }
         }
 
-        info!("Discovered {} new peers", count);
+        info!("Discovered {count} new peers");
         Ok(count)
     }
 }

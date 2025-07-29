@@ -263,7 +263,7 @@ fn is_valid_domain(domain: &str) -> bool {
     // Real localhost usage might be legitimate in development
     if hostname == "127.0.0.1" || hostname == "0.0.0.0" || hostname == "::1" {
         // These are clearly internal - might want to allow in dev mode
-        log::warn!("Using internal address in did:web: {}", hostname);
+        log::warn!("Using internal address in did:web: {hostname}");
     }
 
     hostname.split('.').all(|label| {
@@ -572,10 +572,7 @@ pub fn sign_message(sk: &SigningKey, msg: &[u8]) -> EdSignature {
 pub fn verify_signature(pk: &VerifyingKey, msg: &[u8], sig: &EdSignature) -> bool {
     // Use the hardened verification with default security config
     let config = crate::security::SecurityConfig::default();
-    match crate::security::secure_verify_signature(pk, msg, sig, &config) {
-        Ok(result) => result,
-        Err(_) => false, // Don't leak error details
-    }
+    crate::security::secure_verify_signature(pk, msg, sig, &config).unwrap_or(false)
 }
 
 // --- Structs for ICN System (Keypair, ExecutionReceipt) ---

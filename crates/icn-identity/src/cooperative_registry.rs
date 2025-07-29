@@ -176,7 +176,7 @@ impl CooperativeRegistry {
             let mut entry = self
                 .capability_index
                 .entry(capability.capability_type.clone())
-                .or_insert_with(Vec::new);
+                .or_default();
             if !entry.contains(&profile.did) {
                 entry.push(profile.did.clone());
             }
@@ -185,7 +185,7 @@ impl CooperativeRegistry {
         // Update location index
         let location_keys = self.generate_location_keys(&profile);
         for key in location_keys {
-            let mut entry = self.location_index.entry(key).or_insert_with(Vec::new);
+            let mut entry = self.location_index.entry(key).or_default();
             if !entry.contains(&profile.did) {
                 entry.push(profile.did.clone());
             }
@@ -317,7 +317,7 @@ impl CooperativeRegistry {
         let mut entry = self
             .trust_relationships
             .entry(relationship.attestor.clone())
-            .or_insert_with(Vec::new);
+            .or_default();
         entry.push(relationship);
 
         Ok(cid)
@@ -448,7 +448,7 @@ impl CooperativeRegistry {
                     let mut entry = self
                         .capability_index
                         .entry(capability.capability_type.clone())
-                        .or_insert_with(Vec::new);
+                        .or_default();
                     if !entry.contains(&profile.did) {
                         entry.push(profile.did.clone());
                     }
@@ -456,7 +456,7 @@ impl CooperativeRegistry {
 
                 let location_keys = self.generate_location_keys(&profile);
                 for key in location_keys {
-                    let mut entry = self.location_index.entry(key).or_insert_with(Vec::new);
+                    let mut entry = self.location_index.entry(key).or_default();
                     if !entry.contains(&profile.did) {
                         entry.push(profile.did.clone());
                     }
@@ -479,15 +479,15 @@ impl CooperativeRegistry {
         }
 
         if let Some(ref country) = profile.geographic_scope.country {
-            keys.push(format!("country:{}", country));
+            keys.push(format!("country:{country}"));
         }
 
         if let Some(ref region) = profile.geographic_scope.region {
-            keys.push(format!("region:{}", region));
+            keys.push(format!("region:{region}"));
         }
 
         if let Some(ref locality) = profile.geographic_scope.locality {
-            keys.push(format!("locality:{}", locality));
+            keys.push(format!("locality:{locality}"));
         }
 
         keys

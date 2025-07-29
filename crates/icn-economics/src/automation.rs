@@ -3,7 +3,7 @@
 //! This module provides automated economic management including mana allocation,
 //! policy enforcement, dynamic pricing, and economic health monitoring.
 
-use crate::{ManaLedger, ResourceLedger, TokenClassId, TokenType};
+use crate::{ManaLedger, ResourceLedger};
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_reputation::ReputationStore;
 use std::str::FromStr;
@@ -39,7 +39,7 @@ pub trait GovernanceModule: Send + Sync {
     fn get_proposal(&self, id: &str) -> Result<Option<Proposal>, CommonError>;
 }
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -774,7 +774,7 @@ impl EconomicAutomationEngine {
                         });
                     }
                     Err(e) => {
-                        log::error!("Failed to allocate to {}: {}", did, e);
+                        log::error!("Failed to allocate to {did}: {e}");
                         failed_allocations += 1;
                     }
                 }
@@ -800,8 +800,7 @@ impl EconomicAutomationEngine {
             })
         } else {
             Err(CommonError::InternalError(format!(
-                "Allocation plan {} not found",
-                plan_id
+                "Allocation plan {plan_id} not found"
             )))
         }
     }
@@ -816,7 +815,7 @@ impl EconomicAutomationEngine {
             PenaltyType::ManaPenalty => {
                 if let Some(amount) = penalty.amount {
                     self.mana_ledger.spend(violator, amount)?;
-                    log::info!("Applied mana penalty of {} to {}", amount, violator);
+                    log::info!("Applied mana penalty of {amount} to {violator}");
                 }
             }
             PenaltyType::TokenConfiscation => {
@@ -826,8 +825,7 @@ impl EconomicAutomationEngine {
                     // Use a well-formed DID that should always parse successfully
                     let system_did = Did::from_str("did:icn:treasury").map_err(|e| {
                         CommonError::InternalError(format!(
-                            "Failed to create system treasury DID: {}",
-                            e
+                            "Failed to create system treasury DID: {e}"
                         ))
                     })?;
 
@@ -858,11 +856,7 @@ impl EconomicAutomationEngine {
                                 )?;
                                 total_confiscated += confiscate_amount;
                                 log::info!(
-                                    "Confiscated {} tokens of type {:?} from {} to treasury {}",
-                                    confiscate_amount,
-                                    token_class,
-                                    violator,
-                                    system_did
+                                    "Confiscated {confiscate_amount} tokens of type {token_class:?} from {violator} to treasury {system_did}"
                                 );
 
                                 // If we've confiscated enough, stop
@@ -875,14 +869,11 @@ impl EconomicAutomationEngine {
 
                     if total_confiscated == 0 {
                         log::warn!(
-                            "Token confiscation penalty: No tokens available to confiscate from {}",
-                            violator
+                            "Token confiscation penalty: No tokens available to confiscate from {violator}"
                         );
                     } else {
                         log::info!(
-                            "Successfully confiscated {} tokens from {} to treasury",
-                            total_confiscated,
-                            violator
+                            "Successfully confiscated {total_confiscated} tokens from {violator} to treasury"
                         );
                     }
                 } else {
@@ -894,11 +885,7 @@ impl EconomicAutomationEngine {
                 let mut restriction_list = self.resource_restrictions.write().unwrap();
 
                 // Add time-based restriction
-                let end_time = if let Some(duration) = penalty.duration {
-                    Some(self.time_provider.unix_seconds() + duration.as_secs())
-                } else {
-                    None // Permanent restriction
-                };
+                let end_time = penalty.duration.map(|duration| self.time_provider.unix_seconds() + duration.as_secs());
 
                 // Apply restrictions from penalty
                 for restriction in &penalty.restrictions {
@@ -964,8 +951,7 @@ impl EconomicAutomationEngine {
                     }
 
                     log::info!(
-                        "Applied reputation penalty to {} by recording {} failed executions (estimated reduction: {})",
-                        violator, failures_to_record, penalty_amount
+                        "Applied reputation penalty to {violator} by recording {failures_to_record} failed executions (estimated reduction: {penalty_amount})"
                     );
                 } else {
                     // Apply severity-based reputation penalty
@@ -987,7 +973,7 @@ impl EconomicAutomationEngine {
                 }
             }
             PenaltyType::Warning => {
-                log::warn!("Economic warning issued to {}", violator);
+                log::warn!("Economic warning issued to {violator}");
             }
             _ => {
                 log::warn!(
@@ -1025,7 +1011,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in mana regeneration: {}", e);
+                    log::error!("Error in mana regeneration: {e}");
                 }
             }
         });
@@ -1053,7 +1039,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in dynamic pricing: {}", e);
+                    log::error!("Error in dynamic pricing: {e}");
                 }
             }
         });
@@ -1083,7 +1069,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in resource allocation: {}", e);
+                    log::error!("Error in resource allocation: {e}");
                 }
             }
         });
@@ -1113,7 +1099,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in policy enforcement: {}", e);
+                    log::error!("Error in policy enforcement: {e}");
                 }
             }
         });
@@ -1145,7 +1131,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in health monitoring: {}", e);
+                    log::error!("Error in health monitoring: {e}");
                 }
             }
         });
@@ -1173,7 +1159,7 @@ impl EconomicAutomationEngine {
                 )
                 .await
                 {
-                    log::error!("Error in market making: {}", e);
+                    log::error!("Error in market making: {e}");
                 }
             }
         });
@@ -1196,7 +1182,7 @@ impl EconomicAutomationEngine {
                     Self::run_predictive_models(&health_metrics, &pricing_models, &mana_accounts)
                         .await
                 {
-                    log::error!("Error in predictive modeling: {}", e);
+                    log::error!("Error in predictive modeling: {e}");
                 }
             }
         });
@@ -1237,13 +1223,10 @@ impl EconomicAutomationEngine {
 
                 // Apply regeneration
                 if let Err(e) = _mana_ledger.credit(&did, total_regeneration) {
-                    log::error!("Failed to regenerate mana for {}: {}", did, e);
+                    log::error!("Failed to regenerate mana for {did}: {e}");
                 } else {
                     log::debug!(
-                        "Regenerated {} mana for {} (rep: {})",
-                        total_regeneration,
-                        did,
-                        reputation
+                        "Regenerated {total_regeneration} mana for {did} (rep: {reputation})"
                     );
 
                     // Get updated balance
@@ -1294,11 +1277,7 @@ impl EconomicAutomationEngine {
             let adjusted_price = (base_price as f64 * demand_multiplier) as u64;
 
             log::debug!(
-                "Updated {} pricing: {} -> {} (demand: {:.2})",
-                resource_type,
-                base_price,
-                adjusted_price,
-                demand_multiplier
+                "Updated {resource_type} pricing: {base_price} -> {adjusted_price} (demand: {demand_multiplier:.2})"
             );
         }
 
@@ -1362,7 +1341,7 @@ impl EconomicAutomationEngine {
 
         // Apply optimizations
         for optimization in &optimization_suggestions {
-            log::info!("Applying resource optimization: {:?}", optimization);
+            log::info!("Applying resource optimization: {optimization:?}");
 
             // Emit optimization event
             let _ = _event_tx.send(EconomicEvent::ResourceAllocated {
@@ -1526,7 +1505,7 @@ impl EconomicAutomationEngine {
             let pool = Did::from_str("did:icn:pool").unwrap_or_default();
 
             let _ = event_tx.send(EconomicEvent::MarketTransaction {
-                transaction_id: format!("{}_buy", resource),
+                transaction_id: format!("{resource}_buy"),
                 buyer: maker.clone(),
                 seller: pool.clone(),
                 resource_type: resource.clone(),
@@ -1536,7 +1515,7 @@ impl EconomicAutomationEngine {
             });
 
             let _ = event_tx.send(EconomicEvent::MarketTransaction {
-                transaction_id: format!("{}_sell", resource),
+                transaction_id: format!("{resource}_sell"),
                 buyer: pool,
                 seller: maker,
                 resource_type: resource.clone(),
@@ -1782,18 +1761,13 @@ impl EconomicAutomationEngine {
         match self.mana_ledger.credit(recipient, bounded_amount) {
             Ok(()) => {
                 log::info!(
-                    "Allocated {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2})",
-                    bounded_amount, recipient, base_amount,
-                    reputation_multiplier, balance_factor, priority_multiplier, conditions_multiplier
+                    "Allocated {bounded_amount} mana to {recipient} (requested: {base_amount}, factors: rep={reputation_multiplier:.2}, balance={balance_factor:.2}, priority={priority_multiplier:.2}, conditions={conditions_multiplier:.2})"
                 );
                 Ok(bounded_amount)
             }
             Err(e) => {
                 log::error!(
-                    "Failed to allocate {} mana to {}: {}",
-                    bounded_amount,
-                    recipient,
-                    e
+                    "Failed to allocate {bounded_amount} mana to {recipient}: {e}"
                 );
                 Err(e)
             }

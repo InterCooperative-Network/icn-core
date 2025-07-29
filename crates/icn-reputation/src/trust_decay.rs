@@ -4,7 +4,7 @@
 //! allowing for realistic trust relationship dynamics in the cooperative network.
 
 use crate::trust_graph::{TrustEdge, TrustGraph};
-use icn_common::{Did, TimeProvider};
+use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
 
 /// Different types of decay models for trust relationships

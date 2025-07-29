@@ -29,7 +29,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "   ✅ COMPILED: {} bytes WASM - String manipulation ready for governance!",
             wasm.len()
         ),
-        Err(e) => println!("   ❌ FAILED: {}", e),
+        Err(e) => println!("   ❌ FAILED: {e}"),
     }
 
     // SUCCESS 2: Array Operations ✅
@@ -51,7 +51,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "   ✅ COMPILED: {} bytes WASM - Vote tallying ready for cooperatives!",
             wasm.len()
         ),
-        Err(e) => println!("   ❌ FAILED: {}", e),
+        Err(e) => println!("   ❌ FAILED: {e}"),
     }
 
     // SUCCESS 3: Option/Result Types ✅
@@ -71,7 +71,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "   ✅ COMPILED: {} bytes WASM - Error handling ready for robust governance!",
             wasm.len()
         ),
-        Err(e) => println!("   ❌ FAILED: {}", e),
+        Err(e) => println!("   ❌ FAILED: {e}"),
     }
 
     // SUCCESS 4: Map Operations ✅
@@ -91,7 +91,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "   ✅ COMPILED: {} bytes WASM - Member management ready for cooperatives!",
             wasm.len()
         ),
-        Err(e) => println!("   ❌ FAILED: {}", e),
+        Err(e) => println!("   ❌ FAILED: {e}"),
     }
 
     // SUCCESS 5: Combined Real-World Governance Contract ✅
@@ -129,7 +129,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             "   ✅ COMPILED: {} bytes WASM - Complete governance workflow ready!",
             wasm.len()
         ),
-        Err(e) => println!("   ❌ FAILED: {}", e),
+        Err(e) => println!("   ❌ FAILED: {e}"),
     }
 
     println!("\n🎉 BREAKTHROUGH ACHIEVED!");

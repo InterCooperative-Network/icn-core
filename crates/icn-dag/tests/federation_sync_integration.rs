@@ -12,7 +12,7 @@ use icn_dag::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn create_test_block(id: &str, links: Vec<DagLink>) -> DagBlock {
-    let data = format!("data for {}", id).into_bytes();
+    let data = format!("data for {id}").into_bytes();
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()

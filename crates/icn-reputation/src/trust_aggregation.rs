@@ -5,7 +5,7 @@
 
 use crate::trust_calculation::TrustCalculationEngine;
 use crate::trust_decay::TrustDecayCalculator;
-use crate::trust_graph::{TrustEdge, TrustGraph};
+use crate::trust_graph::TrustGraph;
 use crate::trust_pathfinding::TrustPathfinder;
 use icn_common::{Did, TimeProvider};
 use serde::{Deserialize, Serialize};
@@ -485,11 +485,11 @@ impl TrustAggregator {
                 // Bayesian updating
                 let posterior_precision =
                     1.0 / prior_variance + values.len() as f64 / sample_variance;
-                let posterior_mean = (prior_mean / prior_variance
-                    + sample_mean * values.len() as f64 / sample_variance)
-                    / posterior_precision;
+                
 
-                posterior_mean
+                (prior_mean / prior_variance
+                    + sample_mean * values.len() as f64 / sample_variance)
+                    / posterior_precision
             }
 
             CombinationMethod::Custom { alpha, beta } => {

@@ -195,7 +195,7 @@ impl AdvancedKeyManager {
         // Get current metadata
         let mut metadata_map = self.key_metadata.write().unwrap();
         let metadata = metadata_map.get_mut(did).ok_or_else(|| {
-            CommonError::ResourceNotFound(format!("Key metadata not found for DID: {}", did))
+            CommonError::ResourceNotFound(format!("Key metadata not found for DID: {did}"))
         })?;
 
         // Create key version entry for the old key

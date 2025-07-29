@@ -38,8 +38,8 @@ pub enum PNCounterOperation {
 impl PNCounter {
     /// Create a new PN-Counter with the given ID.
     pub fn new(id: String) -> Self {
-        let increment_id = format!("{}_inc", id);
-        let decrement_id = format!("{}_dec", id);
+        let increment_id = format!("{id}_inc");
+        let decrement_id = format!("{id}_dec");
 
         Self {
             id: id.clone(),

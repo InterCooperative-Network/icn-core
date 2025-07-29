@@ -329,8 +329,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
         // Check if federation exists
         if self.get_federation(federation_id).is_none() {
             return Err(CommonError::InvalidInputError(format!(
-                "Federation {} does not exist",
-                federation_id
+                "Federation {federation_id} does not exist"
             )));
         }
 
@@ -424,8 +423,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
         }
 
         Err(CommonError::InvalidInputError(format!(
-            "Member {} not found in federation {}",
-            did, federation_id
+            "Member {did} not found in federation {federation_id}"
         )))
     }
 }
@@ -571,7 +569,7 @@ impl FederationManager {
 
         // Check if federation exists
         let federation = self.registry.get_federation(federation_id).ok_or_else(|| {
-            CommonError::InvalidInputError(format!("Federation {} not found", federation_id))
+            CommonError::InvalidInputError(format!("Federation {federation_id} not found"))
         })?;
 
         // Check membership policy

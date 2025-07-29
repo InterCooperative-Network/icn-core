@@ -621,7 +621,7 @@ impl FederationMetadata {
         } else {
             // Default: simple majority
             let active_members = self.get_active_members();
-            participating_members.len() >= (active_members.len() + 1) / 2
+            participating_members.len() >= active_members.len().div_ceil(2)
         }
     }
 
@@ -687,7 +687,7 @@ impl TrustPolicyEngine {
             Some(rules) if !rules.is_empty() => rules,
             _ => {
                 return TrustValidationResult::Denied {
-                    reason: format!("No policy rules defined for context {:?}", context),
+                    reason: format!("No policy rules defined for context {context:?}"),
                 };
             }
         };
@@ -719,7 +719,7 @@ impl TrustPolicyEngine {
         trustee: &Did,
         context: &TrustContext,
     ) -> Option<ScopedTrustRelationship> {
-        for (_, trusts) in &self.federation_trusts {
+        for trusts in self.federation_trusts.values() {
             for trust in trusts {
                 if trust.base.attestor == *trustor
                     && trust.base.subject == *trustee
@@ -1153,7 +1153,7 @@ impl FederationDidVerifier {
             Some(p) => p,
             None => {
                 return DidVerificationResult::Invalid {
-                    reason: format!("Unknown verification policy: {}", policy_name),
+                    reason: format!("Unknown verification policy: {policy_name}"),
                     did: document.id.clone(),
                 };
             }
@@ -1182,7 +1182,7 @@ impl FederationDidVerifier {
                 .any(|vm| vm.method_type == *required_method)
             {
                 return DidVerificationResult::Invalid {
-                    reason: format!("Missing required verification method: {}", required_method),
+                    reason: format!("Missing required verification method: {required_method}"),
                     did: document.id.clone(),
                 };
             }
@@ -1196,7 +1196,7 @@ impl FederationDidVerifier {
                 .any(|pk| pk.purpose.contains(required_purpose))
             {
                 return DidVerificationResult::Invalid {
-                    reason: format!("Missing required key purpose: {:?}", required_purpose),
+                    reason: format!("Missing required key purpose: {required_purpose:?}"),
                     did: document.id.clone(),
                 };
             }
@@ -1276,7 +1276,7 @@ impl FederationDidVerifier {
         }
 
         // For now, return an error as we don't have network resolution implemented
-        Err(format!("DID document not found for {}", did))
+        Err(format!("DID document not found for {did}"))
     }
 }
 
@@ -1392,8 +1392,8 @@ impl FederationTrustBootstrap {
         // Create trust relationship (simplified)
         let trust = ScopedTrustRelationship {
             base: TrustRelationship {
-                attestor: Did::new("federation", &self.local_federation.id.as_str()),
-                subject: Did::new("federation", &session.remote_federation.as_str()),
+                attestor: Did::new("federation", self.local_federation.id.as_str()),
+                subject: Did::new("federation", session.remote_federation.as_str()),
                 trust_level: session.proposed_trust_level.clone(),
                 trust_scope: session
                     .proposed_contexts
@@ -1445,11 +1445,7 @@ impl FederationTrustBootstrap {
             .as_secs();
 
         self.active_sessions.retain(|_, session| {
-            if session.expires_at < now {
-                false
-            } else {
-                true
-            }
+            session.expires_at >= now
         });
     }
 }

@@ -478,11 +478,11 @@ pub fn execute_marketplace_transaction<
     // Get the offer and bid
     let offer = marketplace_store
         .get_offer(offer_id)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {} not found", offer_id)))?;
+        .ok_or_else(|| CommonError::InvalidInputError(format!("Offer {offer_id} not found")))?;
 
     let bid = marketplace_store
         .get_bid(bid_id)
-        .ok_or_else(|| CommonError::InvalidInputError(format!("Bid {} not found", bid_id)))?;
+        .ok_or_else(|| CommonError::InvalidInputError(format!("Bid {bid_id} not found")))?;
 
     // Validate the transaction
     if bid.offer_id != offer.offer_id {
@@ -523,7 +523,7 @@ pub fn execute_marketplace_transaction<
 
     // Create transaction record
     let transaction = marketplace::MarketplaceTransaction {
-        transaction_id: format!("tx_{}_{}", offer_id, bid_id),
+        transaction_id: format!("tx_{offer_id}_{bid_id}"),
         offer_id: offer.offer_id.clone(),
         bid_id: bid.bid_id.clone(),
         seller: offer.seller.clone(),

@@ -140,7 +140,7 @@ impl TrustCalculationEngine {
 
             // Calculate direct trust (path length 1)
             if let Some(incoming_edges) = graph.get_incoming_edges(node) {
-                for (_source, edge) in incoming_edges {
+                for edge in incoming_edges.values() {
                     let decayed_weight = self.apply_time_decay(edge, current_time);
                     direct_trust_sum += decayed_weight;
                     direct_count += 1;

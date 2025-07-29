@@ -1,4 +1,4 @@
-use crate::{TokenClassId, TransferRecord};
+use crate::TokenClassId;
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
