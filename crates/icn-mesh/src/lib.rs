@@ -1520,7 +1520,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high.clone(), 10);
         latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
@@ -1945,7 +1945,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(did_a.clone(), 5);
         latency.set_latency(did_b.clone(), 30);
