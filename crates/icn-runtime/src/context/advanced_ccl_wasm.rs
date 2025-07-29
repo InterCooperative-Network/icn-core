@@ -300,6 +300,8 @@ impl AdvancedCclWasmBackend {
                 "get_current_timestamp",
                 |_caller: wasmtime::Caller<'_, CclWasmContext>| -> u64 {
                     // Get current Unix timestamp
+                    // TODO: Redesign WASM host functions to access TimeProvider
+                    #[allow(clippy::disallowed_methods)]
                     std::time::SystemTime::now()
                         .duration_since(std::time::UNIX_EPOCH)
                         .unwrap_or_default()

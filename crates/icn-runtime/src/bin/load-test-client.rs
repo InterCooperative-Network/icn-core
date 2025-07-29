@@ -4,8 +4,15 @@
 //! including job submission stress testing, burst traffic simulation, and
 //! performance regression detection.
 
+#![allow(unused_imports)] // Development tool with various imports
+#![allow(dead_code)] // Development tool with utility functions
+#![allow(clippy::needless_borrow)] // Development tool code patterns
+#![allow(clippy::needless_borrows_for_generic_args)] // Development tool code patterns
+#![allow(clippy::uninlined_format_args)] // Development tool format strings
+#![allow(clippy::disallowed_methods)] // Performance measurement tool
+
 use clap::{Parser, Subcommand};
-use icn_common::{Cid, Did};
+
 use icn_mesh::{JobKind, JobSpec};
 use log::{debug, error, info, warn};
 use reqwest::Client;

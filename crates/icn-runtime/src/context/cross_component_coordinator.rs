@@ -500,6 +500,7 @@ impl NetworkDagManager {
         optimization: OperationOptimization,
     ) -> Result<DagOperationResult, HostAbiError> {
         // Create DAG block
+        #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()

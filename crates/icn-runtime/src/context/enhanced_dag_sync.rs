@@ -348,7 +348,7 @@ impl EnhancedDagSync {
         let peer_manager = self.peer_manager.clone();
         let strategy_selector = self.strategy_selector.clone();
         let metrics = self.metrics.clone();
-        let time_provider = self.time_provider.clone();
+        let _time_provider = self.time_provider.clone();
 
         // Background task for processing propagation queue
         let propagation_task = {

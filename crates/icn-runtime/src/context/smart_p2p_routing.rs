@@ -975,7 +975,7 @@ impl SmartP2pRouter {
         peer_id: &Did,
     ) -> Result<ConnectionQuality, HostAbiError> {
         // Measure actual connection quality through ping and statistics
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
 
         // Perform connection quality test
         match self.network_service.ping_peer(peer_id.clone()).await {

@@ -1,6 +1,9 @@
+#![allow(clippy::manual_abs_diff)] // Development utility with manual patterns
+#![allow(clippy::uninlined_format_args)] // Development utility with format strings
+
 use anyhow::{anyhow, Result};
 use clap::{Parser, Subcommand};
-use icn_common::{parse_cid_from_string, Cid, Did};
+use icn_common::{parse_cid_from_string, Did};
 use icn_dag::TokioFileDagStore;
 use icn_identity::{generate_ed25519_keypair, ExecutionReceipt};
 use icn_mesh::{ActualMeshJob, JobId};
@@ -93,15 +96,11 @@ async fn audit_job(job_id_str: &str, dag_path: PathBuf) -> Result<()> {
     let replay = executor.execute_job(&actual_job).await?;
 
     let outputs_match = replay.result_cid == exec_receipt.result_cid;
-    let cpu_diff = if replay.cpu_ms > exec_receipt.cpu_ms {
-        replay.cpu_ms - exec_receipt.cpu_ms
-    } else {
-        exec_receipt.cpu_ms - replay.cpu_ms
-    };
+    let cpu_diff = replay.cpu_ms.abs_diff(exec_receipt.cpu_ms);
     println!("Job Audit Report");
-    println!("Job: {}", job_id_str);
+    println!("Job: {job_id_str}");
     println!("Signature valid: true");
-    println!("Output match: {}", outputs_match);
+    println!("Output match: {outputs_match}");
     println!(
         "CPU ms recorded: {} | replayed: {} (diff {})",
         exec_receipt.cpu_ms, replay.cpu_ms, cpu_diff

@@ -307,6 +307,7 @@ pub struct CclPerformanceMetrics {
 
 impl CclIntegrationCoordinator {
     /// Create a new CCL integration coordinator
+    #[allow(clippy::too_many_arguments)] // Constructor needs access to all components
     pub fn new(
         network_service: Arc<MeshNetworkServiceType>,
         dag_store: Arc<DagStoreMutexType<DagStorageService>>,
@@ -1048,7 +1049,7 @@ impl CclIntegrationCoordinator {
             let unprocessed_events: Vec<GovernanceEvent> = tracker
                 .recent_events
                 .iter()
-                .filter(|event| {
+                .filter(|_event| {
                     let event_age = current_time.duration_since(tracker.last_processed);
                     event_age > Duration::from_millis(100)
                 })
@@ -1203,7 +1204,7 @@ impl CclIntegrationCoordinator {
 
     async fn manage_proposal_lifecycles(
         active_proposals: &Arc<Mutex<HashMap<ProposalId, ActiveProposal>>>,
-        time_provider: &Arc<dyn TimeProvider>,
+        _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), HostAbiError> {
         // Manage proposal deadlines and automatic state transitions
         let current_time = Instant::now();
@@ -1416,7 +1417,7 @@ impl CclIntegrationCoordinator {
             1.0
         };
 
-        let failure_rate = if metrics.contracts_executed > 0 {
+        let _failure_rate = if metrics.contracts_executed > 0 {
             metrics.failed_executions as f64 / metrics.contracts_executed as f64
         } else {
             0.0
