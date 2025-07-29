@@ -6,7 +6,8 @@
 /// associated `i32` value.
 pub fn encode_result_i32(res: Result<i32, i32>) -> i64 {
     match res {
-        Ok(v) => (v as u32 as u64) as i64,
+        // Encode `Ok` variant: high 32 bits = 0, low 32 bits = `v` as `i32`.
+        Ok(v) => ((v as u32) as u64) as i64,
         Err(e) => ((1u64 << 32) | (e as u32 as u64)) as i64,
     }
 }
