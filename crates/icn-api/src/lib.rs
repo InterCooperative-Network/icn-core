@@ -532,15 +532,18 @@ impl GovernanceApi for GovernanceApiImpl {
         })?;
 
         let time_provider = SystemTimeProvider;
-        module.submit_proposal(icn_governance::ProposalSubmission {
-            proposer: proposer_did,
-            proposal_type: core_proposal_type,
-            description: request.description,
-            duration_secs: request.duration_secs,
-            quorum: request.quorum,
-            threshold: request.threshold,
-            content_cid: None,
-        }, &time_provider)
+        module.submit_proposal(
+            icn_governance::ProposalSubmission {
+                proposer: proposer_did,
+                proposal_type: core_proposal_type,
+                description: request.description,
+                duration_secs: request.duration_secs,
+                quorum: request.quorum,
+                threshold: request.threshold,
+                content_cid: None,
+            },
+            &time_provider,
+        )
     }
 
     fn cast_vote(&self, request: GovernanceCastVoteRequest) -> Result<(), CommonError> {

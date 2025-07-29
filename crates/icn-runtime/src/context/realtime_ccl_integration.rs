@@ -887,7 +887,12 @@ impl CclIntegrationCoordinator {
         // Submit vote to governance
         let time_provider = SystemTimeProvider;
         governance
-            .cast_vote(self.node_identity.clone(), proposal_id, vote_option_enum, &time_provider)
+            .cast_vote(
+                self.node_identity.clone(),
+                proposal_id,
+                vote_option_enum,
+                &time_provider,
+            )
             .map_err(|e| HostAbiError::GovernanceError(format!("Failed to submit vote: {}", e)))?;
 
         // Also anchor vote in DAG for transparency and verification

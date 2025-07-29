@@ -3044,15 +3044,18 @@ impl RuntimeContext {
 
         let time_provider = SystemTimeProvider;
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: self.current_identity.clone(),
-                proposal_type,
-                description: payload.description,
-                duration_secs: payload.duration_secs,
-                quorum: payload.quorum,
-                threshold: payload.threshold,
-                content_cid,
-            }, &time_provider)
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: self.current_identity.clone(),
+                    proposal_type,
+                    description: payload.description,
+                    duration_secs: payload.duration_secs,
+                    quorum: payload.quorum,
+                    threshold: payload.threshold,
+                    content_cid,
+                },
+                &time_provider,
+            )
             .map_err(|e| {
                 HostAbiError::InternalError(format!("Failed to submit proposal: {}", e))
             })?;
@@ -3099,8 +3102,13 @@ impl RuntimeContext {
 
         let mut gov = self.governance_module.lock().await;
         let time_provider = SystemTimeProvider;
-        gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option, &time_provider)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
+        gov.cast_vote(
+            self.current_identity.clone(),
+            &proposal_id,
+            vote_option,
+            &time_provider,
+        )
+        .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
 
         let vote = icn_governance::Vote {
             voter: self.current_identity.clone(),
