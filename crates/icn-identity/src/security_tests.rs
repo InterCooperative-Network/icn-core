@@ -7,6 +7,7 @@
 //! - Edge cases and malicious inputs
 
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod security_tests {
     use crate::security::*;
     use crate::*;

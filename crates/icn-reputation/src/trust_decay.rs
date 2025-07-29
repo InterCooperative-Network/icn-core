@@ -391,8 +391,7 @@ impl Default for TrustDecayCalculator {
 mod tests {
     use super::*;
     use crate::trust_graph::TrustGraph;
-    use icn_common::FixedTimeProvider;
-    use std::str::FromStr;
+    use icn_common::{Did, FixedTimeProvider};
 
     fn create_test_did(id: &str) -> Did {
         Did::from_str(&format!("did:test:{}", id)).unwrap()

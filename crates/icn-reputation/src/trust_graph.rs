@@ -206,7 +206,7 @@ impl TrustGraph {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::{FixedTimeProvider, TimeProvider};
+    use icn_common::FixedTimeProvider;
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
