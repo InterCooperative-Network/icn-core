@@ -207,9 +207,9 @@ impl ServiceConfigBuilder {
                 // If libp2p feature is not enabled, require explicit network service
                 #[cfg(not(feature = "enable-libp2p"))]
                 {
-                    return Err(CommonError::InternalError(
+                    Err(CommonError::InternalError(
                         "Production environment requires either explicit network service or 'enable-libp2p' feature enabled".to_string(),
-                    ));
+                    ))
                 }
             }
             ServiceEnvironment::Development => {

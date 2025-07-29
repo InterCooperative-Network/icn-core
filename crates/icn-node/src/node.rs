@@ -4352,6 +4352,79 @@ async fn circuit_versions_handler(
     }
 }
 
+// Cooperative handlers (stub implementations)
+async fn cooperative_register_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative registration not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_search_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative search not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_profile_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative profile retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_add_trust_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative trust addition not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_trust_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative trust retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_capability_providers_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative capability providers retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_registry_stats_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative registry stats not yet implemented"
+        })),
+    )
+}
+
+// Demo data loading function (stub implementation)
+async fn load_demo_data(
+    _rt_ctx: &icn_runtime::RuntimeContext,
+    _node_did: &icn_common::Did,
+) -> Result<(), icn_common::CommonError> {
+    log::info!("Demo data loading not yet implemented");
+    Ok(())
+}
+
 // WebSocket handler for real-time events
 async fn websocket_handler(
     ws: WebSocketUpgrade,
@@ -4425,7 +4498,3 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
         }
     }
 }
-
-
-
-

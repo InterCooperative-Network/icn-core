@@ -1252,9 +1252,9 @@ impl RuntimeContext {
 
         #[cfg(not(feature = "enable-libp2p"))]
         {
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Production RuntimeContext requires libp2p feature or explicit network service. Enable the 'enable-libp2p' feature or use new_with_network_service().".to_string()
-            ));
+            ))
         }
     }
 
@@ -1474,9 +1474,9 @@ impl RuntimeContext {
 
         #[cfg(not(feature = "enable-libp2p"))]
         {
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Production RuntimeContext requires libp2p feature enabled. Enable the 'enable-libp2p' feature.".to_string()
-            ));
+            ))
         }
     }
 
