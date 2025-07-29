@@ -132,7 +132,7 @@ impl TrustCalculationEngine {
         let current_time = time_provider.unix_seconds();
 
         for node in &nodes {
-            let mut total_score;
+            let mut total_score = 0.0;
             let mut direct_trust_sum = 0.0;
             let mut indirect_trust_sum = 0.0;
             let mut direct_count = 0;

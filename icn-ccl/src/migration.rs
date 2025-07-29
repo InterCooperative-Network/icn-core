@@ -294,8 +294,6 @@ pub struct MigrationReport {
     pub estimated_changes: usize,
 }
 
-impl MigrationReport {}
-
 impl std::fmt::Display for MigrationReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
