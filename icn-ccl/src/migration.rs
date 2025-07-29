@@ -47,7 +47,6 @@ impl CclVersion {
 
         Ok(Self::new(major, minor, patch))
     }
-
 }
 
 impl std::fmt::Display for CclVersion {
@@ -295,12 +294,15 @@ pub struct MigrationReport {
     pub estimated_changes: usize,
 }
 
-impl MigrationReport {
-}
+impl MigrationReport {}
 
 impl std::fmt::Display for MigrationReport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Migration Report: {} -> {}", self.from_version, self.to_version)?;
+        writeln!(
+            f,
+            "Migration Report: {} -> {}",
+            self.from_version, self.to_version
+        )?;
         writeln!(f, "Estimated changes: {}\n", self.estimated_changes)?;
 
         if !self.applicable_rules.is_empty() {
@@ -327,10 +329,7 @@ pub fn convert_from_solidity(solidity_content: &str) -> Result<String, CclError>
     let mut ccl_content = String::new();
 
     // Add version header
-    ccl_content.push_str(&format!(
-        "// CCL Version: {}\n",
-        CURRENT_CCL_VERSION
-    ));
+    ccl_content.push_str(&format!("// CCL Version: {}\n", CURRENT_CCL_VERSION));
     ccl_content.push_str("// Converted from Solidity\n\n");
 
     // Basic Solidity to CCL mappings
@@ -374,10 +373,7 @@ pub fn convert_from_javascript(js_content: &str) -> Result<String, CclError> {
     let mut ccl_content = String::new();
 
     // Add version header
-    ccl_content.push_str(&format!(
-        "// CCL Version: {}\n",
-        CURRENT_CCL_VERSION
-    ));
+    ccl_content.push_str(&format!("// CCL Version: {}\n", CURRENT_CCL_VERSION));
     ccl_content.push_str("// Converted from JavaScript/TypeScript\n\n");
 
     // Basic JS to CCL mappings

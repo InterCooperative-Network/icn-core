@@ -903,26 +903,35 @@ pub async fn app_router_with_options(
             {
                 // Create real libp2p network service for production using P2pConfig
                 let mut net_cfg = NetworkConfig::production();
-                
+
                 // Apply P2pConfig settings from environment variables
-                if !cfg.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).is_empty() {
-                    net_cfg = net_cfg.with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
+                if !cfg
+                    .p2p
+                    .bootstrap_peers
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .is_empty()
+                {
+                    net_cfg = net_cfg
+                        .with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
                         .expect("Failed to parse bootstrap peers for production");
                 }
-                
-                net_cfg = net_cfg.with_settings(
-                    Some(&cfg.p2p.listen_address),
-                    Some(cfg.p2p.enable_mdns),
-                    Some(cfg.p2p.max_peers),
-                    Some(cfg.p2p.max_peers_per_ip),
-                    Some(cfg.p2p.connection_timeout_ms),
-                    Some(cfg.p2p.request_timeout_ms),
-                    Some(cfg.p2p.heartbeat_interval_ms),
-                    Some(cfg.p2p.bootstrap_interval_secs),
-                    Some(cfg.p2p.peer_discovery_interval_secs),
-                    Some(cfg.p2p.kademlia_replication_factor),
-                ).expect("Failed to apply P2pConfig settings for production");
-                
+
+                net_cfg = net_cfg
+                    .with_settings(
+                        Some(&cfg.p2p.listen_address),
+                        Some(cfg.p2p.enable_mdns),
+                        Some(cfg.p2p.max_peers),
+                        Some(cfg.p2p.max_peers_per_ip),
+                        Some(cfg.p2p.connection_timeout_ms),
+                        Some(cfg.p2p.request_timeout_ms),
+                        Some(cfg.p2p.heartbeat_interval_ms),
+                        Some(cfg.p2p.bootstrap_interval_secs),
+                        Some(cfg.p2p.peer_discovery_interval_secs),
+                        Some(cfg.p2p.kademlia_replication_factor),
+                    )
+                    .expect("Failed to apply P2pConfig settings for production");
+
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
@@ -957,26 +966,35 @@ pub async fn app_router_with_options(
             {
                 // Create libp2p service for development using P2pConfig
                 let mut net_cfg = NetworkConfig::development();
-                
+
                 // Apply P2pConfig settings from environment variables
-                if !cfg.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).is_empty() {
-                    net_cfg = net_cfg.with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
+                if !cfg
+                    .p2p
+                    .bootstrap_peers
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .is_empty()
+                {
+                    net_cfg = net_cfg
+                        .with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
                         .expect("Failed to parse bootstrap peers for development");
                 }
-                
-                net_cfg = net_cfg.with_settings(
-                    Some(&cfg.p2p.listen_address),
-                    Some(cfg.p2p.enable_mdns),
-                    Some(cfg.p2p.max_peers),
-                    Some(cfg.p2p.max_peers_per_ip),
-                    Some(cfg.p2p.connection_timeout_ms),
-                    Some(cfg.p2p.request_timeout_ms),
-                    Some(cfg.p2p.heartbeat_interval_ms),
-                    Some(cfg.p2p.bootstrap_interval_secs),
-                    Some(cfg.p2p.peer_discovery_interval_secs),
-                    Some(cfg.p2p.kademlia_replication_factor),
-                ).expect("Failed to apply P2pConfig settings for development");
-                
+
+                net_cfg = net_cfg
+                    .with_settings(
+                        Some(&cfg.p2p.listen_address),
+                        Some(cfg.p2p.enable_mdns),
+                        Some(cfg.p2p.max_peers),
+                        Some(cfg.p2p.max_peers_per_ip),
+                        Some(cfg.p2p.connection_timeout_ms),
+                        Some(cfg.p2p.request_timeout_ms),
+                        Some(cfg.p2p.heartbeat_interval_ms),
+                        Some(cfg.p2p.bootstrap_interval_secs),
+                        Some(cfg.p2p.peer_discovery_interval_secs),
+                        Some(cfg.p2p.kademlia_replication_factor),
+                    )
+                    .expect("Failed to apply P2pConfig settings for development");
+
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
@@ -3904,9 +3922,8 @@ async fn network_discover_handler(State(state): State<AppState>) -> impl IntoRes
                     )
                         .into_response()
                 }
-                Err(e) => {
-                    map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response()
-                }
+                Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response(),
             },
             Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
         }

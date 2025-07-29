@@ -14,18 +14,18 @@
 pub mod error;
 pub use error::MeshNetworkError;
 pub mod adaptive_routing;
+pub mod bootstrap_discovery;
 pub mod metrics;
 pub mod service_factory;
-pub mod bootstrap_discovery;
 pub use adaptive_routing::{
     AdaptiveNetworkService, AdaptiveRoutingConfig, AdaptiveRoutingEngine, NetworkTopology,
     RouteInfo, RouteSelectionWeights, RoutingEvent,
 };
+pub use bootstrap_discovery::BootstrapDiscovery;
 pub use service_factory::{
     BootstrapPeer, NetworkEnvironment, NetworkServiceConfig, NetworkServiceCreationResult,
     NetworkServiceFactory, NetworkServiceOptions, NetworkServiceOptionsBuilder,
 };
-pub use bootstrap_discovery::BootstrapDiscovery;
 
 use async_trait::async_trait;
 use downcast_rs::{impl_downcast, DowncastSync};
@@ -34,7 +34,7 @@ use icn_common::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
-use libp2p::{PeerId as Libp2pPeerId, Multiaddr, multiaddr::Protocol};
+use libp2p::{multiaddr::Protocol, Multiaddr, PeerId as Libp2pPeerId};
 #[cfg(feature = "libp2p")]
 use log::{info, warn};
 use lru::LruCache;
@@ -779,15 +779,15 @@ pub mod libp2p_service {
         pub fn devnet() -> Self {
             Self {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/4001".parse().unwrap()],
-                max_peers: 50, // Sufficient for devnet federation
+                max_peers: 50,        // Sufficient for devnet federation
                 max_peers_per_ip: 10, // Allow multiple containers from same IP
                 connection_timeout: Duration::from_secs(10),
                 request_timeout: Duration::from_secs(5),
                 heartbeat_interval: Duration::from_secs(5),
                 bootstrap_interval: Duration::from_secs(30), // Much faster re-bootstrap
                 peer_discovery_interval: Duration::from_secs(10), // Very fast discovery
-                enable_mdns: true, // Helps with local discovery in Docker
-                kademlia_replication_factor: 10, // Lower for smaller networks
+                enable_mdns: true,                           // Helps with local discovery in Docker
+                kademlia_replication_factor: 10,             // Lower for smaller networks
                 bootstrap_peers: Vec::new(),
                 discovery_addresses: Vec::new(),
             }
@@ -901,7 +901,10 @@ pub mod libp2p_service {
         ///
         /// This method parses multiaddr strings and adds them as bootstrap peers.
         /// Supports both full multiaddrs with peer IDs and partial multiaddrs without peer IDs.
-        pub fn with_bootstrap_peers(mut self, peer_strings: &[String]) -> Result<Self, MeshNetworkError> {
+        pub fn with_bootstrap_peers(
+            mut self,
+            peer_strings: &[String],
+        ) -> Result<Self, MeshNetworkError> {
             self.bootstrap_peers = Self::parse_bootstrap_peers(peer_strings)?;
             Ok(self)
         }
@@ -926,9 +929,12 @@ pub mod libp2p_service {
             if let Some(addr_str) = listen_address {
                 match addr_str.parse() {
                     Ok(addr) => self.listen_addresses = vec![addr],
-                    Err(e) => return Err(MeshNetworkError::SetupError(
-                        format!("Invalid listen address '{}': {}", addr_str, e)
-                    )),
+                    Err(e) => {
+                        return Err(MeshNetworkError::SetupError(format!(
+                            "Invalid listen address '{}': {}",
+                            addr_str, e
+                        )))
+                    }
                 }
             }
 
@@ -969,26 +975,28 @@ pub mod libp2p_service {
         /// Handles both formats:
         /// - Full multiaddr with peer ID: "/dns4/host/tcp/4001/p2p/12D3KooW..."
         /// - Partial multiaddr without peer ID: "/dns4/host/tcp/4001" (peer ID will be discovered)
-        fn parse_bootstrap_peers(peers: &[String]) -> Result<Vec<(Libp2pPeerId, Multiaddr)>, MeshNetworkError> {
+        fn parse_bootstrap_peers(
+            peers: &[String],
+        ) -> Result<Vec<(Libp2pPeerId, Multiaddr)>, MeshNetworkError> {
             let mut parsed_peers = Vec::new();
-            
+
             for peer_str in peers {
                 if peer_str.is_empty() {
                     continue;
                 }
-                
+
                 match peer_str.parse::<Multiaddr>() {
                     Ok(multiaddr) => {
-                                                 // Check if the multiaddr contains a peer ID
-                         if let Some(peer_id) = multiaddr.iter().find_map(|p| {
-                             if let Protocol::P2p(pid) = p {
-                                 Some(pid)
-                             } else {
-                                 None
-                             }
-                         }) {
-                             // Full multiaddr with peer ID
-                             parsed_peers.push((peer_id, multiaddr));
+                        // Check if the multiaddr contains a peer ID
+                        if let Some(peer_id) = multiaddr.iter().find_map(|p| {
+                            if let Protocol::P2p(pid) = p {
+                                Some(pid)
+                            } else {
+                                None
+                            }
+                        }) {
+                            // Full multiaddr with peer ID
+                            parsed_peers.push((peer_id, multiaddr));
                         } else {
                             // Partial multiaddr without peer ID - use a placeholder
                             // The actual peer ID will be discovered during connection
@@ -996,14 +1004,15 @@ pub mod libp2p_service {
                             parsed_peers.push((placeholder_peer_id, multiaddr));
                         }
                     }
-                                         Err(e) => {
-                         return Err(MeshNetworkError::SetupError(
-                             format!("Invalid multiaddr '{}': {}", peer_str, e)
-                         ));
-                     }
+                    Err(e) => {
+                        return Err(MeshNetworkError::SetupError(format!(
+                            "Invalid multiaddr '{}': {}",
+                            peer_str, e
+                        )));
+                    }
                 }
             }
-            
+
             Ok(parsed_peers)
         }
     }
@@ -1621,7 +1630,7 @@ pub mod libp2p_service {
                                     }
                                 }
                             }
-                            
+
                             // Retry discovery addresses (without known peer IDs)
                             for addr in &discovery_addresses_clone {
                                 // Check if we're already connected to this address
@@ -1631,7 +1640,7 @@ pub mod libp2p_service {
                                     log::warn!("Failed to redial discovery address {}: {}", addr, e);
                                 }
                             }
-                            
+
                             if let Err(e) = swarm.behaviour_mut().kademlia.bootstrap() {
                                 log::error!("❌ [LIBP2P] Periodic bootstrap error: {:?}", e);
                             }
@@ -2177,4 +2186,3 @@ pub mod libp2p_service {
         }
     }
 }
-

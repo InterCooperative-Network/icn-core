@@ -1230,7 +1230,7 @@ impl RuntimeContext {
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
-                bootstrap_peers: vec![], // No bootstrap peers by default
+                bootstrap_peers: vec![],     // No bootstrap peers by default
                 discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
@@ -1439,7 +1439,7 @@ impl RuntimeContext {
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
-                bootstrap_peers: vec![], // No bootstrap peers by default
+                bootstrap_peers: vec![],     // No bootstrap peers by default
                 discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
@@ -1860,7 +1860,10 @@ impl RuntimeContext {
         let temp_job_id_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
         let temp_job_id = JobId::from(temp_job_id_cid);
 
-        log::debug!("[handle_submit_job] Generated temporary job ID: {}", temp_job_id);
+        log::debug!(
+            "[handle_submit_job] Generated temporary job ID: {}",
+            temp_job_id
+        );
 
         // 5. Create the Job DAG node with temporary ID
         let mut job = Job {
@@ -1877,11 +1880,11 @@ impl RuntimeContext {
 
         // 6. Store job in DAG and get the actual computed CID
         let job_dag_cid = self.store_job_in_dag(&job).await?;
-        
+
         // 7. Update the job ID to match the actual DAG storage CID
         let actual_job_id = JobId::from(job_dag_cid.clone());
         job.id = actual_job_id.clone();
-        
+
         log::info!(
             "[handle_submit_job] Job stored in DAG with CID: {} (updated job ID from {} to {})",
             job_dag_cid,
@@ -1890,7 +1893,8 @@ impl RuntimeContext {
         );
 
         // 8. Update job state tracking with the actual job ID
-        self.job_states.insert(actual_job_id.clone(), JobState::Pending);
+        self.job_states
+            .insert(actual_job_id.clone(), JobState::Pending);
 
         // 9. Create ActualMeshJob for network announcement with the actual job ID
         let actual_job = ActualMeshJob {
