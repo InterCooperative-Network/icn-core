@@ -392,6 +392,7 @@ mod tests {
     use super::*;
     use crate::trust_graph::TrustGraph;
     use icn_common::{Did, FixedTimeProvider};
+    use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
         Did::from_str(&format!("did:test:{}", id)).unwrap()
@@ -552,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_apply_decay_to_graph() {
-        let mut calculator = TrustDecayCalculator::with_time_decay(DecayModel::Linear {
+        let calculator = TrustDecayCalculator::with_time_decay(DecayModel::Linear {
             decay_period_seconds: 86400, // 1 day
         });
         let mut graph = TrustGraph::new();

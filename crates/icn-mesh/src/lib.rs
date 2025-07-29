@@ -1298,6 +1298,7 @@ mod tests {
             }
         }
 
+        #[allow(dead_code)]
         fn set_capability(&self, executor_did: &Did, capability: &str, has_capability: bool) {
             self.capabilities
                 .lock()
@@ -1307,6 +1308,7 @@ mod tests {
                 .insert(capability.to_string(), has_capability);
         }
 
+        #[allow(dead_code)]
         fn set_resources(&self, executor_did: &Did, resources: Resources) {
             self.resources
                 .lock()
@@ -1314,6 +1316,7 @@ mod tests {
                 .insert(executor_did.clone(), resources);
         }
 
+        #[allow(dead_code)]
         fn set_availability(&self, executor_did: &Did, available: bool) {
             self.availability
                 .lock()
@@ -1517,11 +1520,11 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high.clone(), 10);
         latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &spec,
@@ -1579,7 +1582,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 15);
         latency.set_latency(b.clone(), 5);
         let spec = JobSpec::default();
@@ -1640,7 +1643,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high_rep.clone(), 20);
         latency.set_latency(cheap.clone(), 5);
 
@@ -1695,7 +1698,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(a.clone(), 50);
         latency.set_latency(b.clone(), 10);
         let selected = select_executor(
@@ -1770,7 +1773,7 @@ mod tests {
         };
 
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(fast.clone(), 5);
         latency.set_latency(slow.clone(), 50);
 
@@ -1816,7 +1819,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(bidder.clone(), 15);
         let score = score_bid(
             &bid,
@@ -1838,7 +1841,7 @@ mod tests {
         let policy = SelectionPolicy::default();
 
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1890,7 +1893,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         let selected = select_executor(
             &job_id,
             &JobSpec::default(),
@@ -1942,8 +1945,8 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(did_a.clone(), 5);
         latency.set_latency(did_b.clone(), 30);
         let score_a = score_bid(
@@ -2042,12 +2045,14 @@ mod tests {
         .unwrap();
 
         // Job that only allows federation A
-        let mut job_spec = JobSpec::default();
-        job_spec.allowed_federations = vec!["federation_a".to_string()];
+        let job_spec = JobSpec {
+            allowed_federations: vec!["federation_a".to_string()],
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2109,12 +2114,14 @@ mod tests {
         .unwrap();
 
         // Job that requires GPU capability
-        let mut job_spec = JobSpec::default();
-        job_spec.required_capabilities = vec!["gpu".to_string()];
+        let job_spec = JobSpec {
+            required_capabilities: vec!["gpu".to_string()],
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2174,12 +2181,14 @@ mod tests {
         .unwrap();
 
         // Job that requires minimum reputation of 10
-        let mut job_spec = JobSpec::default();
-        job_spec.min_executor_reputation = Some(10);
+        let job_spec = JobSpec {
+            min_executor_reputation: Some(10),
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
@@ -2241,12 +2250,14 @@ mod tests {
         .unwrap();
 
         // Job that requires high security trust scope
-        let mut job_spec = JobSpec::default();
-        job_spec.required_trust_scope = Some("high_security".to_string());
+        let job_spec = JobSpec {
+            required_trust_scope: Some("high_security".to_string()),
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
 
         let selected = select_executor(
             &job_id,
