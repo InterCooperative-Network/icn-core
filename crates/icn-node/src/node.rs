@@ -9,7 +9,6 @@
     dead_code,
     irrefutable_let_patterns
 )]
-
 //! # ICN Node Crate
 //! This crate provides the main binary for running a long-lived InterCooperative Network (ICN) daemon.
 //! It integrates various core components to operate a functional ICN node, handling initialization,
