@@ -744,23 +744,11 @@ impl ComprehensiveCoordinator {
         }
 
         // Update opportunity status after execution
-        {
-            let mut opportunities = self.optimization_opportunities.write().unwrap();
-            if let Some(opportunity) = opportunities
-                .iter_mut()
-                .find(|o| o.opportunity_id == opportunity_id)
-            {
-                opportunity.status = if failed_actions == 0 {
-                    OpportunityStatus::Implemented
-                } else if successful_actions > 0 {
-                    OpportunityStatus::Implemented // Partial success
-                } else {
-                    OpportunityStatus::Failed {
-                        reason: "All actions failed".to_string(),
-                    }
-                };
-            }
-        } // Lock is dropped here
+        self.update_opportunity_status_after_execution(
+            opportunity_id,
+            successful_actions,
+            failed_actions,
+        );
 
         Ok(OptimizationExecutionResult {
             opportunity_id: opportunity_id.to_string(),
@@ -1671,6 +1659,30 @@ impl ComprehensiveCoordinator {
 
         // Return the impact as a fraction (0.0 to 1.0)
         Ok(impact_score / 100.0)
+    }
+
+    /// Helper method to update opportunity status after execution
+    fn update_opportunity_status_after_execution(
+        &self,
+        opportunity_id: &str,
+        successful_actions: usize,
+        failed_actions: usize,
+    ) {
+        let mut opportunities = self.optimization_opportunities.write().unwrap();
+        if let Some(opportunity) = opportunities
+            .iter_mut()
+            .find(|o| o.opportunity_id == opportunity_id)
+        {
+            opportunity.status = if failed_actions == 0 {
+                OpportunityStatus::Implemented
+            } else if successful_actions > 0 {
+                OpportunityStatus::Implemented // Partial success
+            } else {
+                OpportunityStatus::Failed {
+                    reason: "All actions failed".to_string(),
+                }
+            };
+        }
     }
 }
 

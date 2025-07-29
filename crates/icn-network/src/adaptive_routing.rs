@@ -275,44 +275,7 @@ impl AdaptiveRoutingEngine {
     ) -> Result<Option<RouteInfo>, MeshNetworkError> {
         self.update_reputation_cache().await?;
 
-        let best_route = {
-            let routes = self.routes.read().unwrap();
-            let reputation_cache = self.peer_reputation_cache.read().unwrap();
-
-            if let Some(destination_routes) = routes.get(destination) {
-                // Filter healthy routes
-                let healthy_routes: Vec<&RouteInfo> = destination_routes
-                    .iter()
-                    .filter(|route| route.is_healthy)
-                    .collect();
-
-                if healthy_routes.is_empty() {
-                    None
-                } else {
-                    // Score and select best route
-                    let mut scored_routes: Vec<(f64, &RouteInfo)> = healthy_routes
-                        .iter()
-                        .map(|route| {
-                            let score = route
-                                .calculate_score(&self.config.selection_weights, &reputation_cache);
-                            (score, *route)
-                        })
-                        .collect();
-
-                    scored_routes
-                        .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-
-                    if let Some((score, best_route)) = scored_routes.first() {
-                        log::debug!("Selected route to {} with score {:.3}", destination, score);
-                        Some((*best_route).clone())
-                    } else {
-                        None
-                    }
-                }
-            } else {
-                None
-            }
-        }; // Locks are dropped here
+        let best_route = self.select_best_route_from_available(destination)?;
 
         if let Some(route) = best_route {
             return Ok(Some(route));
@@ -677,6 +640,49 @@ impl AdaptiveRoutingEngine {
         }
 
         Ok(topology)
+    }
+
+    /// Helper method to select the best route from available routes to a destination
+    fn select_best_route_from_available(
+        &self,
+        destination: &Did,
+    ) -> Result<Option<RouteInfo>, MeshNetworkError> {
+        let routes = self.routes.read().unwrap();
+        let reputation_cache = self.peer_reputation_cache.read().unwrap();
+
+        if let Some(destination_routes) = routes.get(destination) {
+            // Filter healthy routes
+            let healthy_routes: Vec<&RouteInfo> = destination_routes
+                .iter()
+                .filter(|route| route.is_healthy)
+                .collect();
+
+            if healthy_routes.is_empty() {
+                return Ok(None);
+            }
+
+            // Score and select best route
+            let mut scored_routes: Vec<(f64, &RouteInfo)> = healthy_routes
+                .iter()
+                .map(|route| {
+                    let score =
+                        route.calculate_score(&self.config.selection_weights, &reputation_cache);
+                    (score, *route)
+                })
+                .collect();
+
+            scored_routes
+                .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+            if let Some((score, best_route)) = scored_routes.first() {
+                log::debug!("Selected route to {} with score {:.3}", destination, score);
+                Ok(Some((*best_route).clone()))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 }
 
