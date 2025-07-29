@@ -281,6 +281,11 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
         self.federation_nodes.remove(node);
     }
 
+    /// Check if a node is a member of the federation
+    pub fn is_federation_member(&self, node: &Did) -> bool {
+        self.federation_nodes.contains(node)
+    }
+
     /// Cast a vote on an active conflict
     pub fn cast_federation_vote(&mut self, vote: FederationVote) -> Result<(), CommonError> {
         // Verify the voter is part of the federation

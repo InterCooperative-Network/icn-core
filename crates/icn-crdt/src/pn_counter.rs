@@ -7,8 +7,8 @@
 
 use crate::{CRDTError, CRDTResult, CausalCRDT, GCounter, NodeId, VectorClock, CRDT};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
 /// A counter that supports both increment and decrement operations.
 ///

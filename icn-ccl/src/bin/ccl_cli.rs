@@ -235,9 +235,9 @@ fn debug_command(file: PathBuf, interactive: bool) -> Result<(), CclError> {
             // TODO: Show debug file information
             Ok(())
         } else {
-            return Err(CclError::IoError(
+            Err(CclError::IoError(
                 "Debug command requires a .debug.json file or use --interactive flag".to_string(),
-            ));
+            ))
         }
     }
 }
@@ -294,7 +294,7 @@ fn migration_upgrade_command(
 
     // Detect current version
     let detected_version = engine.detect_version(&content)?;
-    println!("📋 Detected CCL version: {}", detected_version.to_string());
+    println!("📋 Detected CCL version: {}", detected_version);
 
     // Parse target version
     let target = if let Some(version_str) = target_version {
@@ -302,7 +302,7 @@ fn migration_upgrade_command(
     } else {
         CURRENT_CCL_VERSION.clone()
     };
-    println!("🎯 Target CCL version: {}", target.to_string());
+    println!("🎯 Target CCL version: {}", target);
 
     // Check if migration is needed
     if detected_version >= target {
@@ -312,7 +312,7 @@ fn migration_upgrade_command(
 
     // Generate migration report
     let report = engine.generate_migration_report(&content, &detected_version, &target);
-    println!("\n{}", report.to_string());
+    println!("\n{}", report);
 
     if dry_run {
         println!("🔍 Dry run completed. Use without --dry-run to apply changes.");
@@ -401,7 +401,7 @@ fn migration_detect_command(file: PathBuf) -> Result<(), CclError> {
     let engine = MigrationEngine::new();
     let detected_version = engine.detect_version(&content)?;
 
-    println!("📋 Detected CCL version: {}", detected_version.to_string());
+    println!("📋 Detected CCL version: {}", detected_version);
 
     // Analyze syntax patterns for additional insights
     let patterns = analyze_syntax_patterns(&content);

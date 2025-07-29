@@ -344,7 +344,9 @@ impl CRDTSynchronizer {
             if selected.len() >= self.config.fanout {
                 break;
             }
-            if !selected.iter().any(|p| p.node_id == peer.node_id) && fastrand::f64() < (num_random as f64 / (all_peers.len() - selected.len()) as f64) {
+            if !selected.iter().any(|p| p.node_id == peer.node_id)
+                && fastrand::f64() < (num_random as f64 / (all_peers.len() - selected.len()) as f64)
+            {
                 selected.push(peer.clone());
             }
         }
