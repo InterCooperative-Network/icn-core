@@ -630,23 +630,36 @@ where
     /// # Ok::<(), icn_governance::VotingError>(())
     /// ```
     pub fn anchor_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<Cid, VotingError> {
-        use icn_common::DagBlock;
+        use icn_common::{compute_merkle_cid, DagBlock};
 
         // Serialize the ballot for storage
         let ballot_data = serde_json::to_vec(ballot).map_err(|e| {
             VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
         })?;
 
+        let timestamp = ballot
+            .timestamp
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Compute the proper CID using the Merkle function
+        let block_cid = compute_merkle_cid(
+            0x71, // Raw codec for ballot data
+            &ballot_data,
+            &[], // Ballots are leaf nodes initially
+            timestamp,
+            &ballot.voter_did.id,
+            &None, // Ballot has its own signature
+            &None,
+        );
+
         // Create a DAG block for the ballot
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &ballot_data), // Raw codec for ballot data
+            cid: block_cid.clone(),
             data: ballot_data,
             links: vec![], // Ballots are leaf nodes initially
-            timestamp: ballot
-                .timestamp
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp,
             author_did: ballot.voter_did.id.clone(),
             signature: None, // Ballot has its own signature
             scope: None,
@@ -657,7 +670,7 @@ where
             VotingError::InvalidBallot(format!("Failed to store ballot in DAG: {}", e))
         })?;
 
-        Ok(block.cid)
+        Ok(block_cid)
     }
 
     /// Retrieve a ballot from the DAG by its CID
@@ -726,9 +739,16 @@ mod tests {
     use icn_common::FixedTimeProvider;
 
     fn create_test_did_document() -> DidDocument {
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        use std::str::FromStr;
+
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+
         DidDocument {
-            id: Did::default(),
-            public_key: vec![0u8; 32], // Mock public key
+            id: did,
+            public_key: pk.as_bytes().to_vec(),
         }
     }
 

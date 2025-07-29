@@ -548,6 +548,7 @@ mod tests {
     use crate::voting::{BallotId, ElectionId, Signature};
     use icn_common::{Did, DidDocument};
     use icn_identity::KeyDidResolver;
+    use std::str::FromStr;
     use std::sync::Arc;
 
     fn create_test_ballot(
@@ -555,18 +556,48 @@ mod tests {
         election_id: &str,
         preferences: Vec<&str>,
     ) -> RankedChoiceBallot {
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+
         RankedChoiceBallot {
             ballot_id: BallotId(ballot_id.to_string()),
             voter_did: DidDocument {
-                id: Did::default(),
-                public_key: vec![0u8; 32], // Mock public key
+                id: did,
+                public_key: pk.as_bytes().to_vec(),
             },
             election_id: ElectionId(election_id.to_string()),
             preferences: preferences
                 .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
-            timestamp: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995200),
+            signature: Signature {
+                algorithm: "ed25519".to_string(),
+                value: vec![0u8; 64],
+            },
+        }
+    }
+
+    fn create_test_ballot_with_did(
+        ballot_id: &str,
+        election_id: &str,
+        preferences: Vec<&str>,
+        voter_did: DidDocument,
+    ) -> RankedChoiceBallot {
+        RankedChoiceBallot {
+            ballot_id: BallotId(ballot_id.to_string()),
+            voter_did,
+            election_id: ElectionId(election_id.to_string()),
+            preferences: preferences
+                .into_iter()
+                .map(|s| CandidateId(s.to_string()))
+                .collect(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -627,12 +658,19 @@ mod tests {
         let empty_preferences = RankedChoiceBallot {
             ballot_id: BallotId("ballot1".to_string()),
             voter_did: DidDocument {
-                id: Did::default(),
+                id: Did {
+                    method: "key".to_string(),
+                    id_string: "zH3C2AVvLMv6gmMNam3uVAjZpfkcJCwDwnZn6z3wXmqPV".to_string(), // Example multibase key
+                    path: None,
+                    query: None,
+                    fragment: None,
+                },
                 public_key: vec![0u8; 32], // Mock public key
             },
             election_id: ElectionId("election1".to_string()),
             preferences: vec![], // Empty preferences
-            timestamp: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995201),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995201),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -650,8 +688,24 @@ mod tests {
         let did_resolver = Arc::new(KeyDidResolver);
         let validator = RankedChoiceBallotValidator::new(did_resolver);
 
-        let ballot1 = create_test_ballot("ballot1", "election1", vec!["alice", "bob"]);
-        let ballot2 = create_test_ballot("ballot2", "election1", vec!["bob", "alice"]);
+        // Create a single test DID document to use for both ballots
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let test_did_doc = DidDocument {
+            id: did,
+            public_key: pk.as_bytes().to_vec(),
+        };
+
+        let ballot1 = create_test_ballot_with_did(
+            "ballot1",
+            "election1",
+            vec!["alice", "bob"],
+            test_did_doc.clone(),
+        );
+        let ballot2 =
+            create_test_ballot_with_did("ballot2", "election1", vec!["bob", "alice"], test_did_doc);
 
         // First ballot should pass
         assert!(validator.check_duplicate(&ballot1).is_ok());

@@ -103,7 +103,6 @@ mod tests {
         use icn_governance::{Proposal, ProposalId};
         use std::collections::HashMap;
 
-
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
 

@@ -133,7 +133,8 @@ mod tests {
     /// Test proposal expiration functionality
     #[test]
     fn test_proposal_expiration() {
-        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
+        let start_time = 1640995200u64; // Start of 2022
+        let time_provider = FixedTimeProvider::new(start_time);
         let mut governance = GovernanceModule::new();
         let voter_did = Did::default();
         governance.add_member(voter_did.clone());
@@ -153,12 +154,16 @@ mod tests {
             .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
-        // Wait for expiration (simulate time passing)
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        // Create a new time provider that simulates time passing beyond expiration
+        let future_time_provider = FixedTimeProvider::new(start_time + 2);
 
-        // Try to vote on expired proposal
-        let vote_result =
-            governance.cast_vote(voter_did, &proposal_id, VoteOption::Yes, &time_provider);
+        // Try to vote on expired proposal using future time
+        let vote_result = governance.cast_vote(
+            voter_did,
+            &proposal_id,
+            VoteOption::Yes,
+            &future_time_provider,
+        );
 
         // Should fail due to expired deadline
         assert!(vote_result.is_err());
