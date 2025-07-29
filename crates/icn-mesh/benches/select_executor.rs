@@ -3,7 +3,8 @@ use icn_common::{Cid, Did};
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{
-    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, NoOpCapabilityChecker, Resources, SelectionPolicy,
+    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, NoOpCapabilityChecker, Resources,
+    SelectionPolicy,
 };
 use icn_reputation::InMemoryReputationStore;
 use std::str::FromStr;
@@ -108,7 +109,14 @@ fn bench_select_executor(c: &mut Criterion) {
                 || bids.clone(),
                 |bids_vec| {
                     black_box(select_executor(
-                        &job_id, &spec, bids_vec, &policy, &rep_store, &ledger, &latency, &capability_checker,
+                        &job_id,
+                        &spec,
+                        bids_vec,
+                        &policy,
+                        &rep_store,
+                        &ledger,
+                        &latency,
+                        &capability_checker,
                     ));
                 },
                 BatchSize::SmallInput,
