@@ -155,6 +155,8 @@ services:
         condition: service_healthy
       icn-node-b:
         condition: service_healthy
+      icn-node-c:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-d-key", "http://localhost:7845/info"]
       interval: 10s
@@ -195,6 +197,10 @@ services:
       icn-node-a:
         condition: service_healthy
       icn-node-b:
+        condition: service_healthy
+      icn-node-c:
+        condition: service_healthy
+      icn-node-d:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-e-key", "http://localhost:7845/info"]
@@ -237,6 +243,10 @@ services:
         condition: service_healthy
       icn-node-c:
         condition: service_healthy
+      icn-node-d:
+        condition: service_healthy
+      icn-node-e:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-f-key", "http://localhost:7845/info"]
       interval: 10s
@@ -277,6 +287,10 @@ services:
       icn-node-b:
         condition: service_healthy
       icn-node-c:
+        condition: service_healthy
+      icn-node-e:
+        condition: service_healthy
+      icn-node-f:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-g-key", "http://localhost:7845/info"]
@@ -319,6 +333,10 @@ services:
         condition: service_healthy
       icn-node-d:
         condition: service_healthy
+      icn-node-f:
+        condition: service_healthy
+      icn-node-g:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-h-key", "http://localhost:7845/info"]
       interval: 10s
@@ -360,6 +378,10 @@ services:
         condition: service_healthy
       icn-node-e:
         condition: service_healthy
+      icn-node-g:
+        condition: service_healthy
+      icn-node-h:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-i-key", "http://localhost:7845/info"]
       interval: 10s
@@ -400,6 +422,10 @@ services:
       icn-node-c:
         condition: service_healthy
       icn-node-d:
+        condition: service_healthy
+      icn-node-h:
+        condition: service_healthy
+      icn-node-i:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-j-key", "http://localhost:7845/info"]
