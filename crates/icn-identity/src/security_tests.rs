@@ -64,11 +64,7 @@ mod security_tests {
         let invalid_duration = start.elapsed();
 
         // Times should be similar (within reasonable bounds due to timing mitigation)
-        let diff = if valid_duration > invalid_duration {
-            valid_duration - invalid_duration
-        } else {
-            invalid_duration - valid_duration
-        };
+        let diff = valid_duration.abs_diff(invalid_duration);
 
         // Should be within 5ms of each other due to timing mitigation
         assert!(
@@ -324,11 +320,7 @@ mod security_tests {
             invalid_times.iter().sum::<std::time::Duration>() / invalid_times.len() as u32;
 
         // Timing should be similar (within 2ms due to our mitigation)
-        let diff = if avg_valid > avg_invalid {
-            avg_valid - avg_invalid
-        } else {
-            avg_invalid - avg_valid
-        };
+        let diff = avg_valid.abs_diff(avg_invalid);
 
         assert!(
             diff.as_millis() < TIMING_THRESHOLD_MS,
