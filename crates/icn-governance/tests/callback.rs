@@ -23,15 +23,18 @@ fn callback_runs_on_execute() {
     gov.set_quorum(2);
 
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::GenericText("hi".into()),
-            description: "test".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("hi".into()),
+                description: "test".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(

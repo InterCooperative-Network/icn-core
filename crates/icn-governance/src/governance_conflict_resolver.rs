@@ -704,14 +704,20 @@ mod tests {
             content_cid: None,
         };
 
-        let id1 = governance.submit_proposal(proposal1, &time_provider).unwrap();
-        let id2 = governance.submit_proposal(proposal2, &time_provider).unwrap();
+        let id1 = governance
+            .submit_proposal(proposal1, &time_provider)
+            .unwrap();
+        let id2 = governance
+            .submit_proposal(proposal2, &time_provider)
+            .unwrap();
 
         governance.open_voting(&id1).unwrap();
         governance.open_voting(&id2).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -750,11 +756,15 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal, &time_provider).unwrap();
+        let id = governance
+            .submit_proposal(proposal, &time_provider)
+            .unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -783,11 +793,15 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal, &time_provider).unwrap();
+        let id = governance
+            .submit_proposal(proposal, &time_provider)
+            .unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
         assert!(!conflicts.is_empty());
         assert!(conflicts

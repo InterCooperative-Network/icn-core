@@ -13,31 +13,34 @@ fn execute_new_member_invitation_proposal() {
     gov.set_quorum(2);
 
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::NewMemberInvitation(
-                Did::from_str("did:example:dave").unwrap(),
-            ),
-            description: "invite dave".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::NewMemberInvitation(
+                    Did::from_str("did:example:dave").unwrap(),
+                ),
+                description: "invite dave".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
@@ -59,29 +62,34 @@ fn execute_remove_member_proposal() {
     gov.set_quorum(2);
 
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::RemoveMember(Did::from_str("did:example:bob").unwrap()),
-            description: "remove bob".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::RemoveMember(
+                    Did::from_str("did:example:bob").unwrap(),
+                ),
+                description: "remove bob".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
@@ -120,29 +128,32 @@ fn execute_runs_all_callbacks() {
     });
 
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::GenericText("hi".into()),
-            description: "hook".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("hi".into()),
+                description: "hook".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
-        &time_provider
+        &time_provider,
     )
     .unwrap();
     let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();

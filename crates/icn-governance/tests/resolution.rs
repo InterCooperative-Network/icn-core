@@ -33,20 +33,25 @@ fn execute_resolution_proposal() {
     gov.set_quorum(2);
     let cid = Cid::new_v1_sha256(0x55, b"c");
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::Resolution(ResolutionProposal {
-                actions: vec![
-                    ResolutionAction::PauseCredential(cid.clone()),
-                    ResolutionAction::FreezeReputation(Did::from_str("did:example:bob").unwrap()),
-                ],
-            }),
-            description: "dispute".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::Resolution(ResolutionProposal {
+                    actions: vec![
+                        ResolutionAction::PauseCredential(cid.clone()),
+                        ResolutionAction::FreezeReputation(
+                            Did::from_str("did:example:bob").unwrap(),
+                        ),
+                    ],
+                }),
+                description: "dispute".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(

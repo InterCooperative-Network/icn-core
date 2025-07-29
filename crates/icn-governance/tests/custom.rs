@@ -13,15 +13,18 @@ fn custom_quorum_and_threshold() {
     gov.add_member(Did::from_str("did:example:charlie").unwrap());
 
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::GenericText("custom".into()),
-            description: "desc".into(),
-            duration_secs: 60,
-            quorum: Some(2),
-            threshold: Some(0.75),
-            content_cid: None,
-        }, &time_provider)
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("custom".into()),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: Some(2),
+                threshold: Some(0.75),
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
 
     gov.open_voting(&pid).unwrap();

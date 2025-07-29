@@ -36,19 +36,27 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
 
         // Test opening voting
         governance.open_voting(&proposal_id).unwrap();
 
         // Test voting
         governance
-            .cast_vote(voter_did.clone(), &proposal_id, VoteOption::Yes, &time_provider)
+            .cast_vote(
+                voter_did.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
         // Test closing voting period
-        let (status, (yes_votes, no_votes, abstain_votes)) =
-            governance.close_voting_period(&proposal_id, &time_provider).unwrap();
+        let (status, (yes_votes, no_votes, abstain_votes)) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         assert_eq!(status, ProposalStatus::Accepted);
         assert_eq!(yes_votes, 1);
@@ -97,17 +105,26 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
         // Vote from non-member should work but not count toward quorum
         governance
-            .cast_vote(voter_did.clone(), &proposal_id, VoteOption::Yes, &time_provider)
+            .cast_vote(
+                voter_did.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
         // Set high quorum that can't be met
         governance.set_quorum(10);
-        let (status, _) = governance.close_voting_period(&proposal_id, &time_provider).unwrap();
+        let (status, _) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         // Should be rejected due to insufficient quorum
         assert_eq!(status, ProposalStatus::Rejected);
@@ -131,14 +148,17 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
         // Wait for expiration (simulate time passing)
         std::thread::sleep(std::time::Duration::from_secs(2));
 
         // Try to vote on expired proposal
-        let vote_result = governance.cast_vote(voter_did, &proposal_id, VoteOption::Yes, &time_provider);
+        let vote_result =
+            governance.cast_vote(voter_did, &proposal_id, VoteOption::Yes, &time_provider);
 
         // Should fail due to expired deadline
         assert!(vote_result.is_err());
@@ -172,15 +192,24 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
         // Only delegate votes, but should count for both
         governance
-            .cast_vote(delegate.clone(), &proposal_id, VoteOption::Yes, &time_provider)
+            .cast_vote(
+                delegate.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
-        let (status, (yes_votes, _, _)) = governance.close_voting_period(&proposal_id, &time_provider).unwrap();
+        let (status, (yes_votes, _, _)) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         assert_eq!(status, ProposalStatus::Accepted);
         assert_eq!(yes_votes, 2); // Should count delegate's vote for both members
@@ -208,7 +237,9 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
         governance
             .cast_vote(voter_did, &proposal_id, VoteOption::Yes, &time_provider)
@@ -265,12 +296,16 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission, &time_provider).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
         governance
             .cast_vote(member2, &proposal_id, VoteOption::Yes, &time_provider)
             .unwrap();
-        governance.close_voting_period(&proposal_id, &time_provider).unwrap();
+        governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         // Execute the proposal to add member back
         governance.execute_proposal(&proposal_id).unwrap();
