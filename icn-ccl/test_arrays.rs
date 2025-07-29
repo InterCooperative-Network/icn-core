@@ -24,7 +24,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array creation failed: {}", e);
+            println!("❌ Array creation failed: {e}");
         }
     }
 
@@ -48,7 +48,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array length failed: {}", e);
+            println!("❌ Array length failed: {e}");
         }
     }
 
@@ -72,7 +72,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array indexing failed: {}", e);
+            println!("❌ Array indexing failed: {e}");
         }
     }
 
@@ -97,7 +97,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array modification failed: {}", e);
+            println!("❌ Array modification failed: {e}");
         }
     }
 
@@ -122,7 +122,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array variable indexing failed: {}", e);
+            println!("❌ Array variable indexing failed: {e}");
         }
     }
 }

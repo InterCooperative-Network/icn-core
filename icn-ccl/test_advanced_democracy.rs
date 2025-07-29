@@ -74,7 +74,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ ADVANCED DEMOCRACY TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Error Analysis:");
             let error_str = e.to_string();
@@ -88,7 +88,7 @@ fn main() {
             } else if error_str.contains("unknown function") {
                 println!("   • Standard library missing advanced primitive definitions");
             } else {
-                println!("   • Unknown issue: {}", error_str);
+                println!("   • Unknown issue: {error_str}");
             }
 
             println!();

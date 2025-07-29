@@ -115,10 +115,9 @@ impl QrGenerator {
         {
             // Simple fallback - just show the URL in a box
             let border = format!("{}{}{}", "+", "-".repeat(action_url.len() + 2), "+");
-            let content = format!("| {} |", action_url);
+            let content = format!("| {action_url} |");
             Ok(format!(
-                "{}\n{}\n{}\n[QR Code would be here with --features qr]",
-                border, content, border
+                "{border}\n{content}\n{border}\n[QR Code would be here with --features qr]"
             ))
         }
     }

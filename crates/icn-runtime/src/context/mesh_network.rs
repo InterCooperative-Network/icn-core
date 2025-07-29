@@ -244,7 +244,7 @@ impl DefaultMeshNetworkService {
     fn did_to_peer_id(&self, did: &Did) -> icn_network::PeerId {
         // Extract the identifier part from the DID
         let did_str = did.to_string();
-        if let Some(id_part) = did_str.split(':').last() {
+        if let Some(id_part) = did_str.split(':').next_back() {
             icn_network::PeerId(id_part.to_string())
         } else {
             icn_network::PeerId(did_str)

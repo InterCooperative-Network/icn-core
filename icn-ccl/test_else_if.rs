@@ -27,10 +27,10 @@ fn main() {
         Ok((wasm, metadata)) => {
             println!("✅ Else-if chain compiled successfully!");
             println!("WASM size: {} bytes", wasm.len());
-            println!("Metadata: {:?}", metadata);
+            println!("Metadata: {metadata:?}");
         }
         Err(e) => {
-            println!("❌ Else-if chain compilation failed: {}", e);
+            println!("❌ Else-if chain compilation failed: {e}");
         }
     }
 
@@ -63,7 +63,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Complex else-if chain compilation failed: {}", e);
+            println!("❌ Complex else-if chain compilation failed: {e}");
         }
     }
 
@@ -96,7 +96,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Nested if with else-if compilation failed: {}", e);
+            println!("❌ Nested if with else-if compilation failed: {e}");
         }
     }
 }

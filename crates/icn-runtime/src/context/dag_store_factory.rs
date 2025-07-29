@@ -6,9 +6,9 @@
 //! - Testing contexts default to stubs but can use real backends when needed
 //! - Backend selection is based on available features and user preferences
 
-use super::dag_store_wrapper::{DagStoreType, DagStoreWrapper};
+use super::dag_store_wrapper::DagStoreWrapper;
 use super::stubs::StubDagStore;
-use super::{DagStorageService, DagStoreMutexType};
+use super::DagStoreMutexType;
 use icn_common::CommonError;
 use std::path::PathBuf;
 use std::sync::Arc;

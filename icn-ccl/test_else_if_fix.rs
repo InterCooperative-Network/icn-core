@@ -43,7 +43,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ ELSE-IF TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🚨 This indicates the else-if fix didn't work correctly:");
             let error_str = e.to_string();
@@ -55,7 +55,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation still not handling else-if correctly");
             } else {
-                println!("   • Unknown issue: {}", error_str);
+                println!("   • Unknown issue: {error_str}");
             }
         }
     }

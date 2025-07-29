@@ -45,7 +45,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ WHILE LOOP TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 This indicates an issue with while loop implementation:");
             let error_str = e.to_string();
@@ -57,7 +57,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation issue with while loops");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
         }
     }

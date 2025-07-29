@@ -135,7 +135,7 @@ fn main() {
     let cli = Cli::parse();
 
     if let Err(e) = run_command(cli.command) {
-        eprintln!("Error: {}", e);
+        eprintln!("Error: {e}");
         std::process::exit(1);
     }
 }
@@ -189,7 +189,7 @@ fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), Cc
 
     // Create output directory
     std::fs::create_dir_all(&output)
-        .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to create output directory: {e}")))?;
 
     // Compile the contract
     let (wasm_bytes, metadata) = compile_ccl_file_to_wasm(&file)?;
@@ -201,16 +201,16 @@ fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), Cc
         .ok_or_else(|| CclError::IoError(format!("Invalid file path: {}", file.display())))?;
 
     // Write WASM output
-    let wasm_path = output.join(format!("{}.wasm", file_stem));
+    let wasm_path = output.join(format!("{file_stem}.wasm"));
     std::fs::write(&wasm_path, wasm_bytes)
-        .map_err(|e| CclError::IoError(format!("Failed to write WASM file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to write WASM file: {e}")))?;
 
     // Write metadata
-    let meta_path = output.join(format!("{}.json", file_stem));
+    let meta_path = output.join(format!("{file_stem}.json"));
     let meta_json = serde_json::to_string_pretty(&metadata)
-        .map_err(|e| CclError::IoError(format!("Failed to serialize metadata: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to serialize metadata: {e}")))?;
     std::fs::write(&meta_path, meta_json)
-        .map_err(|e| CclError::IoError(format!("Failed to write metadata file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to write metadata file: {e}")))?;
 
     println!("✅ Compiled successfully:");
     println!("   WASM: {}", wasm_path.display());
@@ -218,7 +218,7 @@ fn compile_command(file: PathBuf, output: PathBuf, debug: bool) -> Result<(), Cc
 
     // Generate debug info if requested
     if debug {
-        let debug_path = output.join(format!("{}.debug.json", file_stem));
+        let debug_path = output.join(format!("{file_stem}.debug.json"));
         cli_commands::generate_debug_info(&file, &wasm_path, &debug_path)?;
     }
 
@@ -287,14 +287,14 @@ fn migration_upgrade_command(
 
     // Read input file
     let content = fs::read_to_string(&input)
-        .map_err(|e| CclError::IoError(format!("Failed to read input file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to read input file: {e}")))?;
 
     // Initialize migration engine
     let engine = MigrationEngine::new();
 
     // Detect current version
     let detected_version = engine.detect_version(&content)?;
-    println!("📋 Detected CCL version: {}", detected_version);
+    println!("📋 Detected CCL version: {detected_version}");
 
     // Parse target version
     let target = if let Some(version_str) = target_version {
@@ -302,7 +302,7 @@ fn migration_upgrade_command(
     } else {
         CURRENT_CCL_VERSION.clone()
     };
-    println!("🎯 Target CCL version: {}", target);
+    println!("🎯 Target CCL version: {target}");
 
     // Check if migration is needed
     if detected_version >= target {
@@ -312,7 +312,7 @@ fn migration_upgrade_command(
 
     // Generate migration report
     let report = engine.generate_migration_report(&content, &detected_version, &target);
-    println!("\n{}", report);
+    println!("\n{report}");
 
     if dry_run {
         println!("🔍 Dry run completed. Use without --dry-run to apply changes.");
@@ -326,18 +326,18 @@ fn migration_upgrade_command(
     let output_path = output.unwrap_or_else(|| {
         let mut path = input.clone();
         let file_stem = path.file_stem().unwrap_or_default().to_string_lossy();
-        path.set_file_name(format!("{}.migrated.ccl", file_stem));
+        path.set_file_name(format!("{file_stem}.migrated.ccl"));
         path
     });
 
     // Write output
     if let Some(parent) = output_path.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
+            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {e}")))?;
     }
 
     fs::write(&output_path, migrated_content)
-        .map_err(|e| CclError::IoError(format!("Failed to write output file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to write output file: {e}")))?;
 
     println!("✅ Migration completed: {}", output_path.display());
     Ok(())
@@ -359,7 +359,7 @@ fn migration_convert_command(
 
     // Read input file
     let content = fs::read_to_string(&input)
-        .map_err(|e| CclError::IoError(format!("Failed to read input file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to read input file: {e}")))?;
 
     // Convert based on source language
     let ccl_content = match source_language.to_lowercase().as_str() {
@@ -367,8 +367,7 @@ fn migration_convert_command(
         "javascript" | "js" | "typescript" | "ts" => convert_from_javascript(&content)?,
         _ => {
             return Err(CclError::CliArgumentError(format!(
-                "Unsupported source language: {}. Supported: solidity, javascript, typescript",
-                source_language
+                "Unsupported source language: {source_language}. Supported: solidity, javascript, typescript"
             )));
         }
     };
@@ -376,11 +375,11 @@ fn migration_convert_command(
     // Write output
     if let Some(parent) = output.parent() {
         fs::create_dir_all(parent)
-            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {}", e)))?;
+            .map_err(|e| CclError::IoError(format!("Failed to create output directory: {e}")))?;
     }
 
     fs::write(&output, ccl_content)
-        .map_err(|e| CclError::IoError(format!("Failed to write output file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to write output file: {e}")))?;
 
     println!("✅ Conversion completed: {}", output.display());
     println!("⚠️  Note: Automated conversion requires manual review for correctness.");
@@ -395,20 +394,20 @@ fn migration_detect_command(file: PathBuf) -> Result<(), CclError> {
 
     // Read file
     let content = fs::read_to_string(&file)
-        .map_err(|e| CclError::IoError(format!("Failed to read file: {}", e)))?;
+        .map_err(|e| CclError::IoError(format!("Failed to read file: {e}")))?;
 
     // Detect version
     let engine = MigrationEngine::new();
     let detected_version = engine.detect_version(&content)?;
 
-    println!("📋 Detected CCL version: {}", detected_version);
+    println!("📋 Detected CCL version: {detected_version}");
 
     // Analyze syntax patterns for additional insights
     let patterns = analyze_syntax_patterns(&content);
     if !patterns.is_empty() {
         println!("\n🔍 Syntax analysis:");
         for pattern in patterns {
-            println!("   {}", pattern);
+            println!("   {pattern}");
         }
     }
 

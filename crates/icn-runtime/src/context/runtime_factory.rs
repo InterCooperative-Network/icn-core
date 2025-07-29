@@ -5,11 +5,10 @@
 
 use super::dag_store_wrapper::DagStoreWrapper;
 use super::{
-    DagStorageService, DagStoreMutexType, RuntimeContext, ServiceConfig, ServiceConfigBuilder,
-    ServiceEnvironment, SimpleManaLedger,
+    DagStorageService, DagStoreMutexType, RuntimeContext, ServiceConfig, SimpleManaLedger,
 };
 use icn_common::{CommonError, Did, TimeProvider};
-use icn_identity::{DidResolver, EnhancedDidResolver, SigningKey};
+use icn_identity::{DidResolver, EnhancedDidResolver};
 use icn_network::{
     NetworkEnvironment, NetworkService, NetworkServiceFactory, NetworkServiceOptionsBuilder,
 };

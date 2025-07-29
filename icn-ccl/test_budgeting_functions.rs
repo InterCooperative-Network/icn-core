@@ -45,7 +45,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ BUDGETING FUNCTIONS COMPILATION FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Error Analysis:");
             let error_str = e.to_string();
@@ -59,7 +59,7 @@ fn main() {
             } else if error_str.contains("Array<Did>") {
                 println!("   • Array type declarations may need semantic analyzer support");
             } else {
-                println!("   • Specific issue: {}", error_str);
+                println!("   • Specific issue: {error_str}");
             }
         }
     }

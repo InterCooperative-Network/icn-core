@@ -5,7 +5,6 @@
 
 use log::{debug, error, warn};
 use std::future::Future;
-use std::pin::Pin;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -399,7 +398,7 @@ where
     }
 
     // Execute with retry logic
-    let result = retry_with_backoff(|| operation(), retry_config, classifier, service_name).await;
+    let result = retry_with_backoff(operation, retry_config, classifier, service_name).await;
 
     // Record result in circuit breaker
     match &result {

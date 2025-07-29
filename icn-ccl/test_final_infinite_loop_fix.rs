@@ -46,7 +46,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FINAL TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("⚠️  This indicates fundamental issues remain:");
             let error_str = e.to_string();
@@ -58,7 +58,7 @@ fn main() {
             } else if error_str.contains("while") {
                 println!("   🚨 While loop implementation incomplete");
             } else {
-                println!("   🚨 Unknown critical issue: {}", error_str);
+                println!("   🚨 Unknown critical issue: {error_str}");
             }
         }
     }

@@ -48,7 +48,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ CONST DECLARATIONS TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Analyzing const declaration issue:");
             let error_str = e.to_string();
@@ -63,7 +63,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation issue with const values");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
 
             println!();

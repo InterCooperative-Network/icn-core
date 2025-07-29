@@ -18,7 +18,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Compilation error:");
-            println!("   {}", e);
+            println!("   {e}");
         }
     }
 
@@ -53,7 +53,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Complex compilation error:");
-            println!("   {}", e);
+            println!("   {e}");
         }
     }
 }

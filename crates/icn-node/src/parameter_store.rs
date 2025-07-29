@@ -16,7 +16,7 @@ impl ParameterStore {
     /// defaults are used.
     pub fn load(path: PathBuf) -> Result<Self, CommonError> {
         let events_path = path.with_extension("events.jsonl");
-        let mut store: FileEventStore<ParameterUpdate> = FileEventStore::new(events_path.clone());
+        let store: FileEventStore<ParameterUpdate> = FileEventStore::new(events_path.clone());
         let events = store.query(None)?;
         let mut config = if path.exists() {
             NodeConfig::from_file(&path).map_err(|e| {
@@ -26,15 +26,12 @@ impl ParameterStore {
             NodeConfig::default()
         };
         for ev in &events {
-            match ev.name.as_str() {
-                "open_rate_limit" => {
-                    let val = ev
-                        .value
-                        .parse::<u64>()
-                        .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
-                    config.http.open_rate_limit = val;
-                }
-                _ => {}
+            if ev.name.as_str() == "open_rate_limit" {
+                let val = ev
+                    .value
+                    .parse::<u64>()
+                    .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
+                config.http.open_rate_limit = val;
             }
         }
         Ok(Self {
@@ -56,7 +53,7 @@ impl ParameterStore {
                     .parse::<u64>()
                     .map_err(|e| CommonError::InvalidInputError(e.to_string()))?;
                 self.config.http.open_rate_limit = val;
-                log::info!(target: "audit", "parameter_changed name=open_rate_limit value={}" , val);
+                log::info!(target: "audit", "parameter_changed name=open_rate_limit value={val}");
                 self.save()?;
                 if let Some(store) = &self.event_store {
                     store.lock().unwrap().append(&ParameterUpdate {

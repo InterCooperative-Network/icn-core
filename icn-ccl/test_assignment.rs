@@ -25,7 +25,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Simple assignment failed: {}", e);
+            println!("❌ Simple assignment failed: {e}");
         }
     }
 
@@ -50,7 +50,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array assignment failed: {}", e);
+            println!("❌ Array assignment failed: {e}");
         }
     }
 
@@ -76,7 +76,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Array expression assignment failed: {}", e);
+            println!("❌ Array expression assignment failed: {e}");
         }
     }
 }

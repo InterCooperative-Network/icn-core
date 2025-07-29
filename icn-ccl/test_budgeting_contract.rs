@@ -37,7 +37,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ BUDGETING CONTRACT COMPILATION FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Error Analysis:");
             let error_str = e.to_string();
@@ -51,7 +51,7 @@ fn main() {
             } else if error_str.contains("const") {
                 println!("   • Constant declarations may need parser/WASM support");
             } else {
-                println!("   • Unknown issue: {}", error_str);
+                println!("   • Unknown issue: {error_str}");
             }
         }
     }

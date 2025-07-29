@@ -5,12 +5,10 @@
 //! performance monitoring.
 
 use super::{DagStorageService, DagStoreMutexType, HostAbiError};
-use icn_common::{Cid, CommonError, Did, TimeProvider};
-use icn_governance::{Proposal, ProposalId, Vote, VoteOption};
+use icn_common::{Cid, Did, TimeProvider};
+use icn_governance::{Proposal, ProposalId};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::ops::DerefMut;
-use std::str::FromStr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;

@@ -26,7 +26,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Budgeting contract compilation error:");
-            println!("   {}", e);
+            println!("   {e}");
         }
     }
 }

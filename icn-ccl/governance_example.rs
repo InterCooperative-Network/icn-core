@@ -190,7 +190,7 @@ fn main() {
         Ok((wasm, metadata)) => {
             println!("🎉 GOVERNANCE CONTRACT COMPILED SUCCESSFULLY!");
             println!("📊 WASM size: {} bytes", wasm.len());
-            println!("📋 Metadata: {:?}", metadata);
+            println!("📋 Metadata: {metadata:?}");
             println!();
             println!("✅ This demonstrates that CCL is now capable of:");
             println!("   • Real cooperative governance contracts");
@@ -203,7 +203,7 @@ fn main() {
             println!("🚀 CCL is now production-ready for cooperative governance!");
         }
         Err(e) => {
-            println!("❌ Governance contract compilation failed: {}", e);
+            println!("❌ Governance contract compilation failed: {e}");
         }
     }
 }

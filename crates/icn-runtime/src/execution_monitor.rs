@@ -39,7 +39,7 @@ impl log::Log for ExecutionLogger {
     fn flush(&self) {}
 }
 
-static LOGGER: Lazy<ExecutionLogger> = Lazy::new(|| ExecutionLogger::new());
+static LOGGER: Lazy<ExecutionLogger> = Lazy::new(ExecutionLogger::new);
 
 /// Initialize the global execution logger if not already set.
 pub fn init_logger() {

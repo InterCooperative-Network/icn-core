@@ -26,7 +26,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ >= in assignment compilation failed: {}", e);
+            println!("❌ >= in assignment compilation failed: {e}");
         }
     }
 
@@ -49,7 +49,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ > in return compilation failed: {}", e);
+            println!("❌ > in return compilation failed: {e}");
         }
     }
 
@@ -76,7 +76,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ >= without spaces compilation failed: {}", e);
+            println!("❌ >= without spaces compilation failed: {e}");
         }
     }
 
@@ -101,7 +101,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ == in assignment compilation failed: {}", e);
+            println!("❌ == in assignment compilation failed: {e}");
         }
     }
 }

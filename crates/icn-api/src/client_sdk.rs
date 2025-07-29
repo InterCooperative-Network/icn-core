@@ -3,37 +3,33 @@
 //! This module provides utilities to generate TypeScript type definitions
 //! and client SDK code for the ICN HTTP API endpoints.
 
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-
 /// TypeScript type definition generator for ICN API
 pub struct TypeScriptGenerator;
 
 impl TypeScriptGenerator {
     /// Generate TypeScript interfaces for all API request/response types
     pub fn generate_types() -> String {
-        format!(
-            r#"// ICN API TypeScript Definitions
+        r#"// ICN API TypeScript Definitions
 // Auto-generated from icn-core/crates/icn-api
 
-export interface ICNClientConfig {{
+export interface ICNClientConfig {
   baseUrl: string;
   apiKey?: string;
   bearerToken?: string;
   timeout?: number;
-}}
+}
 
-export interface ErrorResponse {{
+export interface ErrorResponse {
   error: string;
   details?: any;
   correlation_id?: string;
-}}
+}
 
 // ============================================================================
 // Governance API Types
 // ============================================================================
 
-export interface SubmitProposalRequest {{
+export interface SubmitProposalRequest {
   proposer_did: string;
   proposal: ProposalInputType;
   description: string;
@@ -43,38 +39,38 @@ export interface SubmitProposalRequest {{
   body?: Uint8Array | null;
   credential_proof?: ZkCredentialProof | null;
   revocation_proof?: ZkRevocationProof | null;
-}}
+}
 
 export type ProposalInputType = 
-  | {{ type: "SystemParameterChange"; data: {{ param: string; value: string }} }}
-  | {{ type: "MemberAdmission"; data: {{ did: string }} }}
-  | {{ type: "RemoveMember"; data: {{ did: string }} }}
-  | {{ type: "SoftwareUpgrade"; data: {{ version: string }} }}
-  | {{ type: "GenericText"; data: {{ text: string }} }}
-  | {{ type: "Resolution"; data: {{ actions: ResolutionActionInput[] }} }};
+  | { type: "SystemParameterChange"; data: { param: string; value: string } }
+  | { type: "MemberAdmission"; data: { did: string } }
+  | { type: "RemoveMember"; data: { did: string } }
+  | { type: "SoftwareUpgrade"; data: { version: string } }
+  | { type: "GenericText"; data: { text: string } }
+  | { type: "Resolution"; data: { actions: ResolutionActionInput[] } };
 
 export type ResolutionActionInput =
-  | {{ action: "PauseCredential"; data: {{ cid: string }} }}
-  | {{ action: "FreezeReputation"; data: {{ did: string }} }};
+  | { action: "PauseCredential"; data: { cid: string } }
+  | { action: "FreezeReputation"; data: { did: string } };
 
-export interface CastVoteRequest {{
+export interface CastVoteRequest {
   voter_did: string;
   proposal_id: string;
   vote_option: "Yes" | "No" | "Abstain";
   credential_proof?: ZkCredentialProof | null;
   revocation_proof?: ZkRevocationProof | null;
-}}
+}
 
-export interface DelegateRequest {{
+export interface DelegateRequest {
   from_did: string;
   to_did: string;
-}}
+}
 
-export interface RevokeDelegationRequest {{
+export interface RevokeDelegationRequest {
   from_did: string;
-}}
+}
 
-export interface Proposal {{
+export interface Proposal {
   id: string;
   proposer: string;
   proposal_type: ProposalInputType;
@@ -82,133 +78,133 @@ export interface Proposal {{
   status: "Draft" | "Open" | "Closed" | "Executed";
   created_at: string; // ISO 8601 timestamp
   voting_deadline?: string; // ISO 8601 timestamp
-  votes: {{
+  votes: {
     yes: number;
     no: number;
     abstain: number;
-  }};
-  detailed_votes?: {{
+  };
+  detailed_votes?: {
     voter: string;
     option: "Yes" | "No" | "Abstain";
     timestamp: string;
-  }}[];
+  }[];
   quorum?: number;
   threshold?: number;
-}}
+}
 
 // ============================================================================
 // Identity API Types
 // ============================================================================
 
-export interface IssueCredentialRequest {{
+export interface IssueCredentialRequest {
   issuer: string;
   holder: string;
   attributes: Record<string, string>;
   schema: string;
   expiration: number;
-}}
+}
 
-export interface CredentialResponse {{
+export interface CredentialResponse {
   cid: string;
   credential: VerifiableCredential;
-}}
+}
 
-export interface VerifiableCredential {{
+export interface VerifiableCredential {
   issuer: string;
   holder: string;
   attributes: Record<string, string>;
   schema: string;
   expiration: number;
   signature: string;
-}}
+}
 
-export interface VerificationResponse {{
+export interface VerificationResponse {
   valid: boolean;
-}}
+}
 
-export interface GenerateProofRequest {{
+export interface GenerateProofRequest {
   issuer: string;
   holder: string;
   claim_type: string;
   schema: string;
   backend: string;
   public_inputs?: any;
-}}
+}
 
-export interface ProofResponse {{
+export interface ProofResponse {
   proof: ZkCredentialProof;
-}}
+}
 
-export interface ZkCredentialProof {{
+export interface ZkCredentialProof {
   // ZK proof structure - implementation specific
   proof_data: Uint8Array;
   public_inputs: any[];
-}}
+}
 
-export interface ZkRevocationProof {{
+export interface ZkRevocationProof {
   // ZK revocation proof structure
   proof_data: Uint8Array;
   credential_cid: string;
-}}
+}
 
-export interface DisclosureRequest {{
+export interface DisclosureRequest {
   credential: VerifiableCredential;
   fields: string[];
-}}
+}
 
-export interface DisclosureResponse {{
+export interface DisclosureResponse {
   credential: DisclosedCredential;
   proof: ZkCredentialProof;
-}}
+}
 
-export interface DisclosedCredential {{
+export interface DisclosedCredential {
   // Disclosed credential with selective revelation
   disclosed_attributes: Record<string, string>;
   proof: ZkCredentialProof;
-}}
+}
 
 // ============================================================================
 // Federation API Types
 // ============================================================================
 
-export interface FederationPeerRequest {{
+export interface FederationPeerRequest {
   peer: string;
-}}
+}
 
-export interface FederationStatus {{
+export interface FederationStatus {
   peer_count: number;
   peers: string[];
-}}
+}
 
 // ============================================================================
 // Mesh Computing API Types
 // ============================================================================
 
-export interface MeshJobSubmitRequest {{
+export interface MeshJobSubmitRequest {
   job_spec: JobSpecification;
   submitter_did: string;
   max_cost: number;
   timeout_seconds?: number;
-}}
+}
 
-export interface JobSpecification {{
+export interface JobSpecification {
   image: string;
   command: string[];
   resources: ResourceRequirements;
   environment?: Record<string, string>;
-}}
+}
 
-export interface ResourceRequirements {{
+export interface ResourceRequirements {
   cpu_cores: number;
   memory_mb: number;
   storage_mb: number;
-}}
+}
 
-export interface MeshJobResponse {{
+export interface MeshJobResponse {
   job_id: string;
-}}
+}
 
-export interface JobStatus {{
+export interface JobStatus {
   id: string;
   submitter: string;
   status: "Pending" | "Running" | "Completed" | "Failed" | "Cancelled";
@@ -218,40 +214,40 @@ export interface JobStatus {{
   executor?: string;
   cost: number;
   progress?: number;
-  result?: {{
+  result?: {
     output: string;
     exit_code: number;
-  }};
+  };
   error?: string;
-}}
+}
 
 // ============================================================================
 // Account & Mana API Types
 // ============================================================================
 
-export interface ManaBalance {{
+export interface ManaBalance {
   balance: number;
-}}
+}
 
-export interface AccountKeys {{
+export interface AccountKeys {
   did: string;
   public_key_bs58: string;
-}}
+}
 
 // ============================================================================
 // Reputation API Types
 // ============================================================================
 
-export interface ReputationScore {{
+export interface ReputationScore {
   score: number;
   frozen?: boolean;
-}}
+}
 
 // ============================================================================
 // DAG Storage API Types
 // ============================================================================
 
-export interface DagBlock {{
+export interface DagBlock {
   cid: string;
   data: Uint8Array;
   links: string[];
@@ -259,680 +255,680 @@ export interface DagBlock {{
   scope: string;
   timestamp: number;
   signature: string;
-}}
+}
 
-export interface DagPutRequest {{
+export interface DagPutRequest {
   data: string; // base64 encoded
   links: string[];
   author_did: string;
   scope: string;
-}}
+}
 
-export interface DagGetRequest {{
+export interface DagGetRequest {
   cid: string;
-}}
+}
 
 // ============================================================================
 // System Information API Types
 // ============================================================================
 
-export interface NodeInfo {{
+export interface NodeInfo {
   name: string;
   version: string;
   did: string;
   capabilities: string[];
-}}
+}
 
-export interface NodeStatus {{
+export interface NodeStatus {
   is_online: boolean;
   peer_count: number;
   current_block_height: number;
   version: string;
-}}
+}
 
-export interface HealthStatus {{
+export interface HealthStatus {
   status: "healthy" | "unhealthy";
   details?: Record<string, any>;
-}}
+}
 
 // ============================================================================
 // Contracts & Circuits API Types
 // ============================================================================
 
-export interface ContractRequest {{
+export interface ContractRequest {
   source_code: string;
   schema?: string;
-}}
+}
 
-export interface ContractResponse {{
+export interface ContractResponse {
   contract_cid: string;
   wasm_cid: string;
-}}
+}
 
-export interface CircuitRegisterRequest {{
+export interface CircuitRegisterRequest {
   slug: string;
   version: string;
   circuit_data: Uint8Array;
   description?: string;
-}}
+}
 
-export interface CircuitResponse {{
+export interface CircuitResponse {
   slug: string;
   version: string;
   circuit_cid: string;
-}}
+}
 
 // ============================================================================
 // Cooperative Management API Types
 // ============================================================================
 
-export interface CooperativeProfile {{
+export interface CooperativeProfile {
   did: string;
   name: string;
   description?: string;
   capabilities: string[];
   trust_relationships: TrustRelationship[];
   metadata: Record<string, any>;
-}}
+}
 
-export interface TrustRelationship {{
+export interface TrustRelationship {
   target_did: string;
   trust_level: number;
   trust_type: string;
   created_at: string;
-}}
+}
 
-export interface CooperativeSearchRequest {{
+export interface CooperativeSearchRequest {
   query?: string;
   capabilities?: string[];
   region?: string;
   trust_level?: number;
-}}
+}
 
-export interface CooperativeRegisterRequest {{
+export interface CooperativeRegisterRequest {
   profile: CooperativeProfile;
-}}
+}
 
-export interface AddTrustRequest {{
+export interface AddTrustRequest {
   target_did: string;
   trust_level: number;
   trust_type: string;
-}}
+}
 
-export interface RegistryStats {{
+export interface RegistryStats {
   total_cooperatives: number;
   total_trust_relationships: number;
   active_capabilities: string[];
-}}
+}
 
 // ============================================================================
 // Resource Management API Types
 // ============================================================================
 
-export interface ResourceEventRequest {{
+export interface ResourceEventRequest {
   resource_id: string;
   action: "acquire" | "consume";
   scope?: string;
   mana_cost?: number;
-}}
+}
 
-export interface ResourceLedgerEntry {{
+export interface ResourceLedgerEntry {
   resource_id: string;
   action: "acquire" | "consume";
   scope?: string;
   mana_cost: number;
   timestamp: string;
-}}
+}
 
 // ============================================================================
 // Transaction API Types
 // ============================================================================
 
-export interface Transaction {{
+export interface Transaction {
   id: string;
   from: string;
   to: string;
   amount: number;
   data?: Uint8Array;
   signature: string;
-}}
+}
 
-export interface TransactionResponse {{
+export interface TransactionResponse {
   tx_id: string;
-}}
+}
 
-export interface DataQueryRequest {{
+export interface DataQueryRequest {
   cid: string;
-}}
+}
 
 // ============================================================================
 // Advanced DAG Operations
 // ============================================================================
 
-export interface DagPinRequest {{
+export interface DagPinRequest {
   cid: string;
   ttl?: number;
-}}
+}
 
-export interface DagPruneRequest {{
+export interface DagPruneRequest {
   max_age_seconds?: number;
   max_blocks?: number;
-}}
+}
 
-export interface SyncStatus {{
+export interface SyncStatus {
   is_syncing: boolean;
   peer_count: number;
   blocks_synced: number;
   total_blocks: number;
-}}
+}
 
 // ============================================================================
 // Advanced Mesh Operations
 // ============================================================================
 
-export interface JobProgress {{
+export interface JobProgress {
   job_id: string;
   progress: number;
   stage: string;
   estimated_completion?: string;
-}}
+}
 
-export interface JobStream {{
+export interface JobStream {
   job_id: string;
   stream_type: "stdout" | "stderr";
   data: string;
   timestamp: string;
-}}
+}
 
-export interface MeshMetrics {{
+export interface MeshMetrics {
   total_jobs: number;
   pending_jobs: number;
   running_jobs: number;
   completed_jobs: number;
   failed_jobs: number;
   average_execution_time: number;
-}}
+}
 
 // ============================================================================
 // ICN Client SDK
 // ============================================================================
 
-export class ICNClient {{
+export class ICNClient {
   private config: ICNClientConfig;
   private baseUrl: string;
 
-  constructor(config: ICNClientConfig) {{
+  constructor(config: ICNClientConfig) {
     this.config = config;
     this.baseUrl = config.baseUrl.replace(/\/$/, ''); // Remove trailing slash
-  }}
+  }
 
   // Governance API
-  governance = {{
-    async submitProposal(request: SubmitProposalRequest): Promise<string> {{
+  governance = {
+    async submitProposal(request: SubmitProposalRequest): Promise<string> {
       return this.post<string>('/governance/submit', request);
-    }},
+    },
 
-    async castVote(request: CastVoteRequest): Promise<string> {{
+    async castVote(request: CastVoteRequest): Promise<string> {
       return this.post<string>('/governance/vote', request);
-    }},
+    },
 
-    async listProposals(): Promise<Proposal[]> {{
+    async listProposals(): Promise<Proposal[]> {
       return this.get<Proposal[]>('/governance/proposals');
-    }},
+    },
 
-    async getProposal(proposalId: string): Promise<Proposal> {{
-      return this.get<Proposal>(`/governance/proposal/${{proposalId}}`);
-    }},
+    async getProposal(proposalId: string): Promise<Proposal> {
+      return this.get<Proposal>(`/governance/proposal/${proposalId}`);
+    },
 
-    async delegateVote(request: DelegateRequest): Promise<string> {{
+    async delegateVote(request: DelegateRequest): Promise<string> {
       return this.post<string>('/governance/delegate', request);
-    }},
+    },
 
-    async revokeDelegation(request: RevokeDelegationRequest): Promise<string> {{
+    async revokeDelegation(request: RevokeDelegationRequest): Promise<string> {
       return this.post<string>('/governance/revoke', request);
-    }},
+    },
 
-    async closeProposal(proposalId: string): Promise<string> {{
-      return this.post<string>('/governance/close', {{ proposal_id: proposalId }});
-    }},
+    async closeProposal(proposalId: string): Promise<string> {
+      return this.post<string>('/governance/close', { proposal_id: proposalId });
+    },
 
-    async executeProposal(proposalId: string): Promise<string> {{
-      return this.post<string>('/governance/execute', {{ proposal_id: proposalId }});
-    }}
-  }};
+    async executeProposal(proposalId: string): Promise<string> {
+      return this.post<string>('/governance/execute', { proposal_id: proposalId });
+    }
+  };
 
   // Identity API
-  identity = {{
-    async issueCredential(request: IssueCredentialRequest): Promise<CredentialResponse> {{
+  identity = {
+    async issueCredential(request: IssueCredentialRequest): Promise<CredentialResponse> {
       return this.post<CredentialResponse>('/identity/credentials/issue', request);
-    }},
+    },
 
-    async verifyCredential(credential: VerifiableCredential): Promise<VerificationResponse> {{
-      return this.post<VerificationResponse>('/identity/credentials/verify', {{ credential }});
-    }},
+    async verifyCredential(credential: VerifiableCredential): Promise<VerificationResponse> {
+      return this.post<VerificationResponse>('/identity/credentials/verify', { credential });
+    },
 
-    async getCredential(cid: string): Promise<CredentialResponse> {{
-      return this.get<CredentialResponse>(`/identity/credentials/${{cid}}`);
-    }},
+    async getCredential(cid: string): Promise<CredentialResponse> {
+      return this.get<CredentialResponse>(`/identity/credentials/${cid}`);
+    },
 
-    async listSchemas(): Promise<string[]> {{
+    async listSchemas(): Promise<string[]> {
       return this.get<string[]>('/identity/credentials/schemas');
-    }},
+    },
 
-    async generateProof(request: GenerateProofRequest): Promise<ProofResponse> {{
+    async generateProof(request: GenerateProofRequest): Promise<ProofResponse> {
       return this.post<ProofResponse>('/identity/generate-proof', request);
-    }},
+    },
 
-    async verifyProof(proof: ZkCredentialProof): Promise<VerificationResponse> {{
+    async verifyProof(proof: ZkCredentialProof): Promise<VerificationResponse> {
       return this.post<VerificationResponse>('/identity/verify', proof);
-    }}
-  }};
+    }
+  };
 
   // Federation API
-  federation = {{
-    async listPeers(): Promise<string[]> {{
+  federation = {
+    async listPeers(): Promise<string[]> {
       return this.get<string[]>('/federation/peers');
-    }},
+    },
 
-    async joinFederation(request: FederationPeerRequest): Promise<void> {{
+    async joinFederation(request: FederationPeerRequest): Promise<void> {
       await this.post<void>('/federation/join', request);
-    }},
+    },
 
-    async leaveFederation(request: FederationPeerRequest): Promise<void> {{
+    async leaveFederation(request: FederationPeerRequest): Promise<void> {
       await this.post<void>('/federation/leave', request);
-    }},
+    },
 
-    async getStatus(): Promise<FederationStatus> {{
+    async getStatus(): Promise<FederationStatus> {
       return this.get<FederationStatus>('/federation/status');
-    }}
-  }};
+    }
+  };
 
   // Mesh Computing API
-  mesh = {{
-    async submitJob(request: MeshJobSubmitRequest): Promise<MeshJobResponse> {{
+  mesh = {
+    async submitJob(request: MeshJobSubmitRequest): Promise<MeshJobResponse> {
       return this.post<MeshJobResponse>('/mesh/submit', request);
-    }},
+    },
 
-    async listJobs(): Promise<JobStatus[]> {{
+    async listJobs(): Promise<JobStatus[]> {
       return this.get<JobStatus[]>('/mesh/jobs');
-    }},
+    },
 
-    async getJobStatus(jobId: string): Promise<JobStatus> {{
-      return this.get<JobStatus>(`/mesh/jobs/${{jobId}}`);
-    }}
-  }};
+    async getJobStatus(jobId: string): Promise<JobStatus> {
+      return this.get<JobStatus>(`/mesh/jobs/${jobId}`);
+    }
+  };
 
   // Account API
-  account = {{
-    async getManaBalance(did: string): Promise<ManaBalance> {{
-      return this.get<ManaBalance>(`/account/${{did}}/mana`);
-    }},
+  account = {
+    async getManaBalance(did: string): Promise<ManaBalance> {
+      return this.get<ManaBalance>(`/account/${did}/mana`);
+    },
 
-    async getKeys(): Promise<AccountKeys> {{
+    async getKeys(): Promise<AccountKeys> {
       return this.get<AccountKeys>('/keys');
-    }}
-  }};
+    }
+  };
 
   // Reputation API
-  reputation = {{
-    async getScore(did: string): Promise<ReputationScore> {{
-      return this.get<ReputationScore>(`/reputation/${{did}}`);
-    }}
-  }};
+  reputation = {
+    async getScore(did: string): Promise<ReputationScore> {
+      return this.get<ReputationScore>(`/reputation/${did}`);
+    }
+  };
 
   // DAG API
-  dag = {{
-    async putBlock(request: DagPutRequest): Promise<string> {{
+  dag = {
+    async putBlock(request: DagPutRequest): Promise<string> {
       return this.post<string>('/dag/put', request);
-    }},
+    },
 
-    async getBlock(request: DagGetRequest): Promise<DagBlock | null> {{
+    async getBlock(request: DagGetRequest): Promise<DagBlock | null> {
       return this.post<DagBlock | null>('/dag/get', request);
-    }}
-  }};
+    }
+  };
 
   // System API
-  system = {{
-    async getInfo(): Promise<NodeInfo> {{
+  system = {
+    async getInfo(): Promise<NodeInfo> {
       return this.get<NodeInfo>('/info');
-    }},
+    },
 
-    async getStatus(): Promise<NodeStatus> {{
+    async getStatus(): Promise<NodeStatus> {
       return this.get<NodeStatus>('/status');
-    }},
+    },
 
-    async getHealth(): Promise<HealthStatus> {{
+    async getHealth(): Promise<HealthStatus> {
       return this.get<HealthStatus>('/health');
-    }},
+    },
 
-    async getMetrics(): Promise<string> {{
+    async getMetrics(): Promise<string> {
       return this.get<string>('/metrics');
-    }}
-  }};
+    }
+  };
 
   // Contracts & Circuits API
-  contracts = {{
-    async compileContract(request: ContractRequest): Promise<ContractResponse> {{
+  contracts = {
+    async compileContract(request: ContractRequest): Promise<ContractResponse> {
       return this.post<ContractResponse>('/contracts', request);
-    }},
+    },
 
-    async registerCircuit(request: CircuitRegisterRequest): Promise<CircuitResponse> {{
+    async registerCircuit(request: CircuitRegisterRequest): Promise<CircuitResponse> {
       return this.post<CircuitResponse>('/circuits/register', request);
-    }},
+    },
 
-    async getCircuit(slug: string, version: string): Promise<CircuitResponse> {{
-      return this.get<CircuitResponse>(`/circuits/${{slug}}/${{version}}`);
-    }},
+    async getCircuit(slug: string, version: string): Promise<CircuitResponse> {
+      return this.get<CircuitResponse>(`/circuits/${slug}/${version}`);
+    },
 
-    async getCircuitVersions(slug: string): Promise<string[]> {{
-      return this.get<string[]>(`/circuits/${{slug}}`);
-    }}
-  }};
+    async getCircuitVersions(slug: string): Promise<string[]> {
+      return this.get<string[]>(`/circuits/${slug}`);
+    }
+  };
 
   // Cooperative Management API
-  cooperative = {{
-    async register(request: CooperativeRegisterRequest): Promise<string> {{
+  cooperative = {
+    async register(request: CooperativeRegisterRequest): Promise<string> {
       return this.post<string>('/cooperative/register', request);
-    }},
+    },
 
-    async search(request: CooperativeSearchRequest): Promise<CooperativeProfile[]> {{
+    async search(request: CooperativeSearchRequest): Promise<CooperativeProfile[]> {
       return this.post<CooperativeProfile[]>('/cooperative/search', request);
-    }},
+    },
 
-    async getProfile(did: string): Promise<CooperativeProfile> {{
-      return this.get<CooperativeProfile>(`/cooperative/profile/${{did}}`);
-    }},
+    async getProfile(did: string): Promise<CooperativeProfile> {
+      return this.get<CooperativeProfile>(`/cooperative/profile/${did}`);
+    },
 
-    async addTrust(request: AddTrustRequest): Promise<string> {{
+    async addTrust(request: AddTrustRequest): Promise<string> {
       return this.post<string>('/cooperative/trust', request);
-    }},
+    },
 
-    async getTrust(did: string): Promise<TrustRelationship[]> {{
-      return this.get<TrustRelationship[]>(`/cooperative/trust/${{did}}`);
-    }},
+    async getTrust(did: string): Promise<TrustRelationship[]> {
+      return this.get<TrustRelationship[]>(`/cooperative/trust/${did}`);
+    },
 
-    async getCapabilityProviders(capabilityType: string): Promise<CooperativeProfile[]> {{
-      return this.get<CooperativeProfile[]>(`/cooperative/capabilities/${{capabilityType}}`);
-    }},
+    async getCapabilityProviders(capabilityType: string): Promise<CooperativeProfile[]> {
+      return this.get<CooperativeProfile[]>(`/cooperative/capabilities/${capabilityType}`);
+    },
 
-    async getRegistryStats(): Promise<RegistryStats> {{
+    async getRegistryStats(): Promise<RegistryStats> {
       return this.get<RegistryStats>('/cooperative/registry/stats');
-    }}
-  }};
+    }
+  };
 
   // Resource Management API
-  resources = {{
-    async recordEvent(request: ResourceEventRequest): Promise<string> {{
+  resources = {
+    async recordEvent(request: ResourceEventRequest): Promise<string> {
       return this.post<string>('/resources/event', request);
-    }},
+    },
 
-    async getLedger(): Promise<ResourceLedgerEntry[]> {{
+    async getLedger(): Promise<ResourceLedgerEntry[]> {
       return this.get<ResourceLedgerEntry[]>('/resources/ledger');
-    }}
-  }};
+    }
+  };
 
   // Transaction API
-  transactions = {{
-    async submit(transaction: Transaction): Promise<TransactionResponse> {{
+  transactions = {
+    async submit(transaction: Transaction): Promise<TransactionResponse> {
       return this.post<TransactionResponse>('/transaction/submit', transaction);
-    }},
+    },
 
-    async queryData(request: DataQueryRequest): Promise<DagBlock | null> {{
+    async queryData(request: DataQueryRequest): Promise<DagBlock | null> {
       return this.post<DagBlock | null>('/data/query', request);
-    }}
-  }};
+    }
+  };
 
   // Advanced DAG Operations
-  dagAdvanced = {{
-    async pin(request: DagPinRequest): Promise<string> {{
+  dagAdvanced = {
+    async pin(request: DagPinRequest): Promise<string> {
       return this.post<string>('/dag/pin', request);
-    }},
+    },
 
-    async unpin(cid: string): Promise<string> {{
-      return this.post<string>('/dag/unpin', {{ cid }});
-    }},
+    async unpin(cid: string): Promise<string> {
+      return this.post<string>('/dag/unpin', { cid });
+    },
 
-    async prune(request: DagPruneRequest): Promise<string> {{
+    async prune(request: DagPruneRequest): Promise<string> {
       return this.post<string>('/dag/prune', request);
-    }},
+    },
 
-    async getRoot(): Promise<string> {{
+    async getRoot(): Promise<string> {
       return this.get<string>('/dag/root');
-    }},
+    },
 
-    async getStatus(): Promise<any> {{
+    async getStatus(): Promise<any> {
       return this.get<any>('/dag/status');
-    }},
+    },
 
-    async getSyncStatus(): Promise<SyncStatus> {{
+    async getSyncStatus(): Promise<SyncStatus> {
       return this.get<SyncStatus>('/sync/status');
-    }}
-  }};
+    }
+  };
 
   // Advanced Mesh Operations
-  meshAdvanced = {{
-    async getJobProgress(jobId: string): Promise<JobProgress> {{
-      return this.get<JobProgress>(`/mesh/jobs/${{jobId}}/progress`);
-    }},
+  meshAdvanced = {
+    async getJobProgress(jobId: string): Promise<JobProgress> {
+      return this.get<JobProgress>(`/mesh/jobs/${jobId}/progress`);
+    },
 
-    async getJobStream(jobId: string): Promise<JobStream[]> {{
-      return this.get<JobStream[]>(`/mesh/jobs/${{jobId}}/stream`);
-    }},
+    async getJobStream(jobId: string): Promise<JobStream[]> {
+      return this.get<JobStream[]>(`/mesh/jobs/${jobId}/stream`);
+    },
 
-    async cancelJob(jobId: string): Promise<string> {{
-      return this.post<string>(`/mesh/jobs/${{jobId}}/cancel`, {{}});
-    }},
+    async cancelJob(jobId: string): Promise<string> {
+      return this.post<string>(`/mesh/jobs/${jobId}/cancel`, {});
+    },
 
-    async resumeJob(jobId: string): Promise<string> {{
-      return this.post<string>(`/mesh/jobs/${{jobId}}/resume`, {{}});
-    }},
+    async resumeJob(jobId: string): Promise<string> {
+      return this.post<string>(`/mesh/jobs/${jobId}/resume`, {});
+    },
 
-    async getMetrics(): Promise<MeshMetrics> {{
+    async getMetrics(): Promise<MeshMetrics> {
       return this.get<MeshMetrics>('/mesh/metrics');
-    }},
+    },
 
-    async submitReceipt(receipt: any): Promise<string> {{
+    async submitReceipt(receipt: any): Promise<string> {
       return this.post<string>('/mesh/receipt', receipt);
-    }}
-  }};
+    }
+  };
 
   // Network API
-  network = {{
-    async getLocalPeerId(): Promise<string> {{
-      const response = await this.get<{{ peer_id: string }}>('/network/local-peer-id');
+  network = {
+    async getLocalPeerId(): Promise<string> {
+      const response = await this.get<{ peer_id: string }>('/network/local-peer-id');
       return response.peer_id;
-    }},
+    },
 
-    async getPeers(): Promise<string[]> {{
+    async getPeers(): Promise<string[]> {
       return this.get<string[]>('/network/peers');
-    }},
+    },
 
-    async connect(address: string): Promise<string> {{
-      return this.post<string>('/network/connect', {{ address }});
-    }}
-  }};
+    async connect(address: string): Promise<string> {
+      return this.post<string>('/network/connect', { address });
+    }
+  };
 
   // Private HTTP methods
-  private async get<T>(path: string): Promise<T> {{
-    const response = await fetch(`${{this.baseUrl}}${{path}}`, {{
+  private async get<T>(path: string): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'GET',
       headers: this.getHeaders(),
       signal: this.getAbortSignal()
-    }});
+    });
 
     return this.handleResponse<T>(response);
-  }}
+  }
 
-  private async post<T>(path: string, body?: any): Promise<T> {{
-    const response = await fetch(`${{this.baseUrl}}${{path}}`, {{
+  private async post<T>(path: string, body?: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: body ? JSON.stringify(body) : undefined,
       signal: this.getAbortSignal()
-    }});
+    });
 
     return this.handleResponse<T>(response);
-  }}
+  }
 
-  private getHeaders(): Record<string, string> {{
-    const headers: Record<string, string> = {{
+  private getHeaders(): Record<string, string> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json'
-    }};
+    };
 
-    if (this.config.apiKey) {{
+    if (this.config.apiKey) {
       headers['x-api-key'] = this.config.apiKey;
-    }}
+    }
 
-    if (this.config.bearerToken) {{
-      headers['Authorization'] = `Bearer ${{this.config.bearerToken}}`;
-    }}
+    if (this.config.bearerToken) {
+      headers['Authorization'] = `Bearer ${this.config.bearerToken}`;
+    }
 
     return headers;
-  }}
+  }
 
-  private getAbortSignal(): AbortSignal | undefined {{
-    if (this.config.timeout) {{
+  private getAbortSignal(): AbortSignal | undefined {
+    if (this.config.timeout) {
       const controller = new AbortController();
       setTimeout(() => controller.abort(), this.config.timeout);
       return controller.signal;
-    }}
+    }
     return undefined;
-  }}
+  }
 
-  private async handleResponse<T>(response: Response): Promise<T> {{
-    if (!response.ok) {{
+  private async handleResponse<T>(response: Response): Promise<T> {
+    if (!response.ok) {
       const errorText = await response.text();
       let errorData: ErrorResponse;
       
-      try {{
+      try {
         errorData = JSON.parse(errorText);
-      }} catch {{
-        errorData = {{ error: errorText }};
-      }}
+      } catch {
+        errorData = { error: errorText };
+      }
 
       throw new ICNApiError(
         response.status,
         errorData.error || 'Unknown error',
         errorData
       );
-    }}
+    }
 
     // Handle empty responses
-    if (response.status === 204 || response.headers.get('content-length') === '0') {{
+    if (response.status === 204 || response.headers.get('content-length') === '0') {
       return undefined as any;
-    }}
+    }
 
     const text = await response.text();
-    if (!text) {{
+    if (!text) {
       return undefined as any;
-    }}
+    }
 
-    try {{
+    try {
       return JSON.parse(text);
-    }} catch {{
+    } catch {
       // If response is not JSON, return as string
       return text as any;
-    }}
-  }}
-}}
+    }
+  }
+}
 
-export class ICNApiError extends Error {{
+export class ICNApiError extends Error {
   constructor(
     public status: number,
     message: string,
     public details?: ErrorResponse
-  ) {{
+  ) {
     super(message);
     this.name = 'ICNApiError';
-  }}
-}}
+  }
+}
 
 // WebSocket Client (planned)
-export class ICNWebSocketClient {{
+export class ICNWebSocketClient {
   private ws?: WebSocket;
   private config: ICNClientConfig;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
 
-  constructor(config: ICNClientConfig) {{
+  constructor(config: ICNClientConfig) {
     this.config = config;
-  }}
+  }
 
-  async connect(): Promise<void> {{
+  async connect(): Promise<void> {
     const wsUrl = this.config.baseUrl
       .replace('http://', 'ws://')
       .replace('https://', 'wss://') + '/ws';
 
     this.ws = new WebSocket(wsUrl);
     
-    return new Promise((resolve, reject) => {{
+    return new Promise((resolve, reject) => {
       if (!this.ws) return reject(new Error('WebSocket not initialized'));
 
       this.ws.onopen = () => resolve();
       this.ws.onerror = (error) => reject(error);
       this.ws.onmessage = (event) => this.handleMessage(event);
-    }});
-  }}
+    });
+  }
 
-  subscribe(eventType: string, callback: (data: any) => void): void {{
-    if (!this.listeners.has(eventType)) {{
+  subscribe(eventType: string, callback: (data: any) => void): void {
+    if (!this.listeners.has(eventType)) {
       this.listeners.set(eventType, new Set());
-    }}
+    }
     this.listeners.get(eventType)!.add(callback);
-  }}
+  }
 
-  unsubscribe(eventType: string, callback: (data: any) => void): void {{
+  unsubscribe(eventType: string, callback: (data: any) => void): void {
     const listeners = this.listeners.get(eventType);
-    if (listeners) {{
+    if (listeners) {
       listeners.delete(callback);
-    }}
-  }}
+    }
+  }
 
-  private handleMessage(event: MessageEvent): void {{
-    try {{
+  private handleMessage(event: MessageEvent): void {
+    try {
       const message = JSON.parse(event.data);
       const listeners = this.listeners.get(message.type);
-      if (listeners) {{
+      if (listeners) {
         listeners.forEach(callback => callback(message.data));
-      }}
-    }} catch (error) {{
+      }
+    } catch (error) {
       console.error('Error parsing WebSocket message:', error);
-    }}
-  }}
+    }
+  }
 
-  disconnect(): void {{
-    if (this.ws) {{
+  disconnect(): void {
+    if (this.ws) {
       this.ws.close();
       this.ws = undefined;
-    }}
-  }}
-}}
+    }
+  }
+}
 
 // Utility functions
-export const ICNUtils = {{
+export const ICNUtils = {
   /**
    * Validate DID format
    */
-  isValidDid(did: string): boolean {{
+  isValidDid(did: string): boolean {
     return /^did:[a-z0-9]+:[a-zA-Z0-9._-]+$/.test(did);
-  }},
+  },
 
   /**
    * Format mana balance for display
    */
-  formatMana(balance: number): string {{
-    if (balance >= 1000000) {{
-      return `${{(balance / 1000000).toFixed(1)}}M`;
-    }} else if (balance >= 1000) {{
-      return `${{(balance / 1000).toFixed(1)}}K`;
-    }} else {{
+  formatMana(balance: number): string {
+    if (balance >= 1000000) {
+      return `${(balance / 1000000).toFixed(1)}M`;
+    } else if (balance >= 1000) {
+      return `${(balance / 1000).toFixed(1)}K`;
+    } else {
       return balance.toString();
-    }}
-  }},
+    }
+  },
 
   /**
    * Calculate time remaining for proposal voting
    */
-  getTimeRemaining(deadline: string): string {{
+  getTimeRemaining(deadline: string): string {
     const now = new Date();
     const end = new Date(deadline);
     const diff = end.getTime() - now.getTime();
@@ -943,14 +939,14 @@ export const ICNUtils = {{
     const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
     const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 
-    if (days > 0) return `${{days}}d ${{hours}}h`;
-    if (hours > 0) return `${{hours}}h ${{minutes}}m`;
-    return `${{minutes}}m`;
-  }}
-}};
+    if (days > 0) return `${days}d ${hours}h`;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    return `${minutes}m`;
+  }
+};
 
 export default ICNClient;"#
-        )
+            .to_string()
     }
 
     /// Generate package.json for the TypeScript SDK

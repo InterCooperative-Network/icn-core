@@ -755,13 +755,13 @@ pub async fn build_network_service(
             })
             .collect(),
         enable_mdns: config.p2p.enable_mdns,
-        max_peers: config.p2p.max_peers as usize,
+        max_peers: config.p2p.max_peers,
         connection_timeout_ms: config.p2p.connection_timeout_ms,
         request_timeout_ms: config.p2p.request_timeout_ms,
         heartbeat_interval_ms: config.p2p.heartbeat_interval_ms,
         bootstrap_interval_secs: config.p2p.bootstrap_interval_secs,
         peer_discovery_interval_secs: config.p2p.peer_discovery_interval_secs,
-        kademlia_replication_factor: config.p2p.kademlia_replication_factor as usize,
+        kademlia_replication_factor: config.p2p.kademlia_replication_factor,
         ..Default::default()
     };
 
@@ -2202,7 +2202,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut failed_jobs = 0;
 
     for job_state in job_states.iter() {
-        match &*job_state.value() {
+        match job_state.value() {
             icn_mesh::JobState::Pending => pending_jobs += 1,
             icn_mesh::JobState::Assigned { .. } => assigned_jobs += 1,
             icn_mesh::JobState::Completed { .. } => completed_jobs += 1,
@@ -3003,7 +3003,7 @@ async fn mesh_submit_job_handler(
     // The runtime will override id, creator_did, and signature
     let complete_job = icn_mesh::ActualMeshJob {
         id: icn_mesh::JobId::from(manifest_cid.clone()), // Placeholder, will be overridden
-        manifest_cid: manifest_cid,
+        manifest_cid,
         spec: job_spec,
         creator_did: icn_common::Did::from_str("did:placeholder:creator").unwrap(), // Placeholder, will be overridden
         cost_mana: request.cost_mana,
@@ -3059,7 +3059,7 @@ async fn mesh_list_jobs_handler(State(state): State<AppState>) -> impl IntoRespo
             let job_state = entry.value();
             serde_json::json!({
                 "job_id": job_id.to_string(),
-                "status": match &*job_state {
+                "status": match job_state {
                     icn_mesh::JobState::Pending => serde_json::json!("pending"),
                     icn_mesh::JobState::Assigned { executor } => {
                         serde_json::json!({
@@ -3666,7 +3666,7 @@ async fn mesh_get_metrics_handler(State(state): State<AppState>) -> impl IntoRes
     let mut failed_jobs = 0u64;
 
     for job_state in job_states.iter() {
-        match &*job_state.value() {
+        match job_state.value() {
             icn_mesh::JobState::Pending | icn_mesh::JobState::Assigned { .. } => {
                 running_jobs += 1;
             }
@@ -4062,9 +4062,9 @@ async fn zk_verify_batch_handler(
     let mut results = Vec::with_capacity(req.proofs.len());
     for proof in req.proofs.iter() {
         let verifier: Box<dyn ZkVerifier> = match proof.backend {
-            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
             ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-            _ => Box::new(DummyVerifier::default()),
+            _ => Box::new(DummyVerifier),
         };
 
         match verifier.verify(proof) {
@@ -4225,7 +4225,7 @@ async fn credential_verify_handler(
                 .into_response();
             }
         }
-        for (k, _) in &cred.claims {
+        for k in cred.claims.keys() {
             if let Err(e) = cred.verify_claim(k, vk) {
                 return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
                     .into_response();

@@ -322,7 +322,7 @@ impl CheckpointManager {
     /// Check if a job has any checkpoints (indicating it's a long-running job)
     pub async fn has_checkpoints(&self, job_id: &icn_mesh::JobId) -> bool {
         let checkpoints = self.checkpoints.read().await;
-        checkpoints.get(job_id).map_or(false, |cp| !cp.is_empty())
+        checkpoints.get(job_id).is_some_and(|cp| !cp.is_empty())
     }
 
     /// Clean up completed job data

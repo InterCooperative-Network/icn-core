@@ -641,8 +641,8 @@ impl NodeConfig {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let toml_str = toml::to_string_pretty(self)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+        let toml_str =
+            toml::to_string_pretty(self).map_err(|e| std::io::Error::other(e.to_string()))?;
         std::fs::write(path, toml_str)
     }
 }
@@ -652,7 +652,6 @@ use icn_network::libp2p_service::NetworkConfig;
 #[cfg(feature = "enable-libp2p")]
 // Libp2p imports commented out - will be needed for future network configuration
 // use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
-
 impl NodeConfig {
     #[cfg(feature = "enable-libp2p")]
     pub fn libp2p_config(&self) -> Result<NetworkConfig, CommonError> {

@@ -198,6 +198,7 @@ impl TrustDecayCalculator {
     }
 
     /// Apply a specific decay model to calculate decay factor
+    #[allow(clippy::only_used_in_recursion)]
     fn apply_decay_model(&self, model: &DecayModel, age_seconds: u64) -> f64 {
         match model {
             DecayModel::Exponential { half_life_seconds } => {

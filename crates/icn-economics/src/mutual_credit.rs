@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 /// Specialized functionality for mutual credit systems.
 /// Mutual credit allows communities to create money by extending credit to members.
-
+///
 /// Represents a credit line extended to a community member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreditLine {

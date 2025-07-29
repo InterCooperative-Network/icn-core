@@ -10,7 +10,7 @@ fn main() {
     let ccl_source = std::fs::read_to_string("icn-ccl/test_identity_federation.ccl")
         .expect("Failed to read icn-ccl/test_identity_federation.ccl");
 
-    println!("📄 CCL Source:\n{}", ccl_source);
+    println!("📄 CCL Source:\n{ccl_source}");
 
     // Compile CCL to WASM
     match compile_ccl_source_to_wasm(&ccl_source) {
@@ -37,7 +37,7 @@ fn main() {
         }
         Err(err) => {
             println!("❌ Identity & Federation Operations Compilation FAILED:");
-            println!("Error: {:?}", err);
+            println!("Error: {err:?}");
             std::process::exit(1);
         }
     }

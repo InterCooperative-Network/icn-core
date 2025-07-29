@@ -24,7 +24,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ String creation failed: {}", e);
+            println!("❌ String creation failed: {e}");
         }
     }
 
@@ -49,7 +49,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ String concatenation failed: {}", e);
+            println!("❌ String concatenation failed: {e}");
         }
     }
 
@@ -73,7 +73,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ String length failed: {}", e);
+            println!("❌ String length failed: {e}");
         }
     }
 
@@ -98,7 +98,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ String comparison failed: {}", e);
+            println!("❌ String comparison failed: {e}");
         }
     }
 }

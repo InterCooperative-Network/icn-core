@@ -29,14 +29,14 @@ fn main() {
         }
         Err(e) => {
             println!("❌ ULTIMATE BASIC TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             if e.to_string()
                 .contains("Cannot assign to immutable variable")
             {
                 println!("🚨 CRITICAL: The infinite loop fix didn't work!");
             } else {
-                println!("🔍 Different issue (not the infinite loop bug): {}", e);
+                println!("🔍 Different issue (not the infinite loop bug): {e}");
             }
         }
     }

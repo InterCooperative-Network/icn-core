@@ -29,7 +29,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Struct instantiation failed: {}", e);
+            println!("❌ Struct instantiation failed: {e}");
 
             // Let's try even simpler - just the struct literal without assignment
             let simple_test = r#"
@@ -57,7 +57,7 @@ fn main() {
                     println!("WASM size: {} bytes", wasm.len());
                 }
                 Err(e2) => {
-                    println!("❌ Even simplified version failed: {}", e2);
+                    println!("❌ Even simplified version failed: {e2}");
                 }
             }
         }

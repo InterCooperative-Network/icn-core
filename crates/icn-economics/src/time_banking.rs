@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 /// Specialized functionality for time banking tokens.
 /// Time banking allows communities to exchange labor hours on an equal basis.
-
+///
 /// Record of work performed in a time banking system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeRecord {

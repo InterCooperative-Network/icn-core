@@ -26,7 +26,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test1) {
         Ok(_) => println!("✅ Test 1 (struct definitions): PASSED"),
-        Err(e) => println!("❌ Test 1 (struct definitions): FAILED - {}", e),
+        Err(e) => println!("❌ Test 1 (struct definitions): FAILED - {e}"),
     }
 
     // Test the exact function from comprehensive test
@@ -67,7 +67,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test2) {
         Ok(_) => println!("✅ Test 2 (calculate_result function): PASSED"),
-        Err(e) => println!("❌ Test 2 (calculate_result function): FAILED - {}", e),
+        Err(e) => println!("❌ Test 2 (calculate_result function): FAILED - {e}"),
     }
 
     // Test constants
@@ -82,6 +82,6 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test3) {
         Ok(_) => println!("✅ Test 3 (constants): PASSED"),
-        Err(e) => println!("❌ Test 3 (constants): FAILED - {}", e),
+        Err(e) => println!("❌ Test 3 (constants): FAILED - {e}"),
     }
 }

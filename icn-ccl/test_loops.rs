@@ -27,7 +27,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ While loop compilation failed: {}", e);
+            println!("❌ While loop compilation failed: {e}");
         }
     }
 
@@ -55,7 +55,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop compilation failed: {}", e);
+            println!("❌ For loop compilation failed: {e}");
         }
     }
 
@@ -88,7 +88,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Nested loops compilation failed: {}", e);
+            println!("❌ Nested loops compilation failed: {e}");
         }
     }
 }

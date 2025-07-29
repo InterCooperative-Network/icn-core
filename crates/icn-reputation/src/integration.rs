@@ -362,12 +362,17 @@ pub struct RouteAlternative {
 pub struct ReputationIntegrationEngine {
     config: ReputationIntegrationConfig,
     reputation_store: Arc<dyn ReputationStore>,
+    #[allow(dead_code)]
     trust_calculation_engine: Arc<TrustCalculationEngine>,
+    #[allow(dead_code)]
     trust_graph: Arc<RwLock<TrustGraph>>,
     network_service: Arc<dyn NetworkService>,
     governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
+    #[allow(dead_code)]
     mana_ledger: Arc<dyn ManaLedger>,
+    #[allow(dead_code)]
     did_resolver: Arc<dyn DidResolver>,
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
 
     // Integration state
@@ -483,6 +488,7 @@ pub struct GovernanceWeight {
 
 impl ReputationIntegrationEngine {
     /// Create a new reputation integration engine
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: ReputationIntegrationConfig,
         reputation_store: Arc<dyn ReputationStore>,

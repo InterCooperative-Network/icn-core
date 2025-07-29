@@ -10,7 +10,7 @@ use super::{
 };
 use bincode;
 use icn_common::{Cid, Did, TimeProvider};
-use icn_governance::{GovernanceModule, Proposal, ProposalId, Vote};
+use icn_governance::{GovernanceModule, Proposal, ProposalId};
 use icn_reputation::ReputationStore;
 use serde::{Deserialize, Serialize};
 use serde_json;

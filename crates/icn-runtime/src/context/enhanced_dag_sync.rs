@@ -588,7 +588,7 @@ impl EnhancedDagSync {
 
     /// Execute broadcast synchronization strategy
     async fn execute_broadcast_sync(&self, peers: Vec<Did>) -> Result<SyncStats, HostAbiError> {
-        let mut stats = SyncStats {
+        let stats = SyncStats {
             blocks_received: 0,
             blocks_sent: 0,
             peers_contacted: peers.len(),
@@ -611,7 +611,7 @@ impl EnhancedDagSync {
         peers: Vec<Did>,
         fanout: usize,
     ) -> Result<SyncStats, HostAbiError> {
-        let mut stats = SyncStats {
+        let stats = SyncStats {
             blocks_received: 0,
             blocks_sent: 0,
             peers_contacted: fanout.min(peers.len()),
@@ -633,7 +633,7 @@ impl EnhancedDagSync {
         peers: Vec<Did>,
         branching_factor: usize,
     ) -> Result<SyncStats, HostAbiError> {
-        let mut stats = SyncStats {
+        let stats = SyncStats {
             blocks_received: 0,
             blocks_sent: 0,
             peers_contacted: peers.len(),

@@ -4,24 +4,12 @@
 //! smart routing, governance automation, federation integration, reputation
 //! integration, and economic automation.
 
-use super::{
-    CclIntegrationCoordinator, CrossComponentCoordinator, EnhancedDagSync, MeshNetworkService,
-    RuntimeContext, SmartP2pRouter,
-};
-use crate::context::{stubs::StubMeshNetworkService, MeshNetworkServiceType};
-use icn_common::{Cid, CommonError, Did, TimeProvider};
-use icn_governance::{
-    GovernanceAutomationConfig, GovernanceAutomationEngine, GovernanceAutomationStats,
-    GovernanceEvent,
-};
-use icn_identity::{
-    FederationEvent, FederationIntegrationConfig, FederationIntegrationEngine,
-    FederationIntegrationStats,
-};
+use super::{RuntimeContext, SmartP2pRouter};
+use icn_common::{CommonError, TimeProvider};
+use icn_governance::{GovernanceAutomationEngine, GovernanceAutomationStats};
+use icn_identity::{FederationIntegrationEngine, FederationIntegrationStats};
 use icn_network::adaptive_routing::RoutePerformanceMetrics;
-use icn_network::{
-    AdaptiveRoutingConfig, AdaptiveRoutingEngine, NetworkService, NetworkTopology, RoutingEvent,
-};
+use icn_network::AdaptiveRoutingEngine;
 // Temporarily commented out due to circular dependencies
 // use icn_reputation::{
 //     ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
@@ -44,16 +32,13 @@ pub struct ReputationIntegrationConfig;
 pub struct ReputationEvent;
 #[derive(Debug, Clone)]
 pub struct ReputationIntegrationStats;
-use icn_common::DagBlock;
 use icn_dag::AsyncStorageService;
-use icn_economics::{
-    EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
-};
+use icn_economics::{EconomicAutomationEngine, EconomicAutomationStats};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex as TokioMutex};
+use tokio::sync::mpsc;
 
 /// Configuration for comprehensive coordination
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -29,7 +29,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Budgeting contract compilation error:");
-            println!("   {}", e);
+            println!("   {e}");
             println!();
             println!("This likely indicates the infinite loop bug is NOT fixed or");
             println!("there are other compilation issues to resolve.");

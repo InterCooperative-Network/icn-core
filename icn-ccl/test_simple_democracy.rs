@@ -12,7 +12,7 @@ fn main() {
             println!("   WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Simple democracy test failed: {}", e);
+            println!("❌ Simple democracy test failed: {e}");
         }
     }
 }

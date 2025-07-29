@@ -33,7 +33,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Original problematic pattern failed: {}", e);
+            println!("❌ Original problematic pattern failed: {e}");
         }
     }
 
@@ -72,7 +72,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Complex governance logic failed: {}", e);
+            println!("❌ Complex governance logic failed: {e}");
         }
     }
 
@@ -103,7 +103,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Complex arithmetic failed: {}", e);
+            println!("❌ Complex arithmetic failed: {e}");
         }
     }
 }

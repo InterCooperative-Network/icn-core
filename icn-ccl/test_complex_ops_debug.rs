@@ -13,7 +13,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test1) {
         Ok(_) => println!("✅ Test 1 (string equality): PASSED"),
-        Err(e) => println!("❌ Test 1 (string equality): FAILED - {}", e),
+        Err(e) => println!("❌ Test 1 (string equality): FAILED - {e}"),
     }
 
     // Test 2: Array operations
@@ -26,7 +26,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test2) {
         Ok(_) => println!("✅ Test 2 (array length): PASSED"),
-        Err(e) => println!("❌ Test 2 (array length): FAILED - {}", e),
+        Err(e) => println!("❌ Test 2 (array length): FAILED - {e}"),
     }
 
     // Test 3: Struct field access with binary ops
@@ -43,7 +43,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test3) {
         Ok(_) => println!("✅ Test 3 (struct field + number): PASSED"),
-        Err(e) => println!("❌ Test 3 (struct field + number): FAILED - {}", e),
+        Err(e) => println!("❌ Test 3 (struct field + number): FAILED - {e}"),
     }
 
     // Test 4: Array indexing with binary ops
@@ -57,7 +57,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test4) {
         Ok(_) => println!("✅ Test 4 (array index + number): PASSED"),
-        Err(e) => println!("❌ Test 4 (array index + number): FAILED - {}", e),
+        Err(e) => println!("❌ Test 4 (array index + number): FAILED - {e}"),
     }
 
     // Test 5: Function call with binary ops
@@ -73,6 +73,6 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test5) {
         Ok(_) => println!("✅ Test 5 (function call + number): PASSED"),
-        Err(e) => println!("❌ Test 5 (function call + number): FAILED - {}", e),
+        Err(e) => println!("❌ Test 5 (function call + number): FAILED - {e}"),
     }
 }

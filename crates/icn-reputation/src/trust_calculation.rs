@@ -269,6 +269,8 @@ impl TrustCalculationEngine {
     }
 
     /// Recursive depth-first search to find all paths
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::only_used_in_recursion)]
     fn dfs_find_paths(
         &self,
         graph: &TrustGraph,

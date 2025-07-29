@@ -130,6 +130,7 @@ pub struct AggregatedTrust {
 /// Engine for aggregating multiple trust signals into composite scores
 pub struct TrustAggregator {
     config: AggregationConfig,
+    #[allow(dead_code)]
     calculation_engine: TrustCalculationEngine,
     pathfinder: TrustPathfinder,
     decay_calculator: TrustDecayCalculator,

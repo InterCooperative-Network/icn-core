@@ -3,13 +3,12 @@
 //! This module provides type-safe service creation and mapping to ensure
 //! that stub services are never accidentally used in production.
 
-use super::dag_store_factory::{DagStoreConfig, DagStoreFactory};
+use super::dag_store_factory::DagStoreFactory;
 use super::dag_store_wrapper::DagStoreWrapper;
 use super::mesh_network::DefaultMeshNetworkService;
 use super::runtime_context::MeshNetworkServiceType;
 use super::signers::Signer;
-use super::stubs::{StubDagStore, StubMeshNetworkService};
-use super::{DagStorageService, DagStoreMutexType};
+use super::stubs::StubMeshNetworkService;
 use downcast_rs::Downcast;
 use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
@@ -200,9 +199,9 @@ impl ServiceConfigBuilder {
                 #[cfg(feature = "enable-libp2p")]
                 {
                     // For production, require explicit network service since we can't async create here
-                    return Err(CommonError::InternalError(
+                    Err(CommonError::InternalError(
                         "Production environment requires explicit network service in non-async context. Use RuntimeContext::new_async() or provide explicit network service.".to_string(),
-                    ));
+                    ))
                 }
 
                 // If libp2p feature is not enabled, require explicit network service

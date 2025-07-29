@@ -28,7 +28,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop with assignment failed: {}", e);
+            println!("❌ For loop with assignment failed: {e}");
         }
     }
 
@@ -56,7 +56,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop with iterator addition failed: {}", e);
+            println!("❌ For loop with iterator addition failed: {e}");
         }
     }
 
@@ -84,7 +84,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop with variable addition failed: {}", e);
+            println!("❌ For loop with variable addition failed: {e}");
         }
     }
 
@@ -112,7 +112,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop with variable + iterator failed: {}", e);
+            println!("❌ For loop with variable + iterator failed: {e}");
         }
     }
 }

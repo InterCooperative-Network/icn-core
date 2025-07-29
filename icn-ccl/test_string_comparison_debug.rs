@@ -14,7 +14,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test1) {
         Ok(_) => println!("✅ Test 1 (variable string comparison): PASSED"),
-        Err(e) => println!("❌ Test 1 (variable string comparison): FAILED - {}", e),
+        Err(e) => println!("❌ Test 1 (variable string comparison): FAILED - {e}"),
     }
 
     // Test direct string comparison
@@ -26,7 +26,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test2) {
         Ok(_) => println!("✅ Test 2 (direct string comparison): PASSED"),
-        Err(e) => println!("❌ Test 2 (direct string comparison): FAILED - {}", e),
+        Err(e) => println!("❌ Test 2 (direct string comparison): FAILED - {e}"),
     }
 
     // Test the actual struct field case
@@ -43,6 +43,6 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test3) {
         Ok(_) => println!("✅ Test 3 (struct field comparison): PASSED"),
-        Err(e) => println!("❌ Test 3 (struct field comparison): FAILED - {}", e),
+        Err(e) => println!("❌ Test 3 (struct field comparison): FAILED - {e}"),
     }
 }

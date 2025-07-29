@@ -1176,7 +1176,7 @@ impl RuntimeContext {
         {
             log::warn!("⚠️  No persistent storage features enabled for mana ledger");
             log::warn!("⚠️  This may indicate the use of a file-based or other fallback backend");
-            return Ok("File-based or fallback backend".to_string());
+            Ok("File-based or fallback backend".to_string())
         }
     }
 
@@ -1226,7 +1226,7 @@ impl RuntimeContext {
         // Create production network service
         #[cfg(feature = "enable-libp2p")]
         {
-            use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+            use icn_network::libp2p_service::NetworkConfig;
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
@@ -1245,9 +1245,9 @@ impl RuntimeContext {
 
             // Create libp2p network service - this is async but we're in sync context
             // We'll need to return an error for now and suggest using the async version
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Cannot create libp2p network service in synchronous context. Use new_async() or new_with_network_service() instead.".to_string()
-            ));
+            ))
         }
 
         #[cfg(not(feature = "enable-libp2p"))]
@@ -1355,7 +1355,7 @@ impl RuntimeContext {
             signer,
             mana_ledger,
             network_service,
-            dag_store.map(|store| DagStoreWrapper::generic_production(store)),
+            dag_store.map(DagStoreWrapper::generic_production),
         )?;
         Self::from_service_config(config)
     }
@@ -4396,7 +4396,7 @@ impl RuntimeContext {
 
         let mut hasher = Sha256::new();
         hasher.update(seed);
-        hasher.update(&reputation.to_le_bytes());
+        hasher.update(reputation.to_le_bytes());
         let hash = hasher.finalize();
         let val = u64::from_le_bytes(hash[0..8].try_into().expect("slice"));
         0.9 + (val as f64 / u64::MAX as f64) * 0.2
