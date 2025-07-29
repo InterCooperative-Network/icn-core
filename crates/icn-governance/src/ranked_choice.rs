@@ -302,7 +302,7 @@ impl RankedChoiceVotingSystem {
         let verifying_key = self
             .did_resolver
             .resolve(voter_did)
-            .map_err(|e| VotingError::InvalidSignature)?;
+            .map_err(|_e| VotingError::InvalidSignature)?;
 
         // Create the message that should have been signed
         let message = Self::create_ballot_signing_message(ballot)?;

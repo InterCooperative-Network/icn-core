@@ -131,10 +131,6 @@ impl PeerId {
     pub fn from_string(s: String) -> Self {
         PeerId(s)
     }
-    /// Borrow the underlying string representation.
-    pub fn to_string(&self) -> String {
-        self.0.clone()
-    }
 }
 
 #[cfg(feature = "libp2p")]
@@ -912,6 +908,7 @@ pub mod libp2p_service {
         /// Customize network configuration settings.
         ///
         /// This method allows overriding specific configuration values.
+        #[allow(clippy::too_many_arguments)]
         pub fn with_settings(
             mut self,
             listen_address: Option<&str>,

@@ -193,7 +193,9 @@ pub enum ReminderType {
 pub struct GovernanceAutomationEngine {
     config: GovernanceAutomationConfig,
     governance_module: Arc<TokioMutex<GovernanceModule>>,
+    #[allow(dead_code)]
     dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
+    #[allow(dead_code)]
     ccl_compiler: Arc<CclCompiler>,
     ccl_runtime: Arc<CclRuntime>,
     mana_ledger: Arc<dyn ManaLedger>,
@@ -632,7 +634,7 @@ impl GovernanceAutomationEngine {
         proposal_id: &ProposalId,
         governance_module: &Arc<TokioMutex<GovernanceModule>>,
         event_tx: &mpsc::UnboundedSender<GovernanceEvent>,
-        time_provider: &Arc<dyn TimeProvider>,
+        _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         log::info!("Executing proposal {:?}", proposal_id);
 
@@ -734,6 +736,7 @@ impl GovernanceAutomationEngine {
     }
 
     /// Enforce active policies
+    #[allow(dead_code)]
     async fn enforce_policies(
         &self,
         _policy_cache: &Arc<RwLock<HashMap<String, PolicyContract>>>,
@@ -1379,6 +1382,7 @@ impl GovernanceAutomationEngine {
     }
 
     /// Execute policy check (stub implementation)
+    #[allow(dead_code)]
     async fn execute_policy_check(
         &self,
         policy_contract: &PolicyContract,
@@ -1390,7 +1394,7 @@ impl GovernanceAutomationEngine {
 
     /// Static version of execute_policy_check for use in spawned tasks
     async fn execute_policy_check_static(
-        policy_contract: &PolicyContract,
+        _policy_contract: &PolicyContract,
         mana_ledger: &Arc<dyn ManaLedger>,
         reputation_store: &Arc<dyn ReputationStore>,
     ) -> Result<Vec<PolicyViolation>, CommonError> {
@@ -1520,6 +1524,7 @@ impl GovernanceAutomationEngine {
     }
 
     /// Handle policy violation (stub implementation)
+    #[allow(dead_code)]
     async fn handle_policy_violation(
         &self,
         policy_id: &str,

@@ -9,7 +9,9 @@ use crate::{MeshNetworkError, NetworkService, StubNetworkService};
 use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(feature = "libp2p")]
 use std::time::Duration;
+
 
 /// Network service environment types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,25 +242,19 @@ impl NetworkServiceFactory {
 
     /// Create development network service (prefers real, allows fallback)
     async fn create_development_service(
-        options: NetworkServiceOptions,
+        _options: NetworkServiceOptions,
     ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
-            let config = options.config.clone().unwrap_or_else(|| {
-                let mut cfg = NetworkServiceConfig::default();
-                cfg.enable_mdns = true; // Enable mDNS for local development
-                cfg.max_peers = 50; // Smaller peer limit for development
-
-                // Add default development bootstrap peers if none provided
-                if cfg.bootstrap_peers.is_empty() {
-                    cfg.bootstrap_peers =
-                        Self::get_default_bootstrap_peers_for_env(NetworkEnvironment::Development);
+            let config = _options.config.clone().unwrap_or_else(|| {
+                NetworkServiceConfig {
+                    enable_mdns: true, // Enable mDNS for local development
+                    max_peers: 50, // Smaller peer limit for development
+                    ..NetworkServiceConfig::default()
                 }
-
-                cfg
             });
 
-            let libp2p_config = Self::convert_to_libp2p_config(config, &options);
+            let libp2p_config = Self::convert_to_libp2p_config(config, &_options);
 
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
@@ -291,21 +287,22 @@ impl NetworkServiceFactory {
 
     /// Create benchmarking network service (optimized for performance)
     async fn create_benchmarking_service(
-        options: NetworkServiceOptions,
+        _options: NetworkServiceOptions,
     ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
-            let config = options.config.clone().unwrap_or_else(|| {
-                let mut cfg = NetworkServiceConfig::default();
-                cfg.max_peers = 1000; // Higher peer limit for benchmarking
-                cfg.connection_timeout_ms = 5000; // Faster timeouts
-                cfg.request_timeout_ms = 2000;
-                cfg.heartbeat_interval_ms = 30000; // Less frequent heartbeats
-                cfg.enable_mdns = false; // Disable mDNS for cleaner benchmarks
-                cfg
+            let config = _options.config.clone().unwrap_or_else(|| {
+                NetworkServiceConfig {
+                    max_peers: 1000, // Higher peer limit for benchmarking
+                    connection_timeout_ms: 5000, // Faster timeouts
+                    request_timeout_ms: 2000,
+                    heartbeat_interval_ms: 30000, // Less frequent heartbeats
+                    enable_mdns: false, // Disable mDNS for cleaner benchmarks
+                    ..NetworkServiceConfig::default()
+                }
             });
 
-            let libp2p_config = Self::convert_to_libp2p_config(config, &options);
+            let libp2p_config = Self::convert_to_libp2p_config(config, &_options);
 
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
@@ -493,6 +490,7 @@ impl NetworkServiceFactory {
     }
 
     /// Get default bootstrap peers for specific environments
+    #[allow(dead_code)]
     fn get_default_bootstrap_peers_for_env(env: NetworkEnvironment) -> Vec<BootstrapPeer> {
         match env {
             NetworkEnvironment::Production => {
