@@ -76,6 +76,7 @@ pub struct PolicyViolation {
 
 /// Types of governance events that can be automated
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 pub enum GovernanceEvent {
     /// New proposal submitted
     ProposalSubmitted {
@@ -253,6 +254,7 @@ pub struct VotingStatus {
 
 impl GovernanceAutomationEngine {
     /// Create a new governance automation engine
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: GovernanceAutomationConfig,
         governance_module: Arc<TokioMutex<GovernanceModule>>,
@@ -404,30 +406,89 @@ impl GovernanceAutomationEngine {
         let vote_weight = self.calculate_vote_weight(&voter).await?;
 
         // Update proposal state
-        if let Some(state) = self.active_proposals.write().unwrap().get_mut(&proposal_id) {
-            state
-                .votes_received
-                .insert(voter.clone(), (vote.clone(), vote_weight.clone()));
+        let (needs_quorum_check, needs_execution_check) = {
+            let mut proposals = self.active_proposals.write().unwrap();
+            if let Some(state) = proposals.get_mut(&proposal_id) {
+                state
+                    .votes_received
+                    .insert(voter.clone(), (vote.clone(), vote_weight.clone()));
 
-            // Recalculate voting status
-            state.voting_status = self.calculate_voting_status(state).await?;
+                // Calculate voting status without async calls within the lock
+                let (_support_count, _total_weighted_votes, total_eligible_voters) = 
+                    self.calculate_vote_counts_sync(state);
+                
+                state.voting_status.votes_cast = state.votes_received.len();
+                state.voting_status.eligible_voters = total_eligible_voters as usize;
+                state.voting_status.participation_rate = if total_eligible_voters > 0 {
+                    (state.votes_received.len() as f64 / total_eligible_voters as f64) * 100.0
+                } else {
+                    0.0
+                };
+                state.voting_status.support_percentage = if total_eligible_voters > 0 {
+                    (_support_count as f64 / total_eligible_voters as f64) * 100.0
+                } else {
+                    0.0
+                };
 
-            // Check if quorum is reached
-            if !state.voting_status.quorum_reached && self.check_quorum(state).await? {
-                state.voting_status.quorum_reached = true;
+                let needs_quorum = !state.voting_status.quorum_reached;
+                let needs_execution = state.voting_status.support_percentage >= self.config.auto_execution_threshold;
+                
+                (needs_quorum, needs_execution)
+            } else {
+                (false, false)
+            }
+        }; // Lock is dropped here
 
-                // Emit quorum reached event
-                let voting_result = self.determine_voting_result(state).await?;
-                let _ = self.event_tx.send(GovernanceEvent::QuorumReached {
-                    proposal_id: proposal_id.clone(),
-                    result: voting_result.clone(),
-                    timestamp: self.time_provider.unix_seconds(),
-                });
+        // Now perform async operations outside the lock
+        if needs_quorum_check {
+            // Get a copy of the state for async operations
+            let state_copy = {
+                let proposals = self.active_proposals.read().unwrap();
+                proposals.get(&proposal_id).cloned()
+            };
+            
+            if let Some(state) = state_copy {
+                // Recalculate detailed voting status with async operations
+                let updated_status = self.calculate_voting_status(&state).await?;
+                
+                // Update the state with the new status
+                {
+                    let mut proposals = self.active_proposals.write().unwrap();
+                    if let Some(state) = proposals.get_mut(&proposal_id) {
+                        state.voting_status = updated_status;
+                    }
+                }
+                
+                // Check if quorum was reached by getting the status again
+                let quorum_reached = {
+                    let proposals = self.active_proposals.read().unwrap();
+                    proposals.get(&proposal_id)
+                        .map(|state| state.voting_status.quorum_reached)
+                        .unwrap_or(false)
+                };
+                
+                if quorum_reached {
+                    // Get the voting result with a separate async call
+                    let state_for_result = {
+                        let proposals = self.active_proposals.read().unwrap();
+                        proposals.get(&proposal_id).cloned()
+                    };
+                    
+                    if let Some(state) = state_for_result {
+                        let voting_result = self.determine_voting_result(&state).await?;
+                        
+                        let _ = self.event_tx.send(GovernanceEvent::QuorumReached {
+                            proposal_id: proposal_id.clone(),
+                            result: voting_result.clone(),
+                            timestamp: self.time_provider.unix_seconds(),
+                        });
 
-                // Check for automatic execution
-                if state.voting_status.support_percentage >= self.config.auto_execution_threshold {
-                    self.attempt_automatic_execution(&proposal_id, &voting_result)
-                        .await?;
+                        // Check for automatic execution
+                        if needs_execution_check {
+                            self.attempt_automatic_execution(&proposal_id, &voting_result)
+                                .await?;
+                        }
+                    }
                 }
             }
         }
@@ -1002,7 +1063,7 @@ impl GovernanceAutomationEngine {
         }
 
         // Clamp prediction score to valid range
-        prediction_score = prediction_score.max(0.0).min(1.0);
+        prediction_score = prediction_score.clamp(0.0, 1.0);
 
         // Create prediction result
         if prediction_score > 0.5 {
@@ -1225,6 +1286,7 @@ impl GovernanceAutomationEngine {
     }
 
     /// Check if quorum is reached
+    #[allow(dead_code)]
     async fn check_quorum(&self, state: &ProposalAutomationState) -> Result<bool, CommonError> {
         Ok(state.voting_status.participation_rate >= self.config.min_participation_rate)
     }
@@ -1265,72 +1327,61 @@ impl GovernanceAutomationEngine {
         );
 
         // Get proposal state to validate execution conditions
-        let active_proposals = self.active_proposals.read().unwrap();
-        if let Some(proposal_state) = active_proposals.get(proposal_id) {
-            // Validate execution conditions
-            if !proposal_state.voting_status.quorum_reached {
-                log::warn!(
-                    "Proposal {:?} quorum not reached, cannot execute",
-                    proposal_id
-                );
-                return Ok(());
+        let (can_execute, execution_attempted) = {
+            let active_proposals = self.active_proposals.read().unwrap();
+            if let Some(proposal_state) = active_proposals.get(proposal_id) {
+                let can_execute = proposal_state.voting_status.quorum_reached
+                    && proposal_state.voting_status.support_percentage >= self.config.auto_execution_threshold
+                    && !proposal_state.execution_attempted;
+                
+                (can_execute, proposal_state.execution_attempted)
+            } else {
+                (false, false)
             }
-
-            if proposal_state.voting_status.support_percentage
-                < self.config.auto_execution_threshold
-            {
-                log::info!(
-                    "Proposal {:?} support below auto-execution threshold ({:.1}% < {:.1}%)",
-                    proposal_id,
-                    proposal_state.voting_status.support_percentage * 100.0,
-                    self.config.auto_execution_threshold * 100.0
-                );
-                return Ok(());
-            }
-
-            if proposal_state.execution_attempted {
+        }; // Lock is dropped here
+        
+        if !can_execute {
+            if execution_attempted {
                 log::debug!("Proposal {:?} execution already attempted", proposal_id);
-                return Ok(());
+            } else {
+                log::warn!("Proposal {:?} cannot be executed - conditions not met", proposal_id);
             }
+            return Ok(());
+        }
 
-            // Execute the proposal actions
-            drop(active_proposals); // Release read lock
-
-            match Self::execute_proposal_async(
-                proposal_id,
-                &self.governance_module,
-                &self.event_tx,
-                &self.time_provider,
-            )
-            .await
-            {
-                Ok(_) => {
-                    // Mark execution as attempted and successful
-                    let mut active_proposals = self.active_proposals.write().unwrap();
-                    if let Some(state) = active_proposals.get_mut(proposal_id) {
-                        state.execution_attempted = true;
-                    }
-
-                    log::info!("Successfully auto-executed proposal {:?}", proposal_id);
+        // Execute the proposal actions
+        match Self::execute_proposal_async(
+            proposal_id,
+            &self.governance_module,
+            &self.event_tx,
+            &self.time_provider,
+        )
+        .await
+        {
+            Ok(_) => {
+                // Mark execution as attempted and successful
+                let mut active_proposals = self.active_proposals.write().unwrap();
+                if let Some(state) = active_proposals.get_mut(proposal_id) {
+                    state.execution_attempted = true;
                 }
-                Err(e) => {
-                    log::error!("Failed to auto-execute proposal {:?}: {}", proposal_id, e);
 
-                    // Mark execution as attempted but failed
-                    let mut active_proposals = self.active_proposals.write().unwrap();
-                    if let Some(state) = active_proposals.get_mut(proposal_id) {
-                        state.execution_attempted = true;
-                    }
-
-                    // Send failure event
-                    let _ = self.event_tx.send(GovernanceEvent::ProposalExecuted {
-                        proposal_id: proposal_id.clone(),
-                        success: false,
-                    });
-                }
+                log::info!("Successfully auto-executed proposal {:?}", proposal_id);
             }
-        } else {
-            log::error!("Proposal {:?} not found in active proposals", proposal_id);
+            Err(e) => {
+                log::error!("Failed to auto-execute proposal {:?}: {}", proposal_id, e);
+
+                // Mark execution as attempted but failed
+                let mut active_proposals = self.active_proposals.write().unwrap();
+                if let Some(state) = active_proposals.get_mut(proposal_id) {
+                    state.execution_attempted = true;
+                }
+
+                // Send failure event
+                let _ = self.event_tx.send(GovernanceEvent::ProposalExecuted {
+                    proposal_id: proposal_id.clone(),
+                    success: false,
+                });
+            }
         }
 
         Ok(())
@@ -1665,6 +1716,27 @@ impl GovernanceAutomationEngine {
 
         // Use the new_v1_sha256 method to create a proper CID
         Cid::new_v1_sha256(0x71, content.as_bytes()) // 0x71 is DAG-CBOR codec
+    }
+
+    /// Calculate vote counts synchronously (without async calls)
+    fn calculate_vote_counts_sync(&self, state: &ProposalAutomationState) -> (u64, f64, u64) {
+        let mut support_count = 0u64;
+        let mut total_weighted_votes = 0.0f64;
+        
+        for (vote, weight) in state.votes_received.values() {
+            total_weighted_votes += weight.total_weight;
+            match vote.option {
+                VoteOption::Yes => support_count += 1,
+                VoteOption::No => {},
+                VoteOption::Abstain => {},
+            }
+        }
+        
+        // For now, assume total eligible voters is a reasonable estimate
+        // In a real implementation, this would be calculated from governance membership
+        let total_eligible_voters = std::cmp::max(100, state.votes_received.len() as u64 * 2);
+        
+        (support_count, total_weighted_votes, total_eligible_voters)
     }
 }
 

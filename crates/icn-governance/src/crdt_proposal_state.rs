@@ -377,6 +377,7 @@ impl CRDTProposalState {
     }
 
     /// Create a new proposal.
+    #[allow(clippy::too_many_arguments)]
     pub fn create_proposal(
         &self,
         proposal_id: String,

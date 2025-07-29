@@ -293,8 +293,8 @@ impl AdaptiveRoutingEngine {
                     let mut scored_routes: Vec<(f64, &RouteInfo)> = healthy_routes
                         .iter()
                         .map(|route| {
-                            let score =
-                                route.calculate_score(&self.config.selection_weights, &reputation_cache);
+                            let score = route
+                                .calculate_score(&self.config.selection_weights, &reputation_cache);
                             (score, *route)
                         })
                         .collect();
@@ -504,7 +504,7 @@ impl AdaptiveRoutingEngine {
         if let Some(reputation_store) = &self.reputation_store {
             // Get connected peers and their reputations
             let peers = self.network_service.discover_peers(None).await?;
-            
+
             // Collect all peer reputations first
             let mut peer_reputations = Vec::new();
             for peer in peers {
@@ -513,7 +513,7 @@ impl AdaptiveRoutingEngine {
                     peer_reputations.push((peer, reputation));
                 }
             }
-            
+
             // Update cache in one go (lock held for shorter time)
             {
                 let mut cache = self.peer_reputation_cache.write().unwrap();

@@ -12,7 +12,6 @@ use std::sync::Arc;
 #[cfg(feature = "libp2p")]
 use std::time::Duration;
 
-
 /// Network service environment types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NetworkEnvironment {
@@ -249,7 +248,7 @@ impl NetworkServiceFactory {
             let config = _options.config.clone().unwrap_or_else(|| {
                 NetworkServiceConfig {
                     enable_mdns: true, // Enable mDNS for local development
-                    max_peers: 50, // Smaller peer limit for development
+                    max_peers: 50,     // Smaller peer limit for development
                     ..NetworkServiceConfig::default()
                 }
             });
@@ -293,11 +292,11 @@ impl NetworkServiceFactory {
         {
             let config = _options.config.clone().unwrap_or_else(|| {
                 NetworkServiceConfig {
-                    max_peers: 1000, // Higher peer limit for benchmarking
+                    max_peers: 1000,             // Higher peer limit for benchmarking
                     connection_timeout_ms: 5000, // Faster timeouts
                     request_timeout_ms: 2000,
                     heartbeat_interval_ms: 30000, // Less frequent heartbeats
-                    enable_mdns: false, // Disable mDNS for cleaner benchmarks
+                    enable_mdns: false,           // Disable mDNS for cleaner benchmarks
                     ..NetworkServiceConfig::default()
                 }
             });

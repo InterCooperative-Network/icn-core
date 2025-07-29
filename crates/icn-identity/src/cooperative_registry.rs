@@ -340,7 +340,16 @@ impl CooperativeRegistry {
         required: &crate::cooperative_schemas::TrustLevel,
     ) -> bool {
         use crate::cooperative_schemas::TrustLevel::*;
-        matches!((actual, required), (Full, _) | (Partial, Partial) | (Partial, Basic) | (Partial, None) | (Basic, Basic) | (Basic, None) | (None, None))
+        matches!(
+            (actual, required),
+            (Full, _)
+                | (Partial, Partial)
+                | (Partial, Basic)
+                | (Partial, None)
+                | (Basic, Basic)
+                | (Basic, None)
+                | (None, None)
+        )
     }
 
     /// Check if trust is inherited (simplified implementation)

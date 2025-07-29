@@ -316,9 +316,11 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for mutual credit
-    let token_class_info = resource_ledger.get_class(&config.token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", config.token_class))
-    })?;
+    let token_class_info = resource_ledger
+        .get_class(&config.token_class)
+        .ok_or_else(|| {
+            CommonError::InvalidInputError(format!("Token class {} not found", config.token_class))
+        })?;
 
     if token_class_info.token_type != TokenType::MutualCredit {
         return Err(CommonError::InvalidInputError(
@@ -329,7 +331,9 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     // Check if creditor has sufficient balance to extend credit
     let creditor_balance = resource_ledger.get_balance(&config.token_class, &config.creditor);
     if creditor_balance < config.amount {
-        return Err(CommonError::InsufficientFunds("Creditor has insufficient balance".to_string()));
+        return Err(CommonError::InsufficientFunds(
+            "Creditor has insufficient balance".to_string(),
+        ));
     }
 
     // Generate credit agreement ID
@@ -350,7 +354,8 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         token_class: config.token_class.clone(),
         purpose: config.purpose,
         issue_date: time_provider.unix_seconds(),
-        repayment_deadline: time_provider.unix_seconds() + (config.repayment_period_days * 24 * 60 * 60),
+        repayment_deadline: time_provider.unix_seconds()
+            + (config.repayment_period_days * 24 * 60 * 60),
         status: MutualCreditStatus::Active,
         repayment_history: Vec::new(),
     };

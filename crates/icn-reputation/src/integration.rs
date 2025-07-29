@@ -1068,7 +1068,6 @@ pub struct ReputationIntegrationStats {
 mod tests {
     use super::*;
 
-
     #[test]
     fn test_reputation_integration_config() {
         let config = ReputationIntegrationConfig::default();

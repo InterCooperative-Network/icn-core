@@ -508,11 +508,8 @@ impl EconomicDisputeResolver {
                 let account_balance = mana_ledger.get_balance(&txs[0].did);
 
                 if total_amount.unsigned_abs() > account_balance {
-                    let dispute_id = format!(
-                        "double_spend_{}_{}",
-                        key,
-                                                 self.time_provider.unix_seconds()
-                    );
+                    let dispute_id =
+                        format!("double_spend_{}_{}", key, self.time_provider.unix_seconds());
 
                     disputes.push(EconomicDispute {
                         dispute_id,
@@ -578,7 +575,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "excessive_debits_{}_{}",
                     did,
-                                             self.time_provider.unix_seconds()
+                    self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -608,7 +605,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "missing_credits_{}_{}",
                     did,
-                                             self.time_provider.unix_seconds()
+                    self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -638,7 +635,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "excessive_negative_change_{}_{}",
                     did,
-                                             self.time_provider.unix_seconds()
+                    self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -699,7 +696,7 @@ impl EconomicDisputeResolver {
                 let dispute_id = format!(
                     "price_manipulation_{}_{}",
                     tx.transaction_id,
-                                             self.time_provider.unix_seconds()
+                    self.time_provider.unix_seconds()
                 );
 
                 disputes.push(EconomicDispute {
@@ -708,7 +705,7 @@ impl EconomicDisputeResolver {
                     parties: vec![tx.did.clone()],
                     disputed_amount: Some(tx.amount.unsigned_abs()),
                     disputed_asset: "mana".to_string(),
-                                         filed_at: self.time_provider.unix_seconds(),
+                    filed_at: self.time_provider.unix_seconds(),
                     resolution_status: EconomicResolutionStatus::Filed,
                     evidence: vec![EconomicEvidence::PriceManipulation {
                         asset: "mana".to_string(),
@@ -753,7 +750,7 @@ impl EconomicDisputeResolver {
         // Determine resolution based on dispute type and evidence
         let resolution = self.determine_resolution(&dispute)?;
 
-                 let current_time = self.time_provider.unix_seconds();
+        let current_time = self.time_provider.unix_seconds();
 
         // Update the dispute status
         if let Some(active_dispute) = self.active_disputes.get_mut(dispute_id) {
@@ -875,8 +872,10 @@ impl EconomicDisputeResolver {
                                 .credit(&adjustment.account, adjustment.adjustment_amount as u64)?;
                         }
                         Ordering::Less => {
-                            mana_ledger
-                                .spend(&adjustment.account, (-adjustment.adjustment_amount) as u64)?;
+                            mana_ledger.spend(
+                                &adjustment.account,
+                                (-adjustment.adjustment_amount) as u64,
+                            )?;
                         }
                         Ordering::Equal => {
                             // No adjustment needed
@@ -927,7 +926,7 @@ impl EconomicDisputeResolver {
     /// Process periodic maintenance tasks
     pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
         let mut timed_out_disputes = Vec::new();
-                 let current_time = self.time_provider.unix_seconds();
+        let current_time = self.time_provider.unix_seconds();
 
         // Check for investigation timeouts
         let dispute_ids: Vec<String> = self.active_disputes.keys().cloned().collect();
@@ -1013,7 +1012,7 @@ mod tests {
     #[test]
     fn test_economic_dispute_resolver_creation() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let resolver = EconomicDisputeResolver::new(config, time_provider);
 
         assert_eq!(resolver.active_disputes.len(), 0);
@@ -1023,7 +1022,7 @@ mod tests {
     #[test]
     fn test_file_dispute() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let mut resolver = EconomicDisputeResolver::new(config, time_provider);
 
         let dispute = EconomicDispute {
@@ -1053,7 +1052,7 @@ mod tests {
     #[test]
     fn test_auto_resolution() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let mut resolver = EconomicDisputeResolver::new(config, time_provider);
 
         // Create a small dispute that should be auto-resolved
@@ -1084,7 +1083,7 @@ mod tests {
     #[test]
     fn test_double_spending_detection() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let resolver = EconomicDisputeResolver::new(config, time_provider);
         let ledger = MockManaLedger::default();
 
@@ -1120,7 +1119,7 @@ mod tests {
     #[test]
     fn test_balance_discrepancy_detection() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let resolver = EconomicDisputeResolver::new(config, time_provider);
         let ledger = MockManaLedger::default();
         let test_did = Did::default();
@@ -1192,7 +1191,7 @@ mod tests {
     #[test]
     fn test_dispute_resolution() {
         let config = EconomicDisputeConfig::default();
-                 let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
+        let time_provider = Arc::new(FixedTimeProvider::new(1640995200));
         let mut resolver = EconomicDisputeResolver::new(config, time_provider);
         let authority = Did::default();
         resolver.add_economic_authority(authority.clone());

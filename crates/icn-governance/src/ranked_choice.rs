@@ -201,6 +201,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Count first-choice votes for active candidates (legacy method for compatibility)
+    #[allow(dead_code)]
     fn count_first_choices(
         &self,
         ballots: &[RankedChoiceBallot],
@@ -211,6 +212,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Validate voter eligibility using DID resolver
+    #[allow(dead_code)]
     async fn verify_voter_eligibility(
         &self,
         voter_did_doc: &DidDocument,
@@ -242,6 +244,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Verify DID document integrity and structure
+    #[allow(dead_code)]
     fn verify_did_document_integrity(did_doc: &DidDocument) -> bool {
         // Basic structural validation
         if did_doc.id.to_string().is_empty() {
@@ -260,6 +263,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Check election-specific eligibility requirements
+    #[allow(dead_code)]
     async fn check_election_eligibility(
         voter_did: &Did,
         _election: &Election,
@@ -317,6 +321,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Verify ballot signature using icn-identity
+    #[allow(dead_code)]
     async fn verify_ballot_signature(
         &self,
         ballot: &RankedChoiceBallot,
@@ -430,6 +435,7 @@ impl VotingSystem for RankedChoiceVotingSystem {
 /// Ballot validator for ranked choice ballots
 pub struct RankedChoiceBallotValidator {
     /// DID resolver for signature verification
+    #[allow(dead_code)]
     did_resolver: Arc<dyn DidResolver>,
     /// Track submitted ballots to prevent duplicates
     submitted_ballots: Arc<std::sync::Mutex<HashSet<String>>>,

@@ -158,9 +158,14 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
     time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for time banking
-    let token_class = resource_ledger.get_class(&config.time_token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", config.time_token_class))
-    })?;
+    let token_class = resource_ledger
+        .get_class(&config.time_token_class)
+        .ok_or_else(|| {
+            CommonError::InvalidInputError(format!(
+                "Token class {} not found",
+                config.time_token_class
+            ))
+        })?;
 
     if token_class.token_type != TokenType::TimeBanking {
         return Err(CommonError::InvalidInputError(

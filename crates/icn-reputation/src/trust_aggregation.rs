@@ -581,8 +581,8 @@ impl Default for TrustAggregator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TrustEdge;
     use crate::trust_graph::TrustGraph;
+    use crate::TrustEdge;
     use icn_common::FixedTimeProvider;
     use std::str::FromStr;
 
