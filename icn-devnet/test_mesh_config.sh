@@ -29,12 +29,56 @@ error() {
     exit 1
 }
 
+# Function to find the repository root directory
+find_repo_root() {
+    local current_dir="$(pwd)"
+    local script_dir="$(dirname "$(readlink -f "$0")")"
+    
+    # Try to find git root from current directory
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        git rev-parse --show-toplevel
+        return 0
+    fi
+    
+    # Try to find git root from script directory
+    cd "$script_dir"
+    if git rev-parse --show-toplevel >/dev/null 2>&1; then
+        git rev-parse --show-toplevel
+        return 0
+    fi
+    
+    # Fallback: assume script is in icn-devnet and repo root is parent
+    cd "$script_dir/.."
+    if [ -f "Cargo.toml" ] && [ -d "crates" ]; then
+        pwd
+        return 0
+    fi
+    
+    # Final fallback: current directory
+    echo "$current_dir"
+}
+
+# Detect repository root and set up paths
+REPO_ROOT="$(find_repo_root)"
+DEVNET_DIR="$REPO_ROOT/icn-devnet"
+
 log "🧪 Testing Enhanced P2P Mesh Networking Configuration"
+log "Repository root: $REPO_ROOT"
+log "Devnet directory: $DEVNET_DIR"
 echo ""
+
+# Validate that we found the correct directories
+if [ ! -f "$REPO_ROOT/Cargo.toml" ]; then
+    error "Could not find repository root (no Cargo.toml found at $REPO_ROOT)"
+fi
+
+if [ ! -f "$DEVNET_DIR/docker-compose.yml" ]; then
+    error "Could not find devnet directory (no docker-compose.yml found at $DEVNET_DIR)"
+fi
 
 # Test 1: Validate Docker Compose configuration
 log "Test 1: Validating Docker Compose configuration..."
-cd /home/runner/work/icn-core/icn-core/icn-devnet
+cd "$DEVNET_DIR"
 if docker compose -f docker-compose.yml config --quiet; then
     success "Docker Compose configuration is valid"
 else
@@ -86,7 +130,7 @@ fi
 
 # Test 4: Build verification
 log "Test 4: Verifying build configuration..."
-cd /home/runner/work/icn-core/icn-core
+cd "$REPO_ROOT"
 if cargo check --package icn-node --package icn-network > /dev/null 2>&1; then
     success "Build configuration is valid (cargo check passed)"
 else
@@ -95,7 +139,7 @@ fi
 
 # Test 5: Enhanced launch script validation
 log "Test 5: Validating enhanced launch script..."
-cd icn-devnet
+cd "$DEVNET_DIR"
 if [ -x "./launch_enhanced_federation.sh" ]; then
     success "Enhanced launch script is executable"
 else
@@ -110,7 +154,7 @@ fi
 
 # Test 6: Environment variable configuration
 log "Test 6: Testing environment variable configuration..."
-cd /home/runner/work/icn-core/icn-core
+cd "$REPO_ROOT"
 
 # Check that environment variables are properly configured
 if grep -q "ICN_BOOTSTRAP_INTERVAL_SECS" crates/icn-node/src/config.rs; then
