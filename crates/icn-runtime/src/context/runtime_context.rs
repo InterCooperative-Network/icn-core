@@ -4720,6 +4720,10 @@ mod tests {
                     memory_mb: 2048,
                     storage_mb: 0,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: None,
+                allowed_federations: vec![],
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };

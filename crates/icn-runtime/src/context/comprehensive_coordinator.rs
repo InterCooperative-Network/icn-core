@@ -1724,8 +1724,9 @@ pub struct SystemStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Did, MeshNetworkServiceType, StubMeshNetworkService};
     use icn_common::SystemTimeProvider;
-    use icn_network::{NetworkService, StubNetworkService};
+    use icn_network::{AdaptiveRoutingConfig, NetworkService, StubNetworkService};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;

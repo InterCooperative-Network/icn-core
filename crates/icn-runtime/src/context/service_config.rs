@@ -583,3 +583,20 @@ impl ServiceConfig {
         )
     }
 }
+
+impl std::fmt::Debug for ServiceConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServiceConfig")
+            .field("environment", &self.environment)
+            .field("current_identity", &self.current_identity)
+            .field("mesh_network_service", &"Arc<dyn MeshNetworkService>")
+            .field("signer", &"Arc<dyn Signer>")
+            .field("did_resolver", &"Arc<dyn DidResolver>")
+            .field("dag_store", &self.dag_store)
+            .field("mana_ledger", &self.mana_ledger)
+            .field("reputation_store", &"Arc<dyn ReputationStore>")
+            .field("time_provider", &"Arc<dyn TimeProvider>")
+            .field("policy_enforcer", &self.policy_enforcer.as_ref().map(|_| "Some(Arc<dyn ScopedPolicyEnforcer>)"))
+            .finish()
+    }
+}

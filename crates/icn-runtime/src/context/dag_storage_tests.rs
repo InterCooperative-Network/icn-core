@@ -70,7 +70,7 @@ async fn test_testing_context_uses_stubs() {
     let test_did = Did::from_str("did:key:zTestStubs").unwrap();
 
     // Testing context should always use stubs
-    let ctx = RuntimeContext::new_testing(test_did, Some(100)).unwrap();
+    let ctx = RuntimeContext::new_for_testing(test_did, Some(100)).unwrap();
 
     // Verify it's using stub services
     let dag_store = ctx.dag_store.clone();

@@ -6,7 +6,7 @@
 //! - Testing contexts default to stubs but can use real backends when needed
 //! - Backend selection is based on available features and user preferences
 
-use super::dag_store_wrapper::DagStoreWrapper;
+use super::dag_store_wrapper::{DagStoreType, DagStoreWrapper};
 use super::stubs::StubDagStore;
 use super::DagStoreMutexType;
 use icn_common::CommonError;
@@ -312,16 +312,24 @@ impl DagStoreFactory {
     pub fn recommended_production_backend() -> Result<DagStoreBackend, CommonError> {
         // Preference order: Sled (stable, fast) > RocksDB (high performance) > SQLite (simple) > PostgreSQL (distributed)
         #[cfg(feature = "persist-sled")]
-        return Ok(DagStoreBackend::Sled);
+        {
+            return Ok(DagStoreBackend::Sled);
+        }
 
-        #[cfg(feature = "persist-rocksdb")]
-        return Ok(DagStoreBackend::RocksDB);
+        #[cfg(all(feature = "persist-rocksdb", not(feature = "persist-sled")))]
+        {
+            return Ok(DagStoreBackend::RocksDB);
+        }
 
-        #[cfg(feature = "persist-sqlite")]
-        return Ok(DagStoreBackend::SQLite);
+        #[cfg(all(feature = "persist-sqlite", not(feature = "persist-sled"), not(feature = "persist-rocksdb")))]
+        {
+            return Ok(DagStoreBackend::SQLite);
+        }
 
-        #[cfg(feature = "persist-postgres")]
-        return Ok(DagStoreBackend::PostgreSQL);
+        #[cfg(all(feature = "persist-postgres", not(feature = "persist-sled"), not(feature = "persist-rocksdb"), not(feature = "persist-sqlite")))]
+        {
+            return Ok(DagStoreBackend::PostgreSQL);
+        }
 
         Err(CommonError::ConfigError(
             "No persistent DAG storage backend available for production. Enable at least one of: persist-sled, persist-rocksdb, persist-sqlite, persist-postgres".to_string()
