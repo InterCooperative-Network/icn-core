@@ -63,14 +63,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Validate node count
-if [[ "$NODE_COUNT" != "3" && "$NODE_COUNT" != "10" ]]; then
-    error "Invalid node count: $NODE_COUNT. Only 3 or 10 nodes are supported."
-fi
-
-# Calculate expected peer count for mesh topology
-TARGET_PEERS_PER_NODE=$((NODE_COUNT - 1))
-
 # Node configuration arrays
 declare -a NODE_NAMES=()
 declare -a NODE_URLS=()
@@ -111,6 +103,14 @@ error() {
 info() {
     echo -e "${CYAN}ℹ️  $1${NC}"
 }
+
+# Validate node count
+if [[ "$NODE_COUNT" != "3" && "$NODE_COUNT" != "10" ]]; then
+    error "Invalid node count: $NODE_COUNT. Only 3 or 10 nodes are supported."
+fi
+
+# Calculate expected peer count for mesh topology
+TARGET_PEERS_PER_NODE=$((NODE_COUNT - 1))
 
 # Check prerequisites
 check_prerequisites() {
@@ -267,6 +267,11 @@ wait_for_mesh_convergence() {
         
         for i in "${!NODE_NAMES[@]}"; do
             local peer_count=$(get_peer_count "${NODE_URLS[$i]}" "${NODE_API_KEYS[$i]}")
+            # Ensure peer_count is a valid number, default to 0 if empty
+            peer_count="${peer_count:-0}"
+            if ! [[ "$peer_count" =~ ^[0-9]+$ ]]; then
+                peer_count=0
+            fi
             total_connections=$((total_connections + peer_count))
             
             if [ "$peer_count" -lt "$TARGET_PEERS_PER_NODE" ]; then
@@ -301,6 +306,11 @@ show_convergence_status() {
     
     for i in "${!NODE_NAMES[@]}"; do
         local peer_count=$(get_peer_count "${NODE_URLS[$i]}" "${NODE_API_KEYS[$i]}")
+        # Ensure peer_count is a valid number, default to 0 if empty
+        peer_count="${peer_count:-0}"
+        if ! [[ "$peer_count" =~ ^[0-9]+$ ]]; then
+            peer_count=0
+        fi
         local status_icon="❌"
         
         if [ "$peer_count" -eq "$TARGET_PEERS_PER_NODE" ]; then
