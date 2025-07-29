@@ -279,8 +279,8 @@ mod tests {
         let mut counter2 = GCounter::new("test".to_string());
         counter2.increment(&node_b(), 20).unwrap();
 
-        let mut counter1_copy = counter1.clone();
-        let counter2_copy = counter2.clone();
+        let counter1_copy = counter1.clone();
+        let _counter2_copy = counter2.clone();
 
         // counter1.merge(counter2)
         counter1.merge(&counter2);

@@ -20,7 +20,7 @@ fn main() {
             println!("📋 Contract CID: {}", metadata.cid);
 
             // Basic validation that WASM was generated
-            if wasm_bytes.len() > 0 && wasm_bytes.starts_with(&[0x00, 0x61, 0x73, 0x6D]) {
+            if !wasm_bytes.is_empty() && wasm_bytes.starts_with(&[0x00, 0x61, 0x73, 0x6D]) {
                 println!("🎯 WASM format validation: PASSED");
                 println!("🏆 All advanced identity functions compiled successfully:");
                 println!("   - discover_federations");

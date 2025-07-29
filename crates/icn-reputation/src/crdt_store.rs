@@ -7,7 +7,7 @@
 use crate::ReputationStore;
 use icn_common::{CommonError, Did};
 use icn_crdt::{CRDTMap, NodeId, PNCounter, CRDT};
-use log::{debug, error, warn};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -82,7 +82,7 @@ impl CRDTReputationStore {
         let node_id = NodeId::new(config.node_id.clone());
         let reputation_map = CRDTMap::new("reputation_scores".to_string());
 
-        let mut store = Self {
+        let store = Self {
             node_id,
             reputation_map: Arc::new(RwLock::new(reputation_map)),
             config,

@@ -246,7 +246,7 @@ impl Default for CRDTConfig {
 }
 
 /// Statistics about CRDT operations and performance.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct CRDTStats {
     /// Total number of operations applied.
     pub operations_applied: u64,
@@ -260,19 +260,6 @@ pub struct CRDTStats {
     pub operations_in_memory: u64,
     /// Last synchronization timestamp.
     pub last_sync_timestamp: u64,
-}
-
-impl Default for CRDTStats {
-    fn default() -> Self {
-        Self {
-            operations_applied: 0,
-            merges_performed: 0,
-            conflicts_resolved: 0,
-            state_size_bytes: 0,
-            operations_in_memory: 0,
-            last_sync_timestamp: 0,
-        }
-    }
 }
 
 #[cfg(test)]

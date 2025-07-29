@@ -86,7 +86,7 @@ pub struct ExecutorCapabilities {
     pub supported_platforms: Vec<String>,
 }
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -645,7 +645,7 @@ impl ReputationIntegrationEngine {
     /// Select best network route based on reputation and performance
     pub async fn select_route_with_reputation(
         &self,
-        destination: &Did,
+        _destination: &Did,
         available_routes: &[Vec<PeerId>],
     ) -> Result<ReputationBasedRoutingDecision, CommonError> {
         let mut scored_routes = Vec::new();

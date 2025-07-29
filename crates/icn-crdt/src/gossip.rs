@@ -238,7 +238,7 @@ impl CRDTSynchronizer {
         }
 
         // Send to local handler
-        if let Err(_) = self.operation_sender.send(operation) {
+        if self.operation_sender.send(operation).is_err() {
             warn!("Failed to send operation to local handler");
         }
 
@@ -344,11 +344,8 @@ impl CRDTSynchronizer {
             if selected.len() >= self.config.fanout {
                 break;
             }
-            if !selected.iter().any(|p| p.node_id == peer.node_id) {
-                if fastrand::f64() < (num_random as f64 / (all_peers.len() - selected.len()) as f64)
-                {
-                    selected.push(peer.clone());
-                }
+            if !selected.iter().any(|p| p.node_id == peer.node_id) && fastrand::f64() < (num_random as f64 / (all_peers.len() - selected.len()) as f64) {
+                selected.push(peer.clone());
             }
         }
 
@@ -532,14 +529,14 @@ where
     /// Serialize an operation for gossip.
     fn serialize_operation(op: &Self::Operation) -> CRDTResult<Vec<u8>> {
         bincode::serialize(op).map_err(|e| {
-            CRDTError::SerializationError(format!("Failed to serialize operation: {}", e))
+            CRDTError::SerializationError(format!("Failed to serialize operation: {e}"))
         })
     }
 
     /// Deserialize an operation from gossip.
     fn deserialize_operation(data: &[u8]) -> CRDTResult<Self::Operation> {
         bincode::deserialize(data).map_err(|e| {
-            CRDTError::SerializationError(format!("Failed to deserialize operation: {}", e))
+            CRDTError::SerializationError(format!("Failed to deserialize operation: {e}"))
         })
     }
 }

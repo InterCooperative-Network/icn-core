@@ -15,7 +15,7 @@ pub struct ActionEncoder;
 impl ActionEncoder {
     /// Encode an action as an icn:// URL
     pub fn encode(action: &Action) -> Result<String, ActionError> {
-        let mut url = Url::parse("icn://action").map_err(|e| ActionError::UrlParsing(e))?;
+        let mut url = Url::parse("icn://action").map_err(ActionError::UrlParsing)?;
 
         match action {
             Action::ShareIdentity { did } => {
@@ -131,7 +131,7 @@ impl ActionEncoder {
 
     /// Decode an icn:// URL into an action
     pub fn decode(url_str: &str) -> Result<Action, ActionError> {
-        let url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))?;
+        let url = Url::parse(url_str).map_err(ActionError::UrlParsing)?;
 
         if url.scheme() != "icn" {
             return Err(ActionError::InvalidUrl(format!(
@@ -297,7 +297,7 @@ impl ActionEncoder {
 
     /// Decode a compact URL
     pub fn decode_compact(url_str: &str) -> Result<Action, ActionError> {
-        let url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))?;
+        let url = Url::parse(url_str).map_err(ActionError::UrlParsing)?;
 
         if url.scheme() != "icn" || url.path() != "/x" {
             return Err(ActionError::InvalidUrl("Not a compact ICN URL".to_string()));

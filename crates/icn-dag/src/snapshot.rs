@@ -487,7 +487,7 @@ mod tests {
     fn test_snapshot_manager_creation() {
         let temp_dir = TempDir::new().unwrap();
         let store = SledDagStore::new(temp_dir.path().to_path_buf()).unwrap();
-        let snapshots = DagSnapshots::new(store);
+        let _snapshots = DagSnapshots::new(store);
 
         // Just verify it can be created
         // The actual functionality would need a working store implementation

@@ -195,7 +195,7 @@ impl QrUtils {
 
     /// Create a QR metadata configuration for common use cases
     pub fn config_for_use_case(use_case: &str, size: Option<u32>) -> QrMetadata {
-        let size = size.unwrap_or_else(|| match use_case {
+        let size = size.unwrap_or(match use_case {
             "business_card" => 128,
             "poster" => 512,
             "sticker" => 256,

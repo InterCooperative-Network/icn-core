@@ -6,7 +6,6 @@
 use crate::trust_graph::{TrustEdge, TrustGraph};
 use icn_common::{Did, TimeProvider};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Different types of decay models for trust relationships
 #[derive(Debug, Clone, Serialize, Deserialize)]

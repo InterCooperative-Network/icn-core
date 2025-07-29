@@ -39,11 +39,15 @@ fn test_federation_sync_complete_workflow() {
     let node_b_id = Did::new("key", "node_b");
 
     let store_a = InMemoryDagStore::new();
-    let store_b = InMemoryDagStore::new();
+    let mut store_b = InMemoryDagStore::new();
+
+    // Add a block to store B
+    let test_block = create_test_block("test_block", vec![]);
+    store_b.put(&test_block).unwrap();
 
     let config = FederationSyncConfig::default();
 
-    let mut sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
+    let sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
     let mut sync_b = FederationSync::new(store_b, node_b_id.clone(), config);
 
     // Node A initiates sync with Node B
@@ -189,7 +193,7 @@ fn test_block_request_response_cycle() {
 
     let config = FederationSyncConfig::default();
 
-    let mut sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
+    let sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
     let mut sync_b = FederationSync::new(store_b, node_b_id.clone(), config);
 
     // Node A requests the block from Node B
@@ -240,7 +244,7 @@ fn test_delta_sync_request() {
 
     let config = FederationSyncConfig::default();
 
-    let mut sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
+    let sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
     let mut sync_b = FederationSync::new(store_b, node_b_id.clone(), config);
 
     // Node A requests delta sync from a specific point
