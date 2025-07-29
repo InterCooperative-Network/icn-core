@@ -771,6 +771,6 @@ mod tests {
             "❌ PRODUCTION ERROR: Default storage backend should not be Memory"
         );
 
-        println!("✅ Default storage backend: {:?}", backend);
+        println!("✅ Default storage backend: {backend:?}");
     }
 }

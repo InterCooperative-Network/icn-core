@@ -17,9 +17,10 @@ async fn anchor_receipt_updates_reputation() {
     let did = icn_common::Did::from_str(&did_str).unwrap();
     let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
 
-    let ctx = RuntimeContext::new_with_ledger_path(
+    let ctx = RuntimeContext::new(
         &did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
+        None,
         signer.clone(),
     )
     .unwrap();
