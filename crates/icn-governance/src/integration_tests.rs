@@ -75,7 +75,7 @@ mod tests {
         assert_eq!(result.election_id, ElectionId("election1".to_string()));
         assert!(result.winner.is_some());
         assert_eq!(result.total_ballots, 4);
-        assert!(result.rounds.len() >= 1);
+        assert!(!result.rounds.is_empty());
     }
 
     /// Test governance edge cases and error conditions

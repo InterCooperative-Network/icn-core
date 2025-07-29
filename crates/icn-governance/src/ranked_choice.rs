@@ -224,7 +224,7 @@ impl RankedChoiceVotingSystem {
 
         // Verify the DID document public key matches the resolved key
         // Implement comprehensive DID document verification
-        if !Self::verify_did_document_integrity(&voter_did_doc) {
+        if !Self::verify_did_document_integrity(voter_did_doc) {
             return Err(VotingError::IneligibleVoter(
                 "DID document integrity verification failed".to_string(),
             ));
@@ -539,8 +539,8 @@ impl BallotValidator for RankedChoiceBallotValidator {
 mod tests {
     use super::*;
     use crate::voting::{BallotId, ElectionId, Signature};
-    use icn_common::{CommonError, Did, DidDocument};
-    use icn_identity::{DidResolver, KeyDidResolver};
+    use icn_common::{Did, DidDocument};
+    use icn_identity::KeyDidResolver;
     use std::sync::Arc;
 
     fn create_test_ballot(
@@ -605,7 +605,7 @@ mod tests {
 
         // Charlie should win with 2 first-choice votes (50%)
         // Since we have 4 ballots, majority threshold is 3, so multiple rounds needed
-        assert!(result.rounds.len() >= 1);
+        assert!(!result.rounds.is_empty());
         assert_eq!(result.total_ballots, 4);
     }
 

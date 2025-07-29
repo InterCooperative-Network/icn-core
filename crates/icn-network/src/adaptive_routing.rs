@@ -157,7 +157,7 @@ impl RouteInfo {
         self.usage_count += 1;
 
         // Update success rate (exponential moving average)
-        self.success_rate = self.success_rate * 0.9;
+        self.success_rate *= 0.9;
         self.is_healthy = self.success_rate >= 0.8;
     }
 }
@@ -397,7 +397,7 @@ impl AdaptiveRoutingEngine {
         let mut routes = self.routes.write().unwrap();
         routes
             .entry(destination.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(route.clone());
 
         let _ = self.event_tx.send(RoutingEvent::RouteDiscovered {
@@ -467,7 +467,7 @@ impl AdaptiveRoutingEngine {
         route: RouteInfo,
     ) -> Result<(), MeshNetworkError> {
         let mut routes = self.routes.write().unwrap();
-        let destination_routes = routes.entry(destination.clone()).or_insert_with(Vec::new);
+        let destination_routes = routes.entry(destination.clone()).or_default();
 
         // Don't add duplicate routes
         if !destination_routes.iter().any(|r| r.hops == route.hops) {
@@ -604,8 +604,7 @@ impl AdaptiveRoutingEngine {
         self.routes
             .read()
             .unwrap()
-            .get(destination)
-            .map(|routes| routes.clone())
+            .get(destination).cloned()
             .unwrap_or_default()
     }
 

@@ -72,8 +72,7 @@ mod security_tests {
         // Should be within 5ms of each other due to timing mitigation
         assert!(
             diff.as_millis() < 5,
-            "Timing difference too large: {:?}",
-            diff
+            "Timing difference too large: {diff:?}"
         );
     }
 
@@ -100,8 +99,7 @@ mod security_tests {
             let result = secure_validate_did(&malicious_did, &config);
             assert!(
                 result.is_err(),
-                "Should reject malicious DID: {:?}",
-                malicious_did
+                "Should reject malicious DID: {malicious_did:?}"
             );
         }
     }
@@ -127,8 +125,7 @@ mod security_tests {
             let result = secure_validate_did(&invalid_did, &config);
             assert!(
                 result.is_err(),
-                "Should reject invalid did:key: {:?}",
-                invalid_did
+                "Should reject invalid did:key: {invalid_did:?}"
             );
         }
     }
@@ -156,8 +153,7 @@ mod security_tests {
             let result = did_web_from_parts(domain, &[]);
             assert!(
                 result.is_err(),
-                "Should reject malicious domain: {}",
-                domain
+                "Should reject malicious domain: {domain}"
             );
         }
     }
@@ -178,8 +174,7 @@ mod security_tests {
             let result = secure_validate_did(&invalid_did, &config);
             assert!(
                 result.is_err(),
-                "Should reject invalid did:peer: {:?}",
-                invalid_did
+                "Should reject invalid did:peer: {invalid_did:?}"
             );
         }
     }
@@ -339,8 +334,7 @@ mod security_tests {
 
         assert!(
             diff.as_millis() < TIMING_THRESHOLD_MS,
-            "Timing difference too large: {:?}",
-            diff
+            "Timing difference too large: {diff:?}"
         );
     }
 
@@ -398,12 +392,11 @@ mod security_tests {
         let invalid_base58_chars = vec!["0", "O", "I", "l"]; // Not in base58 alphabet
 
         for invalid_char in invalid_base58_chars {
-            let invalid_did = Did::new("key", &format!("z123{}", invalid_char));
+            let invalid_did = Did::new("key", &format!("z123{invalid_char}"));
             let result = secure_validate_did(&invalid_did, &SecurityConfig::default());
             assert!(
                 result.is_err(),
-                "Should reject invalid base58 character: {}",
-                invalid_char
+                "Should reject invalid base58 character: {invalid_char}"
             );
         }
     }

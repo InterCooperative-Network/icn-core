@@ -944,8 +944,7 @@ mod tests {
             Did::new(parts[1], parts[2])
         } else {
             panic!(
-                "Invalid DID format: expected 'did:method:identifier', got '{}'",
-                issuer_did_string
+                "Invalid DID format: expected 'did:method:identifier', got '{issuer_did_string}'"
             );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);
@@ -1055,8 +1054,7 @@ mod tests {
             Did::new(parts[1], parts[2])
         } else {
             panic!(
-                "Invalid DID format: expected 'did:method:identifier', got '{}'",
-                issuer_did_string
+                "Invalid DID format: expected 'did:method:identifier', got '{issuer_did_string}'"
             );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);
@@ -1121,8 +1119,7 @@ mod tests {
             Did::new(parts[1], parts[2])
         } else {
             panic!(
-                "Invalid DID format: expected 'did:method:identifier', got '{}'",
-                issuer_did_string
+                "Invalid DID format: expected 'did:method:identifier', got '{issuer_did_string}'"
             );
         };
         let sig = crate::sign_message(&sk, &vk_bytes);

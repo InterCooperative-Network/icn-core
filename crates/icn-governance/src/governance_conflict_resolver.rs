@@ -392,7 +392,7 @@ impl GovernanceConflictResolver {
                 voter: suspicious_voters
                     .into_iter()
                     .next()
-                    .unwrap_or_else(Did::default),
+                    .unwrap_or_default(),
                 pattern_description: "Rapid sequential voting detected - possible coordination"
                     .to_string(),
             });
@@ -817,7 +817,7 @@ mod tests {
         // Detect conflicts
         let conflicts = resolver.detect_conflicts(&governance).unwrap();
 
-        assert!(conflicts.len() >= 1);
+        assert!(!conflicts.is_empty());
         assert!(conflicts
             .iter()
             .any(|c| c.conflict_type == GovernanceConflictType::ProceduralViolation));

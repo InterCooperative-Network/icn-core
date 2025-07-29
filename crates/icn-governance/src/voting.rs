@@ -1027,7 +1027,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
     fn add_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError> {
         self.memberships
             .entry(did.clone())
-            .or_insert_with(std::collections::HashSet::new)
+            .or_default()
             .insert(federation_id.to_string());
         Ok(())
     }

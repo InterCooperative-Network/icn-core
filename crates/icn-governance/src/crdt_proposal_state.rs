@@ -7,7 +7,7 @@
 
 use icn_common::{CommonError, Did, TimeProvider};
 use icn_crdt::{CRDTMap, CRDTValue, LWWRegister, NodeId, CRDT};
-use log::{debug, error, warn};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -230,7 +230,7 @@ impl ProposalCRDT {
     /// Add or update a vote for this proposal.
     pub fn cast_vote(&mut self, vote: Vote, node_id: NodeId) -> Result<(), CommonError> {
         let vote_id = format!("vote_{}", vote.voter.to_string());
-        let mut vote_register =
+        let vote_register =
             LWWRegister::with_initial_value(vote_id.clone(), vote.clone(), node_id.clone());
 
         self.votes

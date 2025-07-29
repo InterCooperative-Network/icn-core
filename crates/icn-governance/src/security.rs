@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn test_ballot_structure_validation() {
         let config = GovernanceSecurityConfig::default();
-        let mut validator = SecureBallotValidator::new(config);
+        let validator = SecureBallotValidator::new(config);
 
         let mut ballot = create_test_ballot();
 

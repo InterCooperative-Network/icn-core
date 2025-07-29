@@ -1302,7 +1302,7 @@ mod tests {
                 .lock()
                 .unwrap()
                 .entry(executor_did.clone())
-                .or_insert_with(HashMap::new)
+                .or_default()
                 .insert(capability.to_string(), has_capability);
         }
 

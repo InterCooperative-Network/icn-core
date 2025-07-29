@@ -408,14 +408,14 @@ impl GovernanceAutomationEngine {
                 .insert(voter.clone(), (vote.clone(), vote_weight.clone()));
 
             // Recalculate voting status
-            state.voting_status = self.calculate_voting_status(&state).await?;
+            state.voting_status = self.calculate_voting_status(state).await?;
 
             // Check if quorum is reached
-            if !state.voting_status.quorum_reached && self.check_quorum(&state).await? {
+            if !state.voting_status.quorum_reached && self.check_quorum(state).await? {
                 state.voting_status.quorum_reached = true;
 
                 // Emit quorum reached event
-                let voting_result = self.determine_voting_result(&state).await?;
+                let voting_result = self.determine_voting_result(state).await?;
                 let _ = self.event_tx.send(GovernanceEvent::QuorumReached {
                     proposal_id: proposal_id.clone(),
                     result: voting_result.clone(),
@@ -586,34 +586,32 @@ impl GovernanceAutomationEngine {
                 }
 
                 // Check if proposal is ready for execution
-                if state.voting_status.quorum_reached && !state.execution_attempted {
-                    if state.voting_status.support_percentage >= config.auto_execution_threshold {
-                        // Mark as attempted to prevent retry
-                        state.execution_attempted = true;
+                if state.voting_status.quorum_reached && !state.execution_attempted && state.voting_status.support_percentage >= config.auto_execution_threshold {
+                    // Mark as attempted to prevent retry
+                    state.execution_attempted = true;
 
-                        // Attempt execution in background
-                        let proposal_id_clone = proposal_id.clone();
-                        let governance_clone = governance_module.clone();
-                        let event_tx_clone = event_tx.clone();
-                        let time_provider_clone = time_provider.clone();
+                    // Attempt execution in background
+                    let proposal_id_clone = proposal_id.clone();
+                    let governance_clone = governance_module.clone();
+                    let event_tx_clone = event_tx.clone();
+                    let time_provider_clone = time_provider.clone();
 
-                        tokio::spawn(async move {
-                            if let Err(e) = Self::execute_proposal_async(
-                                &proposal_id_clone,
-                                &governance_clone,
-                                &event_tx_clone,
-                                &time_provider_clone,
-                            )
-                            .await
-                            {
-                                log::error!(
-                                    "Failed to execute proposal {:?}: {}",
-                                    proposal_id_clone,
-                                    e
-                                );
-                            }
-                        });
-                    }
+                    tokio::spawn(async move {
+                        if let Err(e) = Self::execute_proposal_async(
+                            &proposal_id_clone,
+                            &governance_clone,
+                            &event_tx_clone,
+                            &time_provider_clone,
+                        )
+                        .await
+                        {
+                            log::error!(
+                                "Failed to execute proposal {:?}: {}",
+                                proposal_id_clone,
+                                e
+                            );
+                        }
+                    });
                 }
             }
         }
@@ -1703,7 +1701,7 @@ pub enum AutomationVotingResult {
 mod tests {
     use super::*;
     use crate::{Proposal, ProposalId, ProposalStatus, ProposalType};
-    use icn_common::SystemTimeProvider;
+    
     use std::collections::HashMap;
 
     #[test]
@@ -1744,7 +1742,7 @@ mod tests {
             votes: HashMap::new(),
         };
 
-        let mut state = ProposalAutomationState {
+        let state = ProposalAutomationState {
             proposal,
             submitted_at: Instant::now(),
             voting_status: VotingStatus {

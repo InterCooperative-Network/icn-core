@@ -48,7 +48,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ ARRAY OPERATIONS TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Analyzing the issue:");
             let error_str = e.to_string();
@@ -60,7 +60,7 @@ fn main() {
             } else if error_str.contains("Undefined") {
                 println!("   • Function registration issue");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
         }
     }

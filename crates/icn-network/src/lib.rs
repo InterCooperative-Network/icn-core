@@ -34,7 +34,7 @@ use icn_common::{
 };
 use icn_protocol::{MessagePayload, ProtocolMessage};
 #[cfg(feature = "libp2p")]
-use libp2p::{multiaddr::Protocol, Multiaddr, PeerId as Libp2pPeerId};
+use libp2p::{multiaddr::Protocol, PeerId as Libp2pPeerId};
 #[cfg(feature = "libp2p")]
 use log::{info, warn};
 use lru::LruCache;

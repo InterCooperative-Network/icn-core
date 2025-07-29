@@ -234,7 +234,7 @@ fn main() {
             println!("   • Real-world contract scenarios");
         }
         Err(e) => {
-            println!("❌ Governance contract compilation failed: {}", e);
+            println!("❌ Governance contract compilation failed: {e}");
         }
     }
 }

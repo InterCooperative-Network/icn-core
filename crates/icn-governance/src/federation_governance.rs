@@ -890,10 +890,8 @@ impl FederationGovernanceEngine {
         // Check trust levels and contexts
         let mut valid_contexts = HashSet::new();
         for (_attestor, trust_level, context) in &attestations {
-            if gate.required_contexts.contains(context) {
-                if self.meets_minimum_trust(trust_level, &gate.min_trust_level) {
-                    valid_contexts.insert(context.clone());
-                }
+            if gate.required_contexts.contains(context) && self.meets_minimum_trust(trust_level, &gate.min_trust_level) {
+                valid_contexts.insert(context.clone());
             }
         }
 
@@ -970,7 +968,7 @@ impl FederationGovernanceEngine {
     pub fn has_active_sanctions(&self, member: &Did) -> bool {
         self.active_sanctions
             .get(member)
-            .map_or(false, |sanctions| !sanctions.is_empty())
+            .is_some_and(|sanctions| !sanctions.is_empty())
     }
 
     /// Get violations for a member
@@ -1280,7 +1278,7 @@ pub enum FederationGovernanceError {
 mod tests {
     use super::*;
     use icn_identity::{TrustLevel, TrustPolicyRule};
-    use std::str::FromStr;
+    
 
     fn setup_test_governance() -> FederationGovernanceEngine {
         let mut trust_engine = TrustPolicyEngine::new();
