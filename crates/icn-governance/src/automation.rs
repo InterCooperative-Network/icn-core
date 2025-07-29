@@ -1344,7 +1344,10 @@ impl GovernanceAutomationEngine {
             if execution_attempted {
                 log::debug!("Proposal {:?} execution already attempted", proposal_id);
             } else {
-                log::warn!("Proposal {:?} cannot be executed - conditions not met", proposal_id);
+                log::warn!(
+                    "Proposal {:?} cannot be executed - conditions not met",
+                    proposal_id
+                );
             }
             return Ok(());
         }
@@ -1722,20 +1725,20 @@ impl GovernanceAutomationEngine {
     fn calculate_vote_counts_sync(&self, state: &ProposalAutomationState) -> (u64, f64, u64) {
         let mut support_count = 0u64;
         let mut total_weighted_votes = 0.0f64;
-        
+
         for (vote, weight) in state.votes_received.values() {
             total_weighted_votes += weight.total_weight;
             match vote.option {
                 VoteOption::Yes => support_count += 1,
-                VoteOption::No => {},
-                VoteOption::Abstain => {},
+                VoteOption::No => {}
+                VoteOption::Abstain => {}
             }
         }
-        
+
         // For now, assume total eligible voters is a reasonable estimate
         // In a real implementation, this would be calculated from governance membership
         let total_eligible_voters = std::cmp::max(100, state.votes_received.len() as u64 * 2);
-        
+
         (support_count, total_weighted_votes, total_eligible_voters)
     }
 }

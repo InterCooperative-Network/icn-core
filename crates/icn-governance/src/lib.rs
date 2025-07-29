@@ -12,7 +12,7 @@
 //! It handles proposal systems, voting procedures, quorum logic, and decision execution,
 //! focusing on transparency, fairness, and flexibility.
 
-use icn_common::{Cid, CommonError, Did, NodeInfo};
+use icn_common::{Cid, CommonError, Did, NodeInfo, TimeProvider, SystemTimeProvider};
 #[cfg(feature = "federation")]
 #[allow(unused_imports)]
 use icn_network::{MeshNetworkError, NetworkService, PeerId, StubNetworkService};
@@ -354,12 +354,10 @@ impl GovernanceModule {
     pub fn submit_proposal(
         &mut self,
         submission: ProposalSubmission,
+        time_provider: &dyn TimeProvider,
     ) -> Result<ProposalId, CommonError> {
         metrics::SUBMIT_PROPOSAL_CALLS.inc();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = time_provider.unix_seconds();
         let desc_hash_part = submission.description.chars().take(10).collect::<String>();
         let proposal_id_str = format!(
             "prop:{}:{}:{}",
@@ -539,12 +537,10 @@ impl GovernanceModule {
         voter: Did,
         proposal_id: &ProposalId,
         option: VoteOption,
+        time_provider: &dyn TimeProvider,
     ) -> Result<(), CommonError> {
         metrics::CAST_VOTE_CALLS.inc();
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+        let now = time_provider.unix_seconds();
 
         // expire outdated proposals before attempting to cast a vote
         self.expire_proposals(now)?;
@@ -1019,11 +1015,8 @@ impl GovernanceModule {
     }
 
     /// Automatically close all proposals whose voting deadlines have passed.
-    pub fn close_expired_proposals(&mut self) -> Result<(), CommonError> {
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
+    pub fn close_expired_proposals(&mut self, time_provider: &dyn TimeProvider) -> Result<(), CommonError> {
+        let now = time_provider.unix_seconds();
         match &mut self.backend {
             Backend::InMemory { proposals } => {
                 let expired_voting: Vec<ProposalId> = proposals
@@ -1576,7 +1569,7 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = gov.submit_proposal(submission).unwrap();
+        let proposal_id = gov.submit_proposal(submission, &SystemTimeProvider).unwrap();
 
         // Verify proposal is in Deliberation status
         let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
@@ -1614,7 +1607,7 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = gov.submit_proposal(submission).unwrap();
+        let proposal_id = gov.submit_proposal(submission, &SystemTimeProvider).unwrap();
 
         // Verify proposal is in Deliberation status
         let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
@@ -1629,7 +1622,7 @@ mod tests {
         }
 
         // Call close_expired_proposals - this should handle the Deliberation proposal
-        gov.close_expired_proposals().unwrap();
+        gov.close_expired_proposals(&SystemTimeProvider).unwrap();
 
         // Verify the proposal is now Rejected
         let proposal = gov.get_proposal(&proposal_id).unwrap().unwrap();
