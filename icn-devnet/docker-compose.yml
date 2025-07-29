@@ -18,6 +18,9 @@ services:
       - ICN_HTTP_API_KEY=devnet-a-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
+      # Devnet-optimized timing for faster convergence
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5001:7845"  # HTTP API
       - "4001:4001"  # P2P networking
@@ -53,6 +56,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5002:7845"  # HTTP API
       - "4002:4001"  # P2P networking
@@ -91,6 +96,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5003:7845"  # HTTP API
       - "4003:4001"  # P2P networking
@@ -131,6 +138,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5004:7845"  # HTTP API
       - "4004:4001"  # P2P networking
@@ -171,6 +180,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5005:7845"  # HTTP API
       - "4005:4001"  # P2P networking
@@ -210,6 +221,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-e/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5006:7845"  # HTTP API
       - "4006:4001"  # P2P networking
@@ -249,6 +262,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-e/tcp/4001,/dns4/icn-node-f/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5007:7845"  # HTTP API
       - "4007:4001"  # P2P networking
@@ -288,6 +303,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-f/tcp/4001,/dns4/icn-node-g/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5008:7845"  # HTTP API
       - "4008:4001"  # P2P networking
@@ -327,6 +344,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-e/tcp/4001,/dns4/icn-node-g/tcp/4001,/dns4/icn-node-h/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5009:7845"  # HTTP API
       - "4009:4001"  # P2P networking
@@ -366,6 +385,8 @@ services:
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
       - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-h/tcp/4001,/dns4/icn-node-i/tcp/4001
+      - ICN_BOOTSTRAP_INTERVAL_SECS=30
+      - ICN_PEER_DISCOVERY_INTERVAL_SECS=10
     ports:
       - "5010:7845"  # HTTP API
       - "4010:4001"  # P2P networking
