@@ -276,6 +276,7 @@ pub struct EconomicDisputeResolver {
     resolution_history: Vec<EconomicDispute>,
     economic_authorities: HashSet<Did>,
     qualified_arbitrators: HashSet<Did>,
+    #[allow(dead_code)]
     reputation_provider: Option<Box<dyn ReputationProvider>>,
 }
 
@@ -452,7 +453,7 @@ impl EconomicDisputeResolver {
     pub fn detect_disputes<M: ManaLedger, R: ResourceLedger>(
         &mut self,
         mana_ledger: &M,
-        resource_ledger: &R,
+        _resource_ledger: &R,
         recent_transactions: &[ManaTransaction],
     ) -> Result<Vec<EconomicDispute>, CommonError> {
         if !self.config.auto_detection {

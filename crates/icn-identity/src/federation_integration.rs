@@ -467,11 +467,14 @@ pub enum PolicyScope {
 /// Comprehensive federation integration engine
 pub struct FederationIntegrationEngine {
     config: FederationIntegrationConfig,
+    #[allow(dead_code)]
     federation_manager: Arc<FederationManager>,
     network_service: Arc<dyn NetworkService>,
     adaptive_routing: Arc<AdaptiveRoutingEngine>,
+    #[allow(dead_code)]
     governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
     governance_automation: Arc<GovernanceAutomationEngine>,
+    #[allow(dead_code)]
     did_resolver: Arc<dyn DidResolver>,
     reputation_store: Arc<dyn ReputationStore>,
     mana_ledger: Arc<dyn ManaLedger>,
@@ -685,6 +688,7 @@ pub enum RecommendationReason {
 
 impl FederationIntegrationEngine {
     /// Create a new federation integration engine
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: FederationIntegrationConfig,
         federation_manager: Arc<FederationManager>,
@@ -1066,8 +1070,8 @@ impl FederationIntegrationEngine {
         trust_relationships: &Arc<RwLock<HashMap<String, TrustRelationship>>>,
         reputation_store: &Arc<dyn ReputationStore>,
         config: &FederationIntegrationConfig,
-        event_tx: &mpsc::UnboundedSender<FederationEvent>,
-        time_provider: &Arc<dyn TimeProvider>,
+        _event_tx: &mpsc::UnboundedSender<FederationEvent>,
+        _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), CommonError> {
         // Implement trust management logic
 
@@ -1324,7 +1328,7 @@ impl FederationIntegrationEngine {
         let federation_peers = vec!["federation_1", "federation_2"]; // Would be retrieved from registry
 
         for peer in &federation_peers {
-            let sync_message = serde_json::json!({
+            let _sync_message = serde_json::json!({
                 "type": "federation_sync",
                 "data": sync_data,
                 "requestor": config.federation_id
@@ -1370,7 +1374,7 @@ impl FederationIntegrationEngine {
 
         // 2. Generate trust-based recommendations
         let trust_relationships = trust_relationships.read().unwrap();
-        for (federation_id, relationship) in trust_relationships.iter() {
+        for (federation_id, _relationship) in trust_relationships.iter() {
             let reputation =
                 reputation_store.get_reputation(&Did::new("federation", federation_id));
 

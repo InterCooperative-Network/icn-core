@@ -429,7 +429,9 @@ pub struct EconomicAutomationEngine {
     mana_ledger: Arc<dyn ManaLedger>,
     resource_ledger: Arc<dyn ResourceLedger>,
     reputation_store: Arc<dyn ReputationStore>,
+    #[allow(dead_code)]
     governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
+    #[allow(dead_code)]
     dag_store: Arc<TokioMutex<dyn StorageService<DagBlock>>>,
     time_provider: Arc<dyn TimeProvider>,
 
@@ -1804,6 +1806,7 @@ impl EconomicAutomationEngine {
     }
 
     /// Calculate system utilization for pricing adjustments
+    #[allow(dead_code)]
     async fn calculate_system_utilization(
         &self,
         _mana_ledger: &Arc<dyn ManaLedger>,
@@ -1817,6 +1820,7 @@ impl EconomicAutomationEngine {
     }
 
     /// Get allocation metrics for optimization
+    #[allow(dead_code)]
     async fn get_allocation_metrics(&self) -> HashMap<String, AllocationMetrics> {
         let mut metrics = HashMap::new();
 
