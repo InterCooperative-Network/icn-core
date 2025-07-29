@@ -604,7 +604,8 @@ impl AdaptiveRoutingEngine {
         self.routes
             .read()
             .unwrap()
-            .get(destination).cloned()
+            .get(destination)
+            .cloned()
             .unwrap_or_default()
     }
 

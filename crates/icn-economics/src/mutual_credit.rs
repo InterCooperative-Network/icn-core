@@ -350,9 +350,7 @@ pub fn repay_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     let mut transaction = credit_store
         .get_credit_transaction(transaction_id)
         .ok_or_else(|| {
-            CommonError::InvalidInputError(format!(
-                "Credit transaction {transaction_id} not found"
-            ))
+            CommonError::InvalidInputError(format!("Credit transaction {transaction_id} not found"))
         })?;
 
     // Validate repayer

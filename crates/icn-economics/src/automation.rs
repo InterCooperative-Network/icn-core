@@ -885,7 +885,9 @@ impl EconomicAutomationEngine {
                 let mut restriction_list = self.resource_restrictions.write().unwrap();
 
                 // Add time-based restriction
-                let end_time = penalty.duration.map(|duration| self.time_provider.unix_seconds() + duration.as_secs());
+                let end_time = penalty
+                    .duration
+                    .map(|duration| self.time_provider.unix_seconds() + duration.as_secs());
 
                 // Apply restrictions from penalty
                 for restriction in &penalty.restrictions {
@@ -1766,9 +1768,7 @@ impl EconomicAutomationEngine {
                 Ok(bounded_amount)
             }
             Err(e) => {
-                log::error!(
-                    "Failed to allocate {bounded_amount} mana to {recipient}: {e}"
-                );
+                log::error!("Failed to allocate {bounded_amount} mana to {recipient}: {e}");
                 Err(e)
             }
         }

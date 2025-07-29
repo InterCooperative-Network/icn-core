@@ -6,8 +6,8 @@
 
 use icn_common::{Did, FixedTimeProvider};
 use icn_reputation::{
-    AggregationConfig, CombinationMethod, DecayModel, TrustAggregator, TrustCalculationEngine, TrustDecayCalculator, TrustEdge,
-    TrustGraph, TrustPathfinder, TrustSignal,
+    AggregationConfig, CombinationMethod, DecayModel, TrustAggregator, TrustCalculationEngine,
+    TrustDecayCalculator, TrustEdge, TrustGraph, TrustPathfinder, TrustSignal,
 };
 use std::str::FromStr;
 

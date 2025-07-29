@@ -1468,7 +1468,6 @@ pub struct FederationIntegrationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
 
     #[test]
     fn test_federation_integration_config() {

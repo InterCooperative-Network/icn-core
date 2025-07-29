@@ -191,9 +191,7 @@ impl CRDTReputationStore {
         // Update the counter in the map
         self.update_counter(did, counter)?;
 
-        debug!(
-            "Successfully adjusted reputation for DID {did} by {delta}"
-        );
+        debug!("Successfully adjusted reputation for DID {did} by {delta}");
         Ok(())
     }
 
@@ -381,9 +379,7 @@ impl ReputationStore for CRDTReputationStore {
         if let Err(e) = self.adjust_reputation(prover, delta) {
             error!("Failed to record proof attempt for {prover}: {e}");
         } else {
-            debug!(
-                "Recorded proof attempt for {prover}: success={success}, delta={delta}"
-            );
+            debug!("Recorded proof attempt for {prover}: success={success}, delta={delta}");
         }
     }
 }

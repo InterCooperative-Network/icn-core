@@ -586,7 +586,10 @@ impl GovernanceAutomationEngine {
                 }
 
                 // Check if proposal is ready for execution
-                if state.voting_status.quorum_reached && !state.execution_attempted && state.voting_status.support_percentage >= config.auto_execution_threshold {
+                if state.voting_status.quorum_reached
+                    && !state.execution_attempted
+                    && state.voting_status.support_percentage >= config.auto_execution_threshold
+                {
                     // Mark as attempted to prevent retry
                     state.execution_attempted = true;
 
@@ -1701,7 +1704,7 @@ pub enum AutomationVotingResult {
 mod tests {
     use super::*;
     use crate::{Proposal, ProposalId, ProposalStatus, ProposalType};
-    
+
     use std::collections::HashMap;
 
     #[test]

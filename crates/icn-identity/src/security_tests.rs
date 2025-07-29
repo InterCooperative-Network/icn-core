@@ -151,10 +151,7 @@ mod security_tests {
 
         for domain in malicious_domains {
             let result = did_web_from_parts(domain, &[]);
-            assert!(
-                result.is_err(),
-                "Should reject malicious domain: {domain}"
-            );
+            assert!(result.is_err(), "Should reject malicious domain: {domain}");
         }
     }
 

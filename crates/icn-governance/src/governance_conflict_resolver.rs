@@ -389,10 +389,7 @@ impl GovernanceConflictResolver {
                 .collect();
 
             return Some(ConflictEvidence::IrregularVotingPattern {
-                voter: suspicious_voters
-                    .into_iter()
-                    .next()
-                    .unwrap_or_default(),
+                voter: suspicious_voters.into_iter().next().unwrap_or_default(),
                 pattern_description: "Rapid sequential voting detected - possible coordination"
                     .to_string(),
             });

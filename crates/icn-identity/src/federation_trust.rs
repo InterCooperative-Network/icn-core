@@ -1444,9 +1444,8 @@ impl FederationTrustBootstrap {
             .unwrap_or_default()
             .as_secs();
 
-        self.active_sessions.retain(|_, session| {
-            session.expires_at >= now
-        });
+        self.active_sessions
+            .retain(|_, session| session.expires_at >= now);
     }
 }
 

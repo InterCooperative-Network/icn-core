@@ -246,9 +246,7 @@ impl CRDTGroupMembership {
         // Update the OR-Set in the map
         self.update_or_set(group_id, or_set)?;
 
-        debug!(
-            "Successfully removed member {member} from group {group_id}"
-        );
+        debug!("Successfully removed member {member} from group {group_id}");
         Ok(())
     }
 

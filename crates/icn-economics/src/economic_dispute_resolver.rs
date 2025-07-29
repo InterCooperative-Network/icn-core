@@ -920,9 +920,7 @@ impl EconomicDisputeResolver {
             }
             EconomicResolution::NoActionRequired => Ok(()),
             _ => {
-                println!(
-                    "Resolution requires manual implementation: {resolution:?}"
-                );
+                println!("Resolution requires manual implementation: {resolution:?}");
                 Ok(())
             }
         }

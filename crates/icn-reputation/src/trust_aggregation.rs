@@ -485,10 +485,8 @@ impl TrustAggregator {
                 // Bayesian updating
                 let posterior_precision =
                     1.0 / prior_variance + values.len() as f64 / sample_variance;
-                
 
-                (prior_mean / prior_variance
-                    + sample_mean * values.len() as f64 / sample_variance)
+                (prior_mean / prior_variance + sample_mean * values.len() as f64 / sample_variance)
                     / posterior_precision
             }
 

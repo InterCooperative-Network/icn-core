@@ -259,9 +259,7 @@ where
         }
 
         // Create challenge
-        let challenge_id = format!(
-            "challenge-{challenger}-{challenged_subject}-{current_time}"
-        );
+        let challenge_id = format!("challenge-{challenger}-{challenged_subject}-{current_time}");
         let mut challenge = TrustChallenge::new(
             challenge_id.clone(),
             challenger.clone(),

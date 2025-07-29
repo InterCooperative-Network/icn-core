@@ -99,9 +99,8 @@ impl QrGenerator {
     pub fn display_terminal(action_url: &str) -> Result<String, ActionError> {
         #[cfg(feature = "qr")]
         {
-            let code = QrCode::new(action_url).map_err(|e| {
-                ActionError::QrGeneration(format!("Failed to create QR code: {e}"))
-            })?;
+            let code = QrCode::new(action_url)
+                .map_err(|e| ActionError::QrGeneration(format!("Failed to create QR code: {e}")))?;
 
             let string = code
                 .render::<char>()
