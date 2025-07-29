@@ -1,4 +1,4 @@
-use icn_common::Did;
+use icn_common::{Did, FixedTimeProvider};
 use icn_governance::{
     GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
 };
@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 #[test]
 fn execute_new_member_invitation_proposal() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     gov.add_member(Did::from_str("did:example:bob").unwrap());
@@ -22,22 +23,24 @@ fn execute_new_member_invitation_proposal() {
             quorum: None,
             threshold: None,
             content_cid: None,
-        })
+        }, &time_provider)
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
-    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(gov
@@ -49,6 +52,7 @@ fn execute_new_member_invitation_proposal() {
 
 #[test]
 fn execute_remove_member_proposal() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     let mut gov = GovernanceModule::new();
     gov.add_member(Did::from_str("did:example:alice").unwrap());
     gov.add_member(Did::from_str("did:example:bob").unwrap());
@@ -63,22 +67,24 @@ fn execute_remove_member_proposal() {
             quorum: None,
             threshold: None,
             content_cid: None,
-        })
+        }, &time_provider)
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
-    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(!gov
@@ -90,6 +96,7 @@ fn execute_remove_member_proposal() {
 
 #[test]
 fn execute_runs_all_callbacks() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     use std::sync::{
         atomic::{AtomicUsize, Ordering},
         Arc,
@@ -121,22 +128,24 @@ fn execute_runs_all_callbacks() {
             quorum: None,
             threshold: None,
             content_cid: None,
-        })
+        }, &time_provider)
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider
     )
     .unwrap();
-    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert_eq!(counter.load(Ordering::SeqCst), 2);

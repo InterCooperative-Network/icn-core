@@ -653,6 +653,7 @@ impl GovernanceConflictResolver {
 mod tests {
     use super::*;
     use crate::{GovernanceModule, ProposalSubmission, ProposalType};
+    use icn_common::FixedTimeProvider;
     use std::str::FromStr;
 
     #[test]
@@ -666,6 +667,7 @@ mod tests {
 
     #[test]
     fn test_proposal_clash_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
 
@@ -702,14 +704,14 @@ mod tests {
             content_cid: None,
         };
 
-        let id1 = governance.submit_proposal(proposal1).unwrap();
-        let id2 = governance.submit_proposal(proposal2).unwrap();
+        let id1 = governance.submit_proposal(proposal1, &time_provider).unwrap();
+        let id2 = governance.submit_proposal(proposal2, &time_provider).unwrap();
 
         governance.open_voting(&id1).unwrap();
         governance.open_voting(&id2).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -721,6 +723,7 @@ mod tests {
 
     #[test]
     fn test_policy_contradiction_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
 
         // Register a policy that protects certain parameters
@@ -747,11 +750,11 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal).unwrap();
+        let id = governance.submit_proposal(proposal, &time_provider).unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -762,6 +765,7 @@ mod tests {
 
     #[test]
     fn test_procedural_violation_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
 
@@ -779,11 +783,11 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal).unwrap();
+        let id = governance.submit_proposal(proposal, &time_provider).unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver.detect_conflicts(&governance, &time_provider).unwrap();
 
         assert!(!conflicts.is_empty());
         assert!(conflicts
@@ -793,6 +797,7 @@ mod tests {
 
     #[test]
     fn test_conflict_resolution() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let authority = Did::from_str("did:example:authority").unwrap();
         resolver.add_governance_authority(authority.clone());
@@ -816,7 +821,7 @@ mod tests {
 
         // Resolve the conflict
         let result = resolver
-            .resolve_conflict("test_conflict", &authority)
+            .resolve_conflict("test_conflict", &authority, &time_provider)
             .unwrap();
 
         assert!(matches!(

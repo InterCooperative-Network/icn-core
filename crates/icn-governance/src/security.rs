@@ -363,7 +363,7 @@ impl SecureBallotSigner {
 mod tests {
     use super::*;
     use crate::voting::{BallotId, CandidateId, ElectionId};
-    use icn_common::{Did, DidDocument};
+    use icn_common::{Did, DidDocument, FixedTimeProvider};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
     use std::str::FromStr;
 
@@ -414,6 +414,7 @@ mod tests {
 
     #[test]
     fn test_timestamp_validation() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let config = GovernanceSecurityConfig::default();
         let validator = SecureBallotValidator::new(config);
 
@@ -421,12 +422,12 @@ mod tests {
 
         // Test future timestamp
         ballot.timestamp = SystemTime::now() + std::time::Duration::from_secs(1000);
-        let result = validator.validate_timestamp(&ballot);
+        let result = validator.validate_timestamp(&ballot, &time_provider);
         assert!(result.is_err());
 
         // Test very old timestamp
         ballot.timestamp = SystemTime::UNIX_EPOCH;
-        let result = validator.validate_timestamp(&ballot);
+        let result = validator.validate_timestamp(&ballot, &time_provider);
         assert!(result.is_err());
     }
 

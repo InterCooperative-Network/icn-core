@@ -1295,7 +1295,7 @@ mod tests {
 
     #[test]
     fn test_proposal_status_lifecycle() {
-        let engine = setup_test_governance();
+        let _engine = setup_test_governance();
 
         let proposal = FederationProposal {
             id: ProposalId("test_proposal".to_string()),

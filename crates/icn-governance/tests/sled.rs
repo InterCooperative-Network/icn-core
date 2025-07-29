@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
-    use icn_common::Did;
+    use icn_common::{Did, FixedTimeProvider};
     use icn_governance::{
         GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
     };
@@ -9,6 +9,7 @@ mod tests {
 
     #[tokio::test]
     async fn sled_round_trip() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         // temp DB directory
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap(); // Pass PathBuf
@@ -23,7 +24,7 @@ mod tests {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            })
+            }, &time_provider)
             .unwrap();
 
         gov.open_voting(&pid).unwrap();
@@ -33,6 +34,7 @@ mod tests {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
 
@@ -50,6 +52,7 @@ mod tests {
 
     #[tokio::test]
     async fn sled_execute_persist() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
         gov.add_member(Did::from_str("did:example:alice").unwrap());
@@ -64,22 +67,24 @@ mod tests {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            })
+            }, &time_provider)
             .unwrap();
         gov.open_voting(&pid).unwrap();
         gov.cast_vote(
             Did::from_str("did:example:alice").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
         gov.cast_vote(
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
-        let _ = gov.close_voting_period(&pid).unwrap();
+        let _ = gov.close_voting_period(&pid, &time_provider).unwrap();
         gov.execute_proposal(&pid).unwrap();
         drop(gov);
         let gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
@@ -128,6 +133,7 @@ mod tests {
         use icn_governance::Vote;
         use std::time::{SystemTime, UNIX_EPOCH};
 
+        let time_provider = FixedTimeProvider::new(1640995200);
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
         let pid = gov
@@ -139,7 +145,7 @@ mod tests {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            })
+            }, &time_provider)
             .unwrap();
         gov.open_voting(&pid).unwrap();
         drop(gov);
