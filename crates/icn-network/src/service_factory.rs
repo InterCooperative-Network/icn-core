@@ -99,6 +99,66 @@ impl Default for NetworkServiceConfig {
     }
 }
 
+impl NetworkServiceConfig {
+    /// Create a production-ready network service configuration.
+    pub fn production() -> Self {
+        Self {
+            listen_addresses: vec!["/ip4/0.0.0.0/tcp/4001".to_string()],
+            bootstrap_peers: Vec::new(),
+            max_peers: 1000,
+            max_peers_per_ip: 5,
+            connection_timeout_ms: 30000,
+            request_timeout_ms: 10000,
+            heartbeat_interval_ms: 15000,
+            bootstrap_interval_secs: 300,
+            peer_discovery_interval_secs: 60,
+            enable_mdns: false, // Disabled for production security
+            kademlia_replication_factor: 20,
+            protocol_id: Some("icn-prod".to_string()),
+        }
+    }
+
+    /// Create a development-friendly network service configuration.
+    pub fn development() -> Self {
+        Self {
+            listen_addresses: vec!["/ip4/127.0.0.1/tcp/0".to_string()],
+            bootstrap_peers: Vec::new(),
+            max_peers: 100,
+            max_peers_per_ip: 10,
+            connection_timeout_ms: 10000,
+            request_timeout_ms: 5000,
+            heartbeat_interval_ms: 5000,
+            bootstrap_interval_secs: 60,
+            peer_discovery_interval_secs: 30,
+            enable_mdns: true, // Enabled for local development
+            kademlia_replication_factor: 10,
+            protocol_id: Some("icn-dev".to_string()),
+        }
+    }
+
+    /// Create a devnet-optimized network service configuration.
+    ///
+    /// This configuration is specifically designed for devnet federation testing
+    /// with very aggressive timings for rapid mesh formation and convergence.
+    /// **NOT suitable for production use.**
+    pub fn devnet() -> Self {
+        Self {
+            listen_addresses: vec!["/ip4/0.0.0.0/tcp/4001".to_string()],
+            bootstrap_peers: Vec::new(),
+            max_peers: 50, // Sufficient for devnet federation
+            max_peers_per_ip: 10, // Allow multiple containers from same IP
+            connection_timeout_ms: 10000,
+            request_timeout_ms: 5000,
+            heartbeat_interval_ms: 5000,
+            bootstrap_interval_secs: 30, // Much faster re-bootstrap
+            peer_discovery_interval_secs: 10, // Very fast discovery
+            enable_mdns: true, // Helps with local discovery in Docker
+            kademlia_replication_factor: 10, // Lower for smaller networks
+            protocol_id: Some("icn-devnet".to_string()),
+        }
+    }
+}
+
 /// Bootstrap peer information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BootstrapPeer {

@@ -424,6 +424,18 @@ impl NodeConfig {
                 self.p2p.bootstrap_peers = Some(peers);
             }
         }
+        
+        // Support for devnet-optimized timing configuration
+        if let Ok(val) = std::env::var("ICN_BOOTSTRAP_INTERVAL_SECS") {
+            if let Ok(interval) = val.parse::<u64>() {
+                self.p2p.bootstrap_interval_secs = interval;
+            }
+        }
+        if let Ok(val) = std::env::var("ICN_PEER_DISCOVERY_INTERVAL_SECS") {
+            if let Ok(interval) = val.parse::<u64>() {
+                self.p2p.peer_discovery_interval_secs = interval;
+            }
+        }
     }
 
     /// Apply CLI overrides onto this configuration.
