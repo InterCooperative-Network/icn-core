@@ -4652,8 +4652,8 @@ impl RuntimeContext {
 mod tests {
     use super::*;
     use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
-    use icn_mesh::{JobKind, Resources};
-    use icn_protocol::{JobSpec, MeshJobAnnouncementMessage};
+    use icn_mesh::{JobKind, JobSpec as MeshJobSpec, Resources};
+    use icn_protocol::MeshJobAnnouncementMessage;
     use std::str::FromStr;
 
     #[tokio::test]
@@ -4671,7 +4671,7 @@ mod tests {
             manifest_cid: Cid::new_v1_sha256(0x71, b"man"),
             creator_did: did.clone(),
             max_cost_mana: 10,
-            job_spec: JobSpec {
+            job_spec: icn_protocol::JobSpec {
                 kind: icn_protocol::JobKind::Echo {
                     payload: "hi".into(),
                 },
@@ -4709,17 +4709,16 @@ mod tests {
             creator_did: did.clone(),
             cost_mana: 5,
             max_execution_wait_ms: None,
-            spec: JobSpec {
-                kind: icn_protocol::JobKind::Echo {
+            spec: MeshJobSpec {
+                kind: icn_mesh::JobKind::Echo {
                     payload: "hi".into(),
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: icn_protocol::ResourceRequirements {
+                required_resources: icn_mesh::Resources {
                     cpu_cores: 8,
                     memory_mb: 2048,
                     storage_mb: 0,
-                    max_execution_time_secs: 60,
                 },
             },
             signature: icn_identity::SignatureBytes(vec![]),
