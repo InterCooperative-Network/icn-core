@@ -321,12 +321,21 @@ impl DagStoreFactory {
             return Ok(DagStoreBackend::RocksDB);
         }
 
-        #[cfg(all(feature = "persist-sqlite", not(feature = "persist-sled"), not(feature = "persist-rocksdb")))]
+        #[cfg(all(
+            feature = "persist-sqlite",
+            not(feature = "persist-sled"),
+            not(feature = "persist-rocksdb")
+        ))]
         {
             return Ok(DagStoreBackend::SQLite);
         }
 
-        #[cfg(all(feature = "persist-postgres", not(feature = "persist-sled"), not(feature = "persist-rocksdb"), not(feature = "persist-sqlite")))]
+        #[cfg(all(
+            feature = "persist-postgres",
+            not(feature = "persist-sled"),
+            not(feature = "persist-rocksdb"),
+            not(feature = "persist-sqlite")
+        ))]
         {
             return Ok(DagStoreBackend::PostgreSQL);
         }

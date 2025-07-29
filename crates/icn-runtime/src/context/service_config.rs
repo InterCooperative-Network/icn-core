@@ -596,7 +596,13 @@ impl std::fmt::Debug for ServiceConfig {
             .field("mana_ledger", &self.mana_ledger)
             .field("reputation_store", &"Arc<dyn ReputationStore>")
             .field("time_provider", &"Arc<dyn TimeProvider>")
-            .field("policy_enforcer", &self.policy_enforcer.as_ref().map(|_| "Some(Arc<dyn ScopedPolicyEnforcer>)"))
+            .field(
+                "policy_enforcer",
+                &self
+                    .policy_enforcer
+                    .as_ref()
+                    .map(|_| "Some(Arc<dyn ScopedPolicyEnforcer>)"),
+            )
             .finish()
     }
 }
