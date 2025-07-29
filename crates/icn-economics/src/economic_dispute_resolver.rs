@@ -868,12 +868,19 @@ impl EconomicDisputeResolver {
             }
             EconomicResolution::AdjustBalances { adjustments } => {
                 for adjustment in adjustments {
-                    if adjustment.adjustment_amount > 0 {
-                        mana_ledger
-                            .credit(&adjustment.account, adjustment.adjustment_amount as u64)?;
-                    } else if adjustment.adjustment_amount < 0 {
-                        mana_ledger
-                            .spend(&adjustment.account, (-adjustment.adjustment_amount) as u64)?;
+                    use std::cmp::Ordering;
+                    match adjustment.adjustment_amount.cmp(&0) {
+                        Ordering::Greater => {
+                            mana_ledger
+                                .credit(&adjustment.account, adjustment.adjustment_amount as u64)?;
+                        }
+                        Ordering::Less => {
+                            mana_ledger
+                                .spend(&adjustment.account, (-adjustment.adjustment_amount) as u64)?;
+                        }
+                        Ordering::Equal => {
+                            // No adjustment needed
+                        }
                     }
                 }
                 Ok(())

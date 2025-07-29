@@ -274,14 +274,21 @@ impl ManaLedger for CRDTManaLedger {
 
         let current_balance = self.get_balance(did);
 
-        if amount > current_balance {
-            // Need to credit the difference
-            let credit_amount = amount - current_balance;
-            self.credit(did, credit_amount)?;
-        } else if amount < current_balance {
-            // Need to spend the difference
-            let spend_amount = current_balance - amount;
-            self.spend(did, spend_amount)?;
+        use std::cmp::Ordering;
+        match amount.cmp(&current_balance) {
+            Ordering::Greater => {
+                // Need to credit the difference
+                let credit_amount = amount - current_balance;
+                self.credit(did, credit_amount)?;
+            }
+            Ordering::Less => {
+                // Need to spend the difference
+                let spend_amount = current_balance - amount;
+                self.spend(did, spend_amount)?;
+            }
+            Ordering::Equal => {
+                // Amounts are equal, no operation needed
+            }
         }
         // If amounts are equal, no operation needed
 
