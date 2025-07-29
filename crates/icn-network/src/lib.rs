@@ -771,6 +771,28 @@ pub mod libp2p_service {
             }
         }
 
+        /// Create a devnet-optimized network configuration.
+        ///
+        /// This configuration is specifically designed for devnet federation testing
+        /// with very aggressive timings for rapid mesh formation and convergence.
+        /// **NOT suitable for production use.**
+        pub fn devnet() -> Self {
+            Self {
+                listen_addresses: vec!["/ip4/0.0.0.0/tcp/4001".parse().unwrap()],
+                max_peers: 50, // Sufficient for devnet federation
+                max_peers_per_ip: 10, // Allow multiple containers from same IP
+                connection_timeout: Duration::from_secs(10),
+                request_timeout: Duration::from_secs(5),
+                heartbeat_interval: Duration::from_secs(5),
+                bootstrap_interval: Duration::from_secs(30), // Much faster re-bootstrap
+                peer_discovery_interval: Duration::from_secs(10), // Very fast discovery
+                enable_mdns: true, // Helps with local discovery in Docker
+                kademlia_replication_factor: 10, // Lower for smaller networks
+                bootstrap_peers: Vec::new(),
+                discovery_addresses: Vec::new(),
+            }
+        }
+
         /// Validate the network configuration for production readiness.
         ///
         /// Returns an error if the configuration has settings that are not

@@ -35,7 +35,7 @@ services:
       retries: 5
       start_period: 20s
 
-  # Node B - Worker node
+  # Node B - Worker node (bootstrap from A)
   icn-node-b:
     build:
       context: ..
@@ -73,7 +73,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node C - Worker node
+  # Node C - Worker node (bootstrap from A and B)
   icn-node-c:
     build:
       context: ..
@@ -90,7 +90,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-c-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001
     ports:
       - "5003:7845"  # HTTP API
       - "4003:4001"  # P2P networking
@@ -104,6 +104,8 @@ services:
     depends_on:
       icn-node-a:
         condition: service_healthy
+      icn-node-b:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-c-key", "http://localhost:7845/info"]
       interval: 10s
@@ -111,7 +113,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node D - Worker node
+  # Node D - Worker node (bootstrap from A, B, C)
   icn-node-d:
     build:
       context: ..
@@ -128,7 +130,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-d-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001
     ports:
       - "5004:7845"  # HTTP API
       - "4004:4001"  # P2P networking
@@ -142,6 +144,8 @@ services:
     depends_on:
       icn-node-a:
         condition: service_healthy
+      icn-node-b:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-d-key", "http://localhost:7845/info"]
       interval: 10s
@@ -149,7 +153,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node E - Worker node
+  # Node E - Worker node (bootstrap from A, B, C, D)
   icn-node-e:
     build:
       context: ..
@@ -166,7 +170,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-e-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001
     ports:
       - "5005:7845"  # HTTP API
       - "4005:4001"  # P2P networking
@@ -179,6 +183,8 @@ services:
     depends_on:
       icn-node-a:
         condition: service_healthy
+      icn-node-b:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-e-key", "http://localhost:7845/info"]
       interval: 10s
@@ -186,7 +192,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node F - Worker node
+  # Node F - Worker node (bootstrap from A, C, D, E) 
   icn-node-f:
     build:
       context: ..
@@ -203,7 +209,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-f-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-e/tcp/4001
     ports:
       - "5006:7845"  # HTTP API
       - "4006:4001"  # P2P networking
@@ -216,6 +222,8 @@ services:
     depends_on:
       icn-node-a:
         condition: service_healthy
+      icn-node-c:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-f-key", "http://localhost:7845/info"]
       interval: 10s
@@ -223,7 +231,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node G - Worker node
+  # Node G - Worker node (bootstrap from B, C, E, F)
   icn-node-g:
     build:
       context: ..
@@ -240,7 +248,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-g-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-c/tcp/4001,/dns4/icn-node-e/tcp/4001,/dns4/icn-node-f/tcp/4001
     ports:
       - "5007:7845"  # HTTP API
       - "4007:4001"  # P2P networking
@@ -251,7 +259,9 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      icn-node-a:
+      icn-node-b:
+        condition: service_healthy
+      icn-node-c:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-g-key", "http://localhost:7845/info"]
@@ -260,7 +270,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node H - Worker node
+  # Node H - Worker node (bootstrap from A, D, F, G)
   icn-node-h:
     build:
       context: ..
@@ -277,7 +287,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-h-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-f/tcp/4001,/dns4/icn-node-g/tcp/4001
     ports:
       - "5008:7845"  # HTTP API
       - "4008:4001"  # P2P networking
@@ -290,6 +300,8 @@ services:
     depends_on:
       icn-node-a:
         condition: service_healthy
+      icn-node-d:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-h-key", "http://localhost:7845/info"]
       interval: 10s
@@ -297,7 +309,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node I - Worker node
+  # Node I - Worker node (bootstrap from B, E, G, H)
   icn-node-i:
     build:
       context: ..
@@ -314,7 +326,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-i-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-b/tcp/4001,/dns4/icn-node-e/tcp/4001,/dns4/icn-node-g/tcp/4001,/dns4/icn-node-h/tcp/4001
     ports:
       - "5009:7845"  # HTTP API
       - "4009:4001"  # P2P networking
@@ -325,7 +337,9 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      icn-node-a:
+      icn-node-b:
+        condition: service_healthy
+      icn-node-e:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-i-key", "http://localhost:7845/info"]
@@ -334,7 +348,7 @@ services:
       retries: 5
       start_period: 30s
 
-  # Node J - Worker node
+  # Node J - Worker node (bootstrap from C, D, H, I)
   icn-node-j:
     build:
       context: ..
@@ -351,7 +365,7 @@ services:
       - ICN_HTTP_API_KEY=devnet-j-key
       - ICN_LOG_LEVEL=debug
       - RUST_LOG=info,icn_node=debug,icn_runtime=debug,icn_network=debug
-      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-a/tcp/4001
+      - ICN_BOOTSTRAP_PEERS=/dns4/icn-node-c/tcp/4001,/dns4/icn-node-d/tcp/4001,/dns4/icn-node-h/tcp/4001,/dns4/icn-node-i/tcp/4001
     ports:
       - "5010:7845"  # HTTP API
       - "4010:4001"  # P2P networking
@@ -362,7 +376,9 @@ services:
       - peer-coordination:/app/peer_coordination
       - ./certs:/app/certs:ro
     depends_on:
-      icn-node-a:
+      icn-node-c:
+        condition: service_healthy
+      icn-node-d:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "-H", "X-API-Key: devnet-j-key", "http://localhost:7845/info"]

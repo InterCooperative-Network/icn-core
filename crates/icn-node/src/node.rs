@@ -1179,6 +1179,7 @@ pub async fn app_router_with_options(
             .route("/network/local-peer-id", get(network_local_peer_id_handler))
             .route("/network/peers", get(network_peers_handler))
             .route("/network/connect", post(network_connect_handler))
+            .route("/network/discover", post(network_discover_handler))
             .route("/account/{did}/mana", get(account_mana_handler))
             .route("/keys", get(keys_handler))
             .route("/reputation/{did}", get(reputation_handler))
@@ -1966,25 +1967,42 @@ async fn info_handler(State(state): State<AppState>) -> impl IntoResponse {
 // GET /status – Node status derived from RuntimeContext.
 async fn status_handler(State(state): State<AppState>) -> impl IntoResponse {
     #[cfg(feature = "enable-libp2p")]
-    let peer_count = match state.runtime_context.get_libp2p_service() {
+    let (peer_count, network_stats) = match state.runtime_context.get_libp2p_service() {
         Ok(service) => match service.get_network_stats().await {
-            Ok(stats) => stats.peer_count as u32,
-            Err(_) => 0,
+            Ok(stats) => (stats.peer_count as u32, Some(stats)),
+            Err(_) => (0, None),
         },
-        Err(_) => 0,
+        Err(_) => (0, None),
     };
     #[cfg(not(feature = "enable-libp2p"))]
-    let peer_count = 0u32;
+    let (peer_count, network_stats): (u32, Option<icn_network::NetworkStats>) = (0u32, None);
 
     let current_block_height = 0u64; // Placeholder until DAG exposes height
 
-    let status = NodeStatus {
-        is_online: true,
-        peer_count,
-        current_block_height,
-        version: state.node_version.clone(),
-    };
-    (StatusCode::OK, Json(status))
+    let mut status_json = serde_json::json!({
+        "is_online": true,
+        "peer_count": peer_count,
+        "current_block_height": current_block_height,
+        "version": state.node_version.clone(),
+    });
+
+    // Add detailed network stats if available
+    if let Some(stats) = network_stats {
+        status_json["network_stats"] = serde_json::json!({
+            "bytes_sent": stats.bytes_sent,
+            "bytes_received": stats.bytes_received,
+            "messages_sent": stats.messages_sent,
+            "messages_received": stats.messages_received,
+            "failed_connections": stats.failed_connections,
+            "kademlia_peers": stats.kademlia_peers,
+            "avg_latency_ms": stats.avg_latency_ms,
+            "min_latency_ms": stats.min_latency_ms,
+            "max_latency_ms": stats.max_latency_ms,
+            "last_latency_ms": stats.last_latency_ms,
+        });
+    }
+
+    (StatusCode::OK, Json(status_json))
 }
 
 // GET /health – Node health status
@@ -3863,6 +3881,45 @@ async fn network_connect_handler(
         (
             StatusCode::OK,
             Json(serde_json::json!({ "connected": payload.peer })),
+        )
+            .into_response()
+    }
+}
+
+// POST /network/discover - trigger active peer discovery
+async fn network_discover_handler(State(state): State<AppState>) -> impl IntoResponse {
+    #[cfg(feature = "enable-libp2p")]
+    {
+        match state.runtime_context.get_libp2p_service() {
+            Ok(service) => match service.discover_peers(None).await {
+                Ok(peers) => {
+                    let peer_list: Vec<String> = peers.into_iter().map(|p| p.0).collect();
+                    (
+                        StatusCode::OK,
+                        Json(serde_json::json!({
+                            "message": "Peer discovery initiated",
+                            "discovered_peers": peer_list.len(),
+                            "peers": peer_list
+                        })),
+                    )
+                        .into_response()
+                }
+                Err(e) => {
+                    map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response()
+                }
+            },
+            Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
+        }
+    }
+    #[cfg(not(feature = "enable-libp2p"))]
+    {
+        (
+            StatusCode::OK,
+            Json(serde_json::json!({
+                "message": "Peer discovery initiated (stub mode)",
+                "discovered_peers": 0,
+                "peers": []
+            })),
         )
             .into_response()
     }
