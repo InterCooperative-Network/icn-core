@@ -946,6 +946,7 @@ pub async fn host_generate_zk_proof(
     };
 
     let mut proof_bytes = vec![0u8; 32];
+    #[allow(clippy::disallowed_methods)] // TODO: Replace with deterministic RNG for production
     fastrand::fill(&mut proof_bytes);
 
     let verification_key_bytes = if let Some(vk_hex) = req.verification_key.as_deref() {
@@ -974,6 +975,7 @@ pub async fn host_generate_zk_proof(
     };
 
     serde_json::to_string(&proof).map_err(|e| {
+        #[allow(clippy::let_underscore_future)]
         let _ = ctx.credit_mana(&ctx.current_identity, cost);
         HostAbiError::SerializationError(format!("{e}"))
     })

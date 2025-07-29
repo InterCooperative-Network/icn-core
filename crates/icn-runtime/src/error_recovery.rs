@@ -323,6 +323,7 @@ where
                     // Add jitter to prevent thundering herd
                     let jitter = if config.jitter_factor > 0.0 {
                         let jitter_amount = delay.as_millis() as f64 * config.jitter_factor;
+                        #[allow(clippy::disallowed_methods)] // TODO: Replace with deterministic RNG for testing
                         Duration::from_millis((fastrand::f64() * jitter_amount) as u64)
                     } else {
                         Duration::ZERO

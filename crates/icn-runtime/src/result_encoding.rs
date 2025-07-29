@@ -4,7 +4,6 @@
 /// The value is stored in a single `i64` where the high 32 bits contain the
 /// variant tag (`0` for `Ok`, `1` for `Err`) and the low 32 bits contain the
 /// associated `i32` value.
-
 pub fn encode_result_i32(res: Result<i32, i32>) -> i64 {
     match res {
         Ok(v) => (v as u32 as u64) as i64,

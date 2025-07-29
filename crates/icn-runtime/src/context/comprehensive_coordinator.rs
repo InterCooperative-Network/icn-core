@@ -1433,7 +1433,7 @@ impl ComprehensiveCoordinator {
         adaptive_routing: &Arc<AdaptiveRoutingEngine>,
     ) -> Result<(), CommonError> {
         // Extract all data from the health guard before any async operations
-        let (cpu_util, network_util, predicted_cpu, predicted_network) = {
+        let (_cpu_util, _network_util, predicted_cpu, predicted_network) = {
             let health = system_health.read().unwrap();
             let cpu_util = *health.resource_utilization.get("cpu").unwrap_or(&0.0);
             let network_util = *health.resource_utilization.get("network").unwrap_or(&0.0);

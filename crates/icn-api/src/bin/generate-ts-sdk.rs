@@ -3,7 +3,7 @@
 //! This binary generates TypeScript client SDK files from the ICN API definitions.
 //! Usage: cargo run --bin generate-ts-sdk [output-directory]
 
-use icn_api::client_sdk::{sdk_files, TypeScriptGenerator};
+use icn_api::client_sdk::sdk_files;
 use std::env;
 use std::path::PathBuf;
 
@@ -16,13 +16,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         PathBuf::from("./client-sdk")
     };
 
-    println!("Generating TypeScript SDK files in: {:?}", output_dir);
+    println!("Generating TypeScript SDK files in: {output_dir:?}");
 
     // Generate all SDK files
     sdk_files::generate_sdk_files(&output_dir)?;
 
     println!("✅ TypeScript SDK generated successfully!");
-    println!("📁 Files created in: {:?}", output_dir);
+    println!("📁 Files created in: {output_dir:?}");
     println!();
     println!("To use the generated SDK:");
     println!("1. cd {}", output_dir.display());

@@ -252,7 +252,6 @@ impl DefaultMeshNetworkService {
     }
 
     /// Convert a DID to a network PeerId (simplified mapping for now)
-
     /// Enhanced bid filtering with reputation and federation constraints
     async fn filter_bids_by_reputation_and_federation(
         &self,

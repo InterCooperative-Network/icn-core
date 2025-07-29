@@ -341,7 +341,7 @@ impl AdvancedCclWasmBackend {
         // Check cache first
         {
             let cache = self.module_cache.read().await;
-            if let Some(cached) = cache.get(module_cid) {
+            if let Some(_cached) = cache.get(module_cid) {
                 // Update cache statistics
                 {
                     let mut metrics = self.performance_metrics.write().await;
@@ -454,7 +454,7 @@ impl AdvancedCclWasmBackend {
 
         // Create and set resource limiter with proper lifetime management
         // Using Arc<Mutex<>> to handle the wasmtime API lifetime requirements
-        let resource_limiter = std::sync::Arc::new(std::sync::Mutex::new(ResourceLimiter {
+        let _resource_limiter = std::sync::Arc::new(std::sync::Mutex::new(ResourceLimiter {
             max_memory: self.execution_config.max_memory_bytes,
             max_instructions: self.execution_config.max_instructions,
             current_memory: 0,
@@ -549,7 +549,7 @@ impl AdvancedCclWasmBackend {
     }
 
     /// Update execution performance metrics
-    async fn update_execution_metrics(&self, start_time: Instant, result: &CclExecutionResult) {
+    async fn update_execution_metrics(&self, _start_time: Instant, result: &CclExecutionResult) {
         let mut metrics = self.performance_metrics.write().await;
 
         metrics.total_executions += 1;
