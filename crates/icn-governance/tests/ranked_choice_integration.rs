@@ -29,7 +29,7 @@ fn create_test_did_document(id: &str) -> DidDocument {
 }
 
 fn create_test_election() -> Election {
-    let now = SystemTime::now();
+    let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200);
     let voting_period = VotingPeriod {
         start_time: now,
         end_time: now + std::time::Duration::from_secs(3600), // 1 hour voting period
@@ -85,7 +85,7 @@ fn create_test_ballot(
             .into_iter()
             .map(|s| CandidateId(s.to_string()))
             .collect(),
-        timestamp: SystemTime::now(),
+        timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
         signature: Signature {
             algorithm: "ed25519".to_string(),
             value: vec![0u8; 64], // Mock signature

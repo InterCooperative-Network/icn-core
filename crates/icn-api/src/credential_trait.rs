@@ -224,7 +224,7 @@ pub trait CredentialTrait {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::{Cid, Did};
+    use icn_common::Did;
 
     #[test]
     fn test_issue_credential_request_serialization() {

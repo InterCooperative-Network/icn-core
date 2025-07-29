@@ -1179,9 +1179,11 @@ mod tests {
 
     #[test]
     fn test_max_proposals_per_proposer() {
-        let mut config = CRDTProposalStateConfig::default();
-        config.node_id = "test_node".to_string();
-        config.max_proposals_per_proposer = 2;
+        let config = CRDTProposalStateConfig {
+            node_id: "test_node".to_string(),
+            max_proposals_per_proposer: 2,
+            ..Default::default()
+        };
 
         let state = CRDTProposalState::new(config, test_time_provider());
 

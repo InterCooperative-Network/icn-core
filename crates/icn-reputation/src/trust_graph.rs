@@ -210,7 +210,7 @@ mod tests {
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
-        Did::from_str(&format!("did:test:{}", id)).unwrap()
+        Did::from_str(&format!("did:test:{id}")).unwrap()
     }
 
     #[test]

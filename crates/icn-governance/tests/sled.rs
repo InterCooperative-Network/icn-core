@@ -102,15 +102,12 @@ mod tests {
     async fn sled_external_proposal_persists() {
         use icn_governance::{Proposal, ProposalId};
         use std::collections::HashMap;
-        use std::time::{SystemTime, UNIX_EPOCH};
+
 
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = 1640995200u64; // Fixed timestamp
         let pid = ProposalId("ext-prop-1".to_string());
         let proposal = Proposal {
             id: pid.clone(),
@@ -137,7 +134,6 @@ mod tests {
     #[tokio::test]
     async fn sled_external_vote_persists() {
         use icn_governance::Vote;
-        use std::time::{SystemTime, UNIX_EPOCH};
 
         let time_provider = FixedTimeProvider::new(1640995200);
         let dir = tempdir().unwrap();
@@ -160,10 +156,7 @@ mod tests {
         drop(gov);
 
         let mut gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = 1640995201u64; // Fixed timestamp
         let vote = Vote {
             voter: Did::from_str("did:example:bob").unwrap(),
             proposal_id: pid.clone(),

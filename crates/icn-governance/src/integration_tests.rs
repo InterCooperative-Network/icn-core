@@ -332,7 +332,7 @@ mod tests {
                 .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],

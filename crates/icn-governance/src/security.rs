@@ -383,7 +383,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64], // Placeholder
@@ -421,7 +421,7 @@ mod tests {
         let mut ballot = create_test_ballot();
 
         // Test future timestamp
-        ballot.timestamp = SystemTime::now() + std::time::Duration::from_secs(1000);
+        ballot.timestamp = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640996200);
         let result = validator.validate_timestamp(&ballot, &time_provider);
         assert!(result.is_err());
 
@@ -465,7 +465,7 @@ mod tests {
             },
             election_id: ElectionId("test-election".to_string()),
             preferences: vec![CandidateId("alice".to_string())],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],

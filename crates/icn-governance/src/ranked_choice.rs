@@ -566,7 +566,7 @@ mod tests {
                 .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
-            timestamp: std::time::SystemTime::now(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -632,7 +632,7 @@ mod tests {
             },
             election_id: ElectionId("election1".to_string()),
             preferences: vec![], // Empty preferences
-            timestamp: std::time::SystemTime::now(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995201),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
