@@ -38,25 +38,81 @@ impl ManaLedger for InMemoryManaLedger {
     }
 }
 
-
 #[derive(Default)]
 struct InMemoryResourceLedger {
     balances: Mutex<HashMap<(String, Did), u64>>,
 }
 
 impl ResourceLedger for InMemoryResourceLedger {
-    fn create_class(&self, _class_id: &String, _class: icn_economics::TokenClass) -> Result<(), icn_common::CommonError> { Ok(()) }
-    fn get_class(&self, _class_id: &String) -> Option<icn_economics::TokenClass> { None }
-    fn update_class(&self, _class_id: &String, _class: icn_economics::TokenClass) -> Result<(), icn_common::CommonError> { Ok(()) }
-    fn list_classes(&self) -> Vec<(String, icn_economics::TokenClass)> { Vec::new() }
-    fn mint(&self, _class_id: &String, _owner: &Did, _amount: u64) -> Result<(), icn_common::CommonError> { Ok(()) }
-    fn burn(&self, _class_id: &String, _owner: &Did, _amount: u64) -> Result<(), icn_common::CommonError> { Ok(()) }
-    fn transfer(&self, _class_id: &String, _from: &Did, _to: &Did, _amount: u64) -> Result<(), icn_common::CommonError> { Ok(()) }
-    fn get_balance(&self, class_id: &String, owner: &Did) -> u64 {
-        *self.balances.lock().unwrap().get(&(class_id.clone(), owner.clone())).unwrap_or(&0)
+    fn create_class(
+        &self,
+        _class_id: &String,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
     }
-    fn can_transfer(&self, _class_id: &String, _from: &Did, _to: &Did, _amount: u64) -> Result<bool, icn_common::CommonError> { Ok(true) }
-    fn get_transfer_history(&self, _class_id: &String, _did: &Did) -> Vec<icn_economics::TransferRecord> { Vec::new() }
+    fn get_class(&self, _class_id: &String) -> Option<icn_economics::TokenClass> {
+        None
+    }
+    fn update_class(
+        &self,
+        _class_id: &String,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn list_classes(&self) -> Vec<(String, icn_economics::TokenClass)> {
+        Vec::new()
+    }
+    fn mint(
+        &self,
+        _class_id: &String,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn burn(
+        &self,
+        _class_id: &String,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn transfer(
+        &self,
+        _class_id: &String,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn get_balance(&self, class_id: &String, owner: &Did) -> u64 {
+        *self
+            .balances
+            .lock()
+            .unwrap()
+            .get(&(class_id.clone(), owner.clone()))
+            .unwrap_or(&0)
+    }
+    fn can_transfer(
+        &self,
+        _class_id: &String,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<bool, icn_common::CommonError> {
+        Ok(true)
+    }
+    fn get_transfer_history(
+        &self,
+        _class_id: &String,
+        _did: &Did,
+    ) -> Vec<icn_economics::TransferRecord> {
+        Vec::new()
+    }
 }
 
 #[test]
@@ -81,7 +137,10 @@ fn mint_transfer_burn_flow() {
         Some(scope.clone()),
     )
     .unwrap();
-    assert_eq!(repo.ledger().get_balance(&"token".to_string(), &recipient), 5);
+    assert_eq!(
+        repo.ledger().get_balance(&"token".to_string(), &recipient),
+        5
+    );
 
     let other = Did::from_str("did:example:alice").unwrap();
     transfer_tokens(
@@ -95,10 +154,22 @@ fn mint_transfer_burn_flow() {
         Some(scope.clone()),
     )
     .unwrap();
-    assert_eq!(repo.ledger().get_balance(&"token".to_string(), &recipient), 2);
+    assert_eq!(
+        repo.ledger().get_balance(&"token".to_string(), &recipient),
+        2
+    );
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 3);
 
-    burn_tokens(&repo, &mana, &issuer, &"token".to_string(), 2, &other, Some(scope)).unwrap();
+    burn_tokens(
+        &repo,
+        &mana,
+        &issuer,
+        &"token".to_string(),
+        2,
+        &other,
+        Some(scope),
+    )
+    .unwrap();
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 1);
 }
 
@@ -115,8 +186,16 @@ fn mutual_aid_flow() {
     let recipient = Did::from_str("did:example:bob").unwrap();
 
     grant_mutual_aid(&repo, &mana, &issuer, &recipient, 4, Some(scope.clone())).unwrap();
-    assert_eq!(repo.ledger().get_balance(&MUTUAL_AID_CLASS.to_string(), &recipient), 4);
+    assert_eq!(
+        repo.ledger()
+            .get_balance(&MUTUAL_AID_CLASS.to_string(), &recipient),
+        4
+    );
 
     use_mutual_aid(&repo, &mana, &issuer, &recipient, 2, Some(scope)).unwrap();
-    assert_eq!(repo.ledger().get_balance(&MUTUAL_AID_CLASS.to_string(), &recipient), 2);
+    assert_eq!(
+        repo.ledger()
+            .get_balance(&MUTUAL_AID_CLASS.to_string(), &recipient),
+        2
+    );
 }

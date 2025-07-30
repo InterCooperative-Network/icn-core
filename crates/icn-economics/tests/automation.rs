@@ -39,39 +39,75 @@ impl ManaLedger for InMemoryManaLedger {
     }
 }
 
-
 #[derive(Default)]
 struct InMemoryResourceLedger;
 
 impl ResourceLedger for InMemoryResourceLedger {
-    fn create_class(&self, _class_id: &icn_economics::TokenClassId, _class: icn_economics::TokenClass) -> Result<(), icn_common::CommonError> {
+    fn create_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
         Ok(())
     }
-    fn get_class(&self, _class_id: &icn_economics::TokenClassId) -> Option<icn_economics::TokenClass> {
+    fn get_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+    ) -> Option<icn_economics::TokenClass> {
         None
     }
-    fn update_class(&self, _class_id: &icn_economics::TokenClassId, _class: icn_economics::TokenClass) -> Result<(), icn_common::CommonError> {
+    fn update_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
         Ok(())
     }
     fn list_classes(&self) -> Vec<(icn_economics::TokenClassId, icn_economics::TokenClass)> {
         Vec::new()
     }
-    fn mint(&self, _class_id: &icn_economics::TokenClassId, _owner: &Did, _amount: u64) -> Result<(), icn_common::CommonError> {
+    fn mint(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
         Ok(())
     }
-    fn burn(&self, _class_id: &icn_economics::TokenClassId, _owner: &Did, _amount: u64) -> Result<(), icn_common::CommonError> {
+    fn burn(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
         Ok(())
     }
-    fn transfer(&self, _class_id: &icn_economics::TokenClassId, _from: &Did, _to: &Did, _amount: u64) -> Result<(), icn_common::CommonError> {
+    fn transfer(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
         Ok(())
     }
     fn get_balance(&self, _class_id: &icn_economics::TokenClassId, _owner: &Did) -> u64 {
         0
     }
-    fn can_transfer(&self, _class_id: &icn_economics::TokenClassId, _from: &Did, _to: &Did, _amount: u64) -> Result<bool, icn_common::CommonError> {
+    fn can_transfer(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<bool, icn_common::CommonError> {
         Ok(true)
     }
-    fn get_transfer_history(&self, _class_id: &icn_economics::TokenClassId, _did: &Did) -> Vec<icn_economics::TransferRecord> {
+    fn get_transfer_history(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _did: &Did,
+    ) -> Vec<icn_economics::TransferRecord> {
         Vec::new()
     }
 }
