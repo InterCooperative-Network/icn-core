@@ -492,9 +492,10 @@ mod scoped_token_tests {
     #[test]
     fn test_marketplace_functionality() {
         use crate::{
-            InMemoryMarketplaceStore, ItemType, LaborHoursConfig, MarketplaceBid, MarketplaceOffer, PhysicalGoodConfig, ServiceConfig,
+            InMemoryMarketplaceStore, MarketplaceBid, MarketplaceOffer,
             MarketplaceStore, OfferFilter, OfferStatus,
         };
+        use crate::marketplace::{LaborHoursConfig, PhysicalGoodConfig, ServiceConfig};
 
         let marketplace = InMemoryMarketplaceStore::new();
         let seller = Did::from_str("did:key:seller123").unwrap();
