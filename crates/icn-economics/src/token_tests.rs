@@ -5,7 +5,7 @@ mod scoped_token_tests {
         ResourceRepositoryAdapter, TokenClass, TokenType, TransferabilityRule,
     };
     use icn_common::{CommonError, Did, NodeScope};
-    use icn_dag::{InMemoryDagStore};
+    use icn_dag::InMemoryDagStore;
     use icn_reputation::InMemoryReputationStore;
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -491,29 +491,27 @@ mod scoped_token_tests {
 
     #[test]
     fn test_marketplace_functionality() {
-        use crate::{
-            InMemoryMarketplaceStore, MarketplaceBid, MarketplaceOffer,
-            MarketplaceStore, OfferFilter, OfferStatus,
-        };
         use crate::marketplace::{LaborHoursConfig, PhysicalGoodConfig, ServiceConfig};
+        use crate::{
+            InMemoryMarketplaceStore, MarketplaceBid, MarketplaceOffer, MarketplaceStore,
+            OfferFilter, OfferStatus,
+        };
 
         let marketplace = InMemoryMarketplaceStore::new();
         let seller = Did::from_str("did:key:seller123").unwrap();
         let buyer = Did::from_str("did:key:buyer456").unwrap();
 
         // Create an offer for physical goods
-        let offer = MarketplaceOffer::new_physical_good(
-            PhysicalGoodConfig {
-                offer_id: "offer_001".to_string(),
-                seller: seller.clone(),
-                description: "Organic tomatoes from local farm".to_string(),
-                category: "vegetables".to_string(),
-                condition: "fresh".to_string(),
-                quantity: 100, // 100 units
-                price_per_unit: 5,   // 5 tokens per unit
-                payment_token_class: "local_currency".to_string(),
-            }
-        );
+        let offer = MarketplaceOffer::new_physical_good(PhysicalGoodConfig {
+            offer_id: "offer_001".to_string(),
+            seller: seller.clone(),
+            description: "Organic tomatoes from local farm".to_string(),
+            category: "vegetables".to_string(),
+            condition: "fresh".to_string(),
+            quantity: 100,     // 100 units
+            price_per_unit: 5, // 5 tokens per unit
+            payment_token_class: "local_currency".to_string(),
+        });
 
         // Create the offer
         marketplace.create_offer(offer.clone()).unwrap();
@@ -568,18 +566,16 @@ mod scoped_token_tests {
         let seller = Did::from_str("did:key:seller123").unwrap();
 
         // Test service offer
-        let service_offer = MarketplaceOffer::new_service(
-            ServiceConfig {
-                offer_id: "service_001".to_string(),
-                seller: seller.clone(),
-                description: "Web development services".to_string(),
-                category: "software_development".to_string(),
-                duration_hours: 40, // 40 hours available
-                quantity: 1,
-                price_per_unit: 50, // 50 tokens per hour
-                payment_token_class: "time_banking".to_string(),
-            }
-        );
+        let service_offer = MarketplaceOffer::new_service(ServiceConfig {
+            offer_id: "service_001".to_string(),
+            seller: seller.clone(),
+            description: "Web development services".to_string(),
+            category: "software_development".to_string(),
+            duration_hours: 40, // 40 hours available
+            quantity: 1,
+            price_per_unit: 50, // 50 tokens per hour
+            payment_token_class: "time_banking".to_string(),
+        });
 
         if let ItemType::Service {
             service_type,
@@ -593,18 +589,16 @@ mod scoped_token_tests {
         }
 
         // Test labor hours offer
-        let labor_offer = MarketplaceOffer::new_labor_hours(
-            LaborHoursConfig {
-                offer_id: "labor_001".to_string(),
-                seller: seller.clone(),
-                description: "Carpentry work".to_string(),
-                skill_level: "experienced".to_string(),
-                duration_hours: 80, // 80 hours
-                quantity: 1,
-                price_per_unit: 25, // 25 tokens per hour
-                payment_token_class: "time_banking".to_string(),
-            }
-        );
+        let labor_offer = MarketplaceOffer::new_labor_hours(LaborHoursConfig {
+            offer_id: "labor_001".to_string(),
+            seller: seller.clone(),
+            description: "Carpentry work".to_string(),
+            skill_level: "experienced".to_string(),
+            duration_hours: 80, // 80 hours
+            quantity: 1,
+            price_per_unit: 25, // 25 tokens per hour
+            payment_token_class: "time_banking".to_string(),
+        });
 
         if let ItemType::LaborHours {
             skill_type,

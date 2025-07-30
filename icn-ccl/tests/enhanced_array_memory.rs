@@ -21,7 +21,7 @@ fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
 fn test_enhanced_array_memory() {
     // Original test setup
     let thread_count = 4;
-    
+
     let array_size = 100;
     let ccl_source = format!(
         r#"
@@ -93,7 +93,9 @@ fn test_enhanced_array_memory() {
     let exec = WasmExecutor::new(ctx.clone(), wasm_config).unwrap();
 
     let rt = Runtime::new().unwrap();
-    let receipt = rt.block_on(async { exec.execute_job(&job_clone).await }).unwrap();
+    let receipt = rt
+        .block_on(async { exec.execute_job(&job_clone).await })
+        .unwrap();
 
     assert!(receipt.result.success, "Execution should succeed");
 
@@ -121,7 +123,11 @@ fn test_enhanced_array_memory() {
                         "Thread {} completed execution with success: {}",
                         thread_id, receipt.result.success
                     );
-                    assert!(receipt.result.success, "Thread {} execution should succeed", thread_id);
+                    assert!(
+                        receipt.result.success,
+                        "Thread {} execution should succeed",
+                        thread_id
+                    );
                     receipt
                 })
             })
@@ -207,6 +213,9 @@ fn array_dynamic_growth_stress_test() {
         rt.block_on(async { exec.execute_job(&job_clone).await })
     });
     let receipt = handle.join().unwrap().unwrap();
-    assert!(receipt.result.success, "Dynamic array growth should succeed");
+    assert!(
+        receipt.result.success,
+        "Dynamic array growth should succeed"
+    );
     // TODO: Add more specific result checking when array operations are fully implemented
 }
