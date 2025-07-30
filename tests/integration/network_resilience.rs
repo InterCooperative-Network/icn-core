@@ -153,9 +153,9 @@ impl TestCircuitBreaker {
         }
     }
 
-    async fn call<F, Fut>(&mut self, op: F) -> Result<(), &'static str>
+    async fn call<F, Fut>(&mut self, mut op: F) -> Result<(), &'static str>
     where
-        F: Fn() -> Fut,
+        F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<(), reqwest::Error>>,
     {
         self.reset_if_needed();
@@ -276,7 +276,7 @@ async fn test_long_partition_circuit_breaker() {
 #[tokio::test]
 async fn test_stub_network_breaker_open_close() {
     use icn_common::Did;
-    use icn_network::{PeerId, StubNetworkService};
+use icn_network::{PeerId, StubNetworkService, NetworkService};
     use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
     use std::time::Duration;
     use tokio::time::sleep;

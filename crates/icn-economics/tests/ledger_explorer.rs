@@ -1,3 +1,4 @@
+use icn_eventstore::EventStore;
 use icn_common::Did;
 use icn_economics::{FileManaLedger, LedgerEvent, LedgerExplorer, ManaRepositoryAdapter};
 use icn_eventstore::MemoryEventStore;

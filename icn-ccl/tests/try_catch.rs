@@ -27,7 +27,7 @@ async fn compile_and_run(path: &Path, tag: &[u8]) -> icn_identity::ExecutionRece
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let (sk, vk) = generate_ed25519_keypair();

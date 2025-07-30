@@ -5,13 +5,12 @@ use icn_runtime::{
     host_cast_governance_vote, host_close_governance_proposal_voting,
     host_create_governance_proposal, host_execute_governance_proposal,
 };
-use serde_json;
 use std::str::FromStr;
 
 #[tokio::test]
 async fn proposal_can_be_closed_and_executed() {
     // setup context
-    let ctx = RuntimeContext::new_with_stubs("did:icn:test:alice").unwrap();
+    let ctx = RuntimeContext::new_testing("did:icn:test:alice").unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -38,12 +37,14 @@ async fn proposal_can_be_closed_and_executed() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
         gov.cast_vote(
             Did::from_str("did:icn:test:charlie").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
@@ -151,7 +152,7 @@ async fn vote_succeeds_with_sufficient_mana() {
 
 #[tokio::test]
 async fn lifecycle_with_member_add_and_remove() {
-    let ctx = RuntimeContext::new_with_stubs("did:icn:test:alice").unwrap();
+    let ctx = RuntimeContext::new_testing("did:icn:test:alice").unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -176,6 +177,7 @@ async fn lifecycle_with_member_add_and_remove() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
@@ -230,6 +232,7 @@ async fn execution_rewards_proposer() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
@@ -290,7 +293,7 @@ async fn failed_execution_no_rewards() {
 
 #[tokio::test]
 async fn proposal_body_is_stored_in_dag() {
-    let ctx = RuntimeContext::new_with_stubs("did:icn:test:cid").unwrap();
+    let ctx = RuntimeContext::new_testing("did:icn:test:cid").unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:cid").unwrap());
@@ -311,14 +314,14 @@ async fn proposal_body_is_stored_in_dag() {
     let prop = gov.get_proposal(&pid).unwrap().unwrap();
     let cid = prop.content_cid.expect("cid stored");
     drop(gov);
-    let store = ctx.dag_store.lock().await;
+    let store = ctx.dag_store.store.lock().await;
     let block = store.get(&cid).await.unwrap().expect("block stored");
     assert_eq!(block.data, b"full proposal text");
 }
 
 #[tokio::test]
 async fn parameter_change_execution_updates_runtime() {
-    let ctx = RuntimeContext::new_with_stubs("did:icn:test:param").unwrap();
+    let ctx = RuntimeContext::new_testing("did:icn:test:param").unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:param").unwrap());
@@ -344,6 +347,7 @@ async fn parameter_change_execution_updates_runtime() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
@@ -391,6 +395,7 @@ async fn parameter_change_anchors_dag_entry() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
@@ -401,7 +406,7 @@ async fn parameter_change_anchors_dag_entry() {
         .await
         .unwrap();
 
-    let store = ctx.dag_store.lock().await;
+    let store = ctx.dag_store.store.lock().await;
     let blocks = store.list_blocks().await.unwrap();
     let mut found = false;
     for block in blocks {
@@ -445,6 +450,7 @@ async fn budget_allocation_credits_mana() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            ctx.time_provider(),
         )
         .unwrap();
     }
