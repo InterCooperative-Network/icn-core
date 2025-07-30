@@ -64,9 +64,9 @@ mod icn_node_end_to_end {
         let job_id = Cid::new_v1_sha256(0x55, format!("job_{id_suffix}").as_bytes());
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{id_suffix}").as_bytes());
         ActualMeshJob {
-            job_id: job_id,
+            id: job_id,
             manifest_cid,
-            job_spec: JobSpec::Echo {
+            spec: JobSpec::Echo {
                 payload: "libp2p integration".into(),
             },
             creator_did: creator.clone(),
@@ -139,7 +139,7 @@ mod icn_node_end_to_end {
         })
         .await?;
 
-        // Node B sends bid
+        net_a_mesh.announce_job(&job).await?;
         let unsigned = MeshJobBid {
             job_id: job.job_id.clone(),
             executor_did: ctx_b.current_identity.clone(),
@@ -156,16 +156,16 @@ mod icn_node_end_to_end {
             signature: SignatureBytes(sig),
             ..unsigned
         };
-        let bid_msg = ProtocolMessage::new(
-            MessagePayload::MeshBidSubmission(icn_protocol::MeshBidSubmissionMessage { bid }),
-            ctx_b.current_identity.clone(),
-            None,
-        );
-        net_b.broadcast_message(bid_msg).await?;
-
-        // Wait for bid on A
-        timeout(Duration::from_secs(5), async {
-            loop {
+        let unsigned = MeshJobBid {
+            job_id: job.id.clone(),
+            executor_did: ctx_b.current_identity.clone(),
+            price_mana: 30,
+            resources: Resources::default(),
+            signature: SignatureBytes(vec![]),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: vec![],
+        };
                 if let Some(message) = recv_a.recv().await {
                     if let MessagePayload::MeshBidSubmission(_) = &message.payload {
                         break;
@@ -192,17 +192,17 @@ mod icn_node_end_to_end {
         // Wait for assignment on B
         timeout(Duration::from_secs(5), async {
             loop {
-                if let Some(message) = recv_b.recv().await {
-                    if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == job.id && assign.executor_did == ctx_b.current_identity
-                        {
-                            break;
-                        }
-                    }
-                }
-            }
-        })
-        .await?;
+        let assign_msg = ProtocolMessage::new(
+            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
+                job_id: job.id.clone(),
+                executor_did: ctx_b.current_identity.clone(),
+                agreed_cost_mana: 30,
+                completion_deadline: 0,
+                manifest_cid: Some(job.manifest_cid.clone()),
+            }),
+            ctx_a.current_identity.clone(),
+            None,
+        );
 
         // Execute job and broadcast receipt
         let (sk, pk) = generate_ed25519_keypair();

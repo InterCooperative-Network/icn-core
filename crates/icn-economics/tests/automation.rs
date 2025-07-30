@@ -114,7 +114,7 @@ impl ResourceLedger for InMemoryResourceLedger {
 
 #[tokio::test]
 async fn policy_enforcement_min_balance() {
-    let ledger = Arc::new(InMemoryManaLedger::default());
+    let ledger = Arc::new(InMemoryManaLedger {});
     let policies = Arc::new(RwLock::new(HashMap::new()));
     let alice = Did::from_str("did:icn:alice").unwrap();
     ledger.set_balance(&alice, 10).unwrap();
@@ -155,8 +155,8 @@ async fn policy_enforcement_min_balance() {
 
 #[tokio::test]
 async fn health_monitoring_updates_metrics() {
-    let ledger: Arc<dyn ManaLedger> = Arc::new(InMemoryManaLedger::default());
-    let resource: Arc<dyn ResourceLedger> = Arc::new(InMemoryResourceLedger::default());
+    let ledger: Arc<dyn ManaLedger> = Arc::new(InMemoryManaLedger {});
+    let resource: Arc<dyn ResourceLedger> = Arc::new(InMemoryResourceLedger {});
     let metrics = Arc::new(RwLock::new(EconomicHealthMetrics {
         overall_health: 1.0,
         mana_inequality: 0.0,
@@ -195,8 +195,8 @@ async fn market_making_and_prediction() {
     let state = Arc::new(RwLock::new(MarketMakingState {
         positions: std::collections::HashMap::new(),
         inventory: std::collections::HashMap::new(),
-        performance: icn_economics::automation::MarketMakingPerformance::default(),
-        risk_metrics: icn_economics::automation::RiskMetrics::default(),
+        performance: icn_economics::automation::MarketMakingPerformance {},
+        risk_metrics: icn_economics::automation::RiskMetrics {},
     }));
     let model = DynamicPricingModel {
         base_price: 10.0,
