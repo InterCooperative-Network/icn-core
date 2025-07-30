@@ -2,10 +2,10 @@
 mod scoped_token_tests {
     use crate::{
         burn_tokens, mint_tokens, transfer_tokens, ManaLedger, ResourceLedger,
-        ResourceRepositoryAdapter, ScopingRules, TokenClass, TokenType, TransferabilityRule,
+        ResourceRepositoryAdapter, TokenClass, TokenType, TransferabilityRule,
     };
-    use icn_common::{CommonError, DagBlock, Did, NodeScope};
-    use icn_dag::{AsyncStorageService, TokioFileDagStore};
+    use icn_common::{CommonError, Did, NodeScope};
+    use icn_dag::{InMemoryDagStore};
     use icn_reputation::InMemoryReputationStore;
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -302,15 +302,14 @@ mod scoped_token_tests {
         let reputation_store = InMemoryReputationStore::new();
 
         // Create DAG store for anchoring token events
-        let dir = tempdir().unwrap();
-        let dag_store = Box::new(TokioFileDagStore::new(dir.keep()).unwrap());
+        let dag_store = Box::new(InMemoryDagStore::new());
         let mut token_repo = ResourceRepositoryAdapter::with_dag_store(resource_ledger, dag_store);
 
         // Set up test actors
         let issuer = Did::from_str("did:key:issuer123").unwrap();
         let alice = Did::from_str("did:key:alice456").unwrap();
         let bob = Did::from_str("did:key:bob789").unwrap();
-        let scope = Some(NodeScope::Federation("test_coop".to_string()));
+        let scope = Some(NodeScope("test_coop".to_string()));
 
         // Create a token class first
         let coop_shares = TokenClass::new_fungible(

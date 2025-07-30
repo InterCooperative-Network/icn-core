@@ -898,7 +898,7 @@ mod tests {
         };
 
         // Record success
-        route.record_success(Duration::from_millis(50));
+        route.record_success(50);
         assert!(route.success_rate > 0.8);
         assert_eq!(route.usage_count, 1);
 
