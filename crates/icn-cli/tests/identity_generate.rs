@@ -1,4 +1,4 @@
-use assert_cmd::prelude::*;
+// ...existing code...
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
 use std::process::Command;
 

@@ -49,7 +49,7 @@ async fn system_parameter_change_updates_rate_limit() {
                     threshold: None,
                     content_cid: None,
                 },
-                ctx.time_provider,
+                &*ctx.time_provider,
             )
             .unwrap();
         gov.open_voting(&pid).unwrap();
@@ -61,10 +61,10 @@ async fn system_parameter_change_updates_rate_limit() {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider,
+            &*ctx.time_provider,
         )
         .unwrap();
-        gov.close_voting_period(&pid, ctx.time_provider).unwrap();
+        gov.close_voting_period(&pid, &*ctx.time_provider).unwrap();
         gov.execute_proposal(&pid).unwrap();
     }
 

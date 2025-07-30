@@ -23,7 +23,7 @@ async fn governance_persists_between_restarts() {
         None, // auth_token
         None, // rate_limit
         None, // mana ledger backend
-        Some(LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
         None, // storage backend
         None, // storage path
         Some(gov_path.clone()),
@@ -47,7 +47,7 @@ async fn governance_persists_between_restarts() {
                     threshold: None,
                     content_cid: None,
                 },
-                ctx.time_provider,
+                &*ctx.time_provider,
             )
             .unwrap();
         gov.open_voting(&pid).unwrap();
@@ -59,7 +59,7 @@ async fn governance_persists_between_restarts() {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider,
+            &*ctx.time_provider,
         )
         .unwrap();
     }
@@ -73,7 +73,7 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         None,
-        Some(LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
         None,
         None,
         Some(gov_path.clone()),

@@ -408,10 +408,10 @@ mod comprehensive_e2e_test {
             let job_spec = icn_mesh::JobSpec {
                 // ...existing fields...
                 allowed_federations: vec![],
-                min_executor_reputation: 0,
+                min_executor_reputation: Some(0),
                 required_capabilities: vec![],
                 // Add the missing field if needed, e.g. 'timeout: None,'
-                timeout: None,
+                // ...removed timeout field, not present in JobSpec...
                 kind: icn_mesh::JobKind::Echo {
                     payload: format!(
                         "E2E test job - Fibonacci calculation simulation - {}",

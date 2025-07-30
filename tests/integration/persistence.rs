@@ -1,4 +1,4 @@
-#[cfg(all(feature = "persist-rocksdb", feature = "enable-libp2p"))]
+// #[cfg(all(feature = "persist-rocksdb", feature = "enable-libp2p"))]
 mod persistence_rocksdb {
     use icn_common::{compute_merkle_cid, DagBlock, Did};
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
@@ -31,7 +31,7 @@ mod persistence_rocksdb {
                 .await
                 .unwrap(),
         ) as Arc<dyn NetworkService>;
-        let mesh = Arc::new(DefaultMeshNetworkService::new(service));
+        let mesh = Arc::new(DefaultMeshNetworkService::new(service, signer));
         RuntimeContext::new_with_paths(
             id,
             mesh,
@@ -62,23 +62,17 @@ mod persistence_rocksdb {
 
         ctx1.credit_mana(&id, 42).await.unwrap();
         let block = sample_block();
-        ctx1.dag_store.lock().await.put(&block).unwrap();
+        ctx1.dag_store.store.lock().await.put(&block).unwrap();
         drop(ctx1);
 
         let ctx2 = create_ctx(id.clone(), dag_path, mana_path, rep_path).await;
 
         assert_eq!(ctx2.mana_ledger.get_balance(&id), 42);
-        assert!(ctx2
-            .dag_store
-            .lock()
-            .await
-            .get(&block.cid)
-            .unwrap()
-            .is_some());
+        assert!(ctx2.dag_store.store.lock().await.get(&block.cid).unwrap().is_some());
     }
 }
 
-#[cfg(all(feature = "persist-rocksdb", not(feature = "enable-libp2p")))]
+// #[cfg(all(feature = "persist-rocksdb", not(feature = "enable-libp2p")))]
 #[tokio::test]
 async fn libp2p_feature_disabled_stub() {
     println!("libp2p feature disabled; skipping persistence test");

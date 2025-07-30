@@ -1,7 +1,6 @@
 #[cfg(feature = "persist-sled")]
 use icn_common::{compute_merkle_cid, DagBlock, Did};
-use icn_node::{app_router_with_options, config::StorageBackendType, RuntimeMode};
-use icn_runtime::context::LedgerBackend;
+use icn_node::app_router_with_options;
 use std::str::FromStr;
 use tempfile::tempdir;
 
@@ -14,13 +13,13 @@ async fn dag_persists_between_restarts_sled() {
     let dag_path = dir.path().join("dag_db");
 
     let (_router, ctx) = app_router_with_options(
-        RuntimeMode::Test,
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
-        Some(LedgerBackend::Sled(ledger_path.clone())),
-        Some(StorageBackendType::Sled),
+        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
         Some(dag_path.clone()),
+        Some(icn_node::config::StorageBackendType::Sled),
         None,
         None,
         None,
@@ -49,13 +48,13 @@ async fn dag_persists_between_restarts_sled() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
-        RuntimeMode::Test,
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
-        Some(LedgerBackend::Sled(ledger_path.clone())),
-        Some(StorageBackendType::Sled),
+        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
         Some(dag_path.clone()),
+        Some(icn_node::config::StorageBackendType::Sled),
         None,
         None,
         None,

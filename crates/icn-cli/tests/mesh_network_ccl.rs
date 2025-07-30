@@ -1,6 +1,5 @@
 use assert_cmd::prelude::*;
-use base64;
-use bincode;
+use base64::Engine;
 use icn_mesh::{JobKind, JobSpec};
 use icn_node::app_router;
 use predicates::prelude::PredicateBooleanExt;
@@ -29,7 +28,7 @@ async fn mesh_network_and_ccl_commands() {
     };
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
-        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_bytes": base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&spec).unwrap()),
         "spec_json": null,
         "cost_mana": 10
     })

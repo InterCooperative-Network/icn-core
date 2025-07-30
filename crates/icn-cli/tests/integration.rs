@@ -1,7 +1,7 @@
-use assert_cmd::prelude::*;
+// ...existing code...
 use base64::prelude::*;
 use icn_node::app_router;
-use predicates::prelude::*;
+// ...existing code...
 use std::process::Command;
 use tokio::task;
 
@@ -52,7 +52,7 @@ async fn test_dag_put_get_workflow() {
 
     // Get the block back
     let get_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        // ...existing code...
         let base = base.clone();
         move || {
             Command::new(bin)
@@ -97,7 +97,7 @@ async fn test_mesh_job_workflow() {
     .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        // ...existing code...
         let base = base.clone();
         let job_request = job_request.clone();
         move || {

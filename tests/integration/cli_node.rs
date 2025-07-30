@@ -1,6 +1,5 @@
 use assert_cmd::prelude::*;
-use base64;
-use bincode;
+use base64::Engine;
 use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
 use icn_mesh::{JobKind, JobSpec};
 use icn_node::app_router;
@@ -183,7 +182,7 @@ async fn mesh_job_via_cli() {
     };
     let job_req = serde_json::json!({
         "manifest_cid": "bafytestmanifest",
-        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_bytes": base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&spec).unwrap()),
         "spec_json": null,
         "cost_mana": 10
     })

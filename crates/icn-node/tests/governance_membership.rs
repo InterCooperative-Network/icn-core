@@ -9,7 +9,7 @@ use tokio::task;
 #[tokio::test]
 async fn add_and_remove_member_via_http() {
     let (router, ctx) = app_router_with_options(
-        icn_node::RuntimeMode::Test,
+        icn_node::RuntimeMode::Development,
         None, // api_key
         None, // auth_token
         None, // rate_limit
@@ -159,6 +159,7 @@ async fn add_and_remove_member_via_http() {
 async fn governance_membership_required_for_vote() {
     let router = {
         let (_router, _ctx) = app_router_with_options(
+            icn_node::RuntimeMode::Development,
             None, // api_key
             None, // auth_token
             None, // rate_limit
@@ -169,7 +170,7 @@ async fn governance_membership_required_for_vote() {
             None, // governance_db_path
             None, // reputation_db_path
             None, // parameter_store_path
-        )
+        ).await;
         .await;
         _router
     };
