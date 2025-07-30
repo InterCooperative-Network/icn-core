@@ -1243,7 +1243,7 @@ async fn test_checkpoint_dag_anchoring() -> Result<(), Box<dyn std::error::Error
     let checkpoint_cid = ctx.anchor_checkpoint(&checkpoint).await?;
 
     // Verify checkpoint was stored in DAG
-    let dag_store = ctx.dag_store.lock().await;
+    let dag_store = ctx.dag_store.store.lock().await;
     let stored_block = dag_store.get(&checkpoint_cid).unwrap().unwrap();
 
     assert_eq!(stored_block.cid, checkpoint_cid);
@@ -1300,7 +1300,7 @@ async fn test_partial_output_dag_anchoring() -> Result<(), Box<dyn std::error::E
     let output_cid = ctx.anchor_partial_output(&partial_output).await?;
 
     // Verify partial output was stored in DAG
-    let dag_store = ctx.dag_store.lock().await;
+    let dag_store = ctx.dag_store.store.lock().await;
     let stored_block = dag_store.get(&output_cid).unwrap().unwrap();
 
     assert_eq!(stored_block.cid, output_cid);
