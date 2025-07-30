@@ -15,6 +15,21 @@ fn file_resource_ledger_persists() {
             &class_id,
             TokenClass {
                 name: "Gold".into(),
+                description: "Test gold token".into(),
+                symbol: "GLD".into(),
+                decimals: 2,
+                token_type: icn_economics::ledger::TokenType::Fungible,
+                transferability: icn_economics::ledger::TransferabilityRule::FreelyTransferable,
+                scoping_rules: icn_economics::ledger::ScopingRules {
+                    geographic_scope: None,
+                    community_scope: None,
+                    validity_period: None,
+                    max_supply: None,
+                    min_balance: None,
+                },
+                issuer: Did::from_str("did:example:issuer").unwrap(),
+                created_at: 0,
+                metadata: std::collections::HashMap::new(),
             },
         )
         .unwrap();

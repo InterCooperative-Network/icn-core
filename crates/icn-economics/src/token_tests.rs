@@ -562,6 +562,7 @@ mod scoped_token_tests {
     #[test]
     fn test_marketplace_item_types() {
         use crate::{ItemType, MarketplaceOffer};
+        use crate::marketplace::{ServiceConfig, LaborHoursConfig};
 
         let seller = Did::from_str("did:key:seller123").unwrap();
 

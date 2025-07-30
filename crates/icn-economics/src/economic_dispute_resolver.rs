@@ -1,11 +1,12 @@
-//! Economic Dispute Resolution
-//!
-//! This module implements dispute resolution for economic conflicts such as:
-//! - Mana distribution disputes
-//! - Resource allocation conflicts
-//! - Token transfer disputes
-//! - Marketplace transaction disputes
-//! - Mutual credit disagreements
+use icn_core_traits::economics::TransactionType;
+// Economic Dispute Resolution
+//
+// This module implements dispute resolution for economic conflicts such as:
+// - Mana distribution disputes
+// - Resource allocation conflicts
+// - Token transfer disputes
+// - Marketplace transaction disputes
+// - Mutual credit disagreements
 
 use crate::{ManaLedger, ResourceLedger};
 use icn_common::{CommonError, Did, NodeScope, TimeProvider};
