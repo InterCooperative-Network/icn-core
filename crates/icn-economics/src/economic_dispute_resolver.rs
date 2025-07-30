@@ -8,7 +8,7 @@
 //! - Mutual credit disagreements
 
 use crate::{ManaLedger, ResourceLedger};
-use icn_common::{compute_merkle_cid, CommonError, Did, NodeScope, TimeProvider};
+use icn_common::{CommonError, Did, NodeScope, TimeProvider};
 
 #[cfg(test)]
 use icn_common::FixedTimeProvider;
