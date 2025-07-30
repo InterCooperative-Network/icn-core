@@ -20,7 +20,7 @@ async fn validator_enforces_memory_pages() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -66,7 +66,7 @@ async fn validator_enforces_function_limit() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -112,7 +112,7 @@ async fn resource_limiter_blocks_growth() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {

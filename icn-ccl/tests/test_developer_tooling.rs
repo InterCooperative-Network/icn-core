@@ -1,7 +1,6 @@
 // icn-ccl/tests/test_developer_tooling.rs
 //! Integration tests for CCL developer tooling
 
-use std::path::PathBuf;
 use tempfile::tempdir;
 
 #[test]
