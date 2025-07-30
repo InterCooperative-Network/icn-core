@@ -35,7 +35,7 @@ async fn dag_storage_via_cli() {
     let block_json = serde_json::to_string(&block).unwrap();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let output = task::spawn_blocking(move || {
         Command::new(bin)
             .args(["--api-url", &base, "dag", "put", &block_json])
@@ -49,7 +49,7 @@ async fn dag_storage_via_cli() {
     assert!(stdout.contains(&cid.to_string()));
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base2 = format!("http://{}", addr);
+    let base2 = format!("http://{addr}");
     let cid_json = serde_json::to_string(&cid).unwrap();
     let output = task::spawn_blocking(move || {
         Command::new(bin)
@@ -79,7 +79,7 @@ async fn governance_proposal_via_cli() {
     sleep(Duration::from_millis(100)).await;
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let submit_json = serde_json::json!({
         "proposer_did": "did:example:alice",
         "proposal": { "type": "GenericText", "data": { "text": "hi" } },
@@ -103,7 +103,7 @@ async fn governance_proposal_via_cli() {
     let pid = stdout[start + 1..end].to_string();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let pid_clone = pid.clone();
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -116,7 +116,7 @@ async fn governance_proposal_via_cli() {
     .unwrap();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let pid_owned = pid.clone();
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -135,7 +135,7 @@ async fn governance_proposal_via_cli() {
     })
     .to_string();
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     task::spawn_blocking(move || {
         Command::new(bin)
             .args(["--api-url", &base, "governance", "vote", &vote_json])
@@ -147,7 +147,7 @@ async fn governance_proposal_via_cli() {
     .unwrap();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let pid_for_tally = pid.clone();
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -188,7 +188,7 @@ async fn mesh_job_via_cli() {
     })
     .to_string();
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let output = task::spawn_blocking(move || {
         Command::new(bin)
             .args(["--api-url", &base, "submit-job", &job_req])
@@ -203,7 +203,7 @@ async fn mesh_job_via_cli() {
     let job_id = body["job_id"].as_str().unwrap().to_string();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let job_id_clone = job_id.clone();
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -216,7 +216,7 @@ async fn mesh_job_via_cli() {
     .unwrap();
 
     let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let job_id_clone2 = job_id.clone();
     task::spawn_blocking(move || {
         Command::new(bin)

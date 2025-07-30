@@ -410,6 +410,7 @@ mod comprehensive_e2e_test {
                 allowed_federations: vec![],
                 min_executor_reputation: Some(0),
                 required_capabilities: vec![],
+                required_trust_scope: None,
                 // Add the missing field if needed, e.g. 'timeout: None,'
                 // ...removed timeout field, not present in JobSpec...
                 kind: icn_mesh::JobKind::Echo {

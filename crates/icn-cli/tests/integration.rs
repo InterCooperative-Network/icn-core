@@ -118,7 +118,6 @@ async fn test_mesh_job_workflow() {
 
     // List jobs and verify our job appears
     let list_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         move || {
             Command::new(bin)
@@ -136,7 +135,6 @@ async fn test_mesh_job_workflow() {
 
     // Check job status
     let status_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         let job_id = job_id.to_string();
         move || {
@@ -185,7 +183,6 @@ async fn test_governance_workflow() {
     .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         let proposal_request = proposal_request.clone();
         move || {
@@ -211,7 +208,6 @@ async fn test_governance_workflow() {
 
     // List proposals and verify our proposal appears
     let list_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         move || {
             Command::new(bin)

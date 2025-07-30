@@ -1,13 +1,13 @@
 use once_cell::sync::OnceCell;
 use serde_json::Value;
-use std::{process::Command, time::Duration};
+use std::{process::Command, sync::Arc, time::Duration};
 use tokio::{sync::Mutex, time::sleep};
 
 const NODE_PORTS: [u16; 10] = [5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5010];
 const MAX_RETRIES: u32 = 30;
 const RETRY_DELAY: Duration = Duration::from_secs(2);
 
-static DEVNET_LOCK: OnceCell<Mutex<()>> = OnceCell::new();
+static DEVNET_LOCK: OnceCell<Arc<Mutex<()>>> = OnceCell::new();
 
 pub struct TenDevnetGuard {
     _guard: tokio::sync::OwnedMutexGuard<()>,
@@ -27,8 +27,8 @@ pub async fn ensure_10node_devnet() -> Option<TenDevnetGuard> {
         wait_for_10node_ready().await.ok();
         return None;
     }
-    let lock = DEVNET_LOCK.get_or_init(|| Mutex::new(()));
-    let guard = lock.lock().await;
+    let lock = DEVNET_LOCK.get_or_init(|| Arc::new(Mutex::new(())));
+    let guard = lock.lock_owned().await;
 
     Command::new("bash")
         .arg("./scripts/run_10node_devnet.sh")
