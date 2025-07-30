@@ -406,6 +406,12 @@ mod comprehensive_e2e_test {
 
             // Submit a real computational job using Echo format (proven to work)
             let job_spec = icn_mesh::JobSpec {
+                // ...existing fields...
+                allowed_federations: vec![],
+                min_executor_reputation: 0,
+                required_capabilities: vec![],
+                // Add the missing field if needed, e.g. 'timeout: None,'
+                timeout: None,
                 kind: icn_mesh::JobKind::Echo {
                     payload: format!(
                         "E2E test job - Fibonacci calculation simulation - {}",

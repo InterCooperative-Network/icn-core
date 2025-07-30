@@ -1,7 +1,7 @@
 #[path = "federation.rs"]
 mod federation;
 
-use base64;
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
 use bincode;
 use federation::{ensure_devnet, wait_for_federation_ready, NODE_A_URL, NODE_C_URL};
 use icn_common::retry_with_backoff;
@@ -38,7 +38,7 @@ async fn test_network_resilience() {
     };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-resilience-test-manifest",
-        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_bytes": BASE64_ENGINE.encode(bincode::serialize(&spec).unwrap()),
         "spec_json": null,
         "cost_mana": 50
     });

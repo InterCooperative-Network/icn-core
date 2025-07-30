@@ -35,7 +35,7 @@ async fn test_dag_put_get_workflow() {
 
     // Put the block
     let put_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        // ...existing code...
         let base = base.clone();
         let dag_block = dag_block.clone();
         move || {

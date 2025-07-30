@@ -1,6 +1,5 @@
-use base64;
-use bincode;
-use icn_mesh::{JobKind, JobSpec};
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+use base64::Engine;
 use icn_node::{app_router_with_options, RuntimeMode};
 use once_cell::sync::OnceCell;
 use serde_json::Value;
@@ -25,7 +24,7 @@ pub struct DevnetGuard {
 impl Drop for DevnetGuard {
     fn drop(&mut self) {
         let _ = Command::new("docker-compose")
-            .args(&[
+            .args([
                 "-f",
                 "icn-devnet/docker-compose.yml",
                 "down",
@@ -70,7 +69,7 @@ async fn test_federation_node_health() {
         println!("  Testing {} at {}", name, url);
 
         let response = client
-            .get(&format!("{}/info", url))
+            .get(format!("{}/info", url))
             .send()
             .await
             .expect("Failed to connect to node");
@@ -82,7 +81,7 @@ async fn test_federation_node_health() {
         assert!(info["version"].is_string());
 
         let dag_resp = client
-            .get(&format!("{}/sync/status", url))
+            .get(format!("{}/sync/status", url))
             .send()
             .await
             .expect("dag status");
@@ -114,7 +113,7 @@ async fn test_federation_p2p_convergence() {
             ("Node C", NODE_C_URL),
         ] {
             let response = client
-                .get(&format!("{}/status", url))
+                .get(format!("{}/status", url))
                 .send()
                 .await
                 .expect("Failed to get node status");
@@ -166,13 +165,13 @@ async fn test_federation_mesh_job_lifecycle() {
     };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-85-20-integration_test_manifest",
-        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_bytes": BASE64_ENGINE.encode(bincode::serialize(&spec).unwrap()),
         "spec_json": null,
         "cost_mana": 150
     });
 
     let submit_response = client
-        .post(&format!("{}/mesh/submit", NODE_A_URL))
+        .post(format!("{}/mesh/submit", NODE_A_URL))
         .header("Content-Type", "application/json")
         .json(&job_request)
         .send()
@@ -198,7 +197,7 @@ async fn test_federation_mesh_job_lifecycle() {
     let mut job_found = false;
     for attempt in 1..=MAX_RETRIES {
         let status_response = client
-            .get(&format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+            .get(format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
             .send()
             .await
             .expect("Failed to get job status");
@@ -230,7 +229,7 @@ async fn test_federation_mesh_job_lifecycle() {
         ("Node C", NODE_C_URL),
     ] {
         let jobs_response = client
-            .get(&format!("{}/mesh/jobs", url))
+            .get(format!("{}/mesh/jobs", url))
             .send()
             .await
             .expect("Failed to get jobs list");
@@ -276,10 +275,10 @@ async fn test_federation_cross_node_api_consistency() {
             ("Node C", NODE_C_URL),
         ] {
             let response = client
-                .get(&format!("{}{}", url, endpoint))
+                .get(format!("{}{}", url, endpoint))
                 .send()
                 .await
-                .expect(&format!("Failed to reach {} on {}", endpoint, name));
+                .unwrap_or_else(|_| panic!("Failed to reach {} on {}", endpoint, name));
 
             assert!(
                 response.status().is_success(),
@@ -325,7 +324,7 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
             ("Node B", NODE_B_URL),
             ("Node C", NODE_C_URL),
         ] {
-            match client.get(&format!("{}/info", url)).send().await {
+            match client.get(format!("{}/info", url)).send().await {
                 Ok(response) if response.status().is_success() => {
                     println!("  ✅ {} is ready", name);
                 }
