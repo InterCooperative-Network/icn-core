@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-economics/src/marketplace.rs`."><title>marketplace.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_economics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_economics/</div>marketplace.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use crate</span>::{TokenClassId, TransferRecord};
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `crates/icn-economics/src/marketplace.rs`."><title>marketplace.rs - source</title><script>if(window.location.protocol!=="file:")document.head.insertAdjacentHTML("beforeend","SourceSerif4-Regular-6b053e98.ttf.woff2,FiraSans-Italic-81dc35de.woff2,FiraSans-Regular-0fe48ade.woff2,FiraSans-MediumItalic-ccf7e434.woff2,FiraSans-Medium-e1aa3f0a.woff2,SourceCodePro-Regular-8badfe75.ttf.woff2,SourceCodePro-Semibold-aa29a496.ttf.woff2".split(",").map(f=>`<link rel="preload" as="font" type="font/woff2" crossorigin href="../../static.files/${f}">`).join(""))</script><link rel="stylesheet" href="../../static.files/normalize-9960930a.css"><link rel="stylesheet" href="../../static.files/rustdoc-1a91846b.css"><meta name="rustdoc-vars" data-root-path="../../" data-static-root-path="../../static.files/" data-current-crate="icn_economics" data-themes="" data-resource-suffix="" data-rustdoc-version="1.88.0 (6b00bc388 2025-06-23)" data-channel="1.88.0" data-search-js="search-f7877310.js" data-settings-js="settings-5514c975.js" ><script src="../../static.files/storage-4e99c027.js"></script><script defer src="../../static.files/src-script-63605ae7.js"></script><script defer src="../../src-files.js"></script><script defer src="../../static.files/main-7ef8a74a.js"></script><noscript><link rel="stylesheet" href="../../static.files/noscript-893ab5e7.css"></noscript><link rel="alternate icon" type="image/png" href="../../static.files/favicon-32x32-6580c154.png"><link rel="icon" type="image/svg+xml" href="../../static.files/favicon-044be391.svg"></head><body class="rustdoc src"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="src-sidebar-title"><h2>Files</h2></div></nav><div class="sidebar-resizer"></div><main><rustdoc-search></rustdoc-search><section id="main-content" class="content"><div class="main-heading"><h1><div class="sub-heading">icn_economics/</div>marketplace.rs</h1><rustdoc-toolbar></rustdoc-toolbar></div><div class="example-wrap digits-3"><pre class="rust"><code><a href=#1 id=1 data-nosnippet>1</a><span class="kw">use </span><span class="kw">crate</span>::TokenClassId;
 <a href=#2 id=2 data-nosnippet>2</a><span class="kw">use </span>icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 <a href=#3 id=3 data-nosnippet>3</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#4 id=4 data-nosnippet>4</a><span class="kw">use </span>std::collections::HashMap;
@@ -404,122 +404,134 @@
 <a href=#404 id=404 data-nosnippet>404</a>    }
 <a href=#405 id=405 data-nosnippet>405</a>}
 <a href=#406 id=406 data-nosnippet>406</a>
-<a href=#407 id=407 data-nosnippet>407</a><span class="doccomment">/// Helper functions for creating marketplace items.
-<a href=#408 id=408 data-nosnippet>408</a></span><span class="kw">impl </span>MarketplaceOffer {
-<a href=#409 id=409 data-nosnippet>409</a>    <span class="doccomment">/// Create a new marketplace offer for physical goods.
-<a href=#410 id=410 data-nosnippet>410</a>    </span><span class="kw">pub fn </span>new_physical_good(
-<a href=#411 id=411 data-nosnippet>411</a>        offer_id: String,
-<a href=#412 id=412 data-nosnippet>412</a>        seller: Did,
-<a href=#413 id=413 data-nosnippet>413</a>        description: String,
-<a href=#414 id=414 data-nosnippet>414</a>        category: String,
-<a href=#415 id=415 data-nosnippet>415</a>        condition: String,
-<a href=#416 id=416 data-nosnippet>416</a>        quantity: u64,
-<a href=#417 id=417 data-nosnippet>417</a>        price_per_unit: u64,
-<a href=#418 id=418 data-nosnippet>418</a>        payment_token_class: TokenClassId,
-<a href=#419 id=419 data-nosnippet>419</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#420 id=420 data-nosnippet>420</a>        <span class="self">Self </span>{
-<a href=#421 id=421 data-nosnippet>421</a>            offer_id,
-<a href=#422 id=422 data-nosnippet>422</a>            seller,
-<a href=#423 id=423 data-nosnippet>423</a>            item_type: ItemType::PhysicalGood {
-<a href=#424 id=424 data-nosnippet>424</a>                category,
-<a href=#425 id=425 data-nosnippet>425</a>                condition,
-<a href=#426 id=426 data-nosnippet>426</a>            },
-<a href=#427 id=427 data-nosnippet>427</a>            description,
-<a href=#428 id=428 data-nosnippet>428</a>            quantity,
-<a href=#429 id=429 data-nosnippet>429</a>            price_per_unit,
-<a href=#430 id=430 data-nosnippet>430</a>            payment_token_class,
-<a href=#431 id=431 data-nosnippet>431</a>            scope: <span class="prelude-val">None</span>,
-<a href=#432 id=432 data-nosnippet>432</a>            created_at: SystemTimeProvider.unix_seconds(),
-<a href=#433 id=433 data-nosnippet>433</a>            expires_at: <span class="prelude-val">None</span>,
-<a href=#434 id=434 data-nosnippet>434</a>            status: OfferStatus::Active,
-<a href=#435 id=435 data-nosnippet>435</a>            metadata: HashMap::new(),
-<a href=#436 id=436 data-nosnippet>436</a>        }
-<a href=#437 id=437 data-nosnippet>437</a>    }
-<a href=#438 id=438 data-nosnippet>438</a>
-<a href=#439 id=439 data-nosnippet>439</a>    <span class="doccomment">/// Create a new marketplace offer for services.
-<a href=#440 id=440 data-nosnippet>440</a>    </span><span class="kw">pub fn </span>new_service(
-<a href=#441 id=441 data-nosnippet>441</a>        offer_id: String,
-<a href=#442 id=442 data-nosnippet>442</a>        seller: Did,
-<a href=#443 id=443 data-nosnippet>443</a>        description: String,
-<a href=#444 id=444 data-nosnippet>444</a>        service_type: String,
-<a href=#445 id=445 data-nosnippet>445</a>        duration: <span class="prelude-ty">Option</span>&lt;String&gt;,
-<a href=#446 id=446 data-nosnippet>446</a>        quantity: u64,
-<a href=#447 id=447 data-nosnippet>447</a>        price_per_unit: u64,
-<a href=#448 id=448 data-nosnippet>448</a>        payment_token_class: TokenClassId,
-<a href=#449 id=449 data-nosnippet>449</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#407 id=407 data-nosnippet>407</a><span class="doccomment">/// Configuration for creating a physical good marketplace offer
+<a href=#408 id=408 data-nosnippet>408</a></span><span class="attr">#[derive(Debug, Clone)]
+<a href=#409 id=409 data-nosnippet>409</a></span><span class="kw">pub struct </span>PhysicalGoodConfig {
+<a href=#410 id=410 data-nosnippet>410</a>    <span class="kw">pub </span>offer_id: String,
+<a href=#411 id=411 data-nosnippet>411</a>    <span class="kw">pub </span>seller: Did,
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">pub </span>description: String,
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">pub </span>category: String,
+<a href=#414 id=414 data-nosnippet>414</a>    <span class="kw">pub </span>condition: String,
+<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">pub </span>quantity: u64,
+<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">pub </span>price_per_unit: u64,
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="kw">pub </span>payment_token_class: TokenClassId,
+<a href=#418 id=418 data-nosnippet>418</a>}
+<a href=#419 id=419 data-nosnippet>419</a>
+<a href=#420 id=420 data-nosnippet>420</a><span class="doccomment">/// Configuration for creating a service marketplace offer
+<a href=#421 id=421 data-nosnippet>421</a></span><span class="attr">#[derive(Debug, Clone)]
+<a href=#422 id=422 data-nosnippet>422</a></span><span class="kw">pub struct </span>ServiceConfig {
+<a href=#423 id=423 data-nosnippet>423</a>    <span class="kw">pub </span>offer_id: String,
+<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">pub </span>seller: Did,
+<a href=#425 id=425 data-nosnippet>425</a>    <span class="kw">pub </span>description: String,
+<a href=#426 id=426 data-nosnippet>426</a>    <span class="kw">pub </span>category: String,
+<a href=#427 id=427 data-nosnippet>427</a>    <span class="kw">pub </span>duration_hours: u64,
+<a href=#428 id=428 data-nosnippet>428</a>    <span class="kw">pub </span>quantity: u64,
+<a href=#429 id=429 data-nosnippet>429</a>    <span class="kw">pub </span>price_per_unit: u64,
+<a href=#430 id=430 data-nosnippet>430</a>    <span class="kw">pub </span>payment_token_class: TokenClassId,
+<a href=#431 id=431 data-nosnippet>431</a>}
+<a href=#432 id=432 data-nosnippet>432</a>
+<a href=#433 id=433 data-nosnippet>433</a><span class="doccomment">/// Configuration for creating a labor hours marketplace offer
+<a href=#434 id=434 data-nosnippet>434</a></span><span class="attr">#[derive(Debug, Clone)]
+<a href=#435 id=435 data-nosnippet>435</a></span><span class="kw">pub struct </span>LaborHoursConfig {
+<a href=#436 id=436 data-nosnippet>436</a>    <span class="kw">pub </span>offer_id: String,
+<a href=#437 id=437 data-nosnippet>437</a>    <span class="kw">pub </span>seller: Did,
+<a href=#438 id=438 data-nosnippet>438</a>    <span class="kw">pub </span>description: String,
+<a href=#439 id=439 data-nosnippet>439</a>    <span class="kw">pub </span>skill_level: String,
+<a href=#440 id=440 data-nosnippet>440</a>    <span class="kw">pub </span>duration_hours: u64,
+<a href=#441 id=441 data-nosnippet>441</a>    <span class="kw">pub </span>quantity: u64,
+<a href=#442 id=442 data-nosnippet>442</a>    <span class="kw">pub </span>price_per_unit: u64,
+<a href=#443 id=443 data-nosnippet>443</a>    <span class="kw">pub </span>payment_token_class: TokenClassId,
+<a href=#444 id=444 data-nosnippet>444</a>}
+<a href=#445 id=445 data-nosnippet>445</a>
+<a href=#446 id=446 data-nosnippet>446</a><span class="doccomment">/// Helper functions for creating marketplace items.
+<a href=#447 id=447 data-nosnippet>447</a></span><span class="kw">impl </span>MarketplaceOffer {
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="doccomment">/// Create a new marketplace offer for physical goods.
+<a href=#449 id=449 data-nosnippet>449</a>    </span><span class="kw">pub fn </span>new_physical_good(config: PhysicalGoodConfig) -&gt; <span class="self">Self </span>{
 <a href=#450 id=450 data-nosnippet>450</a>        <span class="self">Self </span>{
-<a href=#451 id=451 data-nosnippet>451</a>            offer_id,
-<a href=#452 id=452 data-nosnippet>452</a>            seller,
-<a href=#453 id=453 data-nosnippet>453</a>            item_type: ItemType::Service {
-<a href=#454 id=454 data-nosnippet>454</a>                service_type,
-<a href=#455 id=455 data-nosnippet>455</a>                duration,
+<a href=#451 id=451 data-nosnippet>451</a>            offer_id: config.offer_id,
+<a href=#452 id=452 data-nosnippet>452</a>            seller: config.seller,
+<a href=#453 id=453 data-nosnippet>453</a>            item_type: ItemType::PhysicalGood {
+<a href=#454 id=454 data-nosnippet>454</a>                category: config.category,
+<a href=#455 id=455 data-nosnippet>455</a>                condition: config.condition,
 <a href=#456 id=456 data-nosnippet>456</a>            },
-<a href=#457 id=457 data-nosnippet>457</a>            description,
-<a href=#458 id=458 data-nosnippet>458</a>            quantity,
-<a href=#459 id=459 data-nosnippet>459</a>            price_per_unit,
-<a href=#460 id=460 data-nosnippet>460</a>            payment_token_class,
+<a href=#457 id=457 data-nosnippet>457</a>            description: config.description,
+<a href=#458 id=458 data-nosnippet>458</a>            quantity: config.quantity,
+<a href=#459 id=459 data-nosnippet>459</a>            price_per_unit: config.price_per_unit,
+<a href=#460 id=460 data-nosnippet>460</a>            payment_token_class: config.payment_token_class,
 <a href=#461 id=461 data-nosnippet>461</a>            scope: <span class="prelude-val">None</span>,
-<a href=#462 id=462 data-nosnippet>462</a>            created_at: SystemTimeProvider.unix_seconds(),
-<a href=#463 id=463 data-nosnippet>463</a>            expires_at: <span class="prelude-val">None</span>,
+<a href=#462 id=462 data-nosnippet>462</a>            created_at: <span class="number">0</span>, <span class="comment">// Will be set by the marketplace
+<a href=#463 id=463 data-nosnippet>463</a>            </span>expires_at: <span class="prelude-val">None</span>,
 <a href=#464 id=464 data-nosnippet>464</a>            status: OfferStatus::Active,
 <a href=#465 id=465 data-nosnippet>465</a>            metadata: HashMap::new(),
 <a href=#466 id=466 data-nosnippet>466</a>        }
 <a href=#467 id=467 data-nosnippet>467</a>    }
 <a href=#468 id=468 data-nosnippet>468</a>
-<a href=#469 id=469 data-nosnippet>469</a>    <span class="doccomment">/// Create a new marketplace offer for labor hours.
-<a href=#470 id=470 data-nosnippet>470</a>    </span><span class="kw">pub fn </span>new_labor_hours(
-<a href=#471 id=471 data-nosnippet>471</a>        offer_id: String,
-<a href=#472 id=472 data-nosnippet>472</a>        seller: Did,
-<a href=#473 id=473 data-nosnippet>473</a>        description: String,
-<a href=#474 id=474 data-nosnippet>474</a>        skill_type: String,
-<a href=#475 id=475 data-nosnippet>475</a>        experience_level: String,
-<a href=#476 id=476 data-nosnippet>476</a>        quantity: u64,
-<a href=#477 id=477 data-nosnippet>477</a>        price_per_unit: u64,
-<a href=#478 id=478 data-nosnippet>478</a>        payment_token_class: TokenClassId,
-<a href=#479 id=479 data-nosnippet>479</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="self">Self </span>{
-<a href=#481 id=481 data-nosnippet>481</a>            offer_id,
-<a href=#482 id=482 data-nosnippet>482</a>            seller,
-<a href=#483 id=483 data-nosnippet>483</a>            item_type: ItemType::LaborHours {
-<a href=#484 id=484 data-nosnippet>484</a>                skill_type,
-<a href=#485 id=485 data-nosnippet>485</a>                experience_level,
-<a href=#486 id=486 data-nosnippet>486</a>            },
-<a href=#487 id=487 data-nosnippet>487</a>            description,
-<a href=#488 id=488 data-nosnippet>488</a>            quantity,
-<a href=#489 id=489 data-nosnippet>489</a>            price_per_unit,
-<a href=#490 id=490 data-nosnippet>490</a>            payment_token_class,
-<a href=#491 id=491 data-nosnippet>491</a>            scope: <span class="prelude-val">None</span>,
-<a href=#492 id=492 data-nosnippet>492</a>            created_at: SystemTimeProvider.unix_seconds(),
-<a href=#493 id=493 data-nosnippet>493</a>            expires_at: <span class="prelude-val">None</span>,
-<a href=#494 id=494 data-nosnippet>494</a>            status: OfferStatus::Active,
-<a href=#495 id=495 data-nosnippet>495</a>            metadata: HashMap::new(),
-<a href=#496 id=496 data-nosnippet>496</a>        }
-<a href=#497 id=497 data-nosnippet>497</a>    }
-<a href=#498 id=498 data-nosnippet>498</a>}
-<a href=#499 id=499 data-nosnippet>499</a>
-<a href=#500 id=500 data-nosnippet>500</a><span class="kw">impl </span>MarketplaceBid {
-<a href=#501 id=501 data-nosnippet>501</a>    <span class="doccomment">/// Create a new bid on a marketplace offer.
-<a href=#502 id=502 data-nosnippet>502</a>    </span><span class="kw">pub fn </span>new_bid(
-<a href=#503 id=503 data-nosnippet>503</a>        bid_id: String,
-<a href=#504 id=504 data-nosnippet>504</a>        buyer: Did,
-<a href=#505 id=505 data-nosnippet>505</a>        offer_id: String,
-<a href=#506 id=506 data-nosnippet>506</a>        quantity: u64,
-<a href=#507 id=507 data-nosnippet>507</a>        price_per_unit: u64,
-<a href=#508 id=508 data-nosnippet>508</a>        payment_token_class: TokenClassId,
-<a href=#509 id=509 data-nosnippet>509</a>        expires_in_hours: u64,
-<a href=#510 id=510 data-nosnippet>510</a>    ) -&gt; <span class="self">Self </span>{
-<a href=#511 id=511 data-nosnippet>511</a>        <span class="kw">let </span>now = SystemTimeProvider.unix_seconds();
-<a href=#512 id=512 data-nosnippet>512</a>        <span class="self">Self </span>{
-<a href=#513 id=513 data-nosnippet>513</a>            bid_id,
-<a href=#514 id=514 data-nosnippet>514</a>            buyer,
-<a href=#515 id=515 data-nosnippet>515</a>            offer_id,
-<a href=#516 id=516 data-nosnippet>516</a>            quantity,
-<a href=#517 id=517 data-nosnippet>517</a>            price_per_unit,
-<a href=#518 id=518 data-nosnippet>518</a>            payment_token_class,
-<a href=#519 id=519 data-nosnippet>519</a>            created_at: now,
-<a href=#520 id=520 data-nosnippet>520</a>            expires_at: now + (expires_in_hours * <span class="number">3600</span>),
-<a href=#521 id=521 data-nosnippet>521</a>            status: BidStatus::Active,
-<a href=#522 id=522 data-nosnippet>522</a>            metadata: HashMap::new(),
-<a href=#523 id=523 data-nosnippet>523</a>        }
-<a href=#524 id=524 data-nosnippet>524</a>    }
-<a href=#525 id=525 data-nosnippet>525</a>}</code></pre></div></section></main></body></html>
+<a href=#469 id=469 data-nosnippet>469</a>    <span class="doccomment">/// Create a new marketplace offer for services.
+<a href=#470 id=470 data-nosnippet>470</a>    </span><span class="kw">pub fn </span>new_service(config: ServiceConfig) -&gt; <span class="self">Self </span>{
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="self">Self </span>{
+<a href=#472 id=472 data-nosnippet>472</a>            offer_id: config.offer_id,
+<a href=#473 id=473 data-nosnippet>473</a>            seller: config.seller,
+<a href=#474 id=474 data-nosnippet>474</a>            item_type: ItemType::Service {
+<a href=#475 id=475 data-nosnippet>475</a>                service_type: config.category,
+<a href=#476 id=476 data-nosnippet>476</a>                duration: <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">"{} hours"</span>, config.duration_hours)),
+<a href=#477 id=477 data-nosnippet>477</a>            },
+<a href=#478 id=478 data-nosnippet>478</a>            description: config.description,
+<a href=#479 id=479 data-nosnippet>479</a>            quantity: config.quantity,
+<a href=#480 id=480 data-nosnippet>480</a>            price_per_unit: config.price_per_unit,
+<a href=#481 id=481 data-nosnippet>481</a>            payment_token_class: config.payment_token_class,
+<a href=#482 id=482 data-nosnippet>482</a>            scope: <span class="prelude-val">None</span>,
+<a href=#483 id=483 data-nosnippet>483</a>            created_at: <span class="number">0</span>, <span class="comment">// Will be set by the marketplace
+<a href=#484 id=484 data-nosnippet>484</a>            </span>expires_at: <span class="prelude-val">None</span>,
+<a href=#485 id=485 data-nosnippet>485</a>            status: OfferStatus::Active,
+<a href=#486 id=486 data-nosnippet>486</a>            metadata: HashMap::new(),
+<a href=#487 id=487 data-nosnippet>487</a>        }
+<a href=#488 id=488 data-nosnippet>488</a>    }
+<a href=#489 id=489 data-nosnippet>489</a>
+<a href=#490 id=490 data-nosnippet>490</a>    <span class="doccomment">/// Create a new marketplace offer for labor hours.
+<a href=#491 id=491 data-nosnippet>491</a>    </span><span class="kw">pub fn </span>new_labor_hours(config: LaborHoursConfig) -&gt; <span class="self">Self </span>{
+<a href=#492 id=492 data-nosnippet>492</a>        <span class="self">Self </span>{
+<a href=#493 id=493 data-nosnippet>493</a>            offer_id: config.offer_id,
+<a href=#494 id=494 data-nosnippet>494</a>            seller: config.seller,
+<a href=#495 id=495 data-nosnippet>495</a>            item_type: ItemType::LaborHours {
+<a href=#496 id=496 data-nosnippet>496</a>                skill_type: <span class="macro">format!</span>(<span class="string">"{} ({}h)"</span>, config.skill_level, config.duration_hours),
+<a href=#497 id=497 data-nosnippet>497</a>                experience_level: config.skill_level,
+<a href=#498 id=498 data-nosnippet>498</a>            },
+<a href=#499 id=499 data-nosnippet>499</a>            description: config.description,
+<a href=#500 id=500 data-nosnippet>500</a>            quantity: config.quantity,
+<a href=#501 id=501 data-nosnippet>501</a>            price_per_unit: config.price_per_unit,
+<a href=#502 id=502 data-nosnippet>502</a>            payment_token_class: config.payment_token_class,
+<a href=#503 id=503 data-nosnippet>503</a>            scope: <span class="prelude-val">None</span>,
+<a href=#504 id=504 data-nosnippet>504</a>            created_at: <span class="number">0</span>, <span class="comment">// Will be set by the marketplace
+<a href=#505 id=505 data-nosnippet>505</a>            </span>expires_at: <span class="prelude-val">None</span>,
+<a href=#506 id=506 data-nosnippet>506</a>            status: OfferStatus::Active,
+<a href=#507 id=507 data-nosnippet>507</a>            metadata: HashMap::new(),
+<a href=#508 id=508 data-nosnippet>508</a>        }
+<a href=#509 id=509 data-nosnippet>509</a>    }
+<a href=#510 id=510 data-nosnippet>510</a>}
+<a href=#511 id=511 data-nosnippet>511</a>
+<a href=#512 id=512 data-nosnippet>512</a><span class="kw">impl </span>MarketplaceBid {
+<a href=#513 id=513 data-nosnippet>513</a>    <span class="doccomment">/// Create a new bid on a marketplace offer.
+<a href=#514 id=514 data-nosnippet>514</a>    </span><span class="kw">pub fn </span>new_bid(
+<a href=#515 id=515 data-nosnippet>515</a>        bid_id: String,
+<a href=#516 id=516 data-nosnippet>516</a>        buyer: Did,
+<a href=#517 id=517 data-nosnippet>517</a>        offer_id: String,
+<a href=#518 id=518 data-nosnippet>518</a>        quantity: u64,
+<a href=#519 id=519 data-nosnippet>519</a>        price_per_unit: u64,
+<a href=#520 id=520 data-nosnippet>520</a>        payment_token_class: TokenClassId,
+<a href=#521 id=521 data-nosnippet>521</a>        expires_in_hours: u64,
+<a href=#522 id=522 data-nosnippet>522</a>    ) -&gt; <span class="self">Self </span>{
+<a href=#523 id=523 data-nosnippet>523</a>        <span class="kw">let </span>now = SystemTimeProvider.unix_seconds();
+<a href=#524 id=524 data-nosnippet>524</a>        <span class="self">Self </span>{
+<a href=#525 id=525 data-nosnippet>525</a>            bid_id,
+<a href=#526 id=526 data-nosnippet>526</a>            buyer,
+<a href=#527 id=527 data-nosnippet>527</a>            offer_id,
+<a href=#528 id=528 data-nosnippet>528</a>            quantity,
+<a href=#529 id=529 data-nosnippet>529</a>            price_per_unit,
+<a href=#530 id=530 data-nosnippet>530</a>            payment_token_class,
+<a href=#531 id=531 data-nosnippet>531</a>            created_at: now,
+<a href=#532 id=532 data-nosnippet>532</a>            expires_at: now + (expires_in_hours * <span class="number">3600</span>),
+<a href=#533 id=533 data-nosnippet>533</a>            status: BidStatus::Active,
+<a href=#534 id=534 data-nosnippet>534</a>            metadata: HashMap::new(),
+<a href=#535 id=535 data-nosnippet>535</a>        }
+<a href=#536 id=536 data-nosnippet>536</a>    }
+<a href=#537 id=537 data-nosnippet>537</a>}</code></pre></div></section></main></body></html>

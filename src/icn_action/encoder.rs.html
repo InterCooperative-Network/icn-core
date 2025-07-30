@@ -15,7 +15,7 @@
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">impl </span>ActionEncoder {
 <a href=#16 id=16 data-nosnippet>16</a>    <span class="doccomment">/// Encode an action as an icn:// URL
 <a href=#17 id=17 data-nosnippet>17</a>    </span><span class="kw">pub fn </span>encode(action: <span class="kw-2">&amp;</span>Action) -&gt; <span class="prelude-ty">Result</span>&lt;String, ActionError&gt; {
-<a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">let </span><span class="kw-2">mut </span>url = Url::parse(<span class="string">"icn://action"</span>).map_err(|e| ActionError::UrlParsing(e))<span class="question-mark">?</span>;
+<a href=#18 id=18 data-nosnippet>18</a>        <span class="kw">let </span><span class="kw-2">mut </span>url = Url::parse(<span class="string">"icn://action"</span>).map_err(ActionError::UrlParsing)<span class="question-mark">?</span>;
 <a href=#19 id=19 data-nosnippet>19</a>
 <a href=#20 id=20 data-nosnippet>20</a>        <span class="kw">match </span>action {
 <a href=#21 id=21 data-nosnippet>21</a>            Action::ShareIdentity { did } =&gt; {
@@ -131,7 +131,7 @@
 <a href=#131 id=131 data-nosnippet>131</a>
 <a href=#132 id=132 data-nosnippet>132</a>    <span class="doccomment">/// Decode an icn:// URL into an action
 <a href=#133 id=133 data-nosnippet>133</a>    </span><span class="kw">pub fn </span>decode(url_str: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Action, ActionError&gt; {
-<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))<span class="question-mark">?</span>;
+<a href=#134 id=134 data-nosnippet>134</a>        <span class="kw">let </span>url = Url::parse(url_str).map_err(ActionError::UrlParsing)<span class="question-mark">?</span>;
 <a href=#135 id=135 data-nosnippet>135</a>
 <a href=#136 id=136 data-nosnippet>136</a>        <span class="kw">if </span>url.scheme() != <span class="string">"icn" </span>{
 <a href=#137 id=137 data-nosnippet>137</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ActionError::InvalidUrl(<span class="macro">format!</span>(
@@ -154,7 +154,7 @@
 <a href=#154 id=154 data-nosnippet>154</a>                    <span class="prelude-val">Ok</span>(Action::ShareIdentity { did })
 <a href=#155 id=155 data-nosnippet>155</a>                } <span class="kw">else if let </span><span class="prelude-val">Some</span>(cid_str) = params.get(<span class="string">"cid"</span>) {
 <a href=#156 id=156 data-nosnippet>156</a>                    <span class="kw">let </span>cid = Cid::from_str(cid_str).map_err(|<span class="kw">_</span>| {
-<a href=#157 id=157 data-nosnippet>157</a>                        ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid CID: {}"</span>, cid_str))
+<a href=#157 id=157 data-nosnippet>157</a>                        ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid CID: {cid_str}"</span>))
 <a href=#158 id=158 data-nosnippet>158</a>                    })<span class="question-mark">?</span>;
 <a href=#159 id=159 data-nosnippet>159</a>                    <span class="prelude-val">Ok</span>(Action::ShareContent {
 <a href=#160 id=160 data-nosnippet>160</a>                        cid,
@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>                    .get(<span class="string">"proposal"</span>)
 <a href=#200 id=200 data-nosnippet>200</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"proposal"</span>.to_string()))<span class="question-mark">?</span>;
 <a href=#201 id=201 data-nosnippet>201</a>                <span class="kw">let </span>proposal = Cid::from_str(proposal_str).map_err(|<span class="kw">_</span>| {
-<a href=#202 id=202 data-nosnippet>202</a>                    ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid proposal CID: {}"</span>, proposal_str))
+<a href=#202 id=202 data-nosnippet>202</a>                    ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid proposal CID: {proposal_str}"</span>))
 <a href=#203 id=203 data-nosnippet>203</a>                })<span class="question-mark">?</span>;
 <a href=#204 id=204 data-nosnippet>204</a>
 <a href=#205 id=205 data-nosnippet>205</a>                <span class="kw">let </span>vote_str = params
@@ -241,145 +241,144 @@
 <a href=#241 id=241 data-nosnippet>241</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"vc"</span>.to_string()))<span class="question-mark">?</span>;
 <a href=#242 id=242 data-nosnippet>242</a>                <span class="kw">let </span>credential = Cid::from_str(credential_str).map_err(|<span class="kw">_</span>| {
 <a href=#243 id=243 data-nosnippet>243</a>                    ActionError::InvalidParameter(<span class="macro">format!</span>(
-<a href=#244 id=244 data-nosnippet>244</a>                        <span class="string">"Invalid credential CID: {}"</span>,
-<a href=#245 id=245 data-nosnippet>245</a>                        credential_str
-<a href=#246 id=246 data-nosnippet>246</a>                    ))
-<a href=#247 id=247 data-nosnippet>247</a>                })<span class="question-mark">?</span>;
-<a href=#248 id=248 data-nosnippet>248</a>
-<a href=#249 id=249 data-nosnippet>249</a>                <span class="prelude-val">Ok</span>(Action::VerifyCredential {
-<a href=#250 id=250 data-nosnippet>250</a>                    credential,
-<a href=#251 id=251 data-nosnippet>251</a>                    challenge: params.get(<span class="string">"challenge"</span>).cloned(),
-<a href=#252 id=252 data-nosnippet>252</a>                })
-<a href=#253 id=253 data-nosnippet>253</a>            }
-<a href=#254 id=254 data-nosnippet>254</a>
-<a href=#255 id=255 data-nosnippet>255</a>            <span class="string">"submit" </span>=&gt; {
-<a href=#256 id=256 data-nosnippet>256</a>                <span class="kw">let </span>job_str = params
-<a href=#257 id=257 data-nosnippet>257</a>                    .get(<span class="string">"job"</span>)
-<a href=#258 id=258 data-nosnippet>258</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"job"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#259 id=259 data-nosnippet>259</a>                <span class="kw">let </span>job_spec = Cid::from_str(job_str).map_err(|<span class="kw">_</span>| {
-<a href=#260 id=260 data-nosnippet>260</a>                    ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid job CID: {}"</span>, job_str))
-<a href=#261 id=261 data-nosnippet>261</a>                })<span class="question-mark">?</span>;
-<a href=#262 id=262 data-nosnippet>262</a>
-<a href=#263 id=263 data-nosnippet>263</a>                <span class="kw">let </span>submitter_str = params
-<a href=#264 id=264 data-nosnippet>264</a>                    .get(<span class="string">"submitter"</span>)
-<a href=#265 id=265 data-nosnippet>265</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"submitter"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#266 id=266 data-nosnippet>266</a>                <span class="kw">let </span>submitter = Did::from_str(submitter_str)
-<a href=#267 id=267 data-nosnippet>267</a>                    .map_err(|<span class="kw">_</span>| ActionError::DidParsing(submitter_str.clone()))<span class="question-mark">?</span>;
-<a href=#268 id=268 data-nosnippet>268</a>
-<a href=#269 id=269 data-nosnippet>269</a>                <span class="kw">let </span>max_cost = <span class="kw">if let </span><span class="prelude-val">Some</span>(cost_str) = params.get(<span class="string">"max_cost"</span>) {
-<a href=#270 id=270 data-nosnippet>270</a>                    <span class="prelude-val">Some</span>(cost_str.parse::&lt;u64&gt;().map_err(|<span class="kw">_</span>| {
-<a href=#271 id=271 data-nosnippet>271</a>                        ActionError::InvalidParameter(<span class="string">"max_cost must be a number"</span>.to_string())
-<a href=#272 id=272 data-nosnippet>272</a>                    })<span class="question-mark">?</span>)
-<a href=#273 id=273 data-nosnippet>273</a>                } <span class="kw">else </span>{
-<a href=#274 id=274 data-nosnippet>274</a>                    <span class="prelude-val">None
-<a href=#275 id=275 data-nosnippet>275</a>                </span>};
-<a href=#276 id=276 data-nosnippet>276</a>
-<a href=#277 id=277 data-nosnippet>277</a>                <span class="prelude-val">Ok</span>(Action::SubmitJob {
-<a href=#278 id=278 data-nosnippet>278</a>                    job_spec,
-<a href=#279 id=279 data-nosnippet>279</a>                    submitter,
-<a href=#280 id=280 data-nosnippet>280</a>                    max_cost,
-<a href=#281 id=281 data-nosnippet>281</a>                })
-<a href=#282 id=282 data-nosnippet>282</a>            }
-<a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(Action::Custom {
-<a href=#285 id=285 data-nosnippet>285</a>                action_type: path.to_string(),
-<a href=#286 id=286 data-nosnippet>286</a>                parameters: params,
-<a href=#287 id=287 data-nosnippet>287</a>            }),
-<a href=#288 id=288 data-nosnippet>288</a>        }
-<a href=#289 id=289 data-nosnippet>289</a>    }
-<a href=#290 id=290 data-nosnippet>290</a>
-<a href=#291 id=291 data-nosnippet>291</a>    <span class="doccomment">/// Create a shortened URL for QR codes (returns base64 encoded action)
-<a href=#292 id=292 data-nosnippet>292</a>    </span><span class="kw">pub fn </span>encode_compact(action: <span class="kw-2">&amp;</span>Action) -&gt; <span class="prelude-ty">Result</span>&lt;String, ActionError&gt; {
-<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">let </span>json = serde_json::to_string(action)<span class="question-mark">?</span>;
-<a href=#294 id=294 data-nosnippet>294</a>        <span class="kw">let </span>encoded = base64::engine::general_purpose::STANDARD.encode(json.as_bytes());
-<a href=#295 id=295 data-nosnippet>295</a>        <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"icn://x?d={}"</span>, encoded))
-<a href=#296 id=296 data-nosnippet>296</a>    }
-<a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>    <span class="doccomment">/// Decode a compact URL
-<a href=#299 id=299 data-nosnippet>299</a>    </span><span class="kw">pub fn </span>decode_compact(url_str: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Action, ActionError&gt; {
-<a href=#300 id=300 data-nosnippet>300</a>        <span class="kw">let </span>url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))<span class="question-mark">?</span>;
-<a href=#301 id=301 data-nosnippet>301</a>
-<a href=#302 id=302 data-nosnippet>302</a>        <span class="kw">if </span>url.scheme() != <span class="string">"icn" </span>|| url.path() != <span class="string">"/x" </span>{
-<a href=#303 id=303 data-nosnippet>303</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ActionError::InvalidUrl(<span class="string">"Not a compact ICN URL"</span>.to_string()));
-<a href=#304 id=304 data-nosnippet>304</a>        }
-<a href=#305 id=305 data-nosnippet>305</a>
-<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw">let </span>params: HashMap&lt;String, String&gt; = url
-<a href=#307 id=307 data-nosnippet>307</a>            .query_pairs()
-<a href=#308 id=308 data-nosnippet>308</a>            .map(|(k, v)| (k.to_string(), v.to_string()))
-<a href=#309 id=309 data-nosnippet>309</a>            .collect();
-<a href=#310 id=310 data-nosnippet>310</a>
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>data = params
-<a href=#312 id=312 data-nosnippet>312</a>            .get(<span class="string">"d"</span>)
-<a href=#313 id=313 data-nosnippet>313</a>            .ok_or_else(|| ActionError::MissingParameter(<span class="string">"d"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#314 id=314 data-nosnippet>314</a>
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span>decoded = base64::engine::general_purpose::STANDARD
-<a href=#316 id=316 data-nosnippet>316</a>            .decode(data)
-<a href=#317 id=317 data-nosnippet>317</a>            .map_err(|<span class="kw">_</span>| ActionError::InvalidParameter(<span class="string">"Invalid base64 data"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#318 id=318 data-nosnippet>318</a>
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span>json_str = String::from_utf8(decoded)
-<a href=#320 id=320 data-nosnippet>320</a>            .map_err(|<span class="kw">_</span>| ActionError::InvalidParameter(<span class="string">"Invalid UTF-8 data"</span>.to_string()))<span class="question-mark">?</span>;
-<a href=#321 id=321 data-nosnippet>321</a>
-<a href=#322 id=322 data-nosnippet>322</a>        <span class="kw">let </span>action: Action = serde_json::from_str(<span class="kw-2">&amp;</span>json_str)<span class="question-mark">?</span>;
-<a href=#323 id=323 data-nosnippet>323</a>        <span class="prelude-val">Ok</span>(action)
-<a href=#324 id=324 data-nosnippet>324</a>    }
-<a href=#325 id=325 data-nosnippet>325</a>}
-<a href=#326 id=326 data-nosnippet>326</a>
-<a href=#327 id=327 data-nosnippet>327</a><span class="attr">#[cfg(test)]
-<a href=#328 id=328 data-nosnippet>328</a></span><span class="kw">mod </span>tests {
-<a href=#329 id=329 data-nosnippet>329</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#330 id=330 data-nosnippet>330</a>
-<a href=#331 id=331 data-nosnippet>331</a>    <span class="attr">#[test]
-<a href=#332 id=332 data-nosnippet>332</a>    </span><span class="kw">fn </span>test_share_identity_encoding() {
-<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:alice"</span>).unwrap();
-<a href=#334 id=334 data-nosnippet>334</a>        <span class="kw">let </span>action = Action::ShareIdentity { did: did.clone() };
-<a href=#335 id=335 data-nosnippet>335</a>
-<a href=#336 id=336 data-nosnippet>336</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
-<a href=#337 id=337 data-nosnippet>337</a>        <span class="macro">assert!</span>(url.starts_with(<span class="string">"icn://action/share?"</span>));
-<a href=#338 id=338 data-nosnippet>338</a>        <span class="macro">assert!</span>(url.contains(<span class="string">"did=did%3Aicn%3Aalice"</span>));
-<a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
-<a href=#341 id=341 data-nosnippet>341</a>        <span class="macro">assert_eq!</span>(decoded, action);
-<a href=#342 id=342 data-nosnippet>342</a>    }
-<a href=#343 id=343 data-nosnippet>343</a>
-<a href=#344 id=344 data-nosnippet>344</a>    <span class="attr">#[test]
-<a href=#345 id=345 data-nosnippet>345</a>    </span><span class="kw">fn </span>test_transfer_token_encoding() {
-<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>to = Did::from_str(<span class="string">"did:icn:bob"</span>).unwrap();
-<a href=#347 id=347 data-nosnippet>347</a>        <span class="kw">let </span>action = Action::TransferToken {
-<a href=#348 id=348 data-nosnippet>348</a>            token: <span class="string">"seed"</span>.to_string(),
-<a href=#349 id=349 data-nosnippet>349</a>            amount: <span class="number">100</span>,
-<a href=#350 id=350 data-nosnippet>350</a>            to: to.clone(),
-<a href=#351 id=351 data-nosnippet>351</a>            memo: <span class="prelude-val">Some</span>(<span class="string">"payment"</span>.to_string()),
-<a href=#352 id=352 data-nosnippet>352</a>        };
-<a href=#353 id=353 data-nosnippet>353</a>
-<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
-<a href=#355 id=355 data-nosnippet>355</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
-<a href=#356 id=356 data-nosnippet>356</a>        <span class="macro">assert_eq!</span>(decoded, action);
-<a href=#357 id=357 data-nosnippet>357</a>    }
-<a href=#358 id=358 data-nosnippet>358</a>
-<a href=#359 id=359 data-nosnippet>359</a>    <span class="attr">#[test]
-<a href=#360 id=360 data-nosnippet>360</a>    </span><span class="kw">fn </span>test_vote_encoding() {
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="kw">let </span>proposal =
-<a href=#362 id=362 data-nosnippet>362</a>            Cid::from_str(<span class="string">"bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"</span>).unwrap();
-<a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">let </span>action = Action::Vote {
-<a href=#364 id=364 data-nosnippet>364</a>            proposal,
-<a href=#365 id=365 data-nosnippet>365</a>            vote: VoteChoice::Approve,
-<a href=#366 id=366 data-nosnippet>366</a>            voter: <span class="prelude-val">None</span>,
-<a href=#367 id=367 data-nosnippet>367</a>        };
-<a href=#368 id=368 data-nosnippet>368</a>
-<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
-<a href=#370 id=370 data-nosnippet>370</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
-<a href=#371 id=371 data-nosnippet>371</a>        <span class="macro">assert_eq!</span>(decoded, action);
-<a href=#372 id=372 data-nosnippet>372</a>    }
-<a href=#373 id=373 data-nosnippet>373</a>
-<a href=#374 id=374 data-nosnippet>374</a>    <span class="attr">#[test]
-<a href=#375 id=375 data-nosnippet>375</a>    </span><span class="kw">fn </span>test_compact_encoding() {
-<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:alice"</span>).unwrap();
-<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">let </span>action = Action::ShareIdentity { did };
-<a href=#378 id=378 data-nosnippet>378</a>
-<a href=#379 id=379 data-nosnippet>379</a>        <span class="kw">let </span>compact_url = ActionEncoder::encode_compact(<span class="kw-2">&amp;</span>action).unwrap();
-<a href=#380 id=380 data-nosnippet>380</a>        <span class="macro">assert!</span>(compact_url.starts_with(<span class="string">"icn://x?d="</span>));
-<a href=#381 id=381 data-nosnippet>381</a>
-<a href=#382 id=382 data-nosnippet>382</a>        <span class="kw">let </span>decoded = ActionEncoder::decode_compact(<span class="kw-2">&amp;</span>compact_url).unwrap();
-<a href=#383 id=383 data-nosnippet>383</a>        <span class="macro">assert_eq!</span>(decoded, action);
-<a href=#384 id=384 data-nosnippet>384</a>    }
-<a href=#385 id=385 data-nosnippet>385</a>}</code></pre></div></section></main></body></html>
+<a href=#244 id=244 data-nosnippet>244</a>                        <span class="string">"Invalid credential CID: {credential_str}"
+<a href=#245 id=245 data-nosnippet>245</a>                    </span>))
+<a href=#246 id=246 data-nosnippet>246</a>                })<span class="question-mark">?</span>;
+<a href=#247 id=247 data-nosnippet>247</a>
+<a href=#248 id=248 data-nosnippet>248</a>                <span class="prelude-val">Ok</span>(Action::VerifyCredential {
+<a href=#249 id=249 data-nosnippet>249</a>                    credential,
+<a href=#250 id=250 data-nosnippet>250</a>                    challenge: params.get(<span class="string">"challenge"</span>).cloned(),
+<a href=#251 id=251 data-nosnippet>251</a>                })
+<a href=#252 id=252 data-nosnippet>252</a>            }
+<a href=#253 id=253 data-nosnippet>253</a>
+<a href=#254 id=254 data-nosnippet>254</a>            <span class="string">"submit" </span>=&gt; {
+<a href=#255 id=255 data-nosnippet>255</a>                <span class="kw">let </span>job_str = params
+<a href=#256 id=256 data-nosnippet>256</a>                    .get(<span class="string">"job"</span>)
+<a href=#257 id=257 data-nosnippet>257</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"job"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#258 id=258 data-nosnippet>258</a>                <span class="kw">let </span>job_spec = Cid::from_str(job_str).map_err(|<span class="kw">_</span>| {
+<a href=#259 id=259 data-nosnippet>259</a>                    ActionError::InvalidParameter(<span class="macro">format!</span>(<span class="string">"Invalid job CID: {job_str}"</span>))
+<a href=#260 id=260 data-nosnippet>260</a>                })<span class="question-mark">?</span>;
+<a href=#261 id=261 data-nosnippet>261</a>
+<a href=#262 id=262 data-nosnippet>262</a>                <span class="kw">let </span>submitter_str = params
+<a href=#263 id=263 data-nosnippet>263</a>                    .get(<span class="string">"submitter"</span>)
+<a href=#264 id=264 data-nosnippet>264</a>                    .ok_or_else(|| ActionError::MissingParameter(<span class="string">"submitter"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#265 id=265 data-nosnippet>265</a>                <span class="kw">let </span>submitter = Did::from_str(submitter_str)
+<a href=#266 id=266 data-nosnippet>266</a>                    .map_err(|<span class="kw">_</span>| ActionError::DidParsing(submitter_str.clone()))<span class="question-mark">?</span>;
+<a href=#267 id=267 data-nosnippet>267</a>
+<a href=#268 id=268 data-nosnippet>268</a>                <span class="kw">let </span>max_cost = <span class="kw">if let </span><span class="prelude-val">Some</span>(cost_str) = params.get(<span class="string">"max_cost"</span>) {
+<a href=#269 id=269 data-nosnippet>269</a>                    <span class="prelude-val">Some</span>(cost_str.parse::&lt;u64&gt;().map_err(|<span class="kw">_</span>| {
+<a href=#270 id=270 data-nosnippet>270</a>                        ActionError::InvalidParameter(<span class="string">"max_cost must be a number"</span>.to_string())
+<a href=#271 id=271 data-nosnippet>271</a>                    })<span class="question-mark">?</span>)
+<a href=#272 id=272 data-nosnippet>272</a>                } <span class="kw">else </span>{
+<a href=#273 id=273 data-nosnippet>273</a>                    <span class="prelude-val">None
+<a href=#274 id=274 data-nosnippet>274</a>                </span>};
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>                <span class="prelude-val">Ok</span>(Action::SubmitJob {
+<a href=#277 id=277 data-nosnippet>277</a>                    job_spec,
+<a href=#278 id=278 data-nosnippet>278</a>                    submitter,
+<a href=#279 id=279 data-nosnippet>279</a>                    max_cost,
+<a href=#280 id=280 data-nosnippet>280</a>                })
+<a href=#281 id=281 data-nosnippet>281</a>            }
+<a href=#282 id=282 data-nosnippet>282</a>
+<a href=#283 id=283 data-nosnippet>283</a>            <span class="kw">_ </span>=&gt; <span class="prelude-val">Ok</span>(Action::Custom {
+<a href=#284 id=284 data-nosnippet>284</a>                action_type: path.to_string(),
+<a href=#285 id=285 data-nosnippet>285</a>                parameters: params,
+<a href=#286 id=286 data-nosnippet>286</a>            }),
+<a href=#287 id=287 data-nosnippet>287</a>        }
+<a href=#288 id=288 data-nosnippet>288</a>    }
+<a href=#289 id=289 data-nosnippet>289</a>
+<a href=#290 id=290 data-nosnippet>290</a>    <span class="doccomment">/// Create a shortened URL for QR codes (returns base64 encoded action)
+<a href=#291 id=291 data-nosnippet>291</a>    </span><span class="kw">pub fn </span>encode_compact(action: <span class="kw-2">&amp;</span>Action) -&gt; <span class="prelude-ty">Result</span>&lt;String, ActionError&gt; {
+<a href=#292 id=292 data-nosnippet>292</a>        <span class="kw">let </span>json = serde_json::to_string(action)<span class="question-mark">?</span>;
+<a href=#293 id=293 data-nosnippet>293</a>        <span class="kw">let </span>encoded = base64::engine::general_purpose::STANDARD.encode(json.as_bytes());
+<a href=#294 id=294 data-nosnippet>294</a>        <span class="prelude-val">Ok</span>(<span class="macro">format!</span>(<span class="string">"icn://x?d={encoded}"</span>))
+<a href=#295 id=295 data-nosnippet>295</a>    }
+<a href=#296 id=296 data-nosnippet>296</a>
+<a href=#297 id=297 data-nosnippet>297</a>    <span class="doccomment">/// Decode a compact URL
+<a href=#298 id=298 data-nosnippet>298</a>    </span><span class="kw">pub fn </span>decode_compact(url_str: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;Action, ActionError&gt; {
+<a href=#299 id=299 data-nosnippet>299</a>        <span class="kw">let </span>url = Url::parse(url_str).map_err(ActionError::UrlParsing)<span class="question-mark">?</span>;
+<a href=#300 id=300 data-nosnippet>300</a>
+<a href=#301 id=301 data-nosnippet>301</a>        <span class="kw">if </span>url.scheme() != <span class="string">"icn" </span>|| url.path() != <span class="string">"/x" </span>{
+<a href=#302 id=302 data-nosnippet>302</a>            <span class="kw">return </span><span class="prelude-val">Err</span>(ActionError::InvalidUrl(<span class="string">"Not a compact ICN URL"</span>.to_string()));
+<a href=#303 id=303 data-nosnippet>303</a>        }
+<a href=#304 id=304 data-nosnippet>304</a>
+<a href=#305 id=305 data-nosnippet>305</a>        <span class="kw">let </span>params: HashMap&lt;String, String&gt; = url
+<a href=#306 id=306 data-nosnippet>306</a>            .query_pairs()
+<a href=#307 id=307 data-nosnippet>307</a>            .map(|(k, v)| (k.to_string(), v.to_string()))
+<a href=#308 id=308 data-nosnippet>308</a>            .collect();
+<a href=#309 id=309 data-nosnippet>309</a>
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="kw">let </span>data = params
+<a href=#311 id=311 data-nosnippet>311</a>            .get(<span class="string">"d"</span>)
+<a href=#312 id=312 data-nosnippet>312</a>            .ok_or_else(|| ActionError::MissingParameter(<span class="string">"d"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#313 id=313 data-nosnippet>313</a>
+<a href=#314 id=314 data-nosnippet>314</a>        <span class="kw">let </span>decoded = base64::engine::general_purpose::STANDARD
+<a href=#315 id=315 data-nosnippet>315</a>            .decode(data)
+<a href=#316 id=316 data-nosnippet>316</a>            .map_err(|<span class="kw">_</span>| ActionError::InvalidParameter(<span class="string">"Invalid base64 data"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#317 id=317 data-nosnippet>317</a>
+<a href=#318 id=318 data-nosnippet>318</a>        <span class="kw">let </span>json_str = String::from_utf8(decoded)
+<a href=#319 id=319 data-nosnippet>319</a>            .map_err(|<span class="kw">_</span>| ActionError::InvalidParameter(<span class="string">"Invalid UTF-8 data"</span>.to_string()))<span class="question-mark">?</span>;
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>        <span class="kw">let </span>action: Action = serde_json::from_str(<span class="kw-2">&amp;</span>json_str)<span class="question-mark">?</span>;
+<a href=#322 id=322 data-nosnippet>322</a>        <span class="prelude-val">Ok</span>(action)
+<a href=#323 id=323 data-nosnippet>323</a>    }
+<a href=#324 id=324 data-nosnippet>324</a>}
+<a href=#325 id=325 data-nosnippet>325</a>
+<a href=#326 id=326 data-nosnippet>326</a><span class="attr">#[cfg(test)]
+<a href=#327 id=327 data-nosnippet>327</a></span><span class="kw">mod </span>tests {
+<a href=#328 id=328 data-nosnippet>328</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#329 id=329 data-nosnippet>329</a>
+<a href=#330 id=330 data-nosnippet>330</a>    <span class="attr">#[test]
+<a href=#331 id=331 data-nosnippet>331</a>    </span><span class="kw">fn </span>test_share_identity_encoding() {
+<a href=#332 id=332 data-nosnippet>332</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:alice"</span>).unwrap();
+<a href=#333 id=333 data-nosnippet>333</a>        <span class="kw">let </span>action = Action::ShareIdentity { did: did.clone() };
+<a href=#334 id=334 data-nosnippet>334</a>
+<a href=#335 id=335 data-nosnippet>335</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
+<a href=#336 id=336 data-nosnippet>336</a>        <span class="macro">assert!</span>(url.starts_with(<span class="string">"icn://action/share?"</span>));
+<a href=#337 id=337 data-nosnippet>337</a>        <span class="macro">assert!</span>(url.contains(<span class="string">"did=did%3Aicn%3Aalice"</span>));
+<a href=#338 id=338 data-nosnippet>338</a>
+<a href=#339 id=339 data-nosnippet>339</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
+<a href=#340 id=340 data-nosnippet>340</a>        <span class="macro">assert_eq!</span>(decoded, action);
+<a href=#341 id=341 data-nosnippet>341</a>    }
+<a href=#342 id=342 data-nosnippet>342</a>
+<a href=#343 id=343 data-nosnippet>343</a>    <span class="attr">#[test]
+<a href=#344 id=344 data-nosnippet>344</a>    </span><span class="kw">fn </span>test_transfer_token_encoding() {
+<a href=#345 id=345 data-nosnippet>345</a>        <span class="kw">let </span>to = Did::from_str(<span class="string">"did:icn:bob"</span>).unwrap();
+<a href=#346 id=346 data-nosnippet>346</a>        <span class="kw">let </span>action = Action::TransferToken {
+<a href=#347 id=347 data-nosnippet>347</a>            token: <span class="string">"seed"</span>.to_string(),
+<a href=#348 id=348 data-nosnippet>348</a>            amount: <span class="number">100</span>,
+<a href=#349 id=349 data-nosnippet>349</a>            to: to.clone(),
+<a href=#350 id=350 data-nosnippet>350</a>            memo: <span class="prelude-val">Some</span>(<span class="string">"payment"</span>.to_string()),
+<a href=#351 id=351 data-nosnippet>351</a>        };
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
+<a href=#354 id=354 data-nosnippet>354</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="macro">assert_eq!</span>(decoded, action);
+<a href=#356 id=356 data-nosnippet>356</a>    }
+<a href=#357 id=357 data-nosnippet>357</a>
+<a href=#358 id=358 data-nosnippet>358</a>    <span class="attr">#[test]
+<a href=#359 id=359 data-nosnippet>359</a>    </span><span class="kw">fn </span>test_vote_encoding() {
+<a href=#360 id=360 data-nosnippet>360</a>        <span class="kw">let </span>proposal =
+<a href=#361 id=361 data-nosnippet>361</a>            Cid::from_str(<span class="string">"bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"</span>).unwrap();
+<a href=#362 id=362 data-nosnippet>362</a>        <span class="kw">let </span>action = Action::Vote {
+<a href=#363 id=363 data-nosnippet>363</a>            proposal,
+<a href=#364 id=364 data-nosnippet>364</a>            vote: VoteChoice::Approve,
+<a href=#365 id=365 data-nosnippet>365</a>            voter: <span class="prelude-val">None</span>,
+<a href=#366 id=366 data-nosnippet>366</a>        };
+<a href=#367 id=367 data-nosnippet>367</a>
+<a href=#368 id=368 data-nosnippet>368</a>        <span class="kw">let </span>url = ActionEncoder::encode(<span class="kw-2">&amp;</span>action).unwrap();
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>decoded = ActionEncoder::decode(<span class="kw-2">&amp;</span>url).unwrap();
+<a href=#370 id=370 data-nosnippet>370</a>        <span class="macro">assert_eq!</span>(decoded, action);
+<a href=#371 id=371 data-nosnippet>371</a>    }
+<a href=#372 id=372 data-nosnippet>372</a>
+<a href=#373 id=373 data-nosnippet>373</a>    <span class="attr">#[test]
+<a href=#374 id=374 data-nosnippet>374</a>    </span><span class="kw">fn </span>test_compact_encoding() {
+<a href=#375 id=375 data-nosnippet>375</a>        <span class="kw">let </span>did = Did::from_str(<span class="string">"did:icn:alice"</span>).unwrap();
+<a href=#376 id=376 data-nosnippet>376</a>        <span class="kw">let </span>action = Action::ShareIdentity { did };
+<a href=#377 id=377 data-nosnippet>377</a>
+<a href=#378 id=378 data-nosnippet>378</a>        <span class="kw">let </span>compact_url = ActionEncoder::encode_compact(<span class="kw-2">&amp;</span>action).unwrap();
+<a href=#379 id=379 data-nosnippet>379</a>        <span class="macro">assert!</span>(compact_url.starts_with(<span class="string">"icn://x?d="</span>));
+<a href=#380 id=380 data-nosnippet>380</a>
+<a href=#381 id=381 data-nosnippet>381</a>        <span class="kw">let </span>decoded = ActionEncoder::decode_compact(<span class="kw-2">&amp;</span>compact_url).unwrap();
+<a href=#382 id=382 data-nosnippet>382</a>        <span class="macro">assert_eq!</span>(decoded, action);
+<a href=#383 id=383 data-nosnippet>383</a>    }
+<a href=#384 id=384 data-nosnippet>384</a>}</code></pre></div></section></main></body></html>

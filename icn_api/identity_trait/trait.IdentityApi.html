@@ -8,7 +8,7 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.verify_credential" class="fn">verify_credential</a>&lt;'life0, 'async_trait&gt;(
         &amp;'life0 self,
-        credential: <a class="struct" href="../../icn_identity/credential/struct.Credential.html" title="struct icn_identity::credential::Credential">VerifiableCredential</a>,
+        credential: VerifiableCredential,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.VerificationResponse.html" title="struct icn_api::identity_trait::VerificationResponse">VerificationResponse</a>, CommonError&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait</span>;
@@ -72,7 +72,7 @@
     Self: 'async_trait,
     'life0: 'async_trait,</div></h4></section><section id="tymethod.verify_credential" class="method"><a class="src rightside" href="../../src/icn_api/identity_trait.rs.html#87-90">Source</a><h4 class="code-header">fn <a href="#tymethod.verify_credential" class="fn">verify_credential</a>&lt;'life0, 'async_trait&gt;(
     &amp;'life0 self,
-    credential: <a class="struct" href="../../icn_identity/credential/struct.Credential.html" title="struct icn_identity::credential::Credential">VerifiableCredential</a>,
+    credential: VerifiableCredential,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="struct.VerificationResponse.html" title="struct icn_api::identity_trait::VerificationResponse">VerificationResponse</a>, CommonError&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,</div></h4></section><section id="tymethod.get_credential" class="method"><a class="src rightside" href="../../src/icn_api/identity_trait.rs.html#92">Source</a><h4 class="code-header">fn <a href="#tymethod.get_credential" class="fn">get_credential</a>&lt;'life0, 'async_trait&gt;(

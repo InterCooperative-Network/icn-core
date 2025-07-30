@@ -494,7 +494,7 @@
 <a href=#494 id=494 data-nosnippet>494</a>    <span class="kw">use </span>std::str::FromStr;
 <a href=#495 id=495 data-nosnippet>495</a>
 <a href=#496 id=496 data-nosnippet>496</a>    <span class="kw">fn </span>create_test_did(id: <span class="kw-2">&amp;</span>str) -&gt; Did {
-<a href=#497 id=497 data-nosnippet>497</a>        Did::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"did:test:{}"</span>, id)).unwrap()
+<a href=#497 id=497 data-nosnippet>497</a>        Did::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"did:test:{id}"</span>)).unwrap()
 <a href=#498 id=498 data-nosnippet>498</a>    }
 <a href=#499 id=499 data-nosnippet>499</a>
 <a href=#500 id=500 data-nosnippet>500</a>    <span class="attr">#[test]
@@ -677,7 +677,7 @@
 <a href=#677 id=677 data-nosnippet>677</a>        <span class="kw">let </span>bob = create_test_did(<span class="string">"bob"</span>);
 <a href=#678 id=678 data-nosnippet>678</a>        <span class="kw">let </span><span class="kw-2">mut </span>path = TrustPath::new(alice.clone(), bob.clone());
 <a href=#679 id=679 data-nosnippet>679</a>
-<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">let </span>edge = TrustEdge::new(alice, bob, <span class="number">0.8</span>, <span class="number">1000</span>);
+<a href=#680 id=680 data-nosnippet>680</a>        <span class="kw">let </span>edge = TrustEdge::new(alice, bob.clone(), <span class="number">0.8</span>, <span class="number">1000</span>);
 <a href=#681 id=681 data-nosnippet>681</a>        path.add_edge(edge, <span class="number">1.0</span>);
 <a href=#682 id=682 data-nosnippet>682</a>
 <a href=#683 id=683 data-nosnippet>683</a>        <span class="comment">// With no distance penalty (penalty = 1.0)

@@ -478,11 +478,11 @@
 <a href=#478 id=478 data-nosnippet>478</a>    <span class="comment">// Get the offer and bid
 <a href=#479 id=479 data-nosnippet>479</a>    </span><span class="kw">let </span>offer = marketplace_store
 <a href=#480 id=480 data-nosnippet>480</a>        .get_offer(offer_id)
-<a href=#481 id=481 data-nosnippet>481</a>        .ok_or_else(|| CommonError::InvalidInputError(<span class="macro">format!</span>(<span class="string">"Offer {} not found"</span>, offer_id)))<span class="question-mark">?</span>;
+<a href=#481 id=481 data-nosnippet>481</a>        .ok_or_else(|| CommonError::InvalidInputError(<span class="macro">format!</span>(<span class="string">"Offer {offer_id} not found"</span>)))<span class="question-mark">?</span>;
 <a href=#482 id=482 data-nosnippet>482</a>
 <a href=#483 id=483 data-nosnippet>483</a>    <span class="kw">let </span>bid = marketplace_store
 <a href=#484 id=484 data-nosnippet>484</a>        .get_bid(bid_id)
-<a href=#485 id=485 data-nosnippet>485</a>        .ok_or_else(|| CommonError::InvalidInputError(<span class="macro">format!</span>(<span class="string">"Bid {} not found"</span>, bid_id)))<span class="question-mark">?</span>;
+<a href=#485 id=485 data-nosnippet>485</a>        .ok_or_else(|| CommonError::InvalidInputError(<span class="macro">format!</span>(<span class="string">"Bid {bid_id} not found"</span>)))<span class="question-mark">?</span>;
 <a href=#486 id=486 data-nosnippet>486</a>
 <a href=#487 id=487 data-nosnippet>487</a>    <span class="comment">// Validate the transaction
 <a href=#488 id=488 data-nosnippet>488</a>    </span><span class="kw">if </span>bid.offer_id != offer.offer_id {
@@ -523,7 +523,7 @@
 <a href=#523 id=523 data-nosnippet>523</a>
 <a href=#524 id=524 data-nosnippet>524</a>    <span class="comment">// Create transaction record
 <a href=#525 id=525 data-nosnippet>525</a>    </span><span class="kw">let </span>transaction = marketplace::MarketplaceTransaction {
-<a href=#526 id=526 data-nosnippet>526</a>        transaction_id: <span class="macro">format!</span>(<span class="string">"tx_{}_{}"</span>, offer_id, bid_id),
+<a href=#526 id=526 data-nosnippet>526</a>        transaction_id: <span class="macro">format!</span>(<span class="string">"tx_{offer_id}_{bid_id}"</span>),
 <a href=#527 id=527 data-nosnippet>527</a>        offer_id: offer.offer_id.clone(),
 <a href=#528 id=528 data-nosnippet>528</a>        bid_id: bid.bid_id.clone(),
 <a href=#529 id=529 data-nosnippet>529</a>        seller: offer.seller.clone(),

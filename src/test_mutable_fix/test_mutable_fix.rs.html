@@ -27,7 +27,7 @@
 <a href=#27 id=27 data-nosnippet>27</a>    "#</span>;
 <a href=#28 id=28 data-nosnippet>28</a>
 <a href=#29 id=29 data-nosnippet>29</a>    <span class="macro">println!</span>(<span class="string">"📝 Testing code:"</span>);
-<a href=#30 id=30 data-nosnippet>30</a>    <span class="macro">println!</span>(<span class="string">"{}"</span>, test_contract);
+<a href=#30 id=30 data-nosnippet>30</a>    <span class="macro">println!</span>(<span class="string">"{test_contract}"</span>);
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="macro">println!</span>();
 <a href=#32 id=32 data-nosnippet>32</a>
 <a href=#33 id=33 data-nosnippet>33</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(test_contract) {
@@ -52,7 +52,7 @@
 <a href=#52 id=52 data-nosnippet>52</a>        }
 <a href=#53 id=53 data-nosnippet>53</a>        <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#54 id=54 data-nosnippet>54</a>            <span class="macro">println!</span>(<span class="string">"❌ FAILED: Compilation error:"</span>);
-<a href=#55 id=55 data-nosnippet>55</a>            <span class="macro">println!</span>(<span class="string">"   Error: {}"</span>, e);
+<a href=#55 id=55 data-nosnippet>55</a>            <span class="macro">println!</span>(<span class="string">"   Error: {e}"</span>);
 <a href=#56 id=56 data-nosnippet>56</a>            <span class="macro">println!</span>();
 <a href=#57 id=57 data-nosnippet>57</a>            <span class="macro">println!</span>(<span class="string">"🔍 This indicates the mutable variable fix needs more work."</span>);
 <a href=#58 id=58 data-nosnippet>58</a>        }

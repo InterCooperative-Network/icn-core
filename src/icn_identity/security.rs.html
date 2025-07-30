@@ -12,7 +12,7 @@
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>icn_common::{CommonError, Did};
 <a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>serde::{Deserialize, Serialize};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>std::time::Instant;
-<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>zeroize::{Zeroize, ZeroizeOnDrop};
+<a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>zeroize::Zeroize;
 <a href=#16 id=16 data-nosnippet>16</a>
 <a href=#17 id=17 data-nosnippet>17</a><span class="doccomment">/// Security configuration for cryptographic operations
 <a href=#18 id=18 data-nosnippet>18</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
@@ -442,7 +442,7 @@
 <a href=#442 id=442 data-nosnippet>442</a>    <span class="attr">#[test]
 <a href=#443 id=443 data-nosnippet>443</a>    </span><span class="kw">fn </span>test_secure_verify_bad_signature() {
 <a href=#444 id=444 data-nosnippet>444</a>        <span class="kw">let </span>config = SecurityConfig::default();
-<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
+<a href=#445 id=445 data-nosnippet>445</a>        <span class="kw">let </span>(sk, _pk) = generate_ed25519_keypair();
 <a href=#446 id=446 data-nosnippet>446</a>        <span class="kw">let </span>(<span class="kw">_</span>, other_pk) = generate_ed25519_keypair();
 <a href=#447 id=447 data-nosnippet>447</a>        <span class="kw">let </span>message = <span class="string">b"test message"</span>;
 <a href=#448 id=448 data-nosnippet>448</a>

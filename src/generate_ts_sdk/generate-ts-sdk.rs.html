@@ -3,7 +3,7 @@
 <a href=#3 id=3 data-nosnippet>3</a>//! This binary generates TypeScript client SDK files from the ICN API definitions.
 <a href=#4 id=4 data-nosnippet>4</a>//! Usage: cargo run --bin generate-ts-sdk [output-directory]
 <a href=#5 id=5 data-nosnippet>5</a>
-<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span>icn_api::client_sdk::{sdk_files, TypeScriptGenerator};
+<a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use </span>icn_api::client_sdk::sdk_files;
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>std::env;
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>std::path::PathBuf;
 <a href=#9 id=9 data-nosnippet>9</a>
@@ -16,13 +16,13 @@
 <a href=#16 id=16 data-nosnippet>16</a>        PathBuf::from(<span class="string">"./client-sdk"</span>)
 <a href=#17 id=17 data-nosnippet>17</a>    };
 <a href=#18 id=18 data-nosnippet>18</a>
-<a href=#19 id=19 data-nosnippet>19</a>    <span class="macro">println!</span>(<span class="string">"Generating TypeScript SDK files in: {:?}"</span>, output_dir);
+<a href=#19 id=19 data-nosnippet>19</a>    <span class="macro">println!</span>(<span class="string">"Generating TypeScript SDK files in: {output_dir:?}"</span>);
 <a href=#20 id=20 data-nosnippet>20</a>
 <a href=#21 id=21 data-nosnippet>21</a>    <span class="comment">// Generate all SDK files
 <a href=#22 id=22 data-nosnippet>22</a>    </span>sdk_files::generate_sdk_files(<span class="kw-2">&amp;</span>output_dir)<span class="question-mark">?</span>;
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>    <span class="macro">println!</span>(<span class="string">"✅ TypeScript SDK generated successfully!"</span>);
-<a href=#25 id=25 data-nosnippet>25</a>    <span class="macro">println!</span>(<span class="string">"📁 Files created in: {:?}"</span>, output_dir);
+<a href=#25 id=25 data-nosnippet>25</a>    <span class="macro">println!</span>(<span class="string">"📁 Files created in: {output_dir:?}"</span>);
 <a href=#26 id=26 data-nosnippet>26</a>    <span class="macro">println!</span>();
 <a href=#27 id=27 data-nosnippet>27</a>    <span class="macro">println!</span>(<span class="string">"To use the generated SDK:"</span>);
 <a href=#28 id=28 data-nosnippet>28</a>    <span class="macro">println!</span>(<span class="string">"1. cd {}"</span>, output_dir.display());

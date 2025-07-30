@@ -628,21 +628,21 @@
 <a href=#628 id=628 data-nosnippet>628</a>                            })<span class="question-mark">?</span>;
 <a href=#629 id=629 data-nosnippet>629</a>
 <a href=#630 id=630 data-nosnippet>630</a>                            <span class="kw">let </span>signing_key = icn_identity::SigningKey::from_bytes(<span class="kw-2">&amp;</span>key_bytes);
-<a href=#631 id=631 data-nosnippet>631</a>                            <span class="kw">return </span><span class="prelude-val">Ok</span>(Arc::new(<span class="kw">crate</span>::context::Ed25519Signer::new(signing_key)));
+<a href=#631 id=631 data-nosnippet>631</a>                            <span class="prelude-val">Ok</span>(Arc::new(<span class="kw">crate</span>::context::Ed25519Signer::new(signing_key)))
 <a href=#632 id=632 data-nosnippet>632</a>                        }
 <a href=#633 id=633 data-nosnippet>633</a>                        <span class="prelude-val">Err</span>(decode_error) =&gt; {
 <a href=#634 id=634 data-nosnippet>634</a>                            <span class="comment">// Check if it might be an encrypted file or other format
 <a href=#635 id=635 data-nosnippet>635</a>                            </span><span class="kw">if </span>key_content.contains(<span class="string">"BEGIN"</span>) &amp;&amp; key_content.contains(<span class="string">"END"</span>) {
-<a href=#636 id=636 data-nosnippet>636</a>                                <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::ConfigError(<span class="macro">format!</span>(
+<a href=#636 id=636 data-nosnippet>636</a>                                <span class="prelude-val">Err</span>(CommonError::ConfigError(<span class="macro">format!</span>(
 <a href=#637 id=637 data-nosnippet>637</a>                        <span class="string">"Key file at {} appears to be in PEM or encrypted format, which is not currently supported. Please provide a base58-encoded Ed25519 private key, or use 'generate' key store type to create a new key."</span>,
 <a href=#638 id=638 data-nosnippet>638</a>                        expanded_path.display()
-<a href=#639 id=639 data-nosnippet>639</a>                    )));
+<a href=#639 id=639 data-nosnippet>639</a>                    )))
 <a href=#640 id=640 data-nosnippet>640</a>                            } <span class="kw">else </span>{
-<a href=#641 id=641 data-nosnippet>641</a>                                <span class="kw">return </span><span class="prelude-val">Err</span>(CommonError::ConfigError(<span class="macro">format!</span>(
+<a href=#641 id=641 data-nosnippet>641</a>                                <span class="prelude-val">Err</span>(CommonError::ConfigError(<span class="macro">format!</span>(
 <a href=#642 id=642 data-nosnippet>642</a>                        <span class="string">"Invalid key file at {}: failed to decode as base58 ({}). Key file must contain a base58-encoded Ed25519 private key."</span>,
 <a href=#643 id=643 data-nosnippet>643</a>                        expanded_path.display(),
 <a href=#644 id=644 data-nosnippet>644</a>                        decode_error
-<a href=#645 id=645 data-nosnippet>645</a>                    )));
+<a href=#645 id=645 data-nosnippet>645</a>                    )))
 <a href=#646 id=646 data-nosnippet>646</a>                            }
 <a href=#647 id=647 data-nosnippet>647</a>                        }
 <a href=#648 id=648 data-nosnippet>648</a>                    }

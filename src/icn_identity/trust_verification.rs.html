@@ -259,306 +259,303 @@
 <a href=#259 id=259 data-nosnippet>259</a>        }
 <a href=#260 id=260 data-nosnippet>260</a>
 <a href=#261 id=261 data-nosnippet>261</a>        <span class="comment">// Create challenge
-<a href=#262 id=262 data-nosnippet>262</a>        </span><span class="kw">let </span>challenge_id = <span class="macro">format!</span>(
-<a href=#263 id=263 data-nosnippet>263</a>            <span class="string">"challenge-{}-{}-{}"</span>,
-<a href=#264 id=264 data-nosnippet>264</a>            challenger, challenged_subject, current_time
-<a href=#265 id=265 data-nosnippet>265</a>        );
-<a href=#266 id=266 data-nosnippet>266</a>        <span class="kw">let </span><span class="kw-2">mut </span>challenge = TrustChallenge::new(
-<a href=#267 id=267 data-nosnippet>267</a>            challenge_id.clone(),
-<a href=#268 id=268 data-nosnippet>268</a>            challenger.clone(),
-<a href=#269 id=269 data-nosnippet>269</a>            challenged_subject.clone(),
-<a href=#270 id=270 data-nosnippet>270</a>            context.clone(),
-<a href=#271 id=271 data-nosnippet>271</a>            reason,
-<a href=#272 id=272 data-nosnippet>272</a>            current_time,
-<a href=#273 id=273 data-nosnippet>273</a>        );
-<a href=#274 id=274 data-nosnippet>274</a>
-<a href=#275 id=275 data-nosnippet>275</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(evidence) = evidence {
-<a href=#276 id=276 data-nosnippet>276</a>            challenge.set_evidence(evidence);
-<a href=#277 id=277 data-nosnippet>277</a>        }
-<a href=#278 id=278 data-nosnippet>278</a>
-<a href=#279 id=279 data-nosnippet>279</a>        <span class="comment">// If governance approval is required, governance proposal would be created by external system
-<a href=#280 id=280 data-nosnippet>280</a>        // Store challenge for potential governance review
-<a href=#281 id=281 data-nosnippet>281</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
-<a href=#282 id=282 data-nosnippet>282</a>        store.store_challenge(challenge.clone())<span class="question-mark">?</span>;
-<a href=#283 id=283 data-nosnippet>283</a>
-<a href=#284 id=284 data-nosnippet>284</a>        <span class="comment">// Create audit event
-<a href=#285 id=285 data-nosnippet>285</a>        </span><span class="kw">let </span>audit_event = TrustAuditEvent {
-<a href=#286 id=286 data-nosnippet>286</a>            event_id: <span class="macro">format!</span>(<span class="string">"challenge-{}"</span>, challenge_id),
-<a href=#287 id=287 data-nosnippet>287</a>            event_type: TrustEventType::ChallengeCreated,
-<a href=#288 id=288 data-nosnippet>288</a>            actor: challenger,
-<a href=#289 id=289 data-nosnippet>289</a>            subject: challenged_subject,
-<a href=#290 id=290 data-nosnippet>290</a>            context,
-<a href=#291 id=291 data-nosnippet>291</a>            timestamp: current_time,
-<a href=#292 id=292 data-nosnippet>292</a>            data: serde_json::to_value(<span class="kw-2">&amp;</span>challenge).unwrap(),
-<a href=#293 id=293 data-nosnippet>293</a>            dag_cid: <span class="prelude-val">None</span>,
-<a href=#294 id=294 data-nosnippet>294</a>        };
-<a href=#295 id=295 data-nosnippet>295</a>
-<a href=#296 id=296 data-nosnippet>296</a>        store.store_audit_event(audit_event.clone())<span class="question-mark">?</span>;
+<a href=#262 id=262 data-nosnippet>262</a>        </span><span class="kw">let </span>challenge_id = <span class="macro">format!</span>(<span class="string">"challenge-{challenger}-{challenged_subject}-{current_time}"</span>);
+<a href=#263 id=263 data-nosnippet>263</a>        <span class="kw">let </span><span class="kw-2">mut </span>challenge = TrustChallenge::new(
+<a href=#264 id=264 data-nosnippet>264</a>            challenge_id.clone(),
+<a href=#265 id=265 data-nosnippet>265</a>            challenger.clone(),
+<a href=#266 id=266 data-nosnippet>266</a>            challenged_subject.clone(),
+<a href=#267 id=267 data-nosnippet>267</a>            context.clone(),
+<a href=#268 id=268 data-nosnippet>268</a>            reason,
+<a href=#269 id=269 data-nosnippet>269</a>            current_time,
+<a href=#270 id=270 data-nosnippet>270</a>        );
+<a href=#271 id=271 data-nosnippet>271</a>
+<a href=#272 id=272 data-nosnippet>272</a>        <span class="kw">if let </span><span class="prelude-val">Some</span>(evidence) = evidence {
+<a href=#273 id=273 data-nosnippet>273</a>            challenge.set_evidence(evidence);
+<a href=#274 id=274 data-nosnippet>274</a>        }
+<a href=#275 id=275 data-nosnippet>275</a>
+<a href=#276 id=276 data-nosnippet>276</a>        <span class="comment">// If governance approval is required, governance proposal would be created by external system
+<a href=#277 id=277 data-nosnippet>277</a>        // Store challenge for potential governance review
+<a href=#278 id=278 data-nosnippet>278</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
+<a href=#279 id=279 data-nosnippet>279</a>        store.store_challenge(challenge.clone())<span class="question-mark">?</span>;
+<a href=#280 id=280 data-nosnippet>280</a>
+<a href=#281 id=281 data-nosnippet>281</a>        <span class="comment">// Create audit event
+<a href=#282 id=282 data-nosnippet>282</a>        </span><span class="kw">let </span>audit_event = TrustAuditEvent {
+<a href=#283 id=283 data-nosnippet>283</a>            event_id: <span class="macro">format!</span>(<span class="string">"challenge-{challenge_id}"</span>),
+<a href=#284 id=284 data-nosnippet>284</a>            event_type: TrustEventType::ChallengeCreated,
+<a href=#285 id=285 data-nosnippet>285</a>            actor: challenger,
+<a href=#286 id=286 data-nosnippet>286</a>            subject: challenged_subject,
+<a href=#287 id=287 data-nosnippet>287</a>            context,
+<a href=#288 id=288 data-nosnippet>288</a>            timestamp: current_time,
+<a href=#289 id=289 data-nosnippet>289</a>            data: serde_json::to_value(<span class="kw-2">&amp;</span>challenge).unwrap(),
+<a href=#290 id=290 data-nosnippet>290</a>            dag_cid: <span class="prelude-val">None</span>,
+<a href=#291 id=291 data-nosnippet>291</a>        };
+<a href=#292 id=292 data-nosnippet>292</a>
+<a href=#293 id=293 data-nosnippet>293</a>        store.store_audit_event(audit_event.clone())<span class="question-mark">?</span>;
+<a href=#294 id=294 data-nosnippet>294</a>
+<a href=#295 id=295 data-nosnippet>295</a>        <span class="comment">// Anchor in DAG
+<a href=#296 id=296 data-nosnippet>296</a>        </span><span class="self">self</span>.anchor_in_dag(<span class="kw-2">&amp;</span>audit_event)<span class="question-mark">?</span>;
 <a href=#297 id=297 data-nosnippet>297</a>
-<a href=#298 id=298 data-nosnippet>298</a>        <span class="comment">// Anchor in DAG
-<a href=#299 id=299 data-nosnippet>299</a>        </span><span class="self">self</span>.anchor_in_dag(<span class="kw-2">&amp;</span>audit_event)<span class="question-mark">?</span>;
+<a href=#298 id=298 data-nosnippet>298</a>        <span class="prelude-val">Ok</span>(challenge_id)
+<a href=#299 id=299 data-nosnippet>299</a>    }
 <a href=#300 id=300 data-nosnippet>300</a>
-<a href=#301 id=301 data-nosnippet>301</a>        <span class="prelude-val">Ok</span>(challenge_id)
-<a href=#302 id=302 data-nosnippet>302</a>    }
-<a href=#303 id=303 data-nosnippet>303</a>
-<a href=#304 id=304 data-nosnippet>304</a>    <span class="doccomment">/// Resolve a trust challenge
-<a href=#305 id=305 data-nosnippet>305</a>    </span><span class="kw">pub fn </span>resolve_challenge(
-<a href=#306 id=306 data-nosnippet>306</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
-<a href=#307 id=307 data-nosnippet>307</a>        challenge_id: <span class="kw-2">&amp;</span>str,
-<a href=#308 id=308 data-nosnippet>308</a>        resolution: ChallengeResolution,
-<a href=#309 id=309 data-nosnippet>309</a>        resolver_did: Did,
-<a href=#310 id=310 data-nosnippet>310</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
-<a href=#311 id=311 data-nosnippet>311</a>        <span class="kw">let </span>current_time = <span class="self">self</span>.time_provider.unix_seconds();
-<a href=#312 id=312 data-nosnippet>312</a>
-<a href=#313 id=313 data-nosnippet>313</a>        <span class="comment">// Get and update challenge
-<a href=#314 id=314 data-nosnippet>314</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
-<a href=#315 id=315 data-nosnippet>315</a>        <span class="kw">let </span><span class="kw-2">mut </span>challenge = store
-<a href=#316 id=316 data-nosnippet>316</a>            .get_challenge(challenge_id)
-<a href=#317 id=317 data-nosnippet>317</a>            .ok_or_else(|| CommonError::IdentityError(<span class="string">"Challenge not found"</span>.into()))<span class="question-mark">?</span>;
-<a href=#318 id=318 data-nosnippet>318</a>
-<a href=#319 id=319 data-nosnippet>319</a>        <span class="kw">let </span>new_status = <span class="kw">match </span>resolution {
-<a href=#320 id=320 data-nosnippet>320</a>            ChallengeResolution::Accept =&gt; ChallengeStatus::Accepted,
-<a href=#321 id=321 data-nosnippet>321</a>            ChallengeResolution::Reject =&gt; ChallengeStatus::Rejected,
-<a href=#322 id=322 data-nosnippet>322</a>        };
+<a href=#301 id=301 data-nosnippet>301</a>    <span class="doccomment">/// Resolve a trust challenge
+<a href=#302 id=302 data-nosnippet>302</a>    </span><span class="kw">pub fn </span>resolve_challenge(
+<a href=#303 id=303 data-nosnippet>303</a>        <span class="kw-2">&amp;</span><span class="self">self</span>,
+<a href=#304 id=304 data-nosnippet>304</a>        challenge_id: <span class="kw-2">&amp;</span>str,
+<a href=#305 id=305 data-nosnippet>305</a>        resolution: ChallengeResolution,
+<a href=#306 id=306 data-nosnippet>306</a>        resolver_did: Did,
+<a href=#307 id=307 data-nosnippet>307</a>    ) -&gt; <span class="prelude-ty">Result</span>&lt;(), CommonError&gt; {
+<a href=#308 id=308 data-nosnippet>308</a>        <span class="kw">let </span>current_time = <span class="self">self</span>.time_provider.unix_seconds();
+<a href=#309 id=309 data-nosnippet>309</a>
+<a href=#310 id=310 data-nosnippet>310</a>        <span class="comment">// Get and update challenge
+<a href=#311 id=311 data-nosnippet>311</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
+<a href=#312 id=312 data-nosnippet>312</a>        <span class="kw">let </span><span class="kw-2">mut </span>challenge = store
+<a href=#313 id=313 data-nosnippet>313</a>            .get_challenge(challenge_id)
+<a href=#314 id=314 data-nosnippet>314</a>            .ok_or_else(|| CommonError::IdentityError(<span class="string">"Challenge not found"</span>.into()))<span class="question-mark">?</span>;
+<a href=#315 id=315 data-nosnippet>315</a>
+<a href=#316 id=316 data-nosnippet>316</a>        <span class="kw">let </span>new_status = <span class="kw">match </span>resolution {
+<a href=#317 id=317 data-nosnippet>317</a>            ChallengeResolution::Accept =&gt; ChallengeStatus::Accepted,
+<a href=#318 id=318 data-nosnippet>318</a>            ChallengeResolution::Reject =&gt; ChallengeStatus::Rejected,
+<a href=#319 id=319 data-nosnippet>319</a>        };
+<a href=#320 id=320 data-nosnippet>320</a>
+<a href=#321 id=321 data-nosnippet>321</a>        challenge.update_status(new_status.clone(), current_time);
+<a href=#322 id=322 data-nosnippet>322</a>        store.store_challenge(challenge.clone())<span class="question-mark">?</span>;
 <a href=#323 id=323 data-nosnippet>323</a>
-<a href=#324 id=324 data-nosnippet>324</a>        challenge.update_status(new_status.clone(), current_time);
-<a href=#325 id=325 data-nosnippet>325</a>        store.store_challenge(challenge.clone())<span class="question-mark">?</span>;
-<a href=#326 id=326 data-nosnippet>326</a>
-<a href=#327 id=327 data-nosnippet>327</a>        <span class="comment">// If challenge was accepted, update trust record
-<a href=#328 id=328 data-nosnippet>328</a>        </span><span class="kw">if </span>resolution == ChallengeResolution::Accept {
-<a href=#329 id=329 data-nosnippet>329</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>record) =
-<a href=#330 id=330 data-nosnippet>330</a>                store.get_trust_record(<span class="kw-2">&amp;</span>challenge.challenged_subject, <span class="kw-2">&amp;</span>challenge.context)
-<a href=#331 id=331 data-nosnippet>331</a>            {
-<a href=#332 id=332 data-nosnippet>332</a>                <span class="comment">// For simplicity, remove all attestations - in practice, might be more nuanced
-<a href=#333 id=333 data-nosnippet>333</a>                </span>record.attestations.clear();
-<a href=#334 id=334 data-nosnippet>334</a>                record.aggregated_score = <span class="number">0.0</span>;
-<a href=#335 id=335 data-nosnippet>335</a>                record.last_updated = current_time;
-<a href=#336 id=336 data-nosnippet>336</a>                store.store_trust_record(record)<span class="question-mark">?</span>;
-<a href=#337 id=337 data-nosnippet>337</a>            }
-<a href=#338 id=338 data-nosnippet>338</a>        }
-<a href=#339 id=339 data-nosnippet>339</a>
-<a href=#340 id=340 data-nosnippet>340</a>        <span class="comment">// Create audit event
-<a href=#341 id=341 data-nosnippet>341</a>        </span><span class="kw">let </span>audit_event = TrustAuditEvent {
-<a href=#342 id=342 data-nosnippet>342</a>            event_id: <span class="macro">format!</span>(<span class="string">"challenge-resolved-{}"</span>, challenge_id),
-<a href=#343 id=343 data-nosnippet>343</a>            event_type: TrustEventType::ChallengeResolved,
-<a href=#344 id=344 data-nosnippet>344</a>            actor: resolver_did,
-<a href=#345 id=345 data-nosnippet>345</a>            subject: challenge.challenged_subject,
-<a href=#346 id=346 data-nosnippet>346</a>            context: challenge.context,
-<a href=#347 id=347 data-nosnippet>347</a>            timestamp: current_time,
-<a href=#348 id=348 data-nosnippet>348</a>            data: <span class="macro">serde_json::json!</span>({
-<a href=#349 id=349 data-nosnippet>349</a>                <span class="string">"challenge_id"</span>: challenge_id,
-<a href=#350 id=350 data-nosnippet>350</a>                <span class="string">"resolution"</span>: resolution,
-<a href=#351 id=351 data-nosnippet>351</a>                <span class="string">"status"</span>: new_status
-<a href=#352 id=352 data-nosnippet>352</a>            }),
-<a href=#353 id=353 data-nosnippet>353</a>            dag_cid: <span class="prelude-val">None</span>,
-<a href=#354 id=354 data-nosnippet>354</a>        };
-<a href=#355 id=355 data-nosnippet>355</a>
-<a href=#356 id=356 data-nosnippet>356</a>        store.store_audit_event(audit_event.clone())<span class="question-mark">?</span>;
+<a href=#324 id=324 data-nosnippet>324</a>        <span class="comment">// If challenge was accepted, update trust record
+<a href=#325 id=325 data-nosnippet>325</a>        </span><span class="kw">if </span>resolution == ChallengeResolution::Accept {
+<a href=#326 id=326 data-nosnippet>326</a>            <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">mut </span>record) =
+<a href=#327 id=327 data-nosnippet>327</a>                store.get_trust_record(<span class="kw-2">&amp;</span>challenge.challenged_subject, <span class="kw-2">&amp;</span>challenge.context)
+<a href=#328 id=328 data-nosnippet>328</a>            {
+<a href=#329 id=329 data-nosnippet>329</a>                <span class="comment">// For simplicity, remove all attestations - in practice, might be more nuanced
+<a href=#330 id=330 data-nosnippet>330</a>                </span>record.attestations.clear();
+<a href=#331 id=331 data-nosnippet>331</a>                record.aggregated_score = <span class="number">0.0</span>;
+<a href=#332 id=332 data-nosnippet>332</a>                record.last_updated = current_time;
+<a href=#333 id=333 data-nosnippet>333</a>                store.store_trust_record(record)<span class="question-mark">?</span>;
+<a href=#334 id=334 data-nosnippet>334</a>            }
+<a href=#335 id=335 data-nosnippet>335</a>        }
+<a href=#336 id=336 data-nosnippet>336</a>
+<a href=#337 id=337 data-nosnippet>337</a>        <span class="comment">// Create audit event
+<a href=#338 id=338 data-nosnippet>338</a>        </span><span class="kw">let </span>audit_event = TrustAuditEvent {
+<a href=#339 id=339 data-nosnippet>339</a>            event_id: <span class="macro">format!</span>(<span class="string">"challenge-resolved-{challenge_id}"</span>),
+<a href=#340 id=340 data-nosnippet>340</a>            event_type: TrustEventType::ChallengeResolved,
+<a href=#341 id=341 data-nosnippet>341</a>            actor: resolver_did,
+<a href=#342 id=342 data-nosnippet>342</a>            subject: challenge.challenged_subject,
+<a href=#343 id=343 data-nosnippet>343</a>            context: challenge.context,
+<a href=#344 id=344 data-nosnippet>344</a>            timestamp: current_time,
+<a href=#345 id=345 data-nosnippet>345</a>            data: <span class="macro">serde_json::json!</span>({
+<a href=#346 id=346 data-nosnippet>346</a>                <span class="string">"challenge_id"</span>: challenge_id,
+<a href=#347 id=347 data-nosnippet>347</a>                <span class="string">"resolution"</span>: resolution,
+<a href=#348 id=348 data-nosnippet>348</a>                <span class="string">"status"</span>: new_status
+<a href=#349 id=349 data-nosnippet>349</a>            }),
+<a href=#350 id=350 data-nosnippet>350</a>            dag_cid: <span class="prelude-val">None</span>,
+<a href=#351 id=351 data-nosnippet>351</a>        };
+<a href=#352 id=352 data-nosnippet>352</a>
+<a href=#353 id=353 data-nosnippet>353</a>        store.store_audit_event(audit_event.clone())<span class="question-mark">?</span>;
+<a href=#354 id=354 data-nosnippet>354</a>
+<a href=#355 id=355 data-nosnippet>355</a>        <span class="comment">// Anchor in DAG
+<a href=#356 id=356 data-nosnippet>356</a>        </span><span class="self">self</span>.anchor_in_dag(<span class="kw-2">&amp;</span>audit_event)<span class="question-mark">?</span>;
 <a href=#357 id=357 data-nosnippet>357</a>
-<a href=#358 id=358 data-nosnippet>358</a>        <span class="comment">// Anchor in DAG
-<a href=#359 id=359 data-nosnippet>359</a>        </span><span class="self">self</span>.anchor_in_dag(<span class="kw-2">&amp;</span>audit_event)<span class="question-mark">?</span>;
+<a href=#358 id=358 data-nosnippet>358</a>        <span class="prelude-val">Ok</span>(())
+<a href=#359 id=359 data-nosnippet>359</a>    }
 <a href=#360 id=360 data-nosnippet>360</a>
-<a href=#361 id=361 data-nosnippet>361</a>        <span class="prelude-val">Ok</span>(())
-<a href=#362 id=362 data-nosnippet>362</a>    }
-<a href=#363 id=363 data-nosnippet>363</a>
-<a href=#364 id=364 data-nosnippet>364</a>    <span class="doccomment">/// Get trust audit trail for a subject
-<a href=#365 id=365 data-nosnippet>365</a>    </span><span class="kw">pub fn </span>get_audit_trail(<span class="kw-2">&amp;</span><span class="self">self</span>, subject: <span class="kw-2">&amp;</span>Did, context: <span class="kw-2">&amp;</span>TrustContext) -&gt; Vec&lt;TrustAuditEvent&gt; {
-<a href=#366 id=366 data-nosnippet>366</a>        <span class="kw">let </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
-<a href=#367 id=367 data-nosnippet>367</a>        store.get_audit_events(subject, context)
-<a href=#368 id=368 data-nosnippet>368</a>    }
-<a href=#369 id=369 data-nosnippet>369</a>
-<a href=#370 id=370 data-nosnippet>370</a>    <span class="doccomment">/// Anchor data in DAG store
-<a href=#371 id=371 data-nosnippet>371</a>    </span><span class="kw">fn </span>anchor_in_dag&lt;S: Serialize&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>S) -&gt; <span class="prelude-ty">Result</span>&lt;Cid, CommonError&gt; {
-<a href=#372 id=372 data-nosnippet>372</a>        <span class="kw">let </span>serialized = serde_json::to_vec(data)
-<a href=#373 id=373 data-nosnippet>373</a>            .map_err(|e| CommonError::InternalError(<span class="macro">format!</span>(<span class="string">"Serialization failed: {}"</span>, e)))<span class="question-mark">?</span>;
-<a href=#374 id=374 data-nosnippet>374</a>
-<a href=#375 id=375 data-nosnippet>375</a>        <span class="comment">// Create a DAG block from the serialized data
-<a href=#376 id=376 data-nosnippet>376</a>        </span><span class="kw">let </span>cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="kw-2">&amp;</span>serialized);
-<a href=#377 id=377 data-nosnippet>377</a>        <span class="kw">let </span>block = DagBlock {
-<a href=#378 id=378 data-nosnippet>378</a>            cid: cid.clone(),
-<a href=#379 id=379 data-nosnippet>379</a>            data: serialized,
-<a href=#380 id=380 data-nosnippet>380</a>            links: Vec::new(),
-<a href=#381 id=381 data-nosnippet>381</a>            timestamp: <span class="self">self</span>.time_provider.unix_seconds(),
-<a href=#382 id=382 data-nosnippet>382</a>            author_did: Did::new(<span class="string">"system"</span>, <span class="string">"trust_verifier"</span>), <span class="comment">// System DID for trust verification
-<a href=#383 id=383 data-nosnippet>383</a>            </span>signature: <span class="prelude-val">None</span>,
-<a href=#384 id=384 data-nosnippet>384</a>            scope: <span class="prelude-val">None</span>,
-<a href=#385 id=385 data-nosnippet>385</a>        };
-<a href=#386 id=386 data-nosnippet>386</a>
-<a href=#387 id=387 data-nosnippet>387</a>        <span class="kw">let </span><span class="kw-2">mut </span>dag_store = <span class="self">self</span>.dag_store.lock().unwrap();
-<a href=#388 id=388 data-nosnippet>388</a>        dag_store.put(<span class="kw-2">&amp;</span>block)<span class="question-mark">?</span>;
-<a href=#389 id=389 data-nosnippet>389</a>        <span class="prelude-val">Ok</span>(block.cid)
-<a href=#390 id=390 data-nosnippet>390</a>    }
-<a href=#391 id=391 data-nosnippet>391</a>}
-<a href=#392 id=392 data-nosnippet>392</a>
-<a href=#393 id=393 data-nosnippet>393</a><span class="doccomment">/// Trust verification record for DAG anchoring
-<a href=#394 id=394 data-nosnippet>394</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
-<a href=#395 id=395 data-nosnippet>395</a></span><span class="kw">struct </span>TrustVerificationRecord {
-<a href=#396 id=396 data-nosnippet>396</a>    subject: Did,
-<a href=#397 id=397 data-nosnippet>397</a>    context: TrustContext,
-<a href=#398 id=398 data-nosnippet>398</a>    verified: bool,
-<a href=#399 id=399 data-nosnippet>399</a>    trust_score: f64,
-<a href=#400 id=400 data-nosnippet>400</a>    attestation_count: usize,
-<a href=#401 id=401 data-nosnippet>401</a>    attester_reputation: u64,
-<a href=#402 id=402 data-nosnippet>402</a>    timestamp: u64,
-<a href=#403 id=403 data-nosnippet>403</a>    issues: Vec&lt;String&gt;,
-<a href=#404 id=404 data-nosnippet>404</a>}
-<a href=#405 id=405 data-nosnippet>405</a>
-<a href=#406 id=406 data-nosnippet>406</a><span class="doccomment">/// Challenge resolution options
-<a href=#407 id=407 data-nosnippet>407</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-<a href=#408 id=408 data-nosnippet>408</a></span><span class="kw">pub enum </span>ChallengeResolution {
-<a href=#409 id=409 data-nosnippet>409</a>    Accept,
-<a href=#410 id=410 data-nosnippet>410</a>    Reject,
-<a href=#411 id=411 data-nosnippet>411</a>}
-<a href=#412 id=412 data-nosnippet>412</a>
-<a href=#413 id=413 data-nosnippet>413</a><span class="attr">#[cfg(test)]
-<a href=#414 id=414 data-nosnippet>414</a></span><span class="kw">mod </span>tests {
-<a href=#415 id=415 data-nosnippet>415</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#416 id=416 data-nosnippet>416</a>    <span class="kw">use crate</span>::{
-<a href=#417 id=417 data-nosnippet>417</a>        did_key_from_verifying_key, generate_ed25519_keypair, InMemoryTrustAttestationStore,
-<a href=#418 id=418 data-nosnippet>418</a>        KeyDidResolver, TrustLevel,
-<a href=#419 id=419 data-nosnippet>419</a>    };
-<a href=#420 id=420 data-nosnippet>420</a>    <span class="kw">use </span>icn_common::FixedTimeProvider;
-<a href=#421 id=421 data-nosnippet>421</a>    <span class="kw">use </span>icn_dag::InMemoryDagStore;
-<a href=#422 id=422 data-nosnippet>422</a>    <span class="kw">use </span>icn_reputation::InMemoryReputationStore;
-<a href=#423 id=423 data-nosnippet>423</a>    <span class="kw">use </span>std::str::FromStr;
-<a href=#424 id=424 data-nosnippet>424</a>    <span class="kw">use </span>std::sync::{Arc, Mutex};
-<a href=#425 id=425 data-nosnippet>425</a>
-<a href=#426 id=426 data-nosnippet>426</a>    <span class="kw">fn </span>setup_test_engine() -&gt; (
-<a href=#427 id=427 data-nosnippet>427</a>        TrustVerificationEngine&lt;
-<a href=#428 id=428 data-nosnippet>428</a>            InMemoryDagStore,
-<a href=#429 id=429 data-nosnippet>429</a>            InMemoryReputationStore,
-<a href=#430 id=430 data-nosnippet>430</a>            InMemoryTrustAttestationStore,
-<a href=#431 id=431 data-nosnippet>431</a>        &gt;,
-<a href=#432 id=432 data-nosnippet>432</a>        Arc&lt;FixedTimeProvider&gt;,
-<a href=#433 id=433 data-nosnippet>433</a>    ) {
-<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>config = TrustVerificationConfig::default();
-<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span>dag_store = Arc::new(Mutex::new(InMemoryDagStore::new()));
-<a href=#436 id=436 data-nosnippet>436</a>        <span class="kw">let </span>reputation_store = Arc::new(InMemoryReputationStore::new());
-<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">let </span>attestation_store = Arc::new(Mutex::new(InMemoryTrustAttestationStore::new()));
-<a href=#438 id=438 data-nosnippet>438</a>        <span class="kw">let </span>time_provider = Arc::new(FixedTimeProvider::new(<span class="number">1234567890</span>));
-<a href=#439 id=439 data-nosnippet>439</a>
-<a href=#440 id=440 data-nosnippet>440</a>        <span class="kw">let </span>engine = TrustVerificationEngine::new(
-<a href=#441 id=441 data-nosnippet>441</a>            config,
-<a href=#442 id=442 data-nosnippet>442</a>            dag_store,
-<a href=#443 id=443 data-nosnippet>443</a>            reputation_store.clone(),
-<a href=#444 id=444 data-nosnippet>444</a>            attestation_store,
-<a href=#445 id=445 data-nosnippet>445</a>            time_provider.clone(),
-<a href=#446 id=446 data-nosnippet>446</a>        );
+<a href=#361 id=361 data-nosnippet>361</a>    <span class="doccomment">/// Get trust audit trail for a subject
+<a href=#362 id=362 data-nosnippet>362</a>    </span><span class="kw">pub fn </span>get_audit_trail(<span class="kw-2">&amp;</span><span class="self">self</span>, subject: <span class="kw-2">&amp;</span>Did, context: <span class="kw-2">&amp;</span>TrustContext) -&gt; Vec&lt;TrustAuditEvent&gt; {
+<a href=#363 id=363 data-nosnippet>363</a>        <span class="kw">let </span>store = <span class="self">self</span>.attestation_store.lock().unwrap();
+<a href=#364 id=364 data-nosnippet>364</a>        store.get_audit_events(subject, context)
+<a href=#365 id=365 data-nosnippet>365</a>    }
+<a href=#366 id=366 data-nosnippet>366</a>
+<a href=#367 id=367 data-nosnippet>367</a>    <span class="doccomment">/// Anchor data in DAG store
+<a href=#368 id=368 data-nosnippet>368</a>    </span><span class="kw">fn </span>anchor_in_dag&lt;S: Serialize&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, data: <span class="kw-2">&amp;</span>S) -&gt; <span class="prelude-ty">Result</span>&lt;Cid, CommonError&gt; {
+<a href=#369 id=369 data-nosnippet>369</a>        <span class="kw">let </span>serialized = serde_json::to_vec(data)
+<a href=#370 id=370 data-nosnippet>370</a>            .map_err(|e| CommonError::InternalError(<span class="macro">format!</span>(<span class="string">"Serialization failed: {e}"</span>)))<span class="question-mark">?</span>;
+<a href=#371 id=371 data-nosnippet>371</a>
+<a href=#372 id=372 data-nosnippet>372</a>        <span class="comment">// Create a DAG block from the serialized data
+<a href=#373 id=373 data-nosnippet>373</a>        </span><span class="kw">let </span>cid = icn_common::Cid::new_v1_sha256(<span class="number">0x55</span>, <span class="kw-2">&amp;</span>serialized);
+<a href=#374 id=374 data-nosnippet>374</a>        <span class="kw">let </span>block = DagBlock {
+<a href=#375 id=375 data-nosnippet>375</a>            cid: cid.clone(),
+<a href=#376 id=376 data-nosnippet>376</a>            data: serialized,
+<a href=#377 id=377 data-nosnippet>377</a>            links: Vec::new(),
+<a href=#378 id=378 data-nosnippet>378</a>            timestamp: <span class="self">self</span>.time_provider.unix_seconds(),
+<a href=#379 id=379 data-nosnippet>379</a>            author_did: Did::new(<span class="string">"system"</span>, <span class="string">"trust_verifier"</span>), <span class="comment">// System DID for trust verification
+<a href=#380 id=380 data-nosnippet>380</a>            </span>signature: <span class="prelude-val">None</span>,
+<a href=#381 id=381 data-nosnippet>381</a>            scope: <span class="prelude-val">None</span>,
+<a href=#382 id=382 data-nosnippet>382</a>        };
+<a href=#383 id=383 data-nosnippet>383</a>
+<a href=#384 id=384 data-nosnippet>384</a>        <span class="kw">let </span><span class="kw-2">mut </span>dag_store = <span class="self">self</span>.dag_store.lock().unwrap();
+<a href=#385 id=385 data-nosnippet>385</a>        dag_store.put(<span class="kw-2">&amp;</span>block)<span class="question-mark">?</span>;
+<a href=#386 id=386 data-nosnippet>386</a>        <span class="prelude-val">Ok</span>(block.cid)
+<a href=#387 id=387 data-nosnippet>387</a>    }
+<a href=#388 id=388 data-nosnippet>388</a>}
+<a href=#389 id=389 data-nosnippet>389</a>
+<a href=#390 id=390 data-nosnippet>390</a><span class="doccomment">/// Trust verification record for DAG anchoring
+<a href=#391 id=391 data-nosnippet>391</a></span><span class="attr">#[derive(Debug, Clone, Serialize, Deserialize)]
+<a href=#392 id=392 data-nosnippet>392</a></span><span class="kw">struct </span>TrustVerificationRecord {
+<a href=#393 id=393 data-nosnippet>393</a>    subject: Did,
+<a href=#394 id=394 data-nosnippet>394</a>    context: TrustContext,
+<a href=#395 id=395 data-nosnippet>395</a>    verified: bool,
+<a href=#396 id=396 data-nosnippet>396</a>    trust_score: f64,
+<a href=#397 id=397 data-nosnippet>397</a>    attestation_count: usize,
+<a href=#398 id=398 data-nosnippet>398</a>    attester_reputation: u64,
+<a href=#399 id=399 data-nosnippet>399</a>    timestamp: u64,
+<a href=#400 id=400 data-nosnippet>400</a>    issues: Vec&lt;String&gt;,
+<a href=#401 id=401 data-nosnippet>401</a>}
+<a href=#402 id=402 data-nosnippet>402</a>
+<a href=#403 id=403 data-nosnippet>403</a><span class="doccomment">/// Challenge resolution options
+<a href=#404 id=404 data-nosnippet>404</a></span><span class="attr">#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+<a href=#405 id=405 data-nosnippet>405</a></span><span class="kw">pub enum </span>ChallengeResolution {
+<a href=#406 id=406 data-nosnippet>406</a>    Accept,
+<a href=#407 id=407 data-nosnippet>407</a>    Reject,
+<a href=#408 id=408 data-nosnippet>408</a>}
+<a href=#409 id=409 data-nosnippet>409</a>
+<a href=#410 id=410 data-nosnippet>410</a><span class="attr">#[cfg(test)]
+<a href=#411 id=411 data-nosnippet>411</a></span><span class="kw">mod </span>tests {
+<a href=#412 id=412 data-nosnippet>412</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
+<a href=#413 id=413 data-nosnippet>413</a>    <span class="kw">use crate</span>::{
+<a href=#414 id=414 data-nosnippet>414</a>        did_key_from_verifying_key, generate_ed25519_keypair, InMemoryTrustAttestationStore,
+<a href=#415 id=415 data-nosnippet>415</a>        KeyDidResolver, TrustLevel,
+<a href=#416 id=416 data-nosnippet>416</a>    };
+<a href=#417 id=417 data-nosnippet>417</a>    <span class="kw">use </span>icn_common::FixedTimeProvider;
+<a href=#418 id=418 data-nosnippet>418</a>    <span class="kw">use </span>icn_dag::InMemoryDagStore;
+<a href=#419 id=419 data-nosnippet>419</a>    <span class="kw">use </span>icn_reputation::InMemoryReputationStore;
+<a href=#420 id=420 data-nosnippet>420</a>    <span class="kw">use </span>std::str::FromStr;
+<a href=#421 id=421 data-nosnippet>421</a>    <span class="kw">use </span>std::sync::{Arc, Mutex};
+<a href=#422 id=422 data-nosnippet>422</a>
+<a href=#423 id=423 data-nosnippet>423</a>    <span class="kw">fn </span>setup_test_engine() -&gt; (
+<a href=#424 id=424 data-nosnippet>424</a>        TrustVerificationEngine&lt;
+<a href=#425 id=425 data-nosnippet>425</a>            InMemoryDagStore,
+<a href=#426 id=426 data-nosnippet>426</a>            InMemoryReputationStore,
+<a href=#427 id=427 data-nosnippet>427</a>            InMemoryTrustAttestationStore,
+<a href=#428 id=428 data-nosnippet>428</a>        &gt;,
+<a href=#429 id=429 data-nosnippet>429</a>        Arc&lt;FixedTimeProvider&gt;,
+<a href=#430 id=430 data-nosnippet>430</a>    ) {
+<a href=#431 id=431 data-nosnippet>431</a>        <span class="kw">let </span>config = TrustVerificationConfig::default();
+<a href=#432 id=432 data-nosnippet>432</a>        <span class="kw">let </span>dag_store = Arc::new(Mutex::new(InMemoryDagStore::new()));
+<a href=#433 id=433 data-nosnippet>433</a>        <span class="kw">let </span>reputation_store = Arc::new(InMemoryReputationStore::new());
+<a href=#434 id=434 data-nosnippet>434</a>        <span class="kw">let </span>attestation_store = Arc::new(Mutex::new(InMemoryTrustAttestationStore::new()));
+<a href=#435 id=435 data-nosnippet>435</a>        <span class="kw">let </span>time_provider = Arc::new(FixedTimeProvider::new(<span class="number">1234567890</span>));
+<a href=#436 id=436 data-nosnippet>436</a>
+<a href=#437 id=437 data-nosnippet>437</a>        <span class="kw">let </span>engine = TrustVerificationEngine::new(
+<a href=#438 id=438 data-nosnippet>438</a>            config,
+<a href=#439 id=439 data-nosnippet>439</a>            dag_store,
+<a href=#440 id=440 data-nosnippet>440</a>            reputation_store.clone(),
+<a href=#441 id=441 data-nosnippet>441</a>            attestation_store,
+<a href=#442 id=442 data-nosnippet>442</a>            time_provider.clone(),
+<a href=#443 id=443 data-nosnippet>443</a>        );
+<a href=#444 id=444 data-nosnippet>444</a>
+<a href=#445 id=445 data-nosnippet>445</a>        (engine, time_provider)
+<a href=#446 id=446 data-nosnippet>446</a>    }
 <a href=#447 id=447 data-nosnippet>447</a>
-<a href=#448 id=448 data-nosnippet>448</a>        (engine, time_provider)
-<a href=#449 id=449 data-nosnippet>449</a>    }
-<a href=#450 id=450 data-nosnippet>450</a>
-<a href=#451 id=451 data-nosnippet>451</a>    <span class="attr">#[test]
-<a href=#452 id=452 data-nosnippet>452</a>    </span><span class="kw">fn </span>test_submit_attestation() {
-<a href=#453 id=453 data-nosnippet>453</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
-<a href=#454 id=454 data-nosnippet>454</a>        <span class="kw">let </span>resolver = KeyDidResolver;
-<a href=#455 id=455 data-nosnippet>455</a>
-<a href=#456 id=456 data-nosnippet>456</a>        <span class="comment">// Create attester with sufficient reputation
-<a href=#457 id=457 data-nosnippet>457</a>        </span><span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
-<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
-<a href=#459 id=459 data-nosnippet>459</a>        engine.reputation_store.set_score(attester.clone(), <span class="number">100</span>);
-<a href=#460 id=460 data-nosnippet>460</a>
-<a href=#461 id=461 data-nosnippet>461</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
-<a href=#462 id=462 data-nosnippet>462</a>        <span class="kw">let </span>attestation = TrustAttestation::new(
-<a href=#463 id=463 data-nosnippet>463</a>            attester,
-<a href=#464 id=464 data-nosnippet>464</a>            subject,
-<a href=#465 id=465 data-nosnippet>465</a>            TrustContext::General,
-<a href=#466 id=466 data-nosnippet>466</a>            TrustLevel::Full,
-<a href=#467 id=467 data-nosnippet>467</a>            <span class="number">1234567890</span>,
-<a href=#468 id=468 data-nosnippet>468</a>            <span class="prelude-val">None</span>,
-<a href=#469 id=469 data-nosnippet>469</a>        )
-<a href=#470 id=470 data-nosnippet>470</a>        .sign_with_key(<span class="kw-2">&amp;</span>sk)
-<a href=#471 id=471 data-nosnippet>471</a>        .unwrap();
-<a href=#472 id=472 data-nosnippet>472</a>
-<a href=#473 id=473 data-nosnippet>473</a>        <span class="kw">let </span>result = engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver);
-<a href=#474 id=474 data-nosnippet>474</a>        <span class="macro">assert!</span>(result.is_ok());
-<a href=#475 id=475 data-nosnippet>475</a>    }
-<a href=#476 id=476 data-nosnippet>476</a>
-<a href=#477 id=477 data-nosnippet>477</a>    <span class="attr">#[test]
-<a href=#478 id=478 data-nosnippet>478</a>    </span><span class="kw">fn </span>test_verify_trust() {
-<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
-<a href=#480 id=480 data-nosnippet>480</a>        <span class="kw">let </span>resolver = KeyDidResolver;
-<a href=#481 id=481 data-nosnippet>481</a>
-<a href=#482 id=482 data-nosnippet>482</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
-<a href=#483 id=483 data-nosnippet>483</a>
-<a href=#484 id=484 data-nosnippet>484</a>        <span class="comment">// Create multiple attesters with good reputation
-<a href=#485 id=485 data-nosnippet>485</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
-<a href=#486 id=486 data-nosnippet>486</a>            <span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
-<a href=#487 id=487 data-nosnippet>487</a>            <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
-<a href=#488 id=488 data-nosnippet>488</a>            engine.reputation_store.set_score(attester.clone(), <span class="number">80</span>);
-<a href=#489 id=489 data-nosnippet>489</a>
-<a href=#490 id=490 data-nosnippet>490</a>            <span class="kw">let </span>attestation = TrustAttestation::new(
-<a href=#491 id=491 data-nosnippet>491</a>                attester,
-<a href=#492 id=492 data-nosnippet>492</a>                subject.clone(),
-<a href=#493 id=493 data-nosnippet>493</a>                TrustContext::General,
-<a href=#494 id=494 data-nosnippet>494</a>                TrustLevel::Full,
-<a href=#495 id=495 data-nosnippet>495</a>                <span class="number">1234567890 </span>+ i,
-<a href=#496 id=496 data-nosnippet>496</a>                <span class="prelude-val">None</span>,
-<a href=#497 id=497 data-nosnippet>497</a>            )
-<a href=#498 id=498 data-nosnippet>498</a>            .sign_with_key(<span class="kw-2">&amp;</span>sk)
-<a href=#499 id=499 data-nosnippet>499</a>            .unwrap();
+<a href=#448 id=448 data-nosnippet>448</a>    <span class="attr">#[test]
+<a href=#449 id=449 data-nosnippet>449</a>    </span><span class="kw">fn </span>test_submit_attestation() {
+<a href=#450 id=450 data-nosnippet>450</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
+<a href=#451 id=451 data-nosnippet>451</a>        <span class="kw">let </span>resolver = KeyDidResolver;
+<a href=#452 id=452 data-nosnippet>452</a>
+<a href=#453 id=453 data-nosnippet>453</a>        <span class="comment">// Create attester with sufficient reputation
+<a href=#454 id=454 data-nosnippet>454</a>        </span><span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
+<a href=#455 id=455 data-nosnippet>455</a>        <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
+<a href=#456 id=456 data-nosnippet>456</a>        engine.reputation_store.set_score(attester.clone(), <span class="number">100</span>);
+<a href=#457 id=457 data-nosnippet>457</a>
+<a href=#458 id=458 data-nosnippet>458</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
+<a href=#459 id=459 data-nosnippet>459</a>        <span class="kw">let </span>attestation = TrustAttestation::new(
+<a href=#460 id=460 data-nosnippet>460</a>            attester,
+<a href=#461 id=461 data-nosnippet>461</a>            subject,
+<a href=#462 id=462 data-nosnippet>462</a>            TrustContext::General,
+<a href=#463 id=463 data-nosnippet>463</a>            TrustLevel::Full,
+<a href=#464 id=464 data-nosnippet>464</a>            <span class="number">1234567890</span>,
+<a href=#465 id=465 data-nosnippet>465</a>            <span class="prelude-val">None</span>,
+<a href=#466 id=466 data-nosnippet>466</a>        )
+<a href=#467 id=467 data-nosnippet>467</a>        .sign_with_key(<span class="kw-2">&amp;</span>sk)
+<a href=#468 id=468 data-nosnippet>468</a>        .unwrap();
+<a href=#469 id=469 data-nosnippet>469</a>
+<a href=#470 id=470 data-nosnippet>470</a>        <span class="kw">let </span>result = engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver);
+<a href=#471 id=471 data-nosnippet>471</a>        <span class="macro">assert!</span>(result.is_ok());
+<a href=#472 id=472 data-nosnippet>472</a>    }
+<a href=#473 id=473 data-nosnippet>473</a>
+<a href=#474 id=474 data-nosnippet>474</a>    <span class="attr">#[test]
+<a href=#475 id=475 data-nosnippet>475</a>    </span><span class="kw">fn </span>test_verify_trust() {
+<a href=#476 id=476 data-nosnippet>476</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
+<a href=#477 id=477 data-nosnippet>477</a>        <span class="kw">let </span>resolver = KeyDidResolver;
+<a href=#478 id=478 data-nosnippet>478</a>
+<a href=#479 id=479 data-nosnippet>479</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
+<a href=#480 id=480 data-nosnippet>480</a>
+<a href=#481 id=481 data-nosnippet>481</a>        <span class="comment">// Create multiple attesters with good reputation
+<a href=#482 id=482 data-nosnippet>482</a>        </span><span class="kw">for </span>i <span class="kw">in </span><span class="number">0</span>..<span class="number">3 </span>{
+<a href=#483 id=483 data-nosnippet>483</a>            <span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
+<a href=#484 id=484 data-nosnippet>484</a>            <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
+<a href=#485 id=485 data-nosnippet>485</a>            engine.reputation_store.set_score(attester.clone(), <span class="number">80</span>);
+<a href=#486 id=486 data-nosnippet>486</a>
+<a href=#487 id=487 data-nosnippet>487</a>            <span class="kw">let </span>attestation = TrustAttestation::new(
+<a href=#488 id=488 data-nosnippet>488</a>                attester,
+<a href=#489 id=489 data-nosnippet>489</a>                subject.clone(),
+<a href=#490 id=490 data-nosnippet>490</a>                TrustContext::General,
+<a href=#491 id=491 data-nosnippet>491</a>                TrustLevel::Full,
+<a href=#492 id=492 data-nosnippet>492</a>                <span class="number">1234567890 </span>+ i,
+<a href=#493 id=493 data-nosnippet>493</a>                <span class="prelude-val">None</span>,
+<a href=#494 id=494 data-nosnippet>494</a>            )
+<a href=#495 id=495 data-nosnippet>495</a>            .sign_with_key(<span class="kw-2">&amp;</span>sk)
+<a href=#496 id=496 data-nosnippet>496</a>            .unwrap();
+<a href=#497 id=497 data-nosnippet>497</a>
+<a href=#498 id=498 data-nosnippet>498</a>            engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver).unwrap();
+<a href=#499 id=499 data-nosnippet>499</a>        }
 <a href=#500 id=500 data-nosnippet>500</a>
-<a href=#501 id=501 data-nosnippet>501</a>            engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver).unwrap();
-<a href=#502 id=502 data-nosnippet>502</a>        }
-<a href=#503 id=503 data-nosnippet>503</a>
-<a href=#504 id=504 data-nosnippet>504</a>        <span class="kw">let </span>result = engine
-<a href=#505 id=505 data-nosnippet>505</a>            .verify_trust(<span class="kw-2">&amp;</span>subject, <span class="kw-2">&amp;</span>TrustContext::General, <span class="kw-2">&amp;</span>resolver)
-<a href=#506 id=506 data-nosnippet>506</a>            .unwrap();
-<a href=#507 id=507 data-nosnippet>507</a>        <span class="macro">assert!</span>(result.verified);
-<a href=#508 id=508 data-nosnippet>508</a>        <span class="macro">assert!</span>(result.trust_score &gt; <span class="number">0.0</span>);
-<a href=#509 id=509 data-nosnippet>509</a>        <span class="macro">assert_eq!</span>(result.attestation_count, <span class="number">3</span>);
-<a href=#510 id=510 data-nosnippet>510</a>    }
-<a href=#511 id=511 data-nosnippet>511</a>
-<a href=#512 id=512 data-nosnippet>512</a>    <span class="attr">#[test]
-<a href=#513 id=513 data-nosnippet>513</a>    </span><span class="kw">fn </span>test_submit_challenge() {
-<a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
+<a href=#501 id=501 data-nosnippet>501</a>        <span class="kw">let </span>result = engine
+<a href=#502 id=502 data-nosnippet>502</a>            .verify_trust(<span class="kw-2">&amp;</span>subject, <span class="kw-2">&amp;</span>TrustContext::General, <span class="kw-2">&amp;</span>resolver)
+<a href=#503 id=503 data-nosnippet>503</a>            .unwrap();
+<a href=#504 id=504 data-nosnippet>504</a>        <span class="macro">assert!</span>(result.verified);
+<a href=#505 id=505 data-nosnippet>505</a>        <span class="macro">assert!</span>(result.trust_score &gt; <span class="number">0.0</span>);
+<a href=#506 id=506 data-nosnippet>506</a>        <span class="macro">assert_eq!</span>(result.attestation_count, <span class="number">3</span>);
+<a href=#507 id=507 data-nosnippet>507</a>    }
+<a href=#508 id=508 data-nosnippet>508</a>
+<a href=#509 id=509 data-nosnippet>509</a>    <span class="attr">#[test]
+<a href=#510 id=510 data-nosnippet>510</a>    </span><span class="kw">fn </span>test_submit_challenge() {
+<a href=#511 id=511 data-nosnippet>511</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
+<a href=#512 id=512 data-nosnippet>512</a>
+<a href=#513 id=513 data-nosnippet>513</a>        <span class="kw">let </span>challenger = Did::new(<span class="string">"key"</span>, <span class="string">"challenger"</span>);
+<a href=#514 id=514 data-nosnippet>514</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject"</span>);
 <a href=#515 id=515 data-nosnippet>515</a>
-<a href=#516 id=516 data-nosnippet>516</a>        <span class="kw">let </span>challenger = Did::new(<span class="string">"key"</span>, <span class="string">"challenger"</span>);
-<a href=#517 id=517 data-nosnippet>517</a>        <span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject"</span>);
+<a href=#516 id=516 data-nosnippet>516</a>        <span class="comment">// Set sufficient reputation for challenger
+<a href=#517 id=517 data-nosnippet>517</a>        </span>engine.reputation_store.set_score(challenger.clone(), <span class="number">50</span>);
 <a href=#518 id=518 data-nosnippet>518</a>
-<a href=#519 id=519 data-nosnippet>519</a>        <span class="comment">// Set sufficient reputation for challenger
-<a href=#520 id=520 data-nosnippet>520</a>        </span>engine.reputation_store.set_score(challenger.clone(), <span class="number">50</span>);
-<a href=#521 id=521 data-nosnippet>521</a>
-<a href=#522 id=522 data-nosnippet>522</a>        <span class="kw">let </span>result = engine.submit_challenge(
-<a href=#523 id=523 data-nosnippet>523</a>            challenger,
-<a href=#524 id=524 data-nosnippet>524</a>            subject,
-<a href=#525 id=525 data-nosnippet>525</a>            TrustContext::General,
-<a href=#526 id=526 data-nosnippet>526</a>            <span class="string">"Suspicious behavior"</span>.to_string(),
-<a href=#527 id=527 data-nosnippet>527</a>            <span class="prelude-val">Some</span>(<span class="string">"Evidence here"</span>.to_string()),
-<a href=#528 id=528 data-nosnippet>528</a>        );
-<a href=#529 id=529 data-nosnippet>529</a>
-<a href=#530 id=530 data-nosnippet>530</a>        <span class="macro">assert!</span>(result.is_ok());
-<a href=#531 id=531 data-nosnippet>531</a>        <span class="kw">let </span>challenge_id = result.unwrap();
-<a href=#532 id=532 data-nosnippet>532</a>        <span class="macro">assert!</span>(challenge_id.starts_with(<span class="string">"challenge-"</span>));
-<a href=#533 id=533 data-nosnippet>533</a>    }
-<a href=#534 id=534 data-nosnippet>534</a>
-<a href=#535 id=535 data-nosnippet>535</a>    <span class="attr">#[test]
-<a href=#536 id=536 data-nosnippet>536</a>    </span><span class="kw">fn </span>test_insufficient_reputation_for_attestation() {
-<a href=#537 id=537 data-nosnippet>537</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
-<a href=#538 id=538 data-nosnippet>538</a>        <span class="kw">let </span>resolver = KeyDidResolver;
-<a href=#539 id=539 data-nosnippet>539</a>
-<a href=#540 id=540 data-nosnippet>540</a>        <span class="comment">// Create attester with insufficient reputation
-<a href=#541 id=541 data-nosnippet>541</a>        </span><span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
-<a href=#542 id=542 data-nosnippet>542</a>        <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
-<a href=#543 id=543 data-nosnippet>543</a>        engine.reputation_store.set_score(attester.clone(), <span class="number">10</span>); <span class="comment">// Below minimum
-<a href=#544 id=544 data-nosnippet>544</a>
-<a href=#545 id=545 data-nosnippet>545</a>        </span><span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
-<a href=#546 id=546 data-nosnippet>546</a>        <span class="kw">let </span>attestation = TrustAttestation::new(
-<a href=#547 id=547 data-nosnippet>547</a>            attester,
-<a href=#548 id=548 data-nosnippet>548</a>            subject,
-<a href=#549 id=549 data-nosnippet>549</a>            TrustContext::General,
-<a href=#550 id=550 data-nosnippet>550</a>            TrustLevel::Full,
-<a href=#551 id=551 data-nosnippet>551</a>            <span class="number">1234567890</span>,
-<a href=#552 id=552 data-nosnippet>552</a>            <span class="prelude-val">None</span>,
-<a href=#553 id=553 data-nosnippet>553</a>        )
-<a href=#554 id=554 data-nosnippet>554</a>        .sign_with_key(<span class="kw-2">&amp;</span>sk)
-<a href=#555 id=555 data-nosnippet>555</a>        .unwrap();
-<a href=#556 id=556 data-nosnippet>556</a>
-<a href=#557 id=557 data-nosnippet>557</a>        <span class="kw">let </span>result = engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver);
-<a href=#558 id=558 data-nosnippet>558</a>        <span class="macro">assert!</span>(result.is_err());
-<a href=#559 id=559 data-nosnippet>559</a>        <span class="macro">assert!</span>(result
-<a href=#560 id=560 data-nosnippet>560</a>            .unwrap_err()
-<a href=#561 id=561 data-nosnippet>561</a>            .to_string()
-<a href=#562 id=562 data-nosnippet>562</a>            .contains(<span class="string">"Insufficient attester reputation"</span>));
-<a href=#563 id=563 data-nosnippet>563</a>    }
-<a href=#564 id=564 data-nosnippet>564</a>}</code></pre></div></section></main></body></html>
+<a href=#519 id=519 data-nosnippet>519</a>        <span class="kw">let </span>result = engine.submit_challenge(
+<a href=#520 id=520 data-nosnippet>520</a>            challenger,
+<a href=#521 id=521 data-nosnippet>521</a>            subject,
+<a href=#522 id=522 data-nosnippet>522</a>            TrustContext::General,
+<a href=#523 id=523 data-nosnippet>523</a>            <span class="string">"Suspicious behavior"</span>.to_string(),
+<a href=#524 id=524 data-nosnippet>524</a>            <span class="prelude-val">Some</span>(<span class="string">"Evidence here"</span>.to_string()),
+<a href=#525 id=525 data-nosnippet>525</a>        );
+<a href=#526 id=526 data-nosnippet>526</a>
+<a href=#527 id=527 data-nosnippet>527</a>        <span class="macro">assert!</span>(result.is_ok());
+<a href=#528 id=528 data-nosnippet>528</a>        <span class="kw">let </span>challenge_id = result.unwrap();
+<a href=#529 id=529 data-nosnippet>529</a>        <span class="macro">assert!</span>(challenge_id.starts_with(<span class="string">"challenge-"</span>));
+<a href=#530 id=530 data-nosnippet>530</a>    }
+<a href=#531 id=531 data-nosnippet>531</a>
+<a href=#532 id=532 data-nosnippet>532</a>    <span class="attr">#[test]
+<a href=#533 id=533 data-nosnippet>533</a>    </span><span class="kw">fn </span>test_insufficient_reputation_for_attestation() {
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span>(engine, _time_provider) = setup_test_engine();
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>resolver = KeyDidResolver;
+<a href=#536 id=536 data-nosnippet>536</a>
+<a href=#537 id=537 data-nosnippet>537</a>        <span class="comment">// Create attester with insufficient reputation
+<a href=#538 id=538 data-nosnippet>538</a>        </span><span class="kw">let </span>(sk, pk) = generate_ed25519_keypair();
+<a href=#539 id=539 data-nosnippet>539</a>        <span class="kw">let </span>attester = Did::from_str(<span class="kw-2">&amp;</span>did_key_from_verifying_key(<span class="kw-2">&amp;</span>pk)).unwrap();
+<a href=#540 id=540 data-nosnippet>540</a>        engine.reputation_store.set_score(attester.clone(), <span class="number">10</span>); <span class="comment">// Below minimum
+<a href=#541 id=541 data-nosnippet>541</a>
+<a href=#542 id=542 data-nosnippet>542</a>        </span><span class="kw">let </span>subject = Did::new(<span class="string">"key"</span>, <span class="string">"subject123"</span>);
+<a href=#543 id=543 data-nosnippet>543</a>        <span class="kw">let </span>attestation = TrustAttestation::new(
+<a href=#544 id=544 data-nosnippet>544</a>            attester,
+<a href=#545 id=545 data-nosnippet>545</a>            subject,
+<a href=#546 id=546 data-nosnippet>546</a>            TrustContext::General,
+<a href=#547 id=547 data-nosnippet>547</a>            TrustLevel::Full,
+<a href=#548 id=548 data-nosnippet>548</a>            <span class="number">1234567890</span>,
+<a href=#549 id=549 data-nosnippet>549</a>            <span class="prelude-val">None</span>,
+<a href=#550 id=550 data-nosnippet>550</a>        )
+<a href=#551 id=551 data-nosnippet>551</a>        .sign_with_key(<span class="kw-2">&amp;</span>sk)
+<a href=#552 id=552 data-nosnippet>552</a>        .unwrap();
+<a href=#553 id=553 data-nosnippet>553</a>
+<a href=#554 id=554 data-nosnippet>554</a>        <span class="kw">let </span>result = engine.submit_attestation(attestation, <span class="kw-2">&amp;</span>resolver);
+<a href=#555 id=555 data-nosnippet>555</a>        <span class="macro">assert!</span>(result.is_err());
+<a href=#556 id=556 data-nosnippet>556</a>        <span class="macro">assert!</span>(result
+<a href=#557 id=557 data-nosnippet>557</a>            .unwrap_err()
+<a href=#558 id=558 data-nosnippet>558</a>            .to_string()
+<a href=#559 id=559 data-nosnippet>559</a>            .contains(<span class="string">"Insufficient attester reputation"</span>));
+<a href=#560 id=560 data-nosnippet>560</a>    }
+<a href=#561 id=561 data-nosnippet>561</a>}</code></pre></div></section></main></body></html>

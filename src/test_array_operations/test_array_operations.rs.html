@@ -56,7 +56,7 @@
 <a href=#56 id=56 data-nosnippet>56</a>        }
 <a href=#57 id=57 data-nosnippet>57</a>        <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#58 id=58 data-nosnippet>58</a>            <span class="macro">println!</span>(<span class="string">"❌ ARRAY OPERATIONS TEST FAILED:"</span>);
-<a href=#59 id=59 data-nosnippet>59</a>            <span class="macro">println!</span>(<span class="string">"   Error: {}"</span>, e);
+<a href=#59 id=59 data-nosnippet>59</a>            <span class="macro">println!</span>(<span class="string">"   Error: {e}"</span>);
 <a href=#60 id=60 data-nosnippet>60</a>            <span class="macro">println!</span>();
 <a href=#61 id=61 data-nosnippet>61</a>            <span class="macro">println!</span>(<span class="string">"🔍 Analyzing array system issue:"</span>);
 <a href=#62 id=62 data-nosnippet>62</a>            <span class="kw">let </span>error_str = e.to_string();
@@ -71,7 +71,7 @@
 <a href=#71 id=71 data-nosnippet>71</a>            } <span class="kw">else if </span>error_str.contains(<span class="string">"WASM"</span>) {
 <a href=#72 id=72 data-nosnippet>72</a>                <span class="macro">println!</span>(<span class="string">"   • WASM generation issue with array functions"</span>);
 <a href=#73 id=73 data-nosnippet>73</a>            } <span class="kw">else </span>{
-<a href=#74 id=74 data-nosnippet>74</a>                <span class="macro">println!</span>(<span class="string">"   • Unexpected issue: {}"</span>, error_str);
+<a href=#74 id=74 data-nosnippet>74</a>                <span class="macro">println!</span>(<span class="string">"   • Unexpected issue: {error_str}"</span>);
 <a href=#75 id=75 data-nosnippet>75</a>            }
 <a href=#76 id=76 data-nosnippet>76</a>
 <a href=#77 id=77 data-nosnippet>77</a>            <span class="macro">println!</span>();

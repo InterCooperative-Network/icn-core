@@ -206,11 +206,11 @@
 <a href=#206 id=206 data-nosnippet>206</a><span class="attr">#[cfg(test)]
 <a href=#207 id=207 data-nosnippet>207</a></span><span class="kw">mod </span>tests {
 <a href=#208 id=208 data-nosnippet>208</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">use </span>icn_common::{FixedTimeProvider, TimeProvider};
+<a href=#209 id=209 data-nosnippet>209</a>    <span class="kw">use </span>icn_common::FixedTimeProvider;
 <a href=#210 id=210 data-nosnippet>210</a>    <span class="kw">use </span>std::str::FromStr;
 <a href=#211 id=211 data-nosnippet>211</a>
 <a href=#212 id=212 data-nosnippet>212</a>    <span class="kw">fn </span>create_test_did(id: <span class="kw-2">&amp;</span>str) -&gt; Did {
-<a href=#213 id=213 data-nosnippet>213</a>        Did::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"did:test:{}"</span>, id)).unwrap()
+<a href=#213 id=213 data-nosnippet>213</a>        Did::from_str(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">"did:test:{id}"</span>)).unwrap()
 <a href=#214 id=214 data-nosnippet>214</a>    }
 <a href=#215 id=215 data-nosnippet>215</a>
 <a href=#216 id=216 data-nosnippet>216</a>    <span class="attr">#[test]

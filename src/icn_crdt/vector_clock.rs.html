@@ -129,14 +129,14 @@
 <a href=#129 id=129 data-nosnippet>129</a>    <span class="doccomment">/// Create a compact representation for network transmission.
 <a href=#130 id=130 data-nosnippet>130</a>    </span><span class="kw">pub fn </span>to_compact_bytes(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CRDTResult&lt;Vec&lt;u8&gt;&gt; {
 <a href=#131 id=131 data-nosnippet>131</a>        bincode::serialize(<span class="self">self</span>).map_err(|e| {
-<a href=#132 id=132 data-nosnippet>132</a>            CRDTError::SerializationError(<span class="macro">format!</span>(<span class="string">"Vector clock serialization failed: {}"</span>, e))
+<a href=#132 id=132 data-nosnippet>132</a>            CRDTError::SerializationError(<span class="macro">format!</span>(<span class="string">"Vector clock serialization failed: {e}"</span>))
 <a href=#133 id=133 data-nosnippet>133</a>        })
 <a href=#134 id=134 data-nosnippet>134</a>    }
 <a href=#135 id=135 data-nosnippet>135</a>
 <a href=#136 id=136 data-nosnippet>136</a>    <span class="doccomment">/// Restore from compact representation.
 <a href=#137 id=137 data-nosnippet>137</a>    </span><span class="kw">pub fn </span>from_compact_bytes(bytes: <span class="kw-2">&amp;</span>[u8]) -&gt; CRDTResult&lt;<span class="self">Self</span>&gt; {
 <a href=#138 id=138 data-nosnippet>138</a>        bincode::deserialize(bytes).map_err(|e| {
-<a href=#139 id=139 data-nosnippet>139</a>            CRDTError::SerializationError(<span class="macro">format!</span>(<span class="string">"Vector clock deserialization failed: {}"</span>, e))
+<a href=#139 id=139 data-nosnippet>139</a>            CRDTError::SerializationError(<span class="macro">format!</span>(<span class="string">"Vector clock deserialization failed: {e}"</span>))
 <a href=#140 id=140 data-nosnippet>140</a>        })
 <a href=#141 id=141 data-nosnippet>141</a>    }
 <a href=#142 id=142 data-nosnippet>142</a>
@@ -199,7 +199,7 @@
 <a href=#199 id=199 data-nosnippet>199</a>            <span class="kw">if </span>!first {
 <a href=#200 id=200 data-nosnippet>200</a>                <span class="macro">write!</span>(f, <span class="string">", "</span>)<span class="question-mark">?</span>;
 <a href=#201 id=201 data-nosnippet>201</a>            }
-<a href=#202 id=202 data-nosnippet>202</a>            <span class="macro">write!</span>(f, <span class="string">"{}: {}"</span>, node_id, timestamp)<span class="question-mark">?</span>;
+<a href=#202 id=202 data-nosnippet>202</a>            <span class="macro">write!</span>(f, <span class="string">"{node_id}: {timestamp}"</span>)<span class="question-mark">?</span>;
 <a href=#203 id=203 data-nosnippet>203</a>            first = <span class="bool-val">false</span>;
 <a href=#204 id=204 data-nosnippet>204</a>        }
 <a href=#205 id=205 data-nosnippet>205</a>        <span class="macro">write!</span>(f, <span class="string">"}}"</span>)
@@ -326,7 +326,7 @@
 <a href=#326 id=326 data-nosnippet>326</a>        <span class="macro">assert!</span>(!vc2.dominates(<span class="kw-2">&amp;</span>vc1));
 <a href=#327 id=327 data-nosnippet>327</a>
 <a href=#328 id=328 data-nosnippet>328</a>        <span class="comment">// Equal clocks don't dominate
-<a href=#329 id=329 data-nosnippet>329</a>        </span><span class="kw">let </span><span class="kw-2">mut </span>vc3 = vc1.clone();
+<a href=#329 id=329 data-nosnippet>329</a>        </span><span class="kw">let </span>vc3 = vc1.clone();
 <a href=#330 id=330 data-nosnippet>330</a>        <span class="macro">assert!</span>(!vc1.dominates(<span class="kw-2">&amp;</span>vc3));
 <a href=#331 id=331 data-nosnippet>331</a>        <span class="macro">assert!</span>(!vc3.dominates(<span class="kw-2">&amp;</span>vc1));
 <a href=#332 id=332 data-nosnippet>332</a>    }

@@ -190,7 +190,7 @@
 <a href=#190 id=190 data-nosnippet>190</a>        <span class="prelude-val">Ok</span>((wasm, metadata)) =&gt; {
 <a href=#191 id=191 data-nosnippet>191</a>            <span class="macro">println!</span>(<span class="string">"🎉 GOVERNANCE CONTRACT COMPILED SUCCESSFULLY!"</span>);
 <a href=#192 id=192 data-nosnippet>192</a>            <span class="macro">println!</span>(<span class="string">"📊 WASM size: {} bytes"</span>, wasm.len());
-<a href=#193 id=193 data-nosnippet>193</a>            <span class="macro">println!</span>(<span class="string">"📋 Metadata: {:?}"</span>, metadata);
+<a href=#193 id=193 data-nosnippet>193</a>            <span class="macro">println!</span>(<span class="string">"📋 Metadata: {metadata:?}"</span>);
 <a href=#194 id=194 data-nosnippet>194</a>            <span class="macro">println!</span>();
 <a href=#195 id=195 data-nosnippet>195</a>            <span class="macro">println!</span>(<span class="string">"✅ This demonstrates that CCL is now capable of:"</span>);
 <a href=#196 id=196 data-nosnippet>196</a>            <span class="macro">println!</span>(<span class="string">"   • Real cooperative governance contracts"</span>);
@@ -203,7 +203,7 @@
 <a href=#203 id=203 data-nosnippet>203</a>            <span class="macro">println!</span>(<span class="string">"🚀 CCL is now production-ready for cooperative governance!"</span>);
 <a href=#204 id=204 data-nosnippet>204</a>        }
 <a href=#205 id=205 data-nosnippet>205</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#206 id=206 data-nosnippet>206</a>            <span class="macro">println!</span>(<span class="string">"❌ Governance contract compilation failed: {}"</span>, e);
+<a href=#206 id=206 data-nosnippet>206</a>            <span class="macro">println!</span>(<span class="string">"❌ Governance contract compilation failed: {e}"</span>);
 <a href=#207 id=207 data-nosnippet>207</a>        }
 <a href=#208 id=208 data-nosnippet>208</a>    }
 <a href=#209 id=209 data-nosnippet>209</a>}</code></pre></div></section></main></body></html>

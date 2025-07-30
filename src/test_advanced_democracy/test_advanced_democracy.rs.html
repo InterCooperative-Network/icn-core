@@ -74,7 +74,7 @@
 <a href=#74 id=74 data-nosnippet>74</a>        }
 <a href=#75 id=75 data-nosnippet>75</a>        <span class="prelude-val">Err</span>(e) =&gt; {
 <a href=#76 id=76 data-nosnippet>76</a>            <span class="macro">println!</span>(<span class="string">"❌ ADVANCED DEMOCRACY TEST FAILED:"</span>);
-<a href=#77 id=77 data-nosnippet>77</a>            <span class="macro">println!</span>(<span class="string">"   Error: {}"</span>, e);
+<a href=#77 id=77 data-nosnippet>77</a>            <span class="macro">println!</span>(<span class="string">"   Error: {e}"</span>);
 <a href=#78 id=78 data-nosnippet>78</a>            <span class="macro">println!</span>();
 <a href=#79 id=79 data-nosnippet>79</a>            <span class="macro">println!</span>(<span class="string">"🔍 Error Analysis:"</span>);
 <a href=#80 id=80 data-nosnippet>80</a>            <span class="kw">let </span>error_str = e.to_string();
@@ -88,7 +88,7 @@
 <a href=#88 id=88 data-nosnippet>88</a>            } <span class="kw">else if </span>error_str.contains(<span class="string">"unknown function"</span>) {
 <a href=#89 id=89 data-nosnippet>89</a>                <span class="macro">println!</span>(<span class="string">"   • Standard library missing advanced primitive definitions"</span>);
 <a href=#90 id=90 data-nosnippet>90</a>            } <span class="kw">else </span>{
-<a href=#91 id=91 data-nosnippet>91</a>                <span class="macro">println!</span>(<span class="string">"   • Unknown issue: {}"</span>, error_str);
+<a href=#91 id=91 data-nosnippet>91</a>                <span class="macro">println!</span>(<span class="string">"   • Unknown issue: {error_str}"</span>);
 <a href=#92 id=92 data-nosnippet>92</a>            }
 <a href=#93 id=93 data-nosnippet>93</a>
 <a href=#94 id=94 data-nosnippet>94</a>            <span class="macro">println!</span>();

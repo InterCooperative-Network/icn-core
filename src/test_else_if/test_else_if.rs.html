@@ -27,10 +27,10 @@
 <a href=#27 id=27 data-nosnippet>27</a>        <span class="prelude-val">Ok</span>((wasm, metadata)) =&gt; {
 <a href=#28 id=28 data-nosnippet>28</a>            <span class="macro">println!</span>(<span class="string">"✅ Else-if chain compiled successfully!"</span>);
 <a href=#29 id=29 data-nosnippet>29</a>            <span class="macro">println!</span>(<span class="string">"WASM size: {} bytes"</span>, wasm.len());
-<a href=#30 id=30 data-nosnippet>30</a>            <span class="macro">println!</span>(<span class="string">"Metadata: {:?}"</span>, metadata);
+<a href=#30 id=30 data-nosnippet>30</a>            <span class="macro">println!</span>(<span class="string">"Metadata: {metadata:?}"</span>);
 <a href=#31 id=31 data-nosnippet>31</a>        }
 <a href=#32 id=32 data-nosnippet>32</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#33 id=33 data-nosnippet>33</a>            <span class="macro">println!</span>(<span class="string">"❌ Else-if chain compilation failed: {}"</span>, e);
+<a href=#33 id=33 data-nosnippet>33</a>            <span class="macro">println!</span>(<span class="string">"❌ Else-if chain compilation failed: {e}"</span>);
 <a href=#34 id=34 data-nosnippet>34</a>        }
 <a href=#35 id=35 data-nosnippet>35</a>    }
 <a href=#36 id=36 data-nosnippet>36</a>
@@ -63,7 +63,7 @@
 <a href=#63 id=63 data-nosnippet>63</a>            <span class="macro">println!</span>(<span class="string">"WASM size: {} bytes"</span>, wasm.len());
 <a href=#64 id=64 data-nosnippet>64</a>        }
 <a href=#65 id=65 data-nosnippet>65</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#66 id=66 data-nosnippet>66</a>            <span class="macro">println!</span>(<span class="string">"❌ Complex else-if chain compilation failed: {}"</span>, e);
+<a href=#66 id=66 data-nosnippet>66</a>            <span class="macro">println!</span>(<span class="string">"❌ Complex else-if chain compilation failed: {e}"</span>);
 <a href=#67 id=67 data-nosnippet>67</a>        }
 <a href=#68 id=68 data-nosnippet>68</a>    }
 <a href=#69 id=69 data-nosnippet>69</a>
@@ -96,7 +96,7 @@
 <a href=#96 id=96 data-nosnippet>96</a>            <span class="macro">println!</span>(<span class="string">"WASM size: {} bytes"</span>, wasm.len());
 <a href=#97 id=97 data-nosnippet>97</a>        }
 <a href=#98 id=98 data-nosnippet>98</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#99 id=99 data-nosnippet>99</a>            <span class="macro">println!</span>(<span class="string">"❌ Nested if with else-if compilation failed: {}"</span>, e);
+<a href=#99 id=99 data-nosnippet>99</a>            <span class="macro">println!</span>(<span class="string">"❌ Nested if with else-if compilation failed: {e}"</span>);
 <a href=#100 id=100 data-nosnippet>100</a>        }
 <a href=#101 id=101 data-nosnippet>101</a>    }
 <a href=#102 id=102 data-nosnippet>102</a>}</code></pre></div></section></main></body></html>

@@ -18,7 +18,7 @@
 <a href=#18 id=18 data-nosnippet>18</a>    <span class="macro">println!</span>(<span class="string">"Test 1: Simple struct"</span>);
 <a href=#19 id=19 data-nosnippet>19</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(struct_only) {
 <a href=#20 id=20 data-nosnippet>20</a>        <span class="prelude-val">Ok</span>((wasm, <span class="kw">_</span>)) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Simple struct works! ({} bytes)"</span>, wasm.len()),
-<a href=#21 id=21 data-nosnippet>21</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Simple struct failed: {}"</span>, e),
+<a href=#21 id=21 data-nosnippet>21</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Simple struct failed: {e}"</span>),
 <a href=#22 id=22 data-nosnippet>22</a>    }
 <a href=#23 id=23 data-nosnippet>23</a>
 <a href=#24 id=24 data-nosnippet>24</a>    <span class="comment">// Test 2: Struct with Bool
@@ -35,7 +35,7 @@
 <a href=#35 id=35 data-nosnippet>35</a>    <span class="macro">println!</span>(<span class="string">"\nTest 2: Struct with Bool"</span>);
 <a href=#36 id=36 data-nosnippet>36</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(struct_with_bool) {
 <a href=#37 id=37 data-nosnippet>37</a>        <span class="prelude-val">Ok</span>((wasm, <span class="kw">_</span>)) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Struct with Bool works! ({} bytes)"</span>, wasm.len()),
-<a href=#38 id=38 data-nosnippet>38</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Struct with Bool failed: {}"</span>, e),
+<a href=#38 id=38 data-nosnippet>38</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Struct with Bool failed: {e}"</span>),
 <a href=#39 id=39 data-nosnippet>39</a>    }
 <a href=#40 id=40 data-nosnippet>40</a>
 <a href=#41 id=41 data-nosnippet>41</a>    <span class="comment">// Test 3: Multiple fields
@@ -53,7 +53,7 @@
 <a href=#53 id=53 data-nosnippet>53</a>    <span class="macro">println!</span>(<span class="string">"\nTest 3: Multi-field struct"</span>);
 <a href=#54 id=54 data-nosnippet>54</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(struct_multi_field) {
 <a href=#55 id=55 data-nosnippet>55</a>        <span class="prelude-val">Ok</span>((wasm, <span class="kw">_</span>)) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Multi-field struct works! ({} bytes)"</span>, wasm.len()),
-<a href=#56 id=56 data-nosnippet>56</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Multi-field struct failed: {}"</span>, e),
+<a href=#56 id=56 data-nosnippet>56</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Multi-field struct failed: {e}"</span>),
 <a href=#57 id=57 data-nosnippet>57</a>    }
 <a href=#58 id=58 data-nosnippet>58</a>
 <a href=#59 id=59 data-nosnippet>59</a>    <span class="comment">// Test 4: Struct with array
@@ -70,6 +70,6 @@
 <a href=#70 id=70 data-nosnippet>70</a>    <span class="macro">println!</span>(<span class="string">"\nTest 4: Struct with Array"</span>);
 <a href=#71 id=71 data-nosnippet>71</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(struct_with_array) {
 <a href=#72 id=72 data-nosnippet>72</a>        <span class="prelude-val">Ok</span>((wasm, <span class="kw">_</span>)) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Struct with Array works! ({} bytes)"</span>, wasm.len()),
-<a href=#73 id=73 data-nosnippet>73</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Struct with Array failed: {}"</span>, e),
+<a href=#73 id=73 data-nosnippet>73</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Struct with Array failed: {e}"</span>),
 <a href=#74 id=74 data-nosnippet>74</a>    }
 <a href=#75 id=75 data-nosnippet>75</a>}</code></pre></div></section></main></body></html>

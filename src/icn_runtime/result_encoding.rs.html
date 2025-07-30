@@ -4,10 +4,10 @@
 <a href=#4 id=4 data-nosnippet>4</a>/// The value is stored in a single `i64` where the high 32 bits contain the
 <a href=#5 id=5 data-nosnippet>5</a>/// variant tag (`0` for `Ok`, `1` for `Err`) and the low 32 bits contain the
 <a href=#6 id=6 data-nosnippet>6</a>/// associated `i32` value.
-<a href=#7 id=7 data-nosnippet>7</a>
-<a href=#8 id=8 data-nosnippet>8</a></span><span class="kw">pub fn </span>encode_result_i32(res: <span class="prelude-ty">Result</span>&lt;i32, i32&gt;) -&gt; i64 {
-<a href=#9 id=9 data-nosnippet>9</a>    <span class="kw">match </span>res {
-<a href=#10 id=10 data-nosnippet>10</a>        <span class="prelude-val">Ok</span>(v) =&gt; ((<span class="number">0u64 </span>&lt;&lt; <span class="number">32</span>) | (v <span class="kw">as </span>u32 <span class="kw">as </span>u64)) <span class="kw">as </span>i64,
+<a href=#7 id=7 data-nosnippet>7</a></span><span class="kw">pub fn </span>encode_result_i32(res: <span class="prelude-ty">Result</span>&lt;i32, i32&gt;) -&gt; i64 {
+<a href=#8 id=8 data-nosnippet>8</a>    <span class="kw">match </span>res {
+<a href=#9 id=9 data-nosnippet>9</a>        <span class="comment">// Encode `Ok` variant: high 32 bits = 0, low 32 bits = `v` as `i32`.
+<a href=#10 id=10 data-nosnippet>10</a>        </span><span class="prelude-val">Ok</span>(v) =&gt; (v <span class="kw">as </span>u32 <span class="kw">as </span>u64) <span class="kw">as </span>i64,
 <a href=#11 id=11 data-nosnippet>11</a>        <span class="prelude-val">Err</span>(e) =&gt; ((<span class="number">1u64 </span>&lt;&lt; <span class="number">32</span>) | (e <span class="kw">as </span>u32 <span class="kw">as </span>u64)) <span class="kw">as </span>i64,
 <a href=#12 id=12 data-nosnippet>12</a>    }
 <a href=#13 id=13 data-nosnippet>13</a>}

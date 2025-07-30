@@ -29,7 +29,7 @@
 <a href=#29 id=29 data-nosnippet>29</a>            <span class="macro">println!</span>(<span class="string">"WASM size: {} bytes"</span>, wasm.len());
 <a href=#30 id=30 data-nosnippet>30</a>        }
 <a href=#31 id=31 data-nosnippet>31</a>        <span class="prelude-val">Err</span>(e) =&gt; {
-<a href=#32 id=32 data-nosnippet>32</a>            <span class="macro">println!</span>(<span class="string">"❌ Struct instantiation failed: {}"</span>, e);
+<a href=#32 id=32 data-nosnippet>32</a>            <span class="macro">println!</span>(<span class="string">"❌ Struct instantiation failed: {e}"</span>);
 <a href=#33 id=33 data-nosnippet>33</a>
 <a href=#34 id=34 data-nosnippet>34</a>            <span class="comment">// Let's try even simpler - just the struct literal without assignment
 <a href=#35 id=35 data-nosnippet>35</a>            </span><span class="kw">let </span>simple_test = <span class="string">r#"
@@ -57,7 +57,7 @@
 <a href=#57 id=57 data-nosnippet>57</a>                    <span class="macro">println!</span>(<span class="string">"WASM size: {} bytes"</span>, wasm.len());
 <a href=#58 id=58 data-nosnippet>58</a>                }
 <a href=#59 id=59 data-nosnippet>59</a>                <span class="prelude-val">Err</span>(e2) =&gt; {
-<a href=#60 id=60 data-nosnippet>60</a>                    <span class="macro">println!</span>(<span class="string">"❌ Even simplified version failed: {}"</span>, e2);
+<a href=#60 id=60 data-nosnippet>60</a>                    <span class="macro">println!</span>(<span class="string">"❌ Even simplified version failed: {e2}"</span>);
 <a href=#61 id=61 data-nosnippet>61</a>                }
 <a href=#62 id=62 data-nosnippet>62</a>            }
 <a href=#63 id=63 data-nosnippet>63</a>        }

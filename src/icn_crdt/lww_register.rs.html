@@ -531,8 +531,8 @@
 <a href=#531 id=531 data-nosnippet>531</a>        register1.write(<span class="string">"value_1"</span>.to_string(), node_a()).unwrap();
 <a href=#532 id=532 data-nosnippet>532</a>        register2.write(<span class="string">"value_2"</span>.to_string(), node_b()).unwrap();
 <a href=#533 id=533 data-nosnippet>533</a>
-<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span><span class="kw-2">mut </span>register1_copy = register1.clone();
-<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>register2_copy = register2.clone();
+<a href=#534 id=534 data-nosnippet>534</a>        <span class="kw">let </span>register1_copy = register1.clone();
+<a href=#535 id=535 data-nosnippet>535</a>        <span class="kw">let </span>_register2_copy = register2.clone();
 <a href=#536 id=536 data-nosnippet>536</a>
 <a href=#537 id=537 data-nosnippet>537</a>        <span class="comment">// register1.merge(register2)
 <a href=#538 id=538 data-nosnippet>538</a>        </span>register1.merge(<span class="kw-2">&amp;</span>register2);
@@ -614,7 +614,7 @@
 <a href=#614 id=614 data-nosnippet>614</a>
 <a href=#615 id=615 data-nosnippet>615</a>    <span class="attr">#[test]
 <a href=#616 id=616 data-nosnippet>616</a>    </span><span class="kw">fn </span>test_lww_register_snapshot() {
-<a href=#617 id=617 data-nosnippet>617</a>        <span class="kw">let </span><span class="kw-2">mut </span>register = LWWRegister::with_initial_value(
+<a href=#617 id=617 data-nosnippet>617</a>        <span class="kw">let </span>register = LWWRegister::with_initial_value(
 <a href=#618 id=618 data-nosnippet>618</a>            <span class="string">"test"</span>.to_string(),
 <a href=#619 id=619 data-nosnippet>619</a>            <span class="string">"snapshot_value"</span>.to_string(),
 <a href=#620 id=620 data-nosnippet>620</a>            node_a(),

@@ -4,13 +4,13 @@
 <a href=#4 id=4 data-nosnippet>4</a>//! real federation management capabilities and replace hardcoded federations.
 <a href=#5 id=5 data-nosnippet>5</a>
 <a href=#6 id=6 data-nosnippet>6</a></span><span class="kw">use super</span>::{HostAbiError, MeshNetworkServiceType};
-<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>icn_common::{CommonError, Did, TimeProvider};
+<a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>icn_common::{Did, TimeProvider};
 <a href=#8 id=8 data-nosnippet>8</a><span class="kw">use </span>icn_identity::federation_manager::{FederationStatus, FederationType, MembershipPolicy};
 <a href=#9 id=9 data-nosnippet>9</a><span class="kw">use </span>icn_identity::{
 <a href=#10 id=10 data-nosnippet>10</a>    FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
 <a href=#11 id=11 data-nosnippet>11</a>};
 <a href=#12 id=12 data-nosnippet>12</a><span class="kw">use </span>icn_reputation::ReputationStore;
-<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>log::{debug, error, info, warn};
+<a href=#13 id=13 data-nosnippet>13</a><span class="kw">use </span>log::{debug, info};
 <a href=#14 id=14 data-nosnippet>14</a><span class="kw">use </span>std::collections::HashMap;
 <a href=#15 id=15 data-nosnippet>15</a><span class="kw">use </span>std::sync::Arc;
 <a href=#16 id=16 data-nosnippet>16</a><span class="kw">use </span>tokio::sync::RwLock;

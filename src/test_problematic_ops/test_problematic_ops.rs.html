@@ -25,7 +25,7 @@
 <a href=#25 id=25 data-nosnippet>25</a>
 <a href=#26 id=26 data-nosnippet>26</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(test1) {
 <a href=#27 id=27 data-nosnippet>27</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Test 1 (array indexing): PASSED"</span>),
-<a href=#28 id=28 data-nosnippet>28</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 1 (array indexing): FAILED - {}"</span>, e),
+<a href=#28 id=28 data-nosnippet>28</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 1 (array indexing): FAILED - {e}"</span>),
 <a href=#29 id=29 data-nosnippet>29</a>    }
 <a href=#30 id=30 data-nosnippet>30</a>
 <a href=#31 id=31 data-nosnippet>31</a>    <span class="comment">// Test struct field access after array indexing
@@ -50,7 +50,7 @@
 <a href=#50 id=50 data-nosnippet>50</a>
 <a href=#51 id=51 data-nosnippet>51</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(test2) {
 <a href=#52 id=52 data-nosnippet>52</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Test 2 (struct field access): PASSED"</span>),
-<a href=#53 id=53 data-nosnippet>53</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 2 (struct field access): FAILED - {}"</span>, e),
+<a href=#53 id=53 data-nosnippet>53</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 2 (struct field access): FAILED - {e}"</span>),
 <a href=#54 id=54 data-nosnippet>54</a>    }
 <a href=#55 id=55 data-nosnippet>55</a>
 <a href=#56 id=56 data-nosnippet>56</a>    <span class="comment">// Test string comparison
@@ -77,7 +77,7 @@
 <a href=#77 id=77 data-nosnippet>77</a>
 <a href=#78 id=78 data-nosnippet>78</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(test3) {
 <a href=#79 id=79 data-nosnippet>79</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Test 3 (string comparison): PASSED"</span>),
-<a href=#80 id=80 data-nosnippet>80</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 3 (string comparison): FAILED - {}"</span>, e),
+<a href=#80 id=80 data-nosnippet>80</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 3 (string comparison): FAILED - {e}"</span>),
 <a href=#81 id=81 data-nosnippet>81</a>    }
 <a href=#82 id=82 data-nosnippet>82</a>
 <a href=#83 id=83 data-nosnippet>83</a>    <span class="comment">// Test the arithmetic operations
@@ -103,6 +103,6 @@
 <a href=#103 id=103 data-nosnippet>103</a>
 <a href=#104 id=104 data-nosnippet>104</a>    <span class="kw">match </span>compile_ccl_source_to_wasm(test4) {
 <a href=#105 id=105 data-nosnippet>105</a>        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) =&gt; <span class="macro">println!</span>(<span class="string">"✅ Test 4 (arithmetic with struct field): PASSED"</span>),
-<a href=#106 id=106 data-nosnippet>106</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 4 (arithmetic with struct field): FAILED - {}"</span>, e),
+<a href=#106 id=106 data-nosnippet>106</a>        <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">println!</span>(<span class="string">"❌ Test 4 (arithmetic with struct field): FAILED - {e}"</span>),
 <a href=#107 id=107 data-nosnippet>107</a>    }
 <a href=#108 id=108 data-nosnippet>108</a>}</code></pre></div></section></main></body></html>
