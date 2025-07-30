@@ -6,6 +6,8 @@ mod icn_node_end_to_end {
     use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};
     use icn_network::NetworkService;
     use icn_node::app_router_from_context;
+    use icn_network::libp2p_service::Libp2pNetworkService;
+    use env_logger;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
@@ -62,9 +64,9 @@ mod icn_node_end_to_end {
         let job_id = Cid::new_v1_sha256(0x55, format!("job_{id_suffix}").as_bytes());
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{id_suffix}").as_bytes());
         ActualMeshJob {
-            id: job_id,
+            job_id: job_id,
             manifest_cid,
-            spec: JobSpec::Echo {
+            job_spec: JobSpec::Echo {
                 payload: "libp2p integration".into(),
             },
             creator_did: creator.clone(),
@@ -80,15 +82,13 @@ mod icn_node_end_to_end {
 
         // Node A bootstrap
         let (url_a, ctx_a, net_a, handle_a) = create_node("IntA", None).await;
-        let peer_a = net_a
-            .as_any()
-            .downcast_ref::<icn_network::Libp2pNetworkService>()
+        let peer_a = downcast_rs::Downcast::as_any(&*net_a)
+            .downcast_ref::<Libp2pNetworkService>()
             .unwrap()
             .local_peer_id()
             .clone();
-        let addr_a = net_a
-            .as_any()
-            .downcast_ref::<icn_network::Libp2pNetworkService>()
+        let addr_a = downcast_rs::Downcast::as_any(&*net_a)
+            .downcast_ref::<Libp2pNetworkService>()
             .unwrap()
             .listening_addresses()[0]
             .clone();
@@ -105,7 +105,8 @@ mod icn_node_end_to_end {
         // Prepare network receivers
         let mut recv_a = net_a.subscribe().await.unwrap();
         let mut recv_b = net_b.subscribe().await.unwrap();
-        let net_a_mesh = DefaultMeshNetworkService::new(net_a.clone());
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
+        let net_a_mesh = DefaultMeshNetworkService::new(net_a.clone(), signer);
 
         // Submit job via HTTP to Node A
         let client = Client::new();
@@ -140,11 +141,14 @@ mod icn_node_end_to_end {
 
         // Node B sends bid
         let unsigned = MeshJobBid {
-            job_id: job.id.clone(),
+            job_id: job.job_id.clone(),
             executor_did: ctx_b.current_identity.clone(),
             price_mana: 30,
             resources: Resources::default(),
             signature: SignatureBytes(vec![]),
+            executor_capabilities: None,
+            executor_federations: None,
+            executor_trust_scope: None,
         };
         let bytes = unsigned.to_signable_bytes().unwrap();
         let sig = ctx_b.signer.sign(&bytes).unwrap();
@@ -153,7 +157,7 @@ mod icn_node_end_to_end {
             ..unsigned
         };
         let bid_msg = ProtocolMessage::new(
-            MessagePayload::MeshBidSubmission(bid),
+            MessagePayload::MeshBidSubmission(icn_protocol::MeshBidSubmissionMessage { bid }),
             ctx_b.current_identity.clone(),
             None,
         );
@@ -174,8 +178,11 @@ mod icn_node_end_to_end {
         // Assign job to B
         let assign_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
-                job_id: job.id.clone(),
+                job_id: job.job_id.clone(),
                 executor_did: ctx_b.current_identity.clone(),
+                agreed_cost_mana: 30,
+                completion_deadline: None,
+                manifest_cid: job.manifest_cid.clone(),
             }),
             ctx_a.current_identity.clone(),
             None,
@@ -203,7 +210,7 @@ mod icn_node_end_to_end {
         let receipt = exec.execute_job(&job).await?;
         assert!(receipt.verify_against_key(&pk).is_ok());
         let receipt_msg = ProtocolMessage::new(
-            MessagePayload::MeshReceiptSubmission(receipt.clone()),
+            MessagePayload::MeshReceiptSubmission(icn_protocol::MeshReceiptSubmissionMessage { receipt: receipt.clone() }),
             ctx_b.current_identity.clone(),
             None,
         );

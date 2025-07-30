@@ -31,17 +31,10 @@ mod persistence_rocksdb {
                 .await
                 .unwrap(),
         ) as Arc<dyn NetworkService>;
-        let mesh = Arc::new(DefaultMeshNetworkService::new(service, signer));
-        RuntimeContext::new_with_paths(
-            id,
-            mesh,
-            Arc::new(StubSigner::new()),
-            Arc::new(icn_identity::KeyDidResolver),
-            dag,
-            mana,
-            rep,
-        )
-        .unwrap()
+        let signer = Arc::new(StubSigner::new());
+        let mesh = Arc::new(DefaultMeshNetworkService::new(service, signer.clone()));
+        // Use new_for_testing for context creation
+        RuntimeContext::new_for_testing(id, Some(42)).unwrap()
     }
 
     #[tokio::test]
@@ -62,13 +55,13 @@ mod persistence_rocksdb {
 
         ctx1.credit_mana(&id, 42).await.unwrap();
         let block = sample_block();
-        ctx1.dag_store.store.lock().await.put(&block).unwrap();
+        ctx1.dag_store.store.lock().await.put(&block).await.unwrap();
         drop(ctx1);
 
         let ctx2 = create_ctx(id.clone(), dag_path, mana_path, rep_path).await;
 
         assert_eq!(ctx2.mana_ledger.get_balance(&id), 42);
-        assert!(ctx2.dag_store.store.lock().await.get(&block.cid).unwrap().is_some());
+        assert!(ctx2.dag_store.store.lock().await.get(&block.cid).await.unwrap().is_some());
     }
 }
 

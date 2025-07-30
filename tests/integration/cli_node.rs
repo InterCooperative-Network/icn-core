@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use base64::Engine;
-use icn_common::{compute_merkle_cid, Cid, DagBlock, Did};
-use icn_mesh::{JobKind, JobSpec};
+use icn_common::{compute_merkle_cid, DagBlock, Did};
+
 use icn_node::app_router;
 use std::process::Command;
 use tokio::task;
@@ -34,7 +34,7 @@ async fn dag_storage_via_cli() {
     };
     let block_json = serde_json::to_string(&block).unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let output = task::spawn_blocking(move || {
         Command::new(bin)
@@ -48,7 +48,7 @@ async fn dag_storage_via_cli() {
     let stdout = String::from_utf8(output.stdout).unwrap();
     assert!(stdout.contains(&cid.to_string()));
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base2 = format!("http://{}", addr);
     let cid_json = serde_json::to_string(&cid).unwrap();
     let output = task::spawn_blocking(move || {
@@ -78,7 +78,7 @@ async fn governance_proposal_via_cli() {
     });
     sleep(Duration::from_millis(100)).await;
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let submit_json = serde_json::json!({
         "proposer_did": "did:example:alice",
@@ -102,7 +102,7 @@ async fn governance_proposal_via_cli() {
     let end = stdout[start + 1..].find('"').unwrap() + start + 1;
     let pid = stdout[start + 1..end].to_string();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let pid_clone = pid.clone();
     task::spawn_blocking(move || {
@@ -115,7 +115,7 @@ async fn governance_proposal_via_cli() {
     .await
     .unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let pid_owned = pid.clone();
     task::spawn_blocking(move || {
@@ -134,7 +134,7 @@ async fn governance_proposal_via_cli() {
         "vote_option": "yes"
     })
     .to_string();
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -146,7 +146,7 @@ async fn governance_proposal_via_cli() {
     .await
     .unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let pid_for_tally = pid.clone();
     task::spawn_blocking(move || {
@@ -187,7 +187,7 @@ async fn mesh_job_via_cli() {
         "cost_mana": 10
     })
     .to_string();
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let output = task::spawn_blocking(move || {
         Command::new(bin)
@@ -202,7 +202,7 @@ async fn mesh_job_via_cli() {
     let body: serde_json::Value = serde_json::from_str(&stdout).unwrap();
     let job_id = body["job_id"].as_str().unwrap().to_string();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let job_id_clone = job_id.clone();
     task::spawn_blocking(move || {
@@ -215,7 +215,7 @@ async fn mesh_job_via_cli() {
     .await
     .unwrap();
 
-    let bin = env!("CARGO_BIN_EXE_icn-cli");
+    let bin = std::env::var("CARGO_BIN_EXE_icn-cli").expect("CARGO_BIN_EXE_icn-cli not set");
     let base = format!("http://{}", addr);
     let job_id_clone2 = job_id.clone();
     task::spawn_blocking(move || {
