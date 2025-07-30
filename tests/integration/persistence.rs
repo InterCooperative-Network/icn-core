@@ -61,7 +61,15 @@ mod persistence_rocksdb {
         let ctx2 = create_ctx(id.clone(), dag_path, mana_path, rep_path).await;
 
         assert_eq!(ctx2.mana_ledger.get_balance(&id), 42);
-        assert!(ctx2.dag_store.store.lock().await.get(&block.cid).await.unwrap().is_some());
+        assert!(ctx2
+            .dag_store
+            .store
+            .lock()
+            .await
+            .get(&block.cid)
+            .await
+            .unwrap()
+            .is_some());
     }
 }
 

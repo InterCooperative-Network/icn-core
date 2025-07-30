@@ -1,10 +1,10 @@
-use icn_runtime::context::LedgerBackend;
 #[cfg(feature = "persist-sled")]
 use icn_common::Did;
 #[cfg(feature = "persist-sled")]
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 #[cfg(feature = "persist-sled")]
 use icn_node::app_router_with_options;
+use icn_runtime::context::LedgerBackend;
 #[cfg(feature = "persist-sled")]
 use std::str::FromStr;
 #[cfg(feature = "persist-sled")]
@@ -23,7 +23,9 @@ async fn governance_persists_between_restarts() {
         None, // auth_token
         None, // rate_limit
         None, // mana ledger backend
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None, // storage backend
         None, // storage path
         Some(gov_path.clone()),
@@ -73,7 +75,9 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         Some(gov_path.clone()),

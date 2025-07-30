@@ -19,5 +19,8 @@ async fn zk_generate_key_outputs_paths() {
     let v: Value = serde_json::from_str(&stdout).unwrap();
     let path = v["proving_key_path"].as_str().unwrap();
     assert!(std::path::Path::new(path).exists());
-    assert!(!v["verifying_key_signature_hex"].as_str().unwrap().is_empty());
+    assert!(!v["verifying_key_signature_hex"]
+        .as_str()
+        .unwrap()
+        .is_empty());
 }

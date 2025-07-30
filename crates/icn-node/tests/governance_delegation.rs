@@ -96,10 +96,10 @@ async fn delegate_and_revoke_flow() {
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.cast_vote(
-                Did::from_str("did:example:carol").unwrap(),
-                &pid_struct,
-                VoteOption::No,
-                &*ctx.time_provider,
+            Did::from_str("did:example:carol").unwrap(),
+            &pid_struct,
+            VoteOption::No,
+            &*ctx.time_provider,
         )
         .unwrap();
     }
@@ -166,10 +166,10 @@ async fn delegate_and_revoke_flow() {
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.cast_vote(
-                Did::from_str("did:example:carol").unwrap(),
-                &pid2_struct,
-                VoteOption::No,
-                &*ctx.time_provider,
+            Did::from_str("did:example:carol").unwrap(),
+            &pid2_struct,
+            VoteOption::No,
+            &*ctx.time_provider,
         )
         .unwrap();
     }

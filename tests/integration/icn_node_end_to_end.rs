@@ -1,13 +1,13 @@
 #[cfg(feature = "enable-libp2p")]
 mod icn_node_end_to_end {
     use axum::Router;
+    use env_logger;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
     use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};
+    use icn_network::libp2p_service::Libp2pNetworkService;
     use icn_network::NetworkService;
     use icn_node::app_router_from_context;
-    use icn_network::libp2p_service::Libp2pNetworkService;
-    use env_logger;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
@@ -138,18 +138,6 @@ mod icn_node_end_to_end {
             }
         })
         .await?;
-
-        net_a_mesh.announce_job(&job).await?;
-        let unsigned = MeshJobBid {
-            job_id: job.job_id.clone(),
-            executor_did: ctx_b.current_identity.clone(),
-            price_mana: 30,
-            resources: Resources::default(),
-            signature: SignatureBytes(vec![]),
-            executor_capabilities: None,
-            executor_federations: None,
-            executor_trust_scope: None,
-        };
         let bytes = unsigned.to_signable_bytes().unwrap();
         let sig = ctx_b.signer.sign(&bytes).unwrap();
         let bid = MeshJobBid {
@@ -166,6 +154,9 @@ mod icn_node_end_to_end {
             executor_federations: vec![],
             executor_trust_scope: vec![],
         };
+        // Wait for bid submission on A
+        timeout(Duration::from_secs(5), async {
+            loop {
                 if let Some(message) = recv_a.recv().await {
                     if let MessagePayload::MeshBidSubmission(_) = &message.payload {
                         break;
@@ -189,28 +180,15 @@ mod icn_node_end_to_end {
         );
         net_a.broadcast_message(assign_msg).await?;
 
-        // Wait for assignment on B
-        timeout(Duration::from_secs(5), async {
-            loop {
-        let assign_msg = ProtocolMessage::new(
-            MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
-                job_id: job.id.clone(),
-                executor_did: ctx_b.current_identity.clone(),
-                agreed_cost_mana: 30,
-                completion_deadline: 0,
-                manifest_cid: Some(job.manifest_cid.clone()),
-            }),
-            ctx_a.current_identity.clone(),
-            None,
-        );
-
         // Execute job and broadcast receipt
         let (sk, pk) = generate_ed25519_keypair();
         let exec = SimpleExecutor::new(ctx_b.current_identity.clone(), sk);
         let receipt = exec.execute_job(&job).await?;
         assert!(receipt.verify_against_key(&pk).is_ok());
         let receipt_msg = ProtocolMessage::new(
-            MessagePayload::MeshReceiptSubmission(icn_protocol::MeshReceiptSubmissionMessage { receipt: receipt.clone() }),
+            MessagePayload::MeshReceiptSubmission(icn_protocol::MeshReceiptSubmissionMessage {
+                receipt: receipt.clone(),
+            }),
             ctx_b.current_identity.clone(),
             None,
         );
@@ -244,10 +222,4 @@ mod icn_node_end_to_end {
         handle_b.abort();
         Ok(())
     }
-}
-
-#[cfg(not(feature = "enable-libp2p"))]
-#[tokio::test]
-async fn libp2p_disabled_stub() {
-    println!("libp2p disabled; skipping icn-node end-to-end test");
 }

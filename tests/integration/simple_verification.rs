@@ -2,10 +2,10 @@
 mod simple_verification_test {
     use bincode;
     use icn_common::{Cid, DagBlock, Did};
+    use icn_mesh::{JobKind, JobSpec, Resources};
     use icn_runtime::RuntimeContext;
     use std::time::Duration;
-    use tokio::time::sleep;
-    use icn_mesh::{JobKind, JobSpec, Resources}; // Moved this line to keep necessary imports
+    use tokio::time::sleep; // Moved this line to keep necessary imports
 
     #[tokio::test]
     async fn simple_icn_core_verification() {

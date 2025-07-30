@@ -1,6 +1,6 @@
-use icn_runtime::context::LedgerBackend;
 use icn_common::Did;
 use icn_node::app_router_with_options;
+use icn_runtime::context::LedgerBackend;
 use std::str::FromStr;
 use tempfile::tempdir;
 
@@ -17,7 +17,9 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         Some(rep_path.clone()),
@@ -36,7 +38,9 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         Some(rep_path.clone()),

@@ -1,6 +1,5 @@
 use icn_runtime::context::{RuntimeContext, MANA_MAX_CAPACITY_KEY};
 
-
 #[tokio::test]
 async fn balances_increase_when_regenerator_runs() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:regen", 0).unwrap();

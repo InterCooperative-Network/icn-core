@@ -14,14 +14,17 @@ async fn ledger_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         None,
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
     let did = Did::from_str("did:example:alice").unwrap();
     ctx.mana_ledger.set_balance(&did, 42).expect("set balance");
 
@@ -32,13 +35,16 @@ async fn ledger_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_runtime::context::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         None,
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
     assert_eq!(ctx2.mana_ledger.get_balance(&did), 42);
 }

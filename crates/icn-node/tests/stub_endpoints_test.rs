@@ -42,18 +42,23 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Test 1: Submit a job
     println!("\n1. Testing job submission...");
     let job_spec = icn_mesh::JobSpec {
-        kind: icn_mesh::JobKind::Echo { payload: "testing".into() },
+        kind: icn_mesh::JobKind::Echo {
+            payload: "testing".into(),
+        },
         inputs: vec![],
         outputs: vec!["result".into()],
-        required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128, storage_mb: 0 },
+        required_resources: icn_mesh::Resources {
+            cpu_cores: 1,
+            memory_mb: 128,
+            storage_mb: 0,
+        },
         required_capabilities: vec![],
         required_trust_scope: None,
         min_executor_reputation: None,
         allowed_federations: vec![],
     };
-    let spec_bytes = base64::engine::general_purpose::STANDARD.encode(
-        bincode::serialize(&job_spec).unwrap()
-    );
+    let spec_bytes =
+        base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&job_spec).unwrap());
     let job_response = client
         .post(&format!("{}/mesh/submit", base_url))
         .json(&json!({

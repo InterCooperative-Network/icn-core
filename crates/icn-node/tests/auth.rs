@@ -19,7 +19,8 @@ async fn api_key_required_for_requests() {
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
@@ -65,7 +66,8 @@ async fn bearer_token_required_for_requests() {
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let server = task::spawn(async move {
@@ -124,7 +126,8 @@ async fn tls_api_key_and_bearer_token() {
         None,
         None,
         None,
-    ).await;
+    )
+    .await;
 
     let std_listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = std_listener.local_addr().unwrap();
