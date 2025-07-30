@@ -132,7 +132,6 @@ impl TrustCalculationEngine {
         let current_time = time_provider.unix_seconds();
 
         for node in &nodes {
-            let mut total_score = 0.0;
             let mut direct_trust_sum = 0.0;
             let mut indirect_trust_sum = 0.0;
             let mut direct_count = 0;
@@ -140,7 +139,7 @@ impl TrustCalculationEngine {
 
             // Calculate direct trust (path length 1)
             if let Some(incoming_edges) = graph.get_incoming_edges(node) {
-                for (_source, edge) in incoming_edges {
+                for edge in incoming_edges.values() {
                     let decayed_weight = self.apply_time_decay(edge, current_time);
                     direct_trust_sum += decayed_weight;
                     direct_count += 1;
@@ -171,7 +170,7 @@ impl TrustCalculationEngine {
                 0.0
             };
 
-            total_score = self.config.direct_trust_weight * direct_avg
+            let mut total_score = self.config.direct_trust_weight * direct_avg
                 + (1.0 - self.config.direct_trust_weight) * indirect_avg;
 
             total_score = total_score.clamp(self.config.min_score, self.config.max_score);
@@ -269,6 +268,8 @@ impl TrustCalculationEngine {
     }
 
     /// Recursive depth-first search to find all paths
+    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::only_used_in_recursion)]
     fn dfs_find_paths(
         &self,
         graph: &TrustGraph,
@@ -369,7 +370,7 @@ mod tests {
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
-        Did::from_str(&format!("did:test:{}", id)).unwrap()
+        Did::from_str(&format!("did:test:{id}")).unwrap()
     }
 
     #[test]

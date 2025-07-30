@@ -259,10 +259,7 @@ where
         }
 
         // Create challenge
-        let challenge_id = format!(
-            "challenge-{}-{}-{}",
-            challenger, challenged_subject, current_time
-        );
+        let challenge_id = format!("challenge-{challenger}-{challenged_subject}-{current_time}");
         let mut challenge = TrustChallenge::new(
             challenge_id.clone(),
             challenger.clone(),
@@ -283,7 +280,7 @@ where
 
         // Create audit event
         let audit_event = TrustAuditEvent {
-            event_id: format!("challenge-{}", challenge_id),
+            event_id: format!("challenge-{challenge_id}"),
             event_type: TrustEventType::ChallengeCreated,
             actor: challenger,
             subject: challenged_subject,
@@ -339,7 +336,7 @@ where
 
         // Create audit event
         let audit_event = TrustAuditEvent {
-            event_id: format!("challenge-resolved-{}", challenge_id),
+            event_id: format!("challenge-resolved-{challenge_id}"),
             event_type: TrustEventType::ChallengeResolved,
             actor: resolver_did,
             subject: challenge.challenged_subject,
@@ -370,7 +367,7 @@ where
     /// Anchor data in DAG store
     fn anchor_in_dag<S: Serialize>(&self, data: &S) -> Result<Cid, CommonError> {
         let serialized = serde_json::to_vec(data)
-            .map_err(|e| CommonError::InternalError(format!("Serialization failed: {}", e)))?;
+            .map_err(|e| CommonError::InternalError(format!("Serialization failed: {e}")))?;
 
         // Create a DAG block from the serialized data
         let cid = icn_common::Cid::new_v1_sha256(0x55, &serialized);

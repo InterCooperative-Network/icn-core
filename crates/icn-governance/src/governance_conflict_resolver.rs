@@ -7,10 +7,9 @@
 //! - Escalation mechanisms for unresolved governance issues
 
 use crate::{GovernanceModule, Proposal, ProposalId, ProposalStatus, ProposalType, Vote};
-use icn_common::{CommonError, Did};
+use icn_common::{CommonError, Did, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Types of governance conflicts that can occur
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -208,6 +207,7 @@ impl GovernanceConflictResolver {
     pub fn detect_conflicts(
         &mut self,
         governance: &GovernanceModule,
+        time_provider: &dyn TimeProvider,
     ) -> Result<Vec<GovernanceConflict>, CommonError> {
         if !self.config.auto_detection {
             return Ok(Vec::new());
@@ -219,18 +219,18 @@ impl GovernanceConflictResolver {
         let proposals = governance.list_proposals()?;
 
         // Check for proposal clashes
-        new_conflicts.extend(self.detect_proposal_clashes(&proposals)?);
+        new_conflicts.extend(self.detect_proposal_clashes(&proposals, time_provider)?);
 
         // Check for voting disputes
-        new_conflicts.extend(self.detect_voting_disputes(&proposals)?);
+        new_conflicts.extend(self.detect_voting_disputes(&proposals, time_provider)?);
 
         // Check for policy contradictions
         if self.config.policy_contradiction_checking {
-            new_conflicts.extend(self.detect_policy_contradictions(&proposals)?);
+            new_conflicts.extend(self.detect_policy_contradictions(&proposals, time_provider)?);
         }
 
         // Check for procedural violations
-        new_conflicts.extend(self.detect_procedural_violations(&proposals)?);
+        new_conflicts.extend(self.detect_procedural_violations(&proposals, time_provider)?);
 
         // Add new conflicts to active tracking
         for conflict in &new_conflicts {
@@ -245,6 +245,7 @@ impl GovernanceConflictResolver {
     fn detect_proposal_clashes(
         &self,
         proposals: &[Proposal],
+        time_provider: &dyn TimeProvider,
     ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
         let active_proposals: Vec<&Proposal> = proposals
@@ -268,14 +269,7 @@ impl GovernanceConflictResolver {
         // Check for conflicts (multiple proposals targeting same resource)
         for (target, proposals_for_target) in target_groups {
             if proposals_for_target.len() > 1 {
-                let conflict_id = format!(
-                    "clash_{}_{}",
-                    target,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
-                );
+                let conflict_id = format!("clash_{}_{}", target, time_provider.unix_seconds());
 
                 let involved_proposals: Vec<ProposalId> =
                     proposals_for_target.iter().map(|p| p.id.clone()).collect();
@@ -290,10 +284,7 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::ProposalClash,
                     involved_proposals,
                     affected_members,
-                    detected_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    detected_at: time_provider.unix_seconds(),
                     resolution_status: GovernanceResolutionStatus::Detected,
                     evidence: vec![ConflictEvidence::ConflictingProposals {
                         proposals: proposals_for_target.iter().map(|p| p.id.clone()).collect(),
@@ -324,6 +315,7 @@ impl GovernanceConflictResolver {
     fn detect_voting_disputes(
         &self,
         proposals: &[Proposal],
+        time_provider: &dyn TimeProvider,
     ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
 
@@ -333,10 +325,7 @@ impl GovernanceConflictResolver {
                 let conflict_id = format!(
                     "vote_dispute_{}_{}",
                     proposal.id.0,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                    time_provider.unix_seconds()
                 );
 
                 conflicts.push(GovernanceConflict {
@@ -344,10 +333,7 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::VotingDispute,
                     involved_proposals: vec![proposal.id.clone()],
                     affected_members: proposal.votes.keys().cloned().collect(),
-                    detected_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    detected_at: time_provider.unix_seconds(),
                     resolution_status: GovernanceResolutionStatus::Detected,
                     evidence: vec![anomaly],
                     description: format!("Voting anomaly detected in proposal {}", proposal.id.0),
@@ -389,10 +375,7 @@ impl GovernanceConflictResolver {
                 .collect();
 
             return Some(ConflictEvidence::IrregularVotingPattern {
-                voter: suspicious_voters
-                    .into_iter()
-                    .next()
-                    .unwrap_or_else(Did::default),
+                voter: suspicious_voters.into_iter().next().unwrap_or_default(),
                 pattern_description: "Rapid sequential voting detected - possible coordination"
                     .to_string(),
             });
@@ -405,6 +388,7 @@ impl GovernanceConflictResolver {
     fn detect_policy_contradictions(
         &self,
         proposals: &[Proposal],
+        time_provider: &dyn TimeProvider,
     ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
 
@@ -415,10 +399,7 @@ impl GovernanceConflictResolver {
                     let conflict_id = format!(
                         "policy_contradiction_{}_{}",
                         proposal.id.0,
-                        SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs()
+                        time_provider.unix_seconds()
                     );
 
                     conflicts.push(GovernanceConflict {
@@ -426,10 +407,7 @@ impl GovernanceConflictResolver {
                         conflict_type: GovernanceConflictType::PolicyContradiction,
                         involved_proposals: vec![proposal.id.clone()],
                         affected_members: HashSet::new(),
-                        detected_at: SystemTime::now()
-                            .duration_since(UNIX_EPOCH)
-                            .unwrap()
-                            .as_secs(),
+                        detected_at: time_provider.unix_seconds(),
                         resolution_status: GovernanceResolutionStatus::Detected,
                         evidence: vec![contradiction],
                         description: format!("Policy contradiction in proposal {}", proposal.id.0),
@@ -484,6 +462,7 @@ impl GovernanceConflictResolver {
     fn detect_procedural_violations(
         &self,
         proposals: &[Proposal],
+        time_provider: &dyn TimeProvider,
     ) -> Result<Vec<GovernanceConflict>, CommonError> {
         let mut conflicts = Vec::new();
 
@@ -493,10 +472,7 @@ impl GovernanceConflictResolver {
                 let conflict_id = format!(
                     "procedural_{}_{}",
                     proposal.id.0,
-                    SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs()
+                    time_provider.unix_seconds()
                 );
 
                 conflicts.push(GovernanceConflict {
@@ -504,10 +480,7 @@ impl GovernanceConflictResolver {
                     conflict_type: GovernanceConflictType::ProceduralViolation,
                     involved_proposals: vec![proposal.id.clone()],
                     affected_members: HashSet::new(),
-                    detected_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    detected_at: time_provider.unix_seconds(),
                     resolution_status: GovernanceResolutionStatus::Detected,
                     evidence: vec![violation],
                     description: format!("Procedural violation in proposal {}", proposal.id.0),
@@ -549,6 +522,7 @@ impl GovernanceConflictResolver {
         &mut self,
         conflict_id: &str,
         resolver: &Did,
+        time_provider: &dyn TimeProvider,
     ) -> Result<GovernanceResolutionStatus, CommonError> {
         // Verify resolver is authorized
         if !self.governance_authorities.contains(resolver) {
@@ -589,10 +563,7 @@ impl GovernanceConflictResolver {
                         suspended_policies: vec![suspended_policy],
                         new_policy,
                     },
-                    applied_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    applied_at: time_provider.unix_seconds(),
                 }
             }
             (GovernanceConflictType::ProceduralViolation, ConflictSeverity::Low) => {
@@ -602,10 +573,7 @@ impl GovernanceConflictResolver {
                         correction_type: "minor_procedural_fix".to_string(),
                         affected_proposals: conflict.involved_proposals.clone(),
                     },
-                    applied_at: SystemTime::now()
-                        .duration_since(UNIX_EPOCH)
-                        .unwrap()
-                        .as_secs(),
+                    applied_at: time_provider.unix_seconds(),
                 }
             }
             _ => GovernanceResolutionStatus::UnderInvestigation,
@@ -651,12 +619,12 @@ impl GovernanceConflictResolver {
     }
 
     /// Process periodic maintenance tasks
-    pub fn process_periodic_tasks(&mut self) -> Result<Vec<String>, CommonError> {
+    pub fn process_periodic_tasks(
+        &mut self,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<Vec<String>, CommonError> {
         let mut timed_out_conflicts = Vec::new();
-        let current_time = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let current_time = time_provider.unix_seconds();
 
         // Check for investigation timeouts
         let conflict_ids: Vec<String> = self.active_conflicts.keys().cloned().collect();
@@ -685,6 +653,7 @@ impl GovernanceConflictResolver {
 mod tests {
     use super::*;
     use crate::{GovernanceModule, ProposalSubmission, ProposalType};
+    use icn_common::FixedTimeProvider;
     use std::str::FromStr;
 
     #[test]
@@ -698,6 +667,7 @@ mod tests {
 
     #[test]
     fn test_proposal_clash_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
 
@@ -734,14 +704,20 @@ mod tests {
             content_cid: None,
         };
 
-        let id1 = governance.submit_proposal(proposal1).unwrap();
-        let id2 = governance.submit_proposal(proposal2).unwrap();
+        let id1 = governance
+            .submit_proposal(proposal1, &time_provider)
+            .unwrap();
+        let id2 = governance
+            .submit_proposal(proposal2, &time_provider)
+            .unwrap();
 
         governance.open_voting(&id1).unwrap();
         governance.open_voting(&id2).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -753,6 +729,7 @@ mod tests {
 
     #[test]
     fn test_policy_contradiction_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
 
         // Register a policy that protects certain parameters
@@ -779,11 +756,15 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal).unwrap();
+        let id = governance
+            .submit_proposal(proposal, &time_provider)
+            .unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
         assert_eq!(conflicts.len(), 1);
         assert_eq!(
@@ -794,6 +775,7 @@ mod tests {
 
     #[test]
     fn test_procedural_violation_detection() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let mut governance = GovernanceModule::new();
 
@@ -811,13 +793,17 @@ mod tests {
             content_cid: None,
         };
 
-        let id = governance.submit_proposal(proposal).unwrap();
+        let id = governance
+            .submit_proposal(proposal, &time_provider)
+            .unwrap();
         governance.open_voting(&id).unwrap();
 
         // Detect conflicts
-        let conflicts = resolver.detect_conflicts(&governance).unwrap();
+        let conflicts = resolver
+            .detect_conflicts(&governance, &time_provider)
+            .unwrap();
 
-        assert!(conflicts.len() >= 1);
+        assert!(!conflicts.is_empty());
         assert!(conflicts
             .iter()
             .any(|c| c.conflict_type == GovernanceConflictType::ProceduralViolation));
@@ -825,6 +811,7 @@ mod tests {
 
     #[test]
     fn test_conflict_resolution() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let mut resolver = GovernanceConflictResolver::new(GovernanceConflictConfig::default());
         let authority = Did::from_str("did:example:authority").unwrap();
         resolver.add_governance_authority(authority.clone());
@@ -848,7 +835,7 @@ mod tests {
 
         // Resolve the conflict
         let result = resolver
-            .resolve_conflict("test_conflict", &authority)
+            .resolve_conflict("test_conflict", &authority, &time_provider)
             .unwrap();
 
         assert!(matches!(

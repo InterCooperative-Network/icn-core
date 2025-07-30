@@ -195,7 +195,7 @@ impl AdvancedKeyManager {
         // Get current metadata
         let mut metadata_map = self.key_metadata.write().unwrap();
         let metadata = metadata_map.get_mut(did).ok_or_else(|| {
-            CommonError::ResourceNotFound(format!("Key metadata not found for DID: {}", did))
+            CommonError::ResourceNotFound(format!("Key metadata not found for DID: {did}"))
         })?;
 
         // Create key version entry for the old key
@@ -224,7 +224,7 @@ impl AdvancedKeyManager {
         // Move metadata to new DID
         let updated_metadata = metadata.clone();
         let rotation_count = metadata.rotation_count;
-        drop(metadata); // Release the mutable reference
+        // The mutable reference is automatically dropped here
         metadata_map.remove(did);
         metadata_map.insert(new_did.clone(), updated_metadata);
 

@@ -4,17 +4,15 @@
 //! all major components: graph structure, calculation algorithms, pathfinding,
 //! decay models, and aggregation.
 
-use icn_common::{Did, FixedTimeProvider, TimeProvider};
+use icn_common::{Did, FixedTimeProvider};
 use icn_reputation::{
-    AggregationConfig, CombinationMethod, DecayModel, DistanceDecayConfig, InteractionDecayConfig,
-    PathDiscoveryConfig, TrustAggregator, TrustCalculationEngine, TrustDecayCalculator, TrustEdge,
-    TrustGraph, TrustPathfinder, TrustSignal,
+    AggregationConfig, CombinationMethod, DecayModel, TrustAggregator, TrustCalculationEngine,
+    TrustDecayCalculator, TrustEdge, TrustGraph, TrustPathfinder, TrustSignal,
 };
-use std::collections::HashMap;
 use std::str::FromStr;
 
 fn create_test_did(id: &str) -> Did {
-    Did::from_str(&format!("did:test:{}", id)).unwrap()
+    Did::from_str(&format!("did:test:{id}")).unwrap()
 }
 
 fn setup_test_network() -> (TrustGraph, Vec<Did>) {

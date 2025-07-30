@@ -1,5 +1,6 @@
-use base64;
-use bincode;
+// ...existing code...
+use base64::Engine;
+// ...existing code...
 use icn_node::{app_router_with_options, RuntimeMode};
 use reqwest::Client;
 use serde_json::json;
@@ -40,16 +41,29 @@ async fn test_stub_endpoints_full_lifecycle() {
 
     // Test 1: Submit a job
     println!("\n1. Testing job submission...");
+    let job_spec = icn_mesh::JobSpec {
+        kind: icn_mesh::JobKind::Echo {
+            payload: "testing".into(),
+        },
+        inputs: vec![],
+        outputs: vec!["result".into()],
+        required_resources: icn_mesh::Resources {
+            cpu_cores: 1,
+            memory_mb: 128,
+            storage_mb: 0,
+        },
+        required_capabilities: vec![],
+        required_trust_scope: None,
+        min_executor_reputation: None,
+        allowed_federations: vec![],
+    };
+    let spec_bytes =
+        base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&job_spec).unwrap());
     let job_response = client
         .post(&format!("{}/mesh/submit", base_url))
         .json(&json!({
             "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
-            "spec_bytes": base64::encode(bincode::serialize(&icn_mesh::JobSpec {
-                kind: icn_mesh::JobKind::Echo { payload: "testing".into() },
-                inputs: vec![],
-                outputs: vec!["result".into()],
-                required_resources: icn_mesh::Resources { cpu_cores: 1, memory_mb: 128, storage_mb: 0 },
-            }).unwrap()),
+            "spec_bytes": spec_bytes,
             "spec_json": null,
             "cost_mana": 10
         }))

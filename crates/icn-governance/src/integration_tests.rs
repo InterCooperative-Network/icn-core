@@ -10,7 +10,7 @@ mod tests {
     use crate::voting::{
         BallotId, CandidateId, ElectionId, RankedChoiceBallot, Signature, VotingSystem,
     };
-    use icn_common::{Did, DidDocument};
+    use icn_common::{Did, DidDocument, FixedTimeProvider};
     use icn_identity::KeyDidResolver;
     use std::sync::Arc;
     use std::time::SystemTime;
@@ -18,6 +18,7 @@ mod tests {
     /// Test the complete governance workflow with ranked choice voting
     #[test]
     fn test_complete_governance_workflow() {
+        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
         let mut governance = GovernanceModule::new();
         let voter_did = Did::default();
         governance.add_member(voter_did.clone());
@@ -35,19 +36,27 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
 
         // Test opening voting
         governance.open_voting(&proposal_id).unwrap();
 
         // Test voting
         governance
-            .cast_vote(voter_did.clone(), &proposal_id, VoteOption::Yes)
+            .cast_vote(
+                voter_did.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
         // Test closing voting period
-        let (status, (yes_votes, no_votes, abstain_votes)) =
-            governance.close_voting_period(&proposal_id).unwrap();
+        let (status, (yes_votes, no_votes, abstain_votes)) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         assert_eq!(status, ProposalStatus::Accepted);
         assert_eq!(yes_votes, 1);
@@ -75,12 +84,13 @@ mod tests {
         assert_eq!(result.election_id, ElectionId("election1".to_string()));
         assert!(result.winner.is_some());
         assert_eq!(result.total_ballots, 4);
-        assert!(result.rounds.len() >= 1);
+        assert!(!result.rounds.is_empty());
     }
 
     /// Test governance edge cases and error conditions
     #[test]
     fn test_governance_edge_cases() {
+        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
         let mut governance = GovernanceModule::new();
         let voter_did = Did::default();
 
@@ -95,17 +105,26 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
         // Vote from non-member should work but not count toward quorum
         governance
-            .cast_vote(voter_did.clone(), &proposal_id, VoteOption::Yes)
+            .cast_vote(
+                voter_did.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
         // Set high quorum that can't be met
         governance.set_quorum(10);
-        let (status, _) = governance.close_voting_period(&proposal_id).unwrap();
+        let (status, _) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         // Should be rejected due to insufficient quorum
         assert_eq!(status, ProposalStatus::Rejected);
@@ -114,6 +133,8 @@ mod tests {
     /// Test proposal expiration functionality
     #[test]
     fn test_proposal_expiration() {
+        let start_time = 1640995200u64; // Start of 2022
+        let time_provider = FixedTimeProvider::new(start_time);
         let mut governance = GovernanceModule::new();
         let voter_did = Did::default();
         governance.add_member(voter_did.clone());
@@ -128,14 +149,21 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
-        // Wait for expiration (simulate time passing)
-        std::thread::sleep(std::time::Duration::from_secs(2));
+        // Create a new time provider that simulates time passing beyond expiration
+        let future_time_provider = FixedTimeProvider::new(start_time + 2);
 
-        // Try to vote on expired proposal
-        let vote_result = governance.cast_vote(voter_did, &proposal_id, VoteOption::Yes);
+        // Try to vote on expired proposal using future time
+        let vote_result = governance.cast_vote(
+            voter_did,
+            &proposal_id,
+            VoteOption::Yes,
+            &future_time_provider,
+        );
 
         // Should fail due to expired deadline
         assert!(vote_result.is_err());
@@ -144,6 +172,7 @@ mod tests {
     /// Test vote delegation functionality
     #[test]
     fn test_vote_delegation() {
+        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
         let mut governance = GovernanceModule::new();
         let delegator = Did::new("key", "delegator");
         let delegate = Did::new("key", "delegate");
@@ -168,15 +197,24 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
 
         // Only delegate votes, but should count for both
         governance
-            .cast_vote(delegate.clone(), &proposal_id, VoteOption::Yes)
+            .cast_vote(
+                delegate.clone(),
+                &proposal_id,
+                VoteOption::Yes,
+                &time_provider,
+            )
             .unwrap();
 
-        let (status, (yes_votes, _, _)) = governance.close_voting_period(&proposal_id).unwrap();
+        let (status, (yes_votes, _, _)) = governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         assert_eq!(status, ProposalStatus::Accepted);
         assert_eq!(yes_votes, 2); // Should count delegate's vote for both members
@@ -187,6 +225,7 @@ mod tests {
     fn test_event_store_integration() {
         use icn_eventstore::MemoryEventStore;
 
+        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
         let event_store = Box::new(MemoryEventStore::new());
         let mut governance = GovernanceModule::with_event_store(event_store);
 
@@ -203,10 +242,12 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
         governance
-            .cast_vote(voter_did, &proposal_id, VoteOption::Yes)
+            .cast_vote(voter_did, &proposal_id, VoteOption::Yes, &time_provider)
             .unwrap();
 
         // Verify events were recorded
@@ -230,6 +271,7 @@ mod tests {
     /// Test member management operations
     #[test]
     fn test_member_management() {
+        let time_provider = FixedTimeProvider::new(1640995200); // Start of 2022
         let mut governance = GovernanceModule::new();
         let member1 = Did::new("key", "member1");
         let member2 = Did::new("key", "member2");
@@ -259,12 +301,16 @@ mod tests {
             content_cid: None,
         };
 
-        let proposal_id = governance.submit_proposal(submission).unwrap();
+        let proposal_id = governance
+            .submit_proposal(submission, &time_provider)
+            .unwrap();
         governance.open_voting(&proposal_id).unwrap();
         governance
-            .cast_vote(member2, &proposal_id, VoteOption::Yes)
+            .cast_vote(member2, &proposal_id, VoteOption::Yes, &time_provider)
             .unwrap();
-        governance.close_voting_period(&proposal_id).unwrap();
+        governance
+            .close_voting_period(&proposal_id, &time_provider)
+            .unwrap();
 
         // Execute the proposal to add member back
         governance.execute_proposal(&proposal_id).unwrap();
@@ -291,7 +337,7 @@ mod tests {
                 .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],

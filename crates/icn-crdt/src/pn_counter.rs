@@ -7,6 +7,7 @@
 
 use crate::{CRDTError, CRDTResult, CausalCRDT, GCounter, NodeId, VectorClock, CRDT};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::collections::HashMap;
 
 /// A counter that supports both increment and decrement operations.
@@ -37,8 +38,8 @@ pub enum PNCounterOperation {
 impl PNCounter {
     /// Create a new PN-Counter with the given ID.
     pub fn new(id: String) -> Self {
-        let increment_id = format!("{}_inc", id);
-        let decrement_id = format!("{}_dec", id);
+        let increment_id = format!("{id}_inc");
+        let decrement_id = format!("{id}_dec");
 
         Self {
             id: id.clone(),
@@ -52,12 +53,18 @@ impl PNCounter {
     pub fn with_initial_value(id: String, node_id: NodeId, initial_value: i64) -> Self {
         let mut counter = Self::new(id);
 
-        if initial_value > 0 {
-            counter.increment(&node_id, initial_value as u64).unwrap();
-        } else if initial_value < 0 {
-            counter
-                .decrement(&node_id, (-initial_value) as u64)
-                .unwrap();
+        match initial_value.cmp(&0) {
+            Ordering::Greater => {
+                counter.increment(&node_id, initial_value as u64).unwrap();
+            }
+            Ordering::Less => {
+                counter
+                    .decrement(&node_id, (-initial_value) as u64)
+                    .unwrap();
+            }
+            Ordering::Equal => {
+                // Do nothing for zero
+            }
         }
 
         counter
@@ -117,14 +124,12 @@ impl PNCounter {
 
     /// Add a delta value (can be positive or negative).
     pub fn add(&mut self, node_id: &NodeId, delta: i64) -> CRDTResult<()> {
-        if delta > 0 {
-            self.increment(node_id, delta as u64)
-        } else if delta < 0 {
-            self.decrement(node_id, (-delta) as u64)
-        } else {
-            Err(CRDTError::InvalidOperation(
+        match delta.cmp(&0) {
+            Ordering::Greater => self.increment(node_id, delta as u64),
+            Ordering::Less => self.decrement(node_id, (-delta) as u64),
+            Ordering::Equal => Err(CRDTError::InvalidOperation(
                 "Delta cannot be zero".to_string(),
-            ))
+            )),
         }
     }
 
@@ -186,12 +191,10 @@ impl PNCounter {
             contributions
                 .values()
                 .fold((0, 0, 0), |(pos, neg, zero), &(_, _, net)| {
-                    if net > 0 {
-                        (pos + 1, neg, zero)
-                    } else if net < 0 {
-                        (pos, neg + 1, zero)
-                    } else {
-                        (pos, neg, zero + 1)
+                    match net.cmp(&0) {
+                        Ordering::Greater => (pos + 1, neg, zero),
+                        Ordering::Less => (pos, neg + 1, zero),
+                        Ordering::Equal => (pos, neg, zero + 1),
                     }
                 });
 
@@ -467,8 +470,8 @@ mod tests {
         counter2.increment(&node_b(), 15).unwrap();
         counter2.decrement(&node_c(), 8).unwrap();
 
-        let mut counter1_copy = counter1.clone();
-        let counter2_copy = counter2.clone();
+        let counter1_copy = counter1.clone();
+        let _counter2_copy = counter2.clone();
 
         // counter1.merge(counter2)
         counter1.merge(&counter2);

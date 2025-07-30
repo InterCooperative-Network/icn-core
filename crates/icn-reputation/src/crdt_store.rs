@@ -7,7 +7,7 @@
 use crate::ReputationStore;
 use icn_common::{CommonError, Did};
 use icn_crdt::{CRDTMap, NodeId, PNCounter, CRDT};
-use log::{debug, error, warn};
+use log::{debug, error};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -82,7 +82,7 @@ impl CRDTReputationStore {
         let node_id = NodeId::new(config.node_id.clone());
         let reputation_map = CRDTMap::new("reputation_scores".to_string());
 
-        let mut store = Self {
+        let store = Self {
             node_id,
             reputation_map: Arc::new(RwLock::new(reputation_map)),
             config,
@@ -139,26 +139,32 @@ impl CRDTReputationStore {
     /// This is useful for initialization or administrative changes.
     pub fn set_score(&self, did: Did, score: u64) {
         if let Err(e) = self.set_score_internal(&did, score) {
-            error!("Failed to set reputation score for {}: {}", did, e);
+            error!("Failed to set reputation score for {did}: {e}");
         }
     }
 
     /// Internal method to set reputation score.
     fn set_score_internal(&self, did: &Did, score: u64) -> Result<(), CommonError> {
-        debug!("Setting reputation score for DID {} to {}", did, score);
+        debug!("Setting reputation score for DID {did} to {score}");
 
         let current_score = self.get_reputation(did);
 
-        if score > current_score {
-            // Need to add the difference
-            let add_amount = score - current_score;
-            self.adjust_reputation(did, add_amount as i64)?;
-        } else if score < current_score {
-            // Need to subtract the difference
-            let sub_amount = current_score - score;
-            self.adjust_reputation(did, -(sub_amount as i64))?;
+        use std::cmp::Ordering;
+        match score.cmp(&current_score) {
+            Ordering::Greater => {
+                // Need to add the difference
+                let add_amount = score - current_score;
+                self.adjust_reputation(did, add_amount as i64)?;
+            }
+            Ordering::Less => {
+                // Need to subtract the difference
+                let sub_amount = current_score - score;
+                self.adjust_reputation(did, -(sub_amount as i64))?;
+            }
+            Ordering::Equal => {
+                // If scores are equal, no operation needed
+            }
         }
-        // If scores are equal, no operation needed
 
         Ok(())
     }
@@ -169,7 +175,7 @@ impl CRDTReputationStore {
             return Ok(());
         }
 
-        debug!("Adjusting reputation for DID {} by {}", did, delta);
+        debug!("Adjusting reputation for DID {did} by {delta}");
 
         // Get or create the counter
         let mut counter = self.get_or_create_counter(did)?;
@@ -178,23 +184,20 @@ impl CRDTReputationStore {
             counter
                 .increment(&self.node_id, delta as u64)
                 .map_err(|e| {
-                    CommonError::CRDTError(format!("Failed to increment reputation: {}", e))
+                    CommonError::CRDTError(format!("Failed to increment reputation: {e}"))
                 })?;
         } else {
             counter
                 .decrement(&self.node_id, (-delta) as u64)
                 .map_err(|e| {
-                    CommonError::CRDTError(format!("Failed to decrement reputation: {}", e))
+                    CommonError::CRDTError(format!("Failed to decrement reputation: {e}"))
                 })?;
         }
 
         // Update the counter in the map
         self.update_counter(did, counter)?;
 
-        debug!(
-            "Successfully adjusted reputation for DID {} by {}",
-            did, delta
-        );
+        debug!("Successfully adjusted reputation for DID {did} by {delta}");
         Ok(())
     }
 
@@ -211,15 +214,15 @@ impl CRDTReputationStore {
             Ok(counter.clone())
         } else {
             // Create new counter for this DID
-            let counter_id = format!("reputation_{}", did_str);
+            let counter_id = format!("reputation_{did_str}");
             let counter = PNCounter::new(counter_id);
 
             map.put(did_str, counter.clone(), self.node_id.clone())
                 .map_err(|e| {
-                    CommonError::CRDTError(format!("Failed to create reputation counter: {}", e))
+                    CommonError::CRDTError(format!("Failed to create reputation counter: {e}"))
                 })?;
 
-            debug!("Created new reputation counter for DID: {}", did);
+            debug!("Created new reputation counter for DID: {did}");
             Ok(counter)
         }
     }
@@ -234,7 +237,7 @@ impl CRDTReputationStore {
         let did_str = did.to_string();
         map.put(did_str, counter, self.node_id.clone())
             .map_err(|e| {
-                CommonError::CRDTError(format!("Failed to update reputation counter: {}", e))
+                CommonError::CRDTError(format!("Failed to update reputation counter: {e}"))
             })?;
 
         Ok(())
@@ -362,11 +365,10 @@ impl ReputationStore for CRDTReputationStore {
         let total_delta = base_delta + cpu_bonus;
 
         if let Err(e) = self.adjust_reputation(executor, total_delta) {
-            error!("Failed to record execution for {}: {}", executor, e);
+            error!("Failed to record execution for {executor}: {e}");
         } else {
             debug!(
-                "Recorded execution for {}: success={}, cpu_ms={}, delta={}",
-                executor, success, cpu_ms, total_delta
+                "Recorded execution for {executor}: success={success}, cpu_ms={cpu_ms}, delta={total_delta}"
             );
         }
     }
@@ -381,12 +383,9 @@ impl ReputationStore for CRDTReputationStore {
         };
 
         if let Err(e) = self.adjust_reputation(prover, delta) {
-            error!("Failed to record proof attempt for {}: {}", prover, e);
+            error!("Failed to record proof attempt for {prover}: {e}");
         } else {
-            debug!(
-                "Recorded proof attempt for {}: success={}, delta={}",
-                prover, success, delta
-            );
+            debug!("Recorded proof attempt for {prover}: success={success}, delta={delta}");
         }
     }
 }

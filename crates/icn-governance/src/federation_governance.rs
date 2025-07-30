@@ -4,7 +4,7 @@
 //! It provides governance mechanisms that respect federation trust contexts and inheritance.
 
 use crate::ProposalId;
-use icn_common::{CommonError, Did};
+use icn_common::{CommonError, Did, TimeProvider};
 use icn_identity::{
     FederationId, TrustContext, TrustLevel, TrustPolicyEngine, TrustValidationResult,
 };
@@ -201,6 +201,7 @@ impl FederationGovernanceEngine {
         trust_context: TrustContext,
         content: String,
         voting_deadline: u64,
+        time_provider: &dyn TimeProvider,
     ) -> Result<ProposalId, GovernanceError> {
         // Validate proposer has permission to submit proposals
         let validation = self.validate_action(
@@ -226,10 +227,7 @@ impl FederationGovernanceEngine {
         let proposal_id = ProposalId(format!(
             "prop_{}_{}",
             federation.as_str(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
+            time_provider.unix_seconds()
         ));
         let proposal = FederationProposal {
             id: proposal_id.clone(),
@@ -239,10 +237,7 @@ impl FederationGovernanceEngine {
             content,
             votes: HashMap::new(),
             status: ProposalStatus::Open,
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            created_at: time_provider.unix_seconds(),
             voting_deadline,
         };
 
@@ -256,6 +251,7 @@ impl FederationGovernanceEngine {
         voter: &Did,
         proposal_id: &ProposalId,
         vote: bool,
+        time_provider: &dyn TimeProvider,
     ) -> Result<(), GovernanceError> {
         let proposal = self
             .proposals
@@ -266,12 +262,7 @@ impl FederationGovernanceEngine {
             return Err(GovernanceError::ProposalNotOpen(proposal_id.clone()));
         }
 
-        if std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
-            > proposal.voting_deadline
-        {
+        if time_provider.unix_seconds() > proposal.voting_deadline {
             return Err(GovernanceError::VotingDeadlinePassed(proposal_id.clone()));
         }
 
@@ -317,6 +308,7 @@ impl FederationGovernanceEngine {
     pub fn finalize_proposal(
         &mut self,
         proposal_id: &ProposalId,
+        time_provider: &dyn TimeProvider,
     ) -> Result<VotingResult, GovernanceError> {
         // First, extract needed data while we have the mutable borrow
         let (total_votes, yes_votes, trust_context, federation, _voting_deadline, _status) = {
@@ -330,12 +322,7 @@ impl FederationGovernanceEngine {
             }
 
             // Check if voting deadline has passed
-            if std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-                <= proposal.voting_deadline
-            {
+            if time_provider.unix_seconds() <= proposal.voting_deadline {
                 return Err(GovernanceError::VotingStillOpen(proposal_id.clone()));
             }
 
@@ -536,6 +523,7 @@ impl FederationGovernanceEngine {
         federation: FederationId,
         chair: Did,
         managed_contexts: HashSet<TrustContext>,
+        time_provider: &dyn TimeProvider,
     ) -> Result<(), FederationGovernanceError> {
         if self.trust_committees.contains_key(&committee_id) {
             return Err(FederationGovernanceError::PolicyValidationFailed(format!(
@@ -549,10 +537,7 @@ impl FederationGovernanceEngine {
             role: TrustCommitteeRole::Chair,
             contexts: managed_contexts.clone(),
             voting_weight: 1.0,
-            joined_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            joined_at: time_provider.unix_seconds(),
             active: true,
         };
 
@@ -564,10 +549,7 @@ impl FederationGovernanceEngine {
                 .collect(),
             managed_contexts,
             policies: HashMap::new(),
-            created_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            created_at: time_provider.unix_seconds(),
             status: CommitteeStatus::Active,
         };
 
@@ -668,6 +650,7 @@ impl FederationGovernanceEngine {
     // === Trust Violations and Sanctions ===
 
     /// Report a trust violation
+    #[allow(clippy::too_many_arguments)]
     pub fn report_violation(
         &mut self,
         violator: Did,
@@ -676,14 +659,12 @@ impl FederationGovernanceEngine {
         description: String,
         evidence: Vec<String>,
         reported_by: Did,
+        time_provider: &dyn TimeProvider,
     ) -> Result<String, FederationGovernanceError> {
         let violation_id = format!(
             "violation_{}_{}",
             violator.to_string().chars().take(8).collect::<String>(),
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
+            time_provider.unix_seconds()
         );
 
         let violation = TrustViolation {
@@ -699,10 +680,7 @@ impl FederationGovernanceEngine {
             description,
             evidence,
             reported_by,
-            reported_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            reported_at: time_provider.unix_seconds(),
             status: ViolationStatus::Reported,
             committee_decisions: Vec::new(),
             sanctions: Vec::new(),
@@ -720,6 +698,7 @@ impl FederationGovernanceEngine {
         vote: DecisionVote,
         reasoning: String,
         recommended_sanctions: Vec<TrustSanction>,
+        time_provider: &dyn TimeProvider,
     ) -> Result<(), FederationGovernanceError> {
         // First get the context while we have access
         let context = {
@@ -750,10 +729,7 @@ impl FederationGovernanceEngine {
             member: committee_member.clone(),
             vote,
             reasoning,
-            decided_at: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            decided_at: time_provider.unix_seconds(),
             recommended_sanctions,
         };
 
@@ -861,6 +837,7 @@ impl FederationGovernanceEngine {
         _applicant: &Did,
         federation: &FederationId,
         attestations: Vec<(&Did, TrustLevel, TrustContext)>,
+        time_provider: &dyn TimeProvider,
     ) -> Result<MembershipApplicationResult, FederationGovernanceError> {
         let gate = self.membership_gates.get(federation).ok_or_else(|| {
             FederationGovernanceError::MembershipGateValidationFailed(format!(
@@ -877,36 +854,24 @@ impl FederationGovernanceEngine {
                     gate.min_attestations,
                     attestations.len()
                 ),
-                can_reapply_after: Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                        + 2592000,
-                ), // 30 days
+                can_reapply_after: Some(time_provider.unix_seconds() + 2592000), // 30 days
             });
         }
 
         // Check trust levels and contexts
         let mut valid_contexts = HashSet::new();
         for (_attestor, trust_level, context) in &attestations {
-            if gate.required_contexts.contains(context) {
-                if self.meets_minimum_trust(trust_level, &gate.min_trust_level) {
-                    valid_contexts.insert(context.clone());
-                }
+            if gate.required_contexts.contains(context)
+                && self.meets_minimum_trust(trust_level, &gate.min_trust_level)
+            {
+                valid_contexts.insert(context.clone());
             }
         }
 
         if valid_contexts.len() < gate.required_contexts.len() {
             return Ok(MembershipApplicationResult::Rejected {
                 reason: "Insufficient trust attestations for required contexts".to_string(),
-                can_reapply_after: Some(
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                        + 2592000,
-                ), // 30 days
+                can_reapply_after: Some(time_provider.unix_seconds() + 2592000), // 30 days
             });
         }
 
@@ -915,25 +880,17 @@ impl FederationGovernanceEngine {
             // For now, automatically approve if basic requirements are met
             // In practice, this would trigger committee review process
             return Ok(MembershipApplicationResult::Approved {
-                probationary_until: gate.probationary_period.map(|period| {
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                        + period
-                }),
+                probationary_until: gate
+                    .probationary_period
+                    .map(|period| time_provider.unix_seconds() + period),
                 granted_contexts: valid_contexts,
             });
         }
 
         Ok(MembershipApplicationResult::Approved {
-            probationary_until: gate.probationary_period.map(|period| {
-                std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs()
-                    + period
-            }),
+            probationary_until: gate
+                .probationary_period
+                .map(|period| time_provider.unix_seconds() + period),
             granted_contexts: valid_contexts,
         })
     }
@@ -943,13 +900,16 @@ impl FederationGovernanceEngine {
     /// Check if trust level meets minimum requirement
     fn meets_minimum_trust(&self, actual: &TrustLevel, required: &TrustLevel) -> bool {
         use TrustLevel::*;
-        match (actual, required) {
-            (Full, _) => true,
-            (Partial, Partial) | (Partial, Basic) | (Partial, None) => true,
-            (Basic, Basic) | (Basic, None) => true,
-            (None, None) => true,
-            _ => false,
-        }
+        matches!(
+            (actual, required),
+            (Full, _)
+                | (Partial, Partial)
+                | (Partial, Basic)
+                | (Partial, None)
+                | (Basic, Basic)
+                | (Basic, None)
+                | (None, None)
+        )
     }
 
     /// Get committee responsible for a trust context
@@ -970,7 +930,7 @@ impl FederationGovernanceEngine {
     pub fn has_active_sanctions(&self, member: &Did) -> bool {
         self.active_sanctions
             .get(member)
-            .map_or(false, |sanctions| !sanctions.is_empty())
+            .is_some_and(|sanctions| !sanctions.is_empty())
     }
 
     /// Get violations for a member
@@ -1280,7 +1240,6 @@ pub enum FederationGovernanceError {
 mod tests {
     use super::*;
     use icn_identity::{TrustLevel, TrustPolicyRule};
-    use std::str::FromStr;
 
     fn setup_test_governance() -> FederationGovernanceEngine {
         let mut trust_engine = TrustPolicyEngine::new();
@@ -1336,7 +1295,7 @@ mod tests {
 
     #[test]
     fn test_proposal_status_lifecycle() {
-        let engine = setup_test_governance();
+        let _engine = setup_test_governance();
 
         let proposal = FederationProposal {
             id: ProposalId("test_proposal".to_string()),

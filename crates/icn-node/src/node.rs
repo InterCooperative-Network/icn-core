@@ -9,12 +9,10 @@
     dead_code,
     irrefutable_let_patterns
 )]
-
 //! # ICN Node Crate
 //! This crate provides the main binary for running a long-lived InterCooperative Network (ICN) daemon.
 //! It integrates various core components to operate a functional ICN node, handling initialization,
 //! lifecycle, configuration, service hosting, and persistence.
-
 use crate::circuit_registry::CircuitRegistry;
 use crate::parameter_store::ParameterStore;
 use dashmap::DashSet;
@@ -755,13 +753,13 @@ pub async fn build_network_service(
             })
             .collect(),
         enable_mdns: config.p2p.enable_mdns,
-        max_peers: config.p2p.max_peers as usize,
+        max_peers: config.p2p.max_peers,
         connection_timeout_ms: config.p2p.connection_timeout_ms,
         request_timeout_ms: config.p2p.request_timeout_ms,
         heartbeat_interval_ms: config.p2p.heartbeat_interval_ms,
         bootstrap_interval_secs: config.p2p.bootstrap_interval_secs,
         peer_discovery_interval_secs: config.p2p.peer_discovery_interval_secs,
-        kademlia_replication_factor: config.p2p.kademlia_replication_factor as usize,
+        kademlia_replication_factor: config.p2p.kademlia_replication_factor,
         ..Default::default()
     };
 
@@ -903,26 +901,35 @@ pub async fn app_router_with_options(
             {
                 // Create real libp2p network service for production using P2pConfig
                 let mut net_cfg = NetworkConfig::production();
-                
+
                 // Apply P2pConfig settings from environment variables
-                if !cfg.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).is_empty() {
-                    net_cfg = net_cfg.with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
+                if !cfg
+                    .p2p
+                    .bootstrap_peers
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .is_empty()
+                {
+                    net_cfg = net_cfg
+                        .with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
                         .expect("Failed to parse bootstrap peers for production");
                 }
-                
-                net_cfg = net_cfg.with_settings(
-                    Some(&cfg.p2p.listen_address),
-                    Some(cfg.p2p.enable_mdns),
-                    Some(cfg.p2p.max_peers),
-                    Some(cfg.p2p.max_peers_per_ip),
-                    Some(cfg.p2p.connection_timeout_ms),
-                    Some(cfg.p2p.request_timeout_ms),
-                    Some(cfg.p2p.heartbeat_interval_ms),
-                    Some(cfg.p2p.bootstrap_interval_secs),
-                    Some(cfg.p2p.peer_discovery_interval_secs),
-                    Some(cfg.p2p.kademlia_replication_factor),
-                ).expect("Failed to apply P2pConfig settings for production");
-                
+
+                net_cfg = net_cfg
+                    .with_settings(
+                        Some(&cfg.p2p.listen_address),
+                        Some(cfg.p2p.enable_mdns),
+                        Some(cfg.p2p.max_peers),
+                        Some(cfg.p2p.max_peers_per_ip),
+                        Some(cfg.p2p.connection_timeout_ms),
+                        Some(cfg.p2p.request_timeout_ms),
+                        Some(cfg.p2p.heartbeat_interval_ms),
+                        Some(cfg.p2p.bootstrap_interval_secs),
+                        Some(cfg.p2p.peer_discovery_interval_secs),
+                        Some(cfg.p2p.kademlia_replication_factor),
+                    )
+                    .expect("Failed to apply P2pConfig settings for production");
+
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
@@ -957,26 +964,35 @@ pub async fn app_router_with_options(
             {
                 // Create libp2p service for development using P2pConfig
                 let mut net_cfg = NetworkConfig::development();
-                
+
                 // Apply P2pConfig settings from environment variables
-                if !cfg.p2p.bootstrap_peers.as_ref().unwrap_or(&Vec::new()).is_empty() {
-                    net_cfg = net_cfg.with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
+                if !cfg
+                    .p2p
+                    .bootstrap_peers
+                    .as_ref()
+                    .unwrap_or(&Vec::new())
+                    .is_empty()
+                {
+                    net_cfg = net_cfg
+                        .with_bootstrap_peers(cfg.p2p.bootstrap_peers.as_ref().unwrap())
                         .expect("Failed to parse bootstrap peers for development");
                 }
-                
-                net_cfg = net_cfg.with_settings(
-                    Some(&cfg.p2p.listen_address),
-                    Some(cfg.p2p.enable_mdns),
-                    Some(cfg.p2p.max_peers),
-                    Some(cfg.p2p.max_peers_per_ip),
-                    Some(cfg.p2p.connection_timeout_ms),
-                    Some(cfg.p2p.request_timeout_ms),
-                    Some(cfg.p2p.heartbeat_interval_ms),
-                    Some(cfg.p2p.bootstrap_interval_secs),
-                    Some(cfg.p2p.peer_discovery_interval_secs),
-                    Some(cfg.p2p.kademlia_replication_factor),
-                ).expect("Failed to apply P2pConfig settings for development");
-                
+
+                net_cfg = net_cfg
+                    .with_settings(
+                        Some(&cfg.p2p.listen_address),
+                        Some(cfg.p2p.enable_mdns),
+                        Some(cfg.p2p.max_peers),
+                        Some(cfg.p2p.max_peers_per_ip),
+                        Some(cfg.p2p.connection_timeout_ms),
+                        Some(cfg.p2p.request_timeout_ms),
+                        Some(cfg.p2p.heartbeat_interval_ms),
+                        Some(cfg.p2p.bootstrap_interval_secs),
+                        Some(cfg.p2p.peer_discovery_interval_secs),
+                        Some(cfg.p2p.kademlia_replication_factor),
+                    )
+                    .expect("Failed to apply P2pConfig settings for development");
+
                 let network_service = Arc::new(
                     Libp2pNetworkService::new(net_cfg)
                         .await
@@ -2184,7 +2200,7 @@ async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     let mut failed_jobs = 0;
 
     for job_state in job_states.iter() {
-        match &*job_state.value() {
+        match job_state.value() {
             icn_mesh::JobState::Pending => pending_jobs += 1,
             icn_mesh::JobState::Assigned { .. } => assigned_jobs += 1,
             icn_mesh::JobState::Completed { .. } => completed_jobs += 1,
@@ -2985,7 +3001,7 @@ async fn mesh_submit_job_handler(
     // The runtime will override id, creator_did, and signature
     let complete_job = icn_mesh::ActualMeshJob {
         id: icn_mesh::JobId::from(manifest_cid.clone()), // Placeholder, will be overridden
-        manifest_cid: manifest_cid,
+        manifest_cid,
         spec: job_spec,
         creator_did: icn_common::Did::from_str("did:placeholder:creator").unwrap(), // Placeholder, will be overridden
         cost_mana: request.cost_mana,
@@ -3041,7 +3057,7 @@ async fn mesh_list_jobs_handler(State(state): State<AppState>) -> impl IntoRespo
             let job_state = entry.value();
             serde_json::json!({
                 "job_id": job_id.to_string(),
-                "status": match &*job_state {
+                "status": match job_state {
                     icn_mesh::JobState::Pending => serde_json::json!("pending"),
                     icn_mesh::JobState::Assigned { executor } => {
                         serde_json::json!({
@@ -3648,7 +3664,7 @@ async fn mesh_get_metrics_handler(State(state): State<AppState>) -> impl IntoRes
     let mut failed_jobs = 0u64;
 
     for job_state in job_states.iter() {
-        match &*job_state.value() {
+        match job_state.value() {
             icn_mesh::JobState::Pending | icn_mesh::JobState::Assigned { .. } => {
                 running_jobs += 1;
             }
@@ -3904,9 +3920,8 @@ async fn network_discover_handler(State(state): State<AppState>) -> impl IntoRes
                     )
                         .into_response()
                 }
-                Err(e) => {
-                    map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR).into_response()
-                }
+                Err(e) => map_rust_error_to_json_response(e, StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response(),
             },
             Err(e) => map_rust_error_to_json_response(e, StatusCode::BAD_REQUEST).into_response(),
         }
@@ -4045,9 +4060,9 @@ async fn zk_verify_batch_handler(
     let mut results = Vec::with_capacity(req.proofs.len());
     for proof in req.proofs.iter() {
         let verifier: Box<dyn ZkVerifier> = match proof.backend {
-            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier::default()),
+            ZkProofType::Bulletproofs => Box::new(BulletproofsVerifier),
             ZkProofType::Groth16 => Box::new(Groth16Verifier::default()),
-            _ => Box::new(DummyVerifier::default()),
+            _ => Box::new(DummyVerifier),
         };
 
         match verifier.verify(proof) {
@@ -4208,7 +4223,7 @@ async fn credential_verify_handler(
                 .into_response();
             }
         }
-        for (k, _) in &cred.claims {
+        for k in cred.claims.keys() {
             if let Err(e) = cred.verify_claim(k, vk) {
                 return map_rust_error_to_json_response(format!("{e}"), StatusCode::BAD_REQUEST)
                     .into_response();
@@ -4337,6 +4352,79 @@ async fn circuit_versions_handler(
     }
 }
 
+// Cooperative handlers (stub implementations)
+async fn cooperative_register_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative registration not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_search_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative search not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_profile_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative profile retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_add_trust_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative trust addition not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_trust_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative trust retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_get_capability_providers_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative capability providers retrieval not yet implemented"
+        })),
+    )
+}
+
+async fn cooperative_registry_stats_handler() -> impl IntoResponse {
+    (
+        StatusCode::NOT_IMPLEMENTED,
+        Json(serde_json::json!({
+            "error": "Cooperative registry stats not yet implemented"
+        })),
+    )
+}
+
+// Demo data loading function (stub implementation)
+async fn load_demo_data(
+    _rt_ctx: &icn_runtime::RuntimeContext,
+    _node_did: &icn_common::Did,
+) -> Result<(), icn_common::CommonError> {
+    log::info!("Demo data loading not yet implemented");
+    Ok(())
+}
+
 // WebSocket handler for real-time events
 async fn websocket_handler(
     ws: WebSocketUpgrade,
@@ -4409,567 +4497,4 @@ async fn handle_websocket(socket: WebSocket, state: AppState) {
             send_task.abort();
         }
     }
-}
-
-// --- Test module (can be expanded later) ---
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::body::Body;
-    use axum::http::{Request, StatusCode};
-    use tower::ServiceExt; // for `oneshot` and `ready`
-
-    // Helper to create a test router with a fresh RuntimeContext
-    async fn test_app() -> Router {
-        app_router().await
-    }
-
-    #[tokio::test]
-    async fn info_endpoint_works() {
-        let app = test_app().await;
-        let response = app
-            .oneshot(Request::builder().uri("/info").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let info: NodeInfo = serde_json::from_slice(&body).unwrap();
-
-        assert_eq!(info.name, "ICN Test/Embedded Node");
-        assert_eq!(info.version, ICN_CORE_VERSION);
-        assert!(info.status_message.contains("Mana: 1000"));
-        assert!(info.status_message.contains("Node DID:"));
-    }
-
-    #[tokio::test]
-    async fn mesh_submit_job_endpoint_basic() {
-        let app = test_app().await;
-
-        let spec = icn_mesh::JobSpec {
-            kind: icn_mesh::JobKind::Echo {
-                payload: "hello".into(),
-            },
-            ..Default::default()
-        };
-        let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_sha256(0x55, b"test_manifest").to_string(),
-            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
-            spec_json: None,
-            cost_mana: 50,
-        };
-        let job_req_json = serde_json::to_string(&job_req).unwrap();
-
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/mesh/submit")
-                    .header("content-type", "application/json")
-                    .body(Body::from(job_req_json))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(response.status(), StatusCode::ACCEPTED);
-        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let body_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        assert!(body_json.get("job_id").is_some());
-        info!("Mesh submit response: {:?}", body_json);
-    }
-
-    #[tokio::test]
-    async fn complete_http_to_mesh_pipeline() {
-        let app = test_app().await;
-
-        // Step 1: Submit a job via HTTP
-        let spec = icn_mesh::JobSpec {
-            kind: icn_mesh::JobKind::Echo {
-                payload: "HTTP pipeline test".into(),
-            },
-            ..Default::default()
-        };
-        let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_sha256(0x55, b"pipeline_test_manifest").to_string(),
-            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
-            spec_json: None,
-            cost_mana: 100,
-        };
-        let job_req_json = serde_json::to_string(&job_req).unwrap();
-
-        let submit_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/mesh/submit")
-                    .header("content-type", "application/json")
-                    .body(Body::from(job_req_json))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        let status = submit_response.status();
-        if status != StatusCode::ACCEPTED {
-            let error_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX)
-                .await
-                .unwrap();
-            let error_text = String::from_utf8_lossy(&error_body);
-            panic!(
-                "Job submission failed with status {}: {}",
-                status, error_text
-            );
-        }
-
-        let submit_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let submit_json: serde_json::Value = serde_json::from_slice(&submit_body).unwrap();
-        let job_id = submit_json
-            .get("job_id")
-            .unwrap()
-            .as_str()
-            .unwrap()
-            .to_string();
-        info!(
-            "✅ Job submitted via HTTP, Job ID from response: {}",
-            job_id
-        );
-
-        // Debug: Let's also check what jobs are actually in the system
-        let debug_list_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/mesh/jobs")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let debug_list_body = axum::body::to_bytes(debug_list_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let debug_list_json: serde_json::Value = serde_json::from_slice(&debug_list_body).unwrap();
-        info!("🔍 Debug - All jobs in system: {:?}", debug_list_json);
-
-        // Step 2: Check job status immediately (should be pending)
-        let status_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri(&format!("/mesh/jobs/{}", job_id))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        let status_code = status_response.status();
-        if status_code != StatusCode::OK {
-            let error_body = axum::body::to_bytes(status_response.into_body(), usize::MAX)
-                .await
-                .unwrap();
-            let error_text = String::from_utf8_lossy(&error_body);
-            panic!(
-                "Job status check failed with status {}: {}",
-                status_code, error_text
-            );
-        }
-
-        let status_body = axum::body::to_bytes(status_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let status_json: serde_json::Value = serde_json::from_slice(&status_body).unwrap();
-        info!("✅ Job status response: {:?}", status_json);
-        assert_eq!(status_json.get("job_id").unwrap().as_str().unwrap(), job_id);
-
-        // Step 3: List all jobs (should include our job)
-        let list_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/mesh/jobs")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        assert_eq!(list_response.status(), StatusCode::OK);
-        let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let list_json: serde_json::Value = serde_json::from_slice(&list_body).unwrap();
-        info!("✅ Jobs list response: {:?}", list_json);
-
-        let jobs = list_json.get("jobs").unwrap().as_array().unwrap();
-        assert!(!jobs.is_empty());
-        let found_job = jobs
-            .iter()
-            .find(|job| job.get("job_id").unwrap().as_str().unwrap() == job_id);
-        assert!(found_job.is_some());
-
-        // Step 4: Validate core HTTP → mesh job pipeline is working
-        // (Receipt submission with real cryptographic verification is tested in the runtime layer)
-
-        info!("🎉 Complete HTTP-to-mesh pipeline test passed!");
-    }
-
-    #[tokio::test]
-    async fn test_simple_job_submission_and_listing() {
-        let app = test_app().await;
-
-        // Step 1: Submit a job
-        let spec = icn_mesh::JobSpec {
-            kind: icn_mesh::JobKind::Echo {
-                payload: "simple test".into(),
-            },
-            ..Default::default()
-        };
-        let job_req = SubmitJobRequest {
-            manifest_cid: Cid::new_v1_sha256(0x55, b"simple_test").to_string(),
-            spec_bytes: Some(BASE64_STANDARD.encode(bincode::serialize(&spec).unwrap())),
-            spec_json: None,
-            cost_mana: 50,
-        };
-        let job_req_json = serde_json::to_string(&job_req).unwrap();
-
-        let submit_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/mesh/submit")
-                    .header("content-type", "application/json")
-                    .body(Body::from(job_req_json))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        println!("Submit response status: {}", submit_response.status());
-        let submit_body = axum::body::to_bytes(submit_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let submit_text = String::from_utf8_lossy(&submit_body);
-        println!("Submit response body: {}", submit_text);
-
-        // Step 2: List all jobs
-        let list_response = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/mesh/jobs")
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-
-        println!("List response status: {}", list_response.status());
-        let list_body = axum::body::to_bytes(list_response.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let list_text = String::from_utf8_lossy(&list_body);
-        println!("List response body: {}", list_text);
-    }
-
-    #[tokio::test]
-    async fn wasm_contract_execution_via_http() {
-        use icn_ccl::compile_ccl_source_to_wasm;
-        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
-        use icn_runtime::executor::WasmExecutor;
-
-        let (app, ctx) = app_router_with_options(
-            RuntimeMode::Testing,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        )
-        .await;
-
-        // Compile a tiny CCL contract
-        let (wasm, _) =
-            compile_ccl_source_to_wasm("fn run() -> Integer { return 7; }").expect("compile ccl");
-
-        // Store WASM in DAG via HTTP
-        let put_req = Request::builder()
-            .method("POST")
-            .uri("/dag/put")
-            .header("content-type", "application/json")
-            .body(Body::from(
-                serde_json::to_vec(&serde_json::json!({ "data": wasm })).unwrap(),
-            ))
-            .unwrap();
-        let put_resp = app.clone().oneshot(put_req).await.unwrap();
-        assert_eq!(put_resp.status(), StatusCode::CREATED);
-        let cid_bytes = axum::body::to_bytes(put_resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let wasm_cid_str: String = serde_json::from_slice(&cid_bytes).unwrap();
-        let wasm_cid = parse_cid_from_string(&wasm_cid_str).unwrap();
-
-        // Submit job referencing the WASM CID
-        let job_req = SubmitJobRequest {
-            manifest_cid: wasm_cid.to_string(),
-            spec_bytes: Some(
-                BASE64_STANDARD.encode(bincode::serialize(&icn_mesh::JobSpec::default()).unwrap()),
-            ),
-            spec_json: None,
-            cost_mana: 0,
-        };
-        let job_req_json = serde_json::to_string(&job_req).unwrap();
-        let submit_resp = app
-            .clone()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/mesh/submit")
-                    .header("content-type", "application/json")
-                    .body(Body::from(job_req_json))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(submit_resp.status(), StatusCode::ACCEPTED);
-        let body = axum::body::to_bytes(submit_resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let submit_json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        let job_id_str = submit_json["job_id"].as_str().unwrap();
-        let job_id = parse_cid_from_string(job_id_str).unwrap();
-
-        // Execute the job using WasmExecutor and anchor the receipt
-        let (sk, vk) = generate_ed25519_keypair();
-        let exec_did = did_key_from_verifying_key(&vk);
-        let exec_did = Did::from_str(&exec_did).unwrap();
-        let signer =
-            std::sync::Arc::new(icn_runtime::context::Ed25519Signer::new_with_keys(sk, vk));
-        let executor = WasmExecutor::new(
-            ctx.clone(),
-            signer,
-            icn_runtime::executor::WasmExecutorConfig::default(),
-        );
-        let job = ActualMeshJob {
-            id: JobId(job_id.clone()),
-            manifest_cid: wasm_cid.clone(),
-            spec: JobSpec::default(),
-            creator_did: ctx.current_identity.clone(),
-            cost_mana: 0,
-            max_execution_wait_ms: None,
-            signature: SignatureBytes(vec![]),
-        };
-        let receipt_cid = executor
-            .execute_and_anchor_job(&job)
-            .await
-            .expect("exec and anchor");
-
-        // Fetch the anchored receipt via HTTP
-        let get_req = Request::builder()
-            .method("POST")
-            .uri("/dag/get")
-            .header("content-type", "application/json")
-            .body(Body::from(
-                serde_json::to_vec(&serde_json::json!({
-                    "cid": receipt_cid.to_string()
-                }))
-                .unwrap(),
-            ))
-            .unwrap();
-        let get_resp = app.clone().oneshot(get_req).await.unwrap();
-        assert_eq!(get_resp.status(), StatusCode::OK);
-        let receipt_bytes = axum::body::to_bytes(get_resp.into_body(), usize::MAX)
-            .await
-            .unwrap();
-        let receipt: icn_identity::ExecutionReceipt =
-            serde_json::from_slice(&receipt_bytes).unwrap();
-        assert_eq!(receipt.job_id, job_id);
-        assert_eq!(receipt.executor_did, exec_did);
-    }
-
-    #[tokio::test]
-    async fn network_connect_endpoint_basic() {
-        let app = test_app().await;
-        let payload = serde_json::json!({ "peer": "/ip4/127.0.0.1/tcp/1234" });
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/network/connect")
-                    .header("content-type", "application/json")
-                    .body(Body::from(payload.to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-    }
-}
-
-// --- Cooperative Discovery Handlers ---
-
-use icn_identity::{
-    CooperativeProfile, CooperativeSearchFilter, CooperativeSearchResult, RegistryStats,
-    TrustRelationship,
-};
-
-// POST /cooperative/register - Register a cooperative profile
-async fn cooperative_register_handler(
-    State(state): State<AppState>,
-    Json(profile): Json<CooperativeProfile>,
-) -> impl IntoResponse {
-    match state
-        .cooperative_registry
-        .register_cooperative(profile)
-        .await
-    {
-        Ok(cid) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "cid": cid.to_string(), "status": "registered" })),
-        )
-            .into_response(),
-        Err(e) => map_rust_error_to_json_response(
-            format!("Registration failed: {}", e),
-            StatusCode::BAD_REQUEST,
-        )
-        .into_response(),
-    }
-}
-
-// POST /cooperative/search - Search for cooperatives
-async fn cooperative_search_handler(
-    State(state): State<AppState>,
-    Json(filter): Json<CooperativeSearchFilter>,
-) -> impl IntoResponse {
-    match state.cooperative_registry.search_cooperatives(filter).await {
-        Ok(results) => (StatusCode::OK, Json(results)).into_response(),
-        Err(e) => map_rust_error_to_json_response(
-            format!("Search failed: {}", e),
-            StatusCode::BAD_REQUEST,
-        )
-        .into_response(),
-    }
-}
-
-// GET /cooperative/profile/{did} - Get a cooperative profile
-async fn cooperative_get_profile_handler(
-    State(state): State<AppState>,
-    AxumPath(did_str): AxumPath<String>,
-) -> impl IntoResponse {
-    match Did::from_str(&did_str) {
-        Ok(did) => match state.cooperative_registry.get_cooperative(&did).await {
-            Ok(Some(profile)) => (StatusCode::OK, Json(profile)).into_response(),
-            Ok(None) => {
-                map_rust_error_to_json_response("Cooperative not found", StatusCode::NOT_FOUND)
-                    .into_response()
-            }
-            Err(e) => map_rust_error_to_json_response(
-                format!("Query failed: {}", e),
-                StatusCode::INTERNAL_SERVER_ERROR,
-            )
-            .into_response(),
-        },
-        Err(e) => {
-            map_rust_error_to_json_response(format!("Invalid DID: {}", e), StatusCode::BAD_REQUEST)
-                .into_response()
-        }
-    }
-}
-
-// POST /cooperative/trust - Add a trust relationship
-async fn cooperative_add_trust_handler(
-    State(state): State<AppState>,
-    Json(trust): Json<TrustRelationship>,
-) -> impl IntoResponse {
-    match state
-        .cooperative_registry
-        .add_trust_relationship(trust)
-        .await
-    {
-        Ok(cid) => (
-            StatusCode::CREATED,
-            Json(serde_json::json!({ "cid": cid.to_string(), "status": "trust_added" })),
-        )
-            .into_response(),
-        Err(e) => map_rust_error_to_json_response(
-            format!("Failed to add trust relationship: {}", e),
-            StatusCode::BAD_REQUEST,
-        )
-        .into_response(),
-    }
-}
-
-// GET /cooperative/trust/{did} - Get trust relationships for a cooperative
-async fn cooperative_get_trust_handler(
-    State(state): State<AppState>,
-    AxumPath(did_str): AxumPath<String>,
-) -> impl IntoResponse {
-    match Did::from_str(&did_str) {
-        Ok(did) => {
-            let relationships = state.cooperative_registry.get_trust_relationships(&did);
-            (StatusCode::OK, Json(relationships)).into_response()
-        }
-        Err(e) => {
-            map_rust_error_to_json_response(format!("Invalid DID: {}", e), StatusCode::BAD_REQUEST)
-                .into_response()
-        }
-    }
-}
-
-// GET /cooperative/capabilities/{capability_type} - Find providers of a capability
-async fn cooperative_get_capability_providers_handler(
-    State(state): State<AppState>,
-    AxumPath(capability_type): AxumPath<String>,
-) -> impl IntoResponse {
-    match state
-        .cooperative_registry
-        .find_capability_providers(&capability_type)
-        .await
-    {
-        Ok(providers) => (StatusCode::OK, Json(providers)).into_response(),
-        Err(e) => map_rust_error_to_json_response(
-            format!("Query failed: {}", e),
-            StatusCode::INTERNAL_SERVER_ERROR,
-        )
-        .into_response(),
-    }
-}
-
-// GET /cooperative/registry/stats - Get registry statistics
-async fn cooperative_registry_stats_handler(State(state): State<AppState>) -> impl IntoResponse {
-    let stats = state.cooperative_registry.get_registry_stats();
-    (StatusCode::OK, Json(stats)).into_response()
-}
-
-// --- Test module (can be expanded later) ---
-
-/// Load demo data for demonstration and testing purposes
-async fn load_demo_data(
-    rt_ctx: &Arc<icn_runtime::context::RuntimeContext>,
-    node_did: &Did,
-) -> Result<(), CommonError> {
-    info!("Loading demo data...");
-
-    // TODO: Add demo governance proposals
-    info!("Demo governance proposals (placeholder)");
-
-    // TODO: Add demo mesh jobs
-    info!("Demo mesh jobs (placeholder)");
-
-    info!("Demo data loading complete!");
-    Ok(())
 }

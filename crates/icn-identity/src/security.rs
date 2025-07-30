@@ -12,7 +12,7 @@ use ed25519_dalek::Signer;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use zeroize::{Zeroize, ZeroizeOnDrop};
+use zeroize::Zeroize;
 
 /// Security configuration for cryptographic operations
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -442,7 +442,7 @@ mod tests {
     #[test]
     fn test_secure_verify_bad_signature() {
         let config = SecurityConfig::default();
-        let (sk, pk) = generate_ed25519_keypair();
+        let (sk, _pk) = generate_ed25519_keypair();
         let (_, other_pk) = generate_ed25519_keypair();
         let message = b"test message";
 

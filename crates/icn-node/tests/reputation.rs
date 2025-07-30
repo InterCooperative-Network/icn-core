@@ -1,5 +1,6 @@
 use icn_common::Did;
 use icn_node::app_router_with_options;
+use icn_runtime::context::LedgerBackend;
 use std::str::FromStr;
 use tempfile::tempdir;
 
@@ -11,11 +12,14 @@ async fn reputation_persists_between_restarts() {
     let rep_path = dir.path().join("rep.sled");
 
     let (_router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         Some(rep_path.clone()),
@@ -29,11 +33,14 @@ async fn reputation_persists_between_restarts() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
         None,
         Some(rep_path.clone()),

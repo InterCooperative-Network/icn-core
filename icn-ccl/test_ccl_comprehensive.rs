@@ -87,7 +87,7 @@ fn main() {
         Ok((wasm, metadata)) => {
             println!("✅ SUCCESS: Comprehensive CCL test compiled successfully!");
             println!("📊 WASM size: {} bytes", wasm.len());
-            println!("📋 Contract metadata: {:?}", metadata);
+            println!("📋 Contract metadata: {metadata:?}");
 
             println!("\n🎉 CCL IMPLEMENTATION VERIFICATION: COMPLETE");
             println!("🔓 ✅ Else-if chains: WORKING");
@@ -112,7 +112,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Comprehensive CCL test failed");
-            println!("🐛 Error: {}", e);
+            println!("🐛 Error: {e}");
             println!("\n🔍 Remaining issues need to be addressed");
         }
     }

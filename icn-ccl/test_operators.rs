@@ -27,7 +27,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ >= operator compilation failed: {}", e);
+            println!("❌ >= operator compilation failed: {e}");
         }
     }
 
@@ -54,7 +54,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ == operator compilation failed: {}", e);
+            println!("❌ == operator compilation failed: {e}");
         }
     }
 
@@ -81,7 +81,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ <= operator compilation failed: {}", e);
+            println!("❌ <= operator compilation failed: {e}");
         }
     }
 
@@ -109,7 +109,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Complex arithmetic compilation failed: {}", e);
+            println!("❌ Complex arithmetic compilation failed: {e}");
         }
     }
 }

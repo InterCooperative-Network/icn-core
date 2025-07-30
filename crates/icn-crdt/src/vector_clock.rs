@@ -129,14 +129,14 @@ impl VectorClock {
     /// Create a compact representation for network transmission.
     pub fn to_compact_bytes(&self) -> CRDTResult<Vec<u8>> {
         bincode::serialize(self).map_err(|e| {
-            CRDTError::SerializationError(format!("Vector clock serialization failed: {}", e))
+            CRDTError::SerializationError(format!("Vector clock serialization failed: {e}"))
         })
     }
 
     /// Restore from compact representation.
     pub fn from_compact_bytes(bytes: &[u8]) -> CRDTResult<Self> {
         bincode::deserialize(bytes).map_err(|e| {
-            CRDTError::SerializationError(format!("Vector clock deserialization failed: {}", e))
+            CRDTError::SerializationError(format!("Vector clock deserialization failed: {e}"))
         })
     }
 
@@ -199,7 +199,7 @@ impl std::fmt::Display for VectorClock {
             if !first {
                 write!(f, ", ")?;
             }
-            write!(f, "{}: {}", node_id, timestamp)?;
+            write!(f, "{node_id}: {timestamp}")?;
             first = false;
         }
         write!(f, "}}")
@@ -326,7 +326,7 @@ mod tests {
         assert!(!vc2.dominates(&vc1));
 
         // Equal clocks don't dominate
-        let mut vc3 = vc1.clone();
+        let vc3 = vc1.clone();
         assert!(!vc1.dominates(&vc3));
         assert!(!vc3.dominates(&vc1));
     }

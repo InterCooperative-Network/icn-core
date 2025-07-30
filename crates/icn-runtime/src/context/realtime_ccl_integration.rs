@@ -9,8 +9,8 @@ use super::{
     MessagePriority, PropagationPriority, SmartP2pRouter,
 };
 use bincode;
-use icn_common::{Cid, Did, TimeProvider};
-use icn_governance::{GovernanceModule, Proposal, ProposalId, Vote};
+use icn_common::{Cid, Did, SystemTimeProvider, TimeProvider};
+use icn_governance::{GovernanceModule, Proposal, ProposalId};
 use icn_reputation::ReputationStore;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -307,6 +307,7 @@ pub struct CclPerformanceMetrics {
 
 impl CclIntegrationCoordinator {
     /// Create a new CCL integration coordinator
+    #[allow(clippy::too_many_arguments)] // Constructor needs access to all components
     pub fn new(
         network_service: Arc<MeshNetworkServiceType>,
         dag_store: Arc<DagStoreMutexType<DagStorageService>>,
@@ -829,7 +830,8 @@ impl CclIntegrationCoordinator {
         };
 
         // Submit to governance module
-        match governance.submit_proposal(proposal_submission) {
+        let time_provider = SystemTimeProvider;
+        match governance.submit_proposal(proposal_submission, &time_provider) {
             Ok(proposal_id) => {
                 info!(
                     "Proposal submitted to governance module with ID: {:?}",
@@ -884,8 +886,14 @@ impl CclIntegrationCoordinator {
         };
 
         // Submit vote to governance
+        let time_provider = SystemTimeProvider;
         governance
-            .cast_vote(self.node_identity.clone(), proposal_id, vote_option_enum)
+            .cast_vote(
+                self.node_identity.clone(),
+                proposal_id,
+                vote_option_enum,
+                &time_provider,
+            )
             .map_err(|e| HostAbiError::GovernanceError(format!("Failed to submit vote: {}", e)))?;
 
         // Also anchor vote in DAG for transparency and verification
@@ -1041,7 +1049,7 @@ impl CclIntegrationCoordinator {
             let unprocessed_events: Vec<GovernanceEvent> = tracker
                 .recent_events
                 .iter()
-                .filter(|event| {
+                .filter(|_event| {
                     let event_age = current_time.duration_since(tracker.last_processed);
                     event_age > Duration::from_millis(100)
                 })
@@ -1196,7 +1204,7 @@ impl CclIntegrationCoordinator {
 
     async fn manage_proposal_lifecycles(
         active_proposals: &Arc<Mutex<HashMap<ProposalId, ActiveProposal>>>,
-        time_provider: &Arc<dyn TimeProvider>,
+        _time_provider: &Arc<dyn TimeProvider>,
     ) -> Result<(), HostAbiError> {
         // Manage proposal deadlines and automatic state transitions
         let current_time = Instant::now();
@@ -1409,7 +1417,7 @@ impl CclIntegrationCoordinator {
             1.0
         };
 
-        let failure_rate = if metrics.contracts_executed > 0 {
+        let _failure_rate = if metrics.contracts_executed > 0 {
             metrics.failed_executions as f64 / metrics.contracts_executed as f64
         } else {
             0.0

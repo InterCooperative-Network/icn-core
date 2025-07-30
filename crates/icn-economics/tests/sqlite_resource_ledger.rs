@@ -12,12 +12,17 @@ mod tests {
         let path = dir.path().join("resources.sqlite");
         let ledger = SqliteResourceLedger::new(path.clone()).unwrap();
         let class_id: TokenClassId = "gold".to_string();
+        let issuer = Did::from_str("did:example:issuer").unwrap();
         ledger
             .create_class(
                 &class_id,
-                TokenClass {
-                    name: "Gold".into(),
-                },
+                TokenClass::new_fungible(
+                    "Gold".to_string(),
+                    "A precious metal token".to_string(),
+                    "GOLD".to_string(),
+                    2,
+                    issuer,
+                ),
             )
             .unwrap();
         let alice = Did::from_str("did:example:alice").unwrap();

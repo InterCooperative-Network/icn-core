@@ -5,7 +5,7 @@
 //! protection against various attack vectors.
 
 use crate::voting::{RankedChoiceBallot, Signature, VotingError};
-use icn_common::Signable;
+use icn_common::{Signable, TimeProvider};
 use icn_identity::{
     security::{secure_validate_did, secure_verify_signature, SecurityConfig},
     verifying_key_from_did_key, EdSignature,
@@ -63,7 +63,11 @@ impl SecureBallotValidator {
     }
 
     /// Comprehensive ballot validation with security checks
-    pub fn validate_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
+    pub fn validate_ballot(
+        &mut self,
+        ballot: &RankedChoiceBallot,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), VotingError> {
         // 1. Validate DID format
         secure_validate_did(&ballot.voter_did.id, &self.config.crypto_config)
             .map_err(|_e| VotingError::InvalidSignature)?;
@@ -72,7 +76,7 @@ impl SecureBallotValidator {
         self.validate_ballot_structure(ballot)?;
 
         // 3. Validate timestamp
-        self.validate_timestamp(ballot)?;
+        self.validate_timestamp(ballot, time_provider)?;
 
         // 4. Check for replay attacks
         if self.config.replay_protection {
@@ -139,8 +143,13 @@ impl SecureBallotValidator {
     }
 
     /// Validate ballot timestamp
-    fn validate_timestamp(&self, ballot: &RankedChoiceBallot) -> Result<(), VotingError> {
-        let now = SystemTime::now();
+    fn validate_timestamp(
+        &self,
+        ballot: &RankedChoiceBallot,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), VotingError> {
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         let ballot_time = ballot.timestamp;
 
         // Check if timestamp is too far in the future
@@ -354,7 +363,7 @@ impl SecureBallotSigner {
 mod tests {
     use super::*;
     use crate::voting::{BallotId, CandidateId, ElectionId};
-    use icn_common::{Did, DidDocument};
+    use icn_common::{Did, DidDocument, FixedTimeProvider};
     use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
     use std::str::FromStr;
 
@@ -374,7 +383,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64], // Placeholder
@@ -385,7 +394,7 @@ mod tests {
     #[test]
     fn test_ballot_structure_validation() {
         let config = GovernanceSecurityConfig::default();
-        let mut validator = SecureBallotValidator::new(config);
+        let validator = SecureBallotValidator::new(config);
 
         let mut ballot = create_test_ballot();
 
@@ -405,19 +414,20 @@ mod tests {
 
     #[test]
     fn test_timestamp_validation() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let config = GovernanceSecurityConfig::default();
         let validator = SecureBallotValidator::new(config);
 
         let mut ballot = create_test_ballot();
 
         // Test future timestamp
-        ballot.timestamp = SystemTime::now() + std::time::Duration::from_secs(1000);
-        let result = validator.validate_timestamp(&ballot);
+        ballot.timestamp = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640996200);
+        let result = validator.validate_timestamp(&ballot, &time_provider);
         assert!(result.is_err());
 
         // Test very old timestamp
         ballot.timestamp = SystemTime::UNIX_EPOCH;
-        let result = validator.validate_timestamp(&ballot);
+        let result = validator.validate_timestamp(&ballot, &time_provider);
         assert!(result.is_err());
     }
 
@@ -455,7 +465,7 @@ mod tests {
             },
             election_id: ElectionId("test-election".to_string()),
             preferences: vec![CandidateId("alice".to_string())],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],

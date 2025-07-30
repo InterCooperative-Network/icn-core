@@ -178,7 +178,7 @@ impl RocksdbResourceLedger {
     }
 
     fn balance_key(id: &TokenClassId, did: &Did) -> String {
-        format!("bal:{id}:{}", did)
+        format!("bal:{id}:{did}")
     }
 
     fn write_class(&self, id: &TokenClassId, class: &TokenClass) -> Result<(), CommonError> {

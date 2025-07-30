@@ -9,6 +9,7 @@ use tokio::task;
 #[tokio::test]
 async fn add_and_remove_member_via_http() {
     let (router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None, // api_key
         None, // auth_token
         None, // rate_limit
@@ -43,6 +44,8 @@ async fn add_and_remove_member_via_http() {
             did: new_member.into(),
         },
         description: "invite bob".into(),
+        credential_proof: None,
+        revocation_proof: None,
         duration_secs: 60,
         quorum: None,
         threshold: None,
@@ -66,6 +69,8 @@ async fn add_and_remove_member_via_http() {
         voter_did: node_did.to_string(),
         proposal_id: pid.clone(),
         vote_option: "yes".into(),
+        credential_proof: None,
+        revocation_proof: None,
     };
     let vresp = client
         .post(format!("http://{addr}/governance/vote"))
@@ -101,6 +106,8 @@ async fn add_and_remove_member_via_http() {
         quorum: None,
         threshold: None,
         body: None,
+        credential_proof: None,
+        revocation_proof: None,
     };
     let resp = client
         .post(format!("http://{addr}/governance/submit"))
@@ -122,6 +129,8 @@ async fn add_and_remove_member_via_http() {
             voter_did: node_did.to_string(),
             proposal_id: rpid.clone(),
             vote_option: "yes".into(),
+            credential_proof: None,
+            revocation_proof: None,
         })
         .send()
         .await
@@ -150,6 +159,7 @@ async fn add_and_remove_member_via_http() {
 async fn governance_membership_required_for_vote() {
     let router = {
         let (_router, _ctx) = app_router_with_options(
+            icn_node::RuntimeMode::Development,
             None, // api_key
             None, // auth_token
             None, // rate_limit

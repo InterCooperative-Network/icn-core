@@ -28,7 +28,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Struct definition failed: {}", e);
+            println!("❌ Struct definition failed: {e}");
         }
     }
 
@@ -53,7 +53,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Constant failed: {}", e);
+            println!("❌ Constant failed: {e}");
         }
     }
 
@@ -81,7 +81,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Enum definition failed: {}", e);
+            println!("❌ Enum definition failed: {e}");
         }
     }
 }

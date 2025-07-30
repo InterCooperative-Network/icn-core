@@ -7,12 +7,12 @@ fn main() {
     let test_path = PathBuf::from("simple_democracy_test.ccl");
 
     match compile_ccl_file_to_wasm(&test_path) {
-        Ok((wasm, metadata)) => {
+        Ok((wasm, _metadata)) => {
             println!("✅ Simple democracy test compiled successfully!");
             println!("   WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Simple democracy test failed: {}", e);
+            println!("❌ Simple democracy test failed: {e}");
         }
     }
 }

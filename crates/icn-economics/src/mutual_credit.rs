@@ -1,11 +1,11 @@
-use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType};
+use crate::{ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Specialized functionality for mutual credit systems.
 /// Mutual credit allows communities to create money by extending credit to members.
-
+///
 /// Represents a credit line extended to a community member.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreditLine {
@@ -153,6 +153,8 @@ pub trait MutualCreditStore: Send + Sync {
     ) -> Result<(), CommonError>;
     /// Get credit transaction history for an account.
     fn get_credit_history(&self, account: &Did) -> Vec<MutualCreditTransaction>;
+    /// Store a mutual credit agreement.
+    fn store_agreement(&self, agreement: &MutualCreditAgreement) -> Result<(), CommonError>;
 }
 
 /// In-memory mutual credit store for development and testing.
@@ -160,6 +162,7 @@ pub trait MutualCreditStore: Send + Sync {
 pub struct InMemoryMutualCreditStore {
     credit_lines: std::sync::Mutex<HashMap<String, CreditLine>>,
     transactions: std::sync::Mutex<HashMap<String, MutualCreditTransaction>>,
+    agreements: std::sync::Mutex<HashMap<String, MutualCreditAgreement>>,
 }
 
 impl InMemoryMutualCreditStore {
@@ -242,23 +245,82 @@ impl MutualCreditStore for InMemoryMutualCreditStore {
         results.sort_by(|a, b| b.created_at.cmp(&a.created_at));
         results
     }
+
+    fn store_agreement(&self, agreement: &MutualCreditAgreement) -> Result<(), CommonError> {
+        let mut agreements = self.agreements.lock().unwrap();
+        if agreements.contains_key(&agreement.agreement_id) {
+            return Err(CommonError::InvalidInputError(format!(
+                "Mutual credit agreement {} already exists",
+                agreement.agreement_id
+            )));
+        }
+        agreements.insert(agreement.agreement_id.clone(), agreement.clone());
+        Ok(())
+    }
 }
 
-/// Extend credit in a mutual credit system by minting tokens.
+/// Status of a mutual credit agreement
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub enum MutualCreditStatus {
+    /// Agreement is active
+    Active,
+    /// Agreement has been fully repaid
+    Repaid,
+    /// Agreement is in default
+    Defaulted,
+    /// Agreement has been cancelled
+    Cancelled,
+}
+
+/// A mutual credit agreement between two parties
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MutualCreditAgreement {
+    /// Unique identifier for this agreement
+    pub agreement_id: String,
+    /// DID of the creditor (lender)
+    pub creditor: Did,
+    /// DID of the debtor (borrower)
+    pub debtor: Did,
+    /// Amount of credit extended
+    pub amount: u64,
+    /// Token class being used
+    pub token_class: TokenClassId,
+    /// Purpose or description of the credit
+    pub purpose: String,
+    /// When the agreement was issued (Unix timestamp)
+    pub issue_date: u64,
+    /// When repayment is due (Unix timestamp)
+    pub repayment_deadline: u64,
+    /// Current status of the agreement
+    pub status: MutualCreditStatus,
+    /// History of repayments made
+    pub repayment_history: Vec<String>,
+}
+
+/// Configuration for extending mutual credit
+#[derive(Debug, Clone)]
+pub struct MutualCreditConfig {
+    pub creditor: Did,
+    pub debtor: Did,
+    pub token_class: TokenClassId,
+    pub amount: u64,
+    pub purpose: String,
+    pub repayment_period_days: u64,
+}
+
+/// Extend mutual credit between two entities
 pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     resource_ledger: &L,
     credit_store: &C,
-    creditor: &Did,
-    debtor: &Did,
-    token_class: &TokenClassId,
-    amount: u64,
-    purpose: String,
-    repayment_period_days: u64,
+    config: MutualCreditConfig,
+    time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for mutual credit
-    let token_class_info = resource_ledger.get_class(token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", token_class))
-    })?;
+    let token_class_info = resource_ledger
+        .get_class(&config.token_class)
+        .ok_or_else(|| {
+            CommonError::InvalidInputError(format!("Token class {} not found", config.token_class))
+        })?;
 
     if token_class_info.token_type != TokenType::MutualCredit {
         return Err(CommonError::InvalidInputError(
@@ -266,76 +328,58 @@ pub fn extend_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
         ));
     }
 
-    // Check if debtor has available credit
-    let credit_lines = credit_store.get_account_credit_lines(debtor);
-    let total_credit_limit: u64 = credit_lines
-        .iter()
-        .filter(|cl| cl.token_class == *token_class && cl.status == CreditLineStatus::Active)
-        .map(|cl| cl.credit_limit)
-        .sum();
-
-    let total_credit_used: u64 = credit_lines
-        .iter()
-        .filter(|cl| cl.token_class == *token_class && cl.status == CreditLineStatus::Active)
-        .map(|cl| cl.credit_used)
-        .sum();
-
-    if total_credit_used + amount > total_credit_limit {
-        return Err(CommonError::PolicyDenied("Credit limit exceeded".into()));
-    }
-
-    // Create credit transaction
-    let transaction_id = format!("credit_{}_{}", debtor, SystemTimeProvider.unix_seconds());
-    let now = SystemTimeProvider.unix_seconds();
-    let due_date = now + (repayment_period_days * 24 * 60 * 60);
-
-    let transaction = MutualCreditTransaction {
-        transaction_id: transaction_id.clone(),
-        creditor: creditor.clone(),
-        debtor: debtor.clone(),
-        token_class: token_class.clone(),
-        amount,
-        interest_rate: 0, // Default to 0% for mutual credit
-        purpose,
-        created_at: now,
-        due_date,
-        status: CreditTransactionStatus::Active,
-        repayments: Vec::new(),
-    };
-
-    // Record the transaction
-    credit_store.record_credit_transaction(transaction)?;
-
-    // Mint tokens to the debtor (this creates the money)
-    resource_ledger.mint(token_class, debtor, amount)?;
-
-    // Update credit line usage - distribute across available credit lines
-    let mut remaining_amount = amount;
-    for credit_line in credit_lines {
-        if credit_line.token_class == *token_class
-            && credit_line.status == CreditLineStatus::Active
-            && remaining_amount > 0
-        {
-            let available_credit = credit_line.credit_limit - credit_line.credit_used;
-            let amount_to_use = std::cmp::min(remaining_amount, available_credit);
-
-            if amount_to_use > 0 {
-                let mut updated_credit_line = credit_line;
-                updated_credit_line.credit_used += amount_to_use;
-                credit_store.update_credit_line(updated_credit_line)?;
-                remaining_amount -= amount_to_use;
-            }
-        }
-    }
-
-    // This should never happen if our aggregate limit check is correct
-    if remaining_amount > 0 {
-        return Err(CommonError::InternalError(
-            "Unable to allocate credit across available lines".into(),
+    // Check if creditor has sufficient balance to extend credit
+    let creditor_balance = resource_ledger.get_balance(&config.token_class, &config.creditor);
+    if creditor_balance < config.amount {
+        return Err(CommonError::InsufficientFunds(
+            "Creditor has insufficient balance".to_string(),
         ));
     }
 
-    Ok(transaction_id)
+    // Generate credit agreement ID
+    let agreement_id = format!(
+        "mc_{}_{}_{}_{}",
+        config.creditor.to_string().replace(':', "_"),
+        config.debtor.to_string().replace(':', "_"),
+        config.amount,
+        time_provider.unix_seconds()
+    );
+
+    // Create the mutual credit agreement
+    let agreement = MutualCreditAgreement {
+        agreement_id: agreement_id.clone(),
+        creditor: config.creditor.clone(),
+        debtor: config.debtor.clone(),
+        amount: config.amount,
+        token_class: config.token_class.clone(),
+        purpose: config.purpose,
+        issue_date: time_provider.unix_seconds(),
+        repayment_deadline: time_provider.unix_seconds()
+            + (config.repayment_period_days * 24 * 60 * 60),
+        status: MutualCreditStatus::Active,
+        repayment_history: Vec::new(),
+    };
+
+    // Store the agreement
+    credit_store.store_agreement(&agreement)?;
+
+    // Transfer tokens from creditor to debtor
+    resource_ledger.transfer(
+        &config.token_class,
+        &config.creditor,
+        &config.debtor,
+        config.amount,
+    )?;
+
+    log::info!(
+        "Extended mutual credit: {} tokens from {} to {} (Agreement: {})",
+        config.amount,
+        config.creditor,
+        config.debtor,
+        agreement_id
+    );
+
+    Ok(agreement_id)
 }
 
 /// Repay mutual credit by burning tokens.
@@ -350,10 +394,7 @@ pub fn repay_mutual_credit<L: ResourceLedger, C: MutualCreditStore>(
     let mut transaction = credit_store
         .get_credit_transaction(transaction_id)
         .ok_or_else(|| {
-            CommonError::InvalidInputError(format!(
-                "Credit transaction {} not found",
-                transaction_id
-            ))
+            CommonError::InvalidInputError(format!("Credit transaction {transaction_id} not found"))
         })?;
 
     // Validate repayer

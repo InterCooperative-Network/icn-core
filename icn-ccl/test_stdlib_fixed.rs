@@ -24,7 +24,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Utility functions failed: {}", e);
+            println!("❌ Utility functions failed: {e}");
         }
     }
 
@@ -48,7 +48,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Crypto functions failed: {}", e);
+            println!("❌ Crypto functions failed: {e}");
         }
     }
 
@@ -72,7 +72,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Math functions failed: {}", e);
+            println!("❌ Math functions failed: {e}");
         }
     }
 
@@ -98,7 +98,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Simple governance functions failed: {}", e);
+            println!("❌ Simple governance functions failed: {e}");
         }
     }
 
@@ -123,7 +123,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Time/duration functions failed: {}", e);
+            println!("❌ Time/duration functions failed: {e}");
         }
     }
 }

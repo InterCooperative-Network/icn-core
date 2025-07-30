@@ -52,7 +52,7 @@
 //! assert_eq!(ballot.first_choice(), Some(&CandidateId("alice".to_string())));
 //! ```
 
-use icn_common::{Cid, Did, DidDocument, Signable};
+use icn_common::{Cid, Did, DidDocument, Signable, TimeProvider};
 use icn_dag::StorageService;
 use std::any::Any;
 use std::time::SystemTime;
@@ -192,19 +192,24 @@ pub struct VotingPeriod {
 
 impl VotingPeriod {
     /// Check if the voting period is currently active
-    pub fn is_active(&self) -> bool {
-        let now = SystemTime::now();
+    pub fn is_active(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
         now >= self.start_time && now <= self.end_time
     }
 
     /// Check if the voting period has ended
-    pub fn has_ended(&self) -> bool {
-        SystemTime::now() > self.end_time
+    pub fn has_ended(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        now > self.end_time
     }
 
     /// Check if the voting period has not started yet
-    pub fn has_not_started(&self) -> bool {
-        SystemTime::now() < self.start_time
+    pub fn has_not_started(&self, time_provider: &dyn TimeProvider) -> bool {
+        let now =
+            SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(time_provider.unix_seconds());
+        now < self.start_time
     }
 }
 
@@ -452,13 +457,15 @@ impl RankedChoiceBallot {
         election_id: ElectionId,
         preferences: Vec<CandidateId>,
         signature: Signature,
+        time_provider: &dyn TimeProvider,
     ) -> Self {
         Self {
             ballot_id,
             voter_did,
             election_id,
             preferences,
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature,
         }
     }
@@ -623,23 +630,36 @@ where
     /// # Ok::<(), icn_governance::VotingError>(())
     /// ```
     pub fn anchor_ballot(&mut self, ballot: &RankedChoiceBallot) -> Result<Cid, VotingError> {
-        use icn_common::DagBlock;
+        use icn_common::{compute_merkle_cid, DagBlock};
 
         // Serialize the ballot for storage
         let ballot_data = serde_json::to_vec(ballot).map_err(|e| {
             VotingError::InvalidBallot(format!("Failed to serialize ballot: {}", e))
         })?;
 
+        let timestamp = ballot
+            .timestamp
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Compute the proper CID using the Merkle function
+        let block_cid = compute_merkle_cid(
+            0x71, // Raw codec for ballot data
+            &ballot_data,
+            &[], // Ballots are leaf nodes initially
+            timestamp,
+            &ballot.voter_did.id,
+            &None, // Ballot has its own signature
+            &None,
+        );
+
         // Create a DAG block for the ballot
         let block = DagBlock {
-            cid: Cid::new_v1_sha256(0x71, &ballot_data), // Raw codec for ballot data
+            cid: block_cid.clone(),
             data: ballot_data,
             links: vec![], // Ballots are leaf nodes initially
-            timestamp: ballot
-                .timestamp
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp,
             author_did: ballot.voter_did.id.clone(),
             signature: None, // Ballot has its own signature
             scope: None,
@@ -650,7 +670,7 @@ where
             VotingError::InvalidBallot(format!("Failed to store ballot in DAG: {}", e))
         })?;
 
-        Ok(block.cid)
+        Ok(block_cid)
     }
 
     /// Retrieve a ballot from the DAG by its CID
@@ -676,6 +696,7 @@ where
         &mut self,
         election_id: &ElectionId,
         ballot_cids: Vec<Cid>,
+        time_provider: &dyn TimeProvider,
     ) -> Result<Cid, VotingError> {
         use icn_common::{DagBlock, DagLink};
 
@@ -698,10 +719,7 @@ where
             cid: Cid::new_v1_sha256(0x71, &election_data),
             data: election_data,
             links,
-            timestamp: std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: time_provider.unix_seconds(),
             author_did: Did::new("system", "governance"), // System-generated block
             signature: None,
             scope: None,
@@ -718,11 +736,19 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use icn_common::FixedTimeProvider;
 
     fn create_test_did_document() -> DidDocument {
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        use std::str::FromStr;
+
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+
         DidDocument {
-            id: Did::default(),
-            public_key: vec![0u8; 32], // Mock public key
+            id: did,
+            public_key: pk.as_bytes().to_vec(),
         }
     }
 
@@ -746,7 +772,8 @@ mod tests {
 
     #[test]
     fn test_voting_period_active() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now - std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(60);
 
@@ -755,14 +782,15 @@ mod tests {
             end_time: end,
         };
 
-        assert!(period.is_active());
-        assert!(!period.has_ended());
-        assert!(!period.has_not_started());
+        assert!(period.is_active(&time_provider));
+        assert!(!period.has_ended(&time_provider));
+        assert!(!period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_voting_period_ended() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now - std::time::Duration::from_secs(120);
         let end = now - std::time::Duration::from_secs(60);
 
@@ -771,14 +799,15 @@ mod tests {
             end_time: end,
         };
 
-        assert!(!period.is_active());
-        assert!(period.has_ended());
-        assert!(!period.has_not_started());
+        assert!(!period.is_active(&time_provider));
+        assert!(period.has_ended(&time_provider));
+        assert!(!period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_voting_period_not_started() {
-        let now = SystemTime::now();
+        let time_provider = FixedTimeProvider::new(1000);
+        let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000);
         let start = now + std::time::Duration::from_secs(60);
         let end = now + std::time::Duration::from_secs(120);
 
@@ -787,13 +816,14 @@ mod tests {
             end_time: end,
         };
 
-        assert!(!period.is_active());
-        assert!(!period.has_ended());
-        assert!(period.has_not_started());
+        assert!(!period.is_active(&time_provider));
+        assert!(!period.has_ended(&time_provider));
+        assert!(period.has_not_started(&time_provider));
     }
 
     #[test]
     fn test_ranked_choice_ballot_preferences_validation() {
+        let time_provider = FixedTimeProvider::new(1000);
         let ballot = RankedChoiceBallot {
             ballot_id: BallotId("test-ballot".to_string()),
             voter_did: create_test_did_document(),
@@ -803,7 +833,8 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("charlie".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(time_provider.unix_seconds()),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -824,7 +855,7 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("alice".to_string()), // Duplicate
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -848,7 +879,7 @@ mod tests {
                 CandidateId("bob".to_string()),
                 CandidateId("charlie".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -881,7 +912,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -925,7 +956,7 @@ mod tests {
                 CandidateId("alice".to_string()),
                 CandidateId("bob".to_string()),
             ],
-            timestamp: SystemTime::now(),
+            timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1000),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -1027,7 +1058,7 @@ impl FederationRegistry for InMemoryFederationRegistry {
     fn add_member(&mut self, did: &Did, federation_id: &str) -> Result<(), VotingError> {
         self.memberships
             .entry(did.clone())
-            .or_insert_with(std::collections::HashSet::new)
+            .or_default()
             .insert(federation_id.to_string());
         Ok(())
     }

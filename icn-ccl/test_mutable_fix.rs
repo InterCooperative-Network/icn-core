@@ -27,7 +27,7 @@ fn main() {
     "#;
 
     println!("📝 Testing code:");
-    println!("{}", test_contract);
+    println!("{test_contract}");
     println!();
 
     match compile_ccl_source_to_wasm(test_contract) {
@@ -52,7 +52,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FAILED: Compilation error:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 This indicates the mutable variable fix needs more work.");
         }

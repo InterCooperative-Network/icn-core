@@ -145,8 +145,7 @@ impl FromStr for VoteChoice {
             "reject" | "no" | "n" => Ok(VoteChoice::Reject),
             "abstain" | "a" => Ok(VoteChoice::Abstain),
             _ => Err(ActionError::InvalidParameter(format!(
-                "Invalid vote choice: {}",
-                s
+                "Invalid vote choice: {s}"
             ))),
         }
     }

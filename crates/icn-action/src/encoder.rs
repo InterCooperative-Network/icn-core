@@ -15,7 +15,7 @@ pub struct ActionEncoder;
 impl ActionEncoder {
     /// Encode an action as an icn:// URL
     pub fn encode(action: &Action) -> Result<String, ActionError> {
-        let mut url = Url::parse("icn://action").map_err(|e| ActionError::UrlParsing(e))?;
+        let mut url = Url::parse("icn://action").map_err(ActionError::UrlParsing)?;
 
         match action {
             Action::ShareIdentity { did } => {
@@ -131,7 +131,7 @@ impl ActionEncoder {
 
     /// Decode an icn:// URL into an action
     pub fn decode(url_str: &str) -> Result<Action, ActionError> {
-        let url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))?;
+        let url = Url::parse(url_str).map_err(ActionError::UrlParsing)?;
 
         if url.scheme() != "icn" {
             return Err(ActionError::InvalidUrl(format!(
@@ -154,7 +154,7 @@ impl ActionEncoder {
                     Ok(Action::ShareIdentity { did })
                 } else if let Some(cid_str) = params.get("cid") {
                     let cid = Cid::from_str(cid_str).map_err(|_| {
-                        ActionError::InvalidParameter(format!("Invalid CID: {}", cid_str))
+                        ActionError::InvalidParameter(format!("Invalid CID: {cid_str}"))
                     })?;
                     Ok(Action::ShareContent {
                         cid,
@@ -199,7 +199,7 @@ impl ActionEncoder {
                     .get("proposal")
                     .ok_or_else(|| ActionError::MissingParameter("proposal".to_string()))?;
                 let proposal = Cid::from_str(proposal_str).map_err(|_| {
-                    ActionError::InvalidParameter(format!("Invalid proposal CID: {}", proposal_str))
+                    ActionError::InvalidParameter(format!("Invalid proposal CID: {proposal_str}"))
                 })?;
 
                 let vote_str = params
@@ -241,8 +241,7 @@ impl ActionEncoder {
                     .ok_or_else(|| ActionError::MissingParameter("vc".to_string()))?;
                 let credential = Cid::from_str(credential_str).map_err(|_| {
                     ActionError::InvalidParameter(format!(
-                        "Invalid credential CID: {}",
-                        credential_str
+                        "Invalid credential CID: {credential_str}"
                     ))
                 })?;
 
@@ -257,7 +256,7 @@ impl ActionEncoder {
                     .get("job")
                     .ok_or_else(|| ActionError::MissingParameter("job".to_string()))?;
                 let job_spec = Cid::from_str(job_str).map_err(|_| {
-                    ActionError::InvalidParameter(format!("Invalid job CID: {}", job_str))
+                    ActionError::InvalidParameter(format!("Invalid job CID: {job_str}"))
                 })?;
 
                 let submitter_str = params
@@ -292,12 +291,12 @@ impl ActionEncoder {
     pub fn encode_compact(action: &Action) -> Result<String, ActionError> {
         let json = serde_json::to_string(action)?;
         let encoded = base64::engine::general_purpose::STANDARD.encode(json.as_bytes());
-        Ok(format!("icn://x?d={}", encoded))
+        Ok(format!("icn://x?d={encoded}"))
     }
 
     /// Decode a compact URL
     pub fn decode_compact(url_str: &str) -> Result<Action, ActionError> {
-        let url = Url::parse(url_str).map_err(|e| ActionError::UrlParsing(e))?;
+        let url = Url::parse(url_str).map_err(ActionError::UrlParsing)?;
 
         if url.scheme() != "icn" || url.path() != "/x" {
             return Err(ActionError::InvalidUrl("Not a compact ICN URL".to_string()));

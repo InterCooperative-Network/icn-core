@@ -1,4 +1,4 @@
-use icn_common::{Cid, Did};
+use icn_common::{Cid, Did, FixedTimeProvider};
 use icn_governance::{
     GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, ResolutionAction,
     ResolutionProposal, VoteOption,
@@ -11,6 +11,7 @@ use std::sync::{
 
 #[test]
 fn execute_resolution_proposal() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     let paused = Arc::new(AtomicBool::new(false));
     let frozen = Arc::new(AtomicBool::new(false));
     let pause_f = paused.clone();
@@ -32,35 +33,42 @@ fn execute_resolution_proposal() {
     gov.set_quorum(2);
     let cid = Cid::new_v1_sha256(0x55, b"c");
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::Resolution(ResolutionProposal {
-                actions: vec![
-                    ResolutionAction::PauseCredential(cid.clone()),
-                    ResolutionAction::FreezeReputation(Did::from_str("did:example:bob").unwrap()),
-                ],
-            }),
-            description: "dispute".into(),
-            duration_secs: 1,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        })
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::Resolution(ResolutionProposal {
+                    actions: vec![
+                        ResolutionAction::PauseCredential(cid.clone()),
+                        ResolutionAction::FreezeReputation(
+                            Did::from_str("did:example:bob").unwrap(),
+                        ),
+                    ],
+                }),
+                description: "dispute".into(),
+                duration_secs: 1,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     gov.open_voting(&pid).unwrap();
     gov.cast_vote(
         Did::from_str("did:example:alice").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider,
     )
     .unwrap();
     gov.cast_vote(
         Did::from_str("did:example:bob").unwrap(),
         &pid,
         VoteOption::Yes,
+        &time_provider,
     )
     .unwrap();
-    let (status, _) = gov.close_voting_period(&pid).unwrap();
+    let (status, _) = gov.close_voting_period(&pid, &time_provider).unwrap();
     assert_eq!(status, ProposalStatus::Accepted);
     gov.execute_proposal(&pid).unwrap();
     assert!(paused.load(Ordering::SeqCst));

@@ -1,4 +1,5 @@
 use assert_cmd::prelude::*;
+use base64::Engine;
 use icn_node::app_router;
 use std::process::Command;
 use std::time::{Duration, Instant};
@@ -70,7 +71,7 @@ async fn test_concurrent_commands() {
 
     for i in 0..num_concurrent {
         let bin = bin.clone();
-        let base = base.clone();
+        let base = base.to_string();
 
         let handle = tokio::task::spawn_blocking(move || {
             let cmd_start = Instant::now();
@@ -137,7 +138,7 @@ async fn test_large_payload_handling() {
     let large_payload = "x".repeat(100000); // 100KB payload
     let job_request = serde_json::json!({
         "manifest_cid": "bafytest",
-        "spec_bytes": base64::encode(large_payload.as_bytes()),
+        "spec_bytes": base64::engine::general_purpose::STANDARD.encode(large_payload.as_bytes()),
         "spec_json": null,
         "cost_mana": 10
     })
@@ -260,7 +261,7 @@ async fn test_repeated_commands_stress() {
 
     for i in 0..num_iterations {
         let bin = bin.clone();
-        let base = base.clone();
+        let _base = base.clone();
 
         let start = Instant::now();
 
@@ -334,6 +335,7 @@ async fn test_memory_usage_patterns() {
 
         let start = Instant::now();
 
+        let base = base.clone();
         tokio::task::spawn_blocking(move || {
             Command::new(bin).args(cmd_args).assert().success();
         })

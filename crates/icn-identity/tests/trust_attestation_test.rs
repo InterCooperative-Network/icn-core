@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn test_attestation_verification_failures() {
         let (sk1, pk1) = generate_ed25519_keypair();
-        let (sk2, pk2) = generate_ed25519_keypair();
+        let (_sk2, pk2) = generate_ed25519_keypair();
         let attester = Did::from_str(&did_key_from_verifying_key(&pk1)).unwrap();
         let subject = Did::new("key", "subject123");
 

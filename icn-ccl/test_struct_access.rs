@@ -48,7 +48,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ STRUCT FIELD ACCESS TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Analyzing struct implementation issue:");
             let error_str = e.to_string();
@@ -66,7 +66,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation issue with struct operations");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
 
             println!();

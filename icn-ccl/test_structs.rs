@@ -34,7 +34,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Basic structs failed: {}", e);
+            println!("❌ Basic structs failed: {e}");
         }
     }
 
@@ -68,7 +68,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Struct arrays failed: {}", e);
+            println!("❌ Struct arrays failed: {e}");
         }
     }
 
@@ -99,7 +99,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Enums failed: {}", e);
+            println!("❌ Enums failed: {e}");
         }
     }
 
@@ -126,7 +126,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Constants failed: {}", e);
+            println!("❌ Constants failed: {e}");
         }
     }
 
@@ -168,7 +168,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Complex governance structs failed: {}", e);
+            println!("❌ Complex governance structs failed: {e}");
         }
     }
 }

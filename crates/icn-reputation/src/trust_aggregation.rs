@@ -5,7 +5,7 @@
 
 use crate::trust_calculation::TrustCalculationEngine;
 use crate::trust_decay::TrustDecayCalculator;
-use crate::trust_graph::{TrustEdge, TrustGraph};
+use crate::trust_graph::TrustGraph;
 use crate::trust_pathfinding::TrustPathfinder;
 use icn_common::{Did, TimeProvider};
 use serde::{Deserialize, Serialize};
@@ -130,6 +130,7 @@ pub struct AggregatedTrust {
 /// Engine for aggregating multiple trust signals into composite scores
 pub struct TrustAggregator {
     config: AggregationConfig,
+    #[allow(dead_code)]
     calculation_engine: TrustCalculationEngine,
     pathfinder: TrustPathfinder,
     decay_calculator: TrustDecayCalculator,
@@ -485,11 +486,9 @@ impl TrustAggregator {
                 // Bayesian updating
                 let posterior_precision =
                     1.0 / prior_variance + values.len() as f64 / sample_variance;
-                let posterior_mean = (prior_mean / prior_variance
-                    + sample_mean * values.len() as f64 / sample_variance)
-                    / posterior_precision;
 
-                posterior_mean
+                (prior_mean / prior_variance + sample_mean * values.len() as f64 / sample_variance)
+                    / posterior_precision
             }
 
             CombinationMethod::Custom { alpha, beta } => {
@@ -583,11 +582,12 @@ impl Default for TrustAggregator {
 mod tests {
     use super::*;
     use crate::trust_graph::TrustGraph;
+    use crate::TrustEdge;
     use icn_common::FixedTimeProvider;
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
-        Did::from_str(&format!("did:test:{}", id)).unwrap()
+        Did::from_str(&format!("did:test:{id}")).unwrap()
     }
 
     #[test]
@@ -624,8 +624,10 @@ mod tests {
 
     #[test]
     fn test_weighted_mean_combination() {
-        let mut config = AggregationConfig::default();
-        config.combination_method = CombinationMethod::WeightedMean;
+        let config = AggregationConfig {
+            combination_method: CombinationMethod::WeightedMean,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let mut signal_scores = HashMap::new();
@@ -641,8 +643,10 @@ mod tests {
 
     #[test]
     fn test_geometric_mean_combination() {
-        let mut config = AggregationConfig::default();
-        config.combination_method = CombinationMethod::WeightedGeometricMean;
+        let config = AggregationConfig {
+            combination_method: CombinationMethod::WeightedGeometricMean,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let mut signal_scores = HashMap::new();
@@ -776,9 +780,11 @@ mod tests {
 
     #[test]
     fn test_confidence_decay_for_insufficient_signals() {
-        let mut config = AggregationConfig::default();
-        config.min_signals = 3;
-        config.confidence_decay = 0.2;
+        let config = AggregationConfig {
+            min_signals: 3,
+            confidence_decay: 0.2,
+            ..Default::default()
+        };
         let aggregator = TrustAggregator::with_config(config);
 
         let base_confidence = 0.8;

@@ -1,4 +1,4 @@
-use crate::{TokenClassId, TransferRecord};
+use crate::TokenClassId;
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -404,32 +404,62 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
     }
 }
 
+/// Configuration for creating a physical good marketplace offer
+#[derive(Debug, Clone)]
+pub struct PhysicalGoodConfig {
+    pub offer_id: String,
+    pub seller: Did,
+    pub description: String,
+    pub category: String,
+    pub condition: String,
+    pub quantity: u64,
+    pub price_per_unit: u64,
+    pub payment_token_class: TokenClassId,
+}
+
+/// Configuration for creating a service marketplace offer
+#[derive(Debug, Clone)]
+pub struct ServiceConfig {
+    pub offer_id: String,
+    pub seller: Did,
+    pub description: String,
+    pub category: String,
+    pub duration_hours: u64,
+    pub quantity: u64,
+    pub price_per_unit: u64,
+    pub payment_token_class: TokenClassId,
+}
+
+/// Configuration for creating a labor hours marketplace offer
+#[derive(Debug, Clone)]
+pub struct LaborHoursConfig {
+    pub offer_id: String,
+    pub seller: Did,
+    pub description: String,
+    pub skill_level: String,
+    pub duration_hours: u64,
+    pub quantity: u64,
+    pub price_per_unit: u64,
+    pub payment_token_class: TokenClassId,
+}
+
 /// Helper functions for creating marketplace items.
 impl MarketplaceOffer {
     /// Create a new marketplace offer for physical goods.
-    pub fn new_physical_good(
-        offer_id: String,
-        seller: Did,
-        description: String,
-        category: String,
-        condition: String,
-        quantity: u64,
-        price_per_unit: u64,
-        payment_token_class: TokenClassId,
-    ) -> Self {
+    pub fn new_physical_good(config: PhysicalGoodConfig) -> Self {
         Self {
-            offer_id,
-            seller,
+            offer_id: config.offer_id,
+            seller: config.seller,
             item_type: ItemType::PhysicalGood {
-                category,
-                condition,
+                category: config.category,
+                condition: config.condition,
             },
-            description,
-            quantity,
-            price_per_unit,
-            payment_token_class,
+            description: config.description,
+            quantity: config.quantity,
+            price_per_unit: config.price_per_unit,
+            payment_token_class: config.payment_token_class,
             scope: None,
-            created_at: SystemTimeProvider.unix_seconds(),
+            created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),
@@ -437,29 +467,20 @@ impl MarketplaceOffer {
     }
 
     /// Create a new marketplace offer for services.
-    pub fn new_service(
-        offer_id: String,
-        seller: Did,
-        description: String,
-        service_type: String,
-        duration: Option<String>,
-        quantity: u64,
-        price_per_unit: u64,
-        payment_token_class: TokenClassId,
-    ) -> Self {
+    pub fn new_service(config: ServiceConfig) -> Self {
         Self {
-            offer_id,
-            seller,
+            offer_id: config.offer_id,
+            seller: config.seller,
             item_type: ItemType::Service {
-                service_type,
-                duration,
+                service_type: config.category,
+                duration: Some(format!("{} hours", config.duration_hours)),
             },
-            description,
-            quantity,
-            price_per_unit,
-            payment_token_class,
+            description: config.description,
+            quantity: config.quantity,
+            price_per_unit: config.price_per_unit,
+            payment_token_class: config.payment_token_class,
             scope: None,
-            created_at: SystemTimeProvider.unix_seconds(),
+            created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),
@@ -467,29 +488,20 @@ impl MarketplaceOffer {
     }
 
     /// Create a new marketplace offer for labor hours.
-    pub fn new_labor_hours(
-        offer_id: String,
-        seller: Did,
-        description: String,
-        skill_type: String,
-        experience_level: String,
-        quantity: u64,
-        price_per_unit: u64,
-        payment_token_class: TokenClassId,
-    ) -> Self {
+    pub fn new_labor_hours(config: LaborHoursConfig) -> Self {
         Self {
-            offer_id,
-            seller,
+            offer_id: config.offer_id,
+            seller: config.seller,
             item_type: ItemType::LaborHours {
-                skill_type,
-                experience_level,
+                skill_type: format!("{} ({}h)", config.skill_level, config.duration_hours),
+                experience_level: config.skill_level,
             },
-            description,
-            quantity,
-            price_per_unit,
-            payment_token_class,
+            description: config.description,
+            quantity: config.quantity,
+            price_per_unit: config.price_per_unit,
+            payment_token_class: config.payment_token_class,
             scope: None,
-            created_at: SystemTimeProvider.unix_seconds(),
+            created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),

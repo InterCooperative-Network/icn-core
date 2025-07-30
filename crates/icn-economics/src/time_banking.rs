@@ -1,11 +1,11 @@
-use crate::{ResourceLedger, TokenClass, TokenClassId, TokenType, TransferRecord};
+use crate::{ResourceLedger, TokenClassId, TokenType};
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// Specialized functionality for time banking tokens.
 /// Time banking allows communities to exchange labor hours on an equal basis.
-
+///
 /// Record of work performed in a time banking system.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeRecord {
@@ -138,22 +138,34 @@ impl TimeBankingStore for InMemoryTimeBankingStore {
     }
 }
 
-/// Record time worked and issue time banking tokens.
+/// Configuration for recording and minting time tokens
+#[derive(Debug, Clone)]
+pub struct TimeTokenConfig {
+    pub time_token_class: TokenClassId,
+    pub worker: Did,
+    pub beneficiary: Did,
+    pub work_type: String,
+    pub description: String,
+    pub hours: f64,
+    pub skill_level: String,
+}
+
+/// Record time contribution and mint tokens
 pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
     resource_ledger: &L,
     time_store: &T,
-    time_token_class: &TokenClassId,
-    worker: &Did,
-    beneficiary: &Did,
-    work_type: String,
-    description: String,
-    hours: f64,
-    skill_level: String,
+    config: TimeTokenConfig,
+    time_provider: &dyn TimeProvider,
 ) -> Result<String, CommonError> {
     // Validate that the token class is for time banking
-    let token_class = resource_ledger.get_class(time_token_class).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Token class {} not found", time_token_class))
-    })?;
+    let token_class = resource_ledger
+        .get_class(&config.time_token_class)
+        .ok_or_else(|| {
+            CommonError::InvalidInputError(format!(
+                "Token class {} not found",
+                config.time_token_class
+            ))
+        })?;
 
     if token_class.token_type != TokenType::TimeBanking {
         return Err(CommonError::InvalidInputError(
@@ -161,30 +173,51 @@ pub fn record_and_mint_time_tokens<L: ResourceLedger, T: TimeBankingStore>(
         ));
     }
 
-    // Create time record
-    let record_id = format!("time_{}_{}", worker, SystemTimeProvider.unix_seconds());
+    // Validate hours
+    if config.hours <= 0.0 {
+        return Err(CommonError::InvalidInputError(
+            "Hours must be positive".into(),
+        ));
+    }
+
+    // Generate work record ID
+    let record_id = format!(
+        "time_{}_{}",
+        config.worker.to_string().replace(':', "_"),
+        time_provider.unix_seconds()
+    );
+
+    // Create time banking record
     let time_record = TimeRecord {
         record_id: record_id.clone(),
-        worker: worker.clone(),
-        beneficiary: beneficiary.clone(),
-        work_type,
-        description,
-        hours,
-        skill_level,
-        performed_at: SystemTimeProvider.unix_seconds(),
-        recorded_at: SystemTimeProvider.unix_seconds(),
+        worker: config.worker.clone(),
+        beneficiary: config.beneficiary.clone(),
+        work_type: config.work_type,
+        description: config.description,
+        hours: config.hours,
+        skill_level: config.skill_level,
+        performed_at: time_provider.unix_seconds(),
+        recorded_at: time_provider.unix_seconds(),
         status: TimeRecordStatus::Recorded,
         metadata: HashMap::new(),
     };
 
-    // Record the time
+    // Store the work record
     time_store.record_time(time_record)?;
 
-    // Convert hours to token units (considering decimals)
-    let token_amount = (hours * 100.0) as u64; // 2 decimal places
+    // Calculate tokens to mint (typically 1:1 ratio with hours)
+    let tokens_to_mint = (config.hours * 100.0) as u64; // Convert to integer tokens (e.g., 1.5 hours = 150 tokens)
 
     // Mint time tokens to the worker
-    resource_ledger.mint(time_token_class, worker, token_amount)?;
+    resource_ledger.mint(&config.time_token_class, &config.worker, tokens_to_mint)?;
+
+    log::info!(
+        "Recorded {} hours of work for {} and minted {} time tokens (Record: {})",
+        config.hours,
+        config.worker,
+        tokens_to_mint,
+        record_id
+    );
 
     Ok(record_id)
 }
@@ -196,7 +229,7 @@ pub fn verify_time_record<T: TimeBankingStore>(
     verifier: &Did,
 ) -> Result<(), CommonError> {
     let mut record = time_store.get_time_record(record_id).ok_or_else(|| {
-        CommonError::InvalidInputError(format!("Time record {} not found", record_id))
+        CommonError::InvalidInputError(format!("Time record {record_id} not found"))
     })?;
 
     // Only beneficiary can verify
@@ -296,7 +329,7 @@ impl TimeRecord {
     ) -> Self {
         let now = SystemTimeProvider.unix_seconds();
         Self {
-            record_id: format!("time_{}_{}", worker, now),
+            record_id: format!("time_{worker}_{now}"),
             worker,
             beneficiary,
             work_type,

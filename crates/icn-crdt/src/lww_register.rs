@@ -531,8 +531,8 @@ mod tests {
         register1.write("value_1".to_string(), node_a()).unwrap();
         register2.write("value_2".to_string(), node_b()).unwrap();
 
-        let mut register1_copy = register1.clone();
-        let register2_copy = register2.clone();
+        let register1_copy = register1.clone();
+        let _register2_copy = register2.clone();
 
         // register1.merge(register2)
         register1.merge(&register2);
@@ -614,7 +614,7 @@ mod tests {
 
     #[test]
     fn test_lww_register_snapshot() {
-        let mut register = LWWRegister::with_initial_value(
+        let register = LWWRegister::with_initial_value(
             "test".to_string(),
             "snapshot_value".to_string(),
             node_a(),

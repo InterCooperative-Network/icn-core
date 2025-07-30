@@ -201,6 +201,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Count first-choice votes for active candidates (legacy method for compatibility)
+    #[allow(dead_code)]
     fn count_first_choices(
         &self,
         ballots: &[RankedChoiceBallot],
@@ -211,6 +212,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Validate voter eligibility using DID resolver
+    #[allow(dead_code)]
     async fn verify_voter_eligibility(
         &self,
         voter_did_doc: &DidDocument,
@@ -224,7 +226,7 @@ impl RankedChoiceVotingSystem {
 
         // Verify the DID document public key matches the resolved key
         // Implement comprehensive DID document verification
-        if !Self::verify_did_document_integrity(&voter_did_doc) {
+        if !Self::verify_did_document_integrity(voter_did_doc) {
             return Err(VotingError::IneligibleVoter(
                 "DID document integrity verification failed".to_string(),
             ));
@@ -242,6 +244,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Verify DID document integrity and structure
+    #[allow(dead_code)]
     fn verify_did_document_integrity(did_doc: &DidDocument) -> bool {
         // Basic structural validation
         if did_doc.id.to_string().is_empty() {
@@ -260,6 +263,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Check election-specific eligibility requirements
+    #[allow(dead_code)]
     async fn check_election_eligibility(
         voter_did: &Did,
         _election: &Election,
@@ -302,7 +306,7 @@ impl RankedChoiceVotingSystem {
         let verifying_key = self
             .did_resolver
             .resolve(voter_did)
-            .map_err(|e| VotingError::InvalidSignature)?;
+            .map_err(|_e| VotingError::InvalidSignature)?;
 
         // Create the message that should have been signed
         let message = Self::create_ballot_signing_message(ballot)?;
@@ -317,6 +321,7 @@ impl RankedChoiceVotingSystem {
     }
 
     /// Verify ballot signature using icn-identity
+    #[allow(dead_code)]
     async fn verify_ballot_signature(
         &self,
         ballot: &RankedChoiceBallot,
@@ -394,6 +399,7 @@ impl VotingSystem for RankedChoiceVotingSystem {
         self.verify_ballot_signature_sync(ballot)?;
 
         // Check ballot timestamp is reasonable
+        #[allow(clippy::disallowed_methods)]
         let now = std::time::SystemTime::now();
         if ballot.timestamp > now {
             return Err(VotingError::InvalidBallot(
@@ -430,6 +436,7 @@ impl VotingSystem for RankedChoiceVotingSystem {
 /// Ballot validator for ranked choice ballots
 pub struct RankedChoiceBallotValidator {
     /// DID resolver for signature verification
+    #[allow(dead_code)]
     did_resolver: Arc<dyn DidResolver>,
     /// Track submitted ballots to prevent duplicates
     submitted_ballots: Arc<std::sync::Mutex<HashSet<String>>>,
@@ -539,8 +546,9 @@ impl BallotValidator for RankedChoiceBallotValidator {
 mod tests {
     use super::*;
     use crate::voting::{BallotId, ElectionId, Signature};
-    use icn_common::{CommonError, Did, DidDocument};
-    use icn_identity::{DidResolver, KeyDidResolver};
+    use icn_common::{Did, DidDocument};
+    use icn_identity::KeyDidResolver;
+    use std::str::FromStr;
     use std::sync::Arc;
 
     fn create_test_ballot(
@@ -548,18 +556,48 @@ mod tests {
         election_id: &str,
         preferences: Vec<&str>,
     ) -> RankedChoiceBallot {
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+
         RankedChoiceBallot {
             ballot_id: BallotId(ballot_id.to_string()),
             voter_did: DidDocument {
-                id: Did::default(),
-                public_key: vec![0u8; 32], // Mock public key
+                id: did,
+                public_key: pk.as_bytes().to_vec(),
             },
             election_id: ElectionId(election_id.to_string()),
             preferences: preferences
                 .into_iter()
                 .map(|s| CandidateId(s.to_string()))
                 .collect(),
-            timestamp: std::time::SystemTime::now(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995200),
+            signature: Signature {
+                algorithm: "ed25519".to_string(),
+                value: vec![0u8; 64],
+            },
+        }
+    }
+
+    fn create_test_ballot_with_did(
+        ballot_id: &str,
+        election_id: &str,
+        preferences: Vec<&str>,
+        voter_did: DidDocument,
+    ) -> RankedChoiceBallot {
+        RankedChoiceBallot {
+            ballot_id: BallotId(ballot_id.to_string()),
+            voter_did,
+            election_id: ElectionId(election_id.to_string()),
+            preferences: preferences
+                .into_iter()
+                .map(|s| CandidateId(s.to_string()))
+                .collect(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995200),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -605,7 +643,7 @@ mod tests {
 
         // Charlie should win with 2 first-choice votes (50%)
         // Since we have 4 ballots, majority threshold is 3, so multiple rounds needed
-        assert!(result.rounds.len() >= 1);
+        assert!(!result.rounds.is_empty());
         assert_eq!(result.total_ballots, 4);
     }
 
@@ -620,12 +658,19 @@ mod tests {
         let empty_preferences = RankedChoiceBallot {
             ballot_id: BallotId("ballot1".to_string()),
             voter_did: DidDocument {
-                id: Did::default(),
+                id: Did {
+                    method: "key".to_string(),
+                    id_string: "zH3C2AVvLMv6gmMNam3uVAjZpfkcJCwDwnZn6z3wXmqPV".to_string(), // Example multibase key
+                    path: None,
+                    query: None,
+                    fragment: None,
+                },
                 public_key: vec![0u8; 32], // Mock public key
             },
             election_id: ElectionId("election1".to_string()),
             preferences: vec![], // Empty preferences
-            timestamp: std::time::SystemTime::now(),
+            timestamp: std::time::SystemTime::UNIX_EPOCH
+                + std::time::Duration::from_secs(1640995201),
             signature: Signature {
                 algorithm: "ed25519".to_string(),
                 value: vec![0u8; 64],
@@ -643,8 +688,24 @@ mod tests {
         let did_resolver = Arc::new(KeyDidResolver);
         let validator = RankedChoiceBallotValidator::new(did_resolver);
 
-        let ballot1 = create_test_ballot("ballot1", "election1", vec!["alice", "bob"]);
-        let ballot2 = create_test_ballot("ballot2", "election1", vec!["bob", "alice"]);
+        // Create a single test DID document to use for both ballots
+        use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair};
+        let (_sk, pk) = generate_ed25519_keypair();
+        let did_str = did_key_from_verifying_key(&pk);
+        let did = Did::from_str(&did_str).unwrap();
+        let test_did_doc = DidDocument {
+            id: did,
+            public_key: pk.as_bytes().to_vec(),
+        };
+
+        let ballot1 = create_test_ballot_with_did(
+            "ballot1",
+            "election1",
+            vec!["alice", "bob"],
+            test_did_doc.clone(),
+        );
+        let ballot2 =
+            create_test_ballot_with_did("ballot2", "election1", vec!["bob", "alice"], test_did_doc);
 
         // First ballot should pass
         assert!(validator.check_duplicate(&ballot1).is_ok());

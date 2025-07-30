@@ -141,10 +141,7 @@ where
             sequence: self.tag_counter,
         };
 
-        self.added
-            .entry(element)
-            .or_insert_with(HashSet::new)
-            .insert(tag.clone());
+        self.added.entry(element).or_default().insert(tag.clone());
 
         tag
     }
@@ -339,10 +336,7 @@ where
     fn merge(&mut self, other: &Self) {
         // Merge all add operations
         for (element, other_tags) in &other.added {
-            let current_tags = self
-                .added
-                .entry(element.clone())
-                .or_insert_with(HashSet::new);
+            let current_tags = self.added.entry(element.clone()).or_default();
             current_tags.extend(other_tags.clone());
         }
 
@@ -362,10 +356,7 @@ where
     fn apply_operation(&mut self, op: Self::Operation) -> Result<(), CRDTError> {
         match op {
             ORSetOperation::Add { element, tag } => {
-                self.added
-                    .entry(element)
-                    .or_insert_with(HashSet::new)
-                    .insert(tag.clone());
+                self.added.entry(element).or_default().insert(tag.clone());
 
                 // Update vector clock based on the tag's timestamp
                 let current_time = self.vector_clock.get(&tag.node_id);
@@ -480,10 +471,6 @@ mod tests {
         NodeId::new("node_b".to_string())
     }
 
-    fn node_c() -> NodeId {
-        NodeId::new("node_c".to_string())
-    }
-
     fn alice_did() -> Did {
         Did::new("key", "alice")
     }
@@ -506,12 +493,15 @@ mod tests {
 
     #[test]
     fn test_orset_add_contains() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        assert!(!set.contains(&"alice".to_string()));
+        assert!(!set.contains(&alice));
 
-        let tag = set.add("alice".to_string());
-        assert!(set.contains(&"alice".to_string()));
+        let tag = set.add(alice.clone());
+        assert!(set.contains(&alice));
         assert_eq!(set.size(), 1);
         assert!(!set.is_empty());
 
@@ -520,96 +510,113 @@ mod tests {
         assert_eq!(tag.timestamp, 1);
         assert_eq!(tag.sequence, 1);
 
-        set.add("bob".to_string());
+        set.add(bob.clone());
         assert_eq!(set.size(), 2);
-        assert!(set.contains(&"alice".to_string()));
-        assert!(set.contains(&"bob".to_string()));
+        assert!(set.contains(&alice));
+        assert!(set.contains(&bob));
     }
 
     #[test]
     fn test_orset_remove() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
         assert_eq!(set.size(), 2);
 
-        let remove_tags = set.remove(&"alice".to_string());
+        let remove_tags = set.remove(&alice);
         assert_eq!(remove_tags.len(), 1);
-        assert!(!set.contains(&"alice".to_string()));
-        assert!(set.contains(&"bob".to_string()));
+        assert!(!set.contains(&alice));
+        assert!(set.contains(&bob));
         assert_eq!(set.size(), 1);
 
         // Remove non-existent element
-        let empty_tags = set.remove(&"charlie".to_string());
+        let empty_tags = set.remove(&charlie);
         assert!(empty_tags.is_empty());
         assert_eq!(set.size(), 1);
     }
 
     #[test]
     fn test_orset_remove_tag() {
+        let alice = "alice".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        let tag1 = set.add("alice".to_string());
-        let tag2 = set.add("alice".to_string()); // Add same element again
+        let tag1 = set.add(alice.clone());
+        let tag2 = set.add(alice.clone()); // Add same element again
         assert_eq!(set.size(), 1); // Still one element
 
         // Remove specific tag
-        let remove_tag = set.remove_tag(&"alice".to_string(), &tag1);
+        let remove_tag = set.remove_tag(&alice, &tag1);
         assert!(remove_tag.is_some());
-        assert!(set.contains(&"alice".to_string())); // Still present due to tag2
+        assert!(set.contains(&alice)); // Still present due to tag2
 
         // Remove the other tag
-        let remove_tag2 = set.remove_tag(&"alice".to_string(), &tag2);
+        let remove_tag2 = set.remove_tag(&alice, &tag2);
         assert!(remove_tag2.is_some());
-        assert!(!set.contains(&"alice".to_string())); // Now removed
+        assert!(!set.contains(&alice)); // Now removed
 
         // Try to remove already removed tag
-        let no_remove = set.remove_tag(&"alice".to_string(), &tag1);
+        let no_remove = set.remove_tag(&alice, &tag1);
         assert!(no_remove.is_none());
     }
 
     #[test]
     fn test_orset_elements() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
-        set.add("charlie".to_string());
-        set.remove(&"bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
+        set.add(charlie.clone());
+        set.remove(&bob);
 
         let elements = set.elements();
         assert_eq!(elements.len(), 2);
-        assert!(elements.contains(&"alice".to_string()));
-        assert!(!elements.contains(&"bob".to_string()));
-        assert!(elements.contains(&"charlie".to_string()));
+        assert!(elements.contains(&alice));
+        assert!(!elements.contains(&bob));
+        assert!(elements.contains(&charlie));
     }
 
     #[test]
     fn test_orset_merge() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set1: ORSet<String> = ORSet::new("test".to_string(), node_a());
-        set1.add("alice".to_string());
-        set1.add("bob".to_string());
-        set1.remove(&"bob".to_string());
+        set1.add(alice.clone());
+        set1.add(bob.clone());
+        set1.remove(&bob);
 
         let mut set2: ORSet<String> = ORSet::new("test".to_string(), node_b());
-        set2.add("bob".to_string()); // Re-add bob
-        set2.add("charlie".to_string());
+        set2.add(bob.clone()); // Re-add bob
+        set2.add(charlie.clone());
 
         set1.merge(&set2);
 
         let elements = set1.elements();
         assert_eq!(elements.len(), 3);
-        assert!(elements.contains(&"alice".to_string()));
-        assert!(elements.contains(&"bob".to_string())); // Present due to set2's add
-        assert!(elements.contains(&"charlie".to_string()));
+        assert!(elements.contains(&alice));
+        assert!(elements.contains(&bob)); // Present due to set2's add
+        assert!(elements.contains(&charlie));
     }
 
     #[test]
     fn test_orset_merge_idempotent() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+
         let mut set1: ORSet<String> = ORSet::new("test".to_string(), node_a());
-        set1.add("alice".to_string());
-        set1.add("bob".to_string());
+        set1.add(alice.clone());
+        set1.add(bob.clone());
 
         let set2 = set1.clone();
         let original_elements = set1.elements();
@@ -620,14 +627,17 @@ mod tests {
 
     #[test]
     fn test_orset_merge_commutative() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+
         let mut set1: ORSet<String> = ORSet::new("test".to_string(), node_a());
-        set1.add("alice".to_string());
+        set1.add(alice.clone());
 
         let mut set2: ORSet<String> = ORSet::new("test".to_string(), node_b());
-        set2.add("bob".to_string());
+        set2.add(bob.clone());
 
-        let mut set1_copy = set1.clone();
-        let set2_copy = set2.clone();
+        let set1_copy = set1.clone();
+        let _set2_copy = set2.clone();
 
         // set1.merge(set2)
         set1.merge(&set2);
@@ -640,6 +650,8 @@ mod tests {
 
     #[test]
     fn test_orset_apply_operations() {
+        let alice = "alice".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
         let tag = ElementTag {
@@ -649,22 +661,22 @@ mod tests {
         };
 
         let add_op = ORSetOperation::Add {
-            element: "alice".to_string(),
+            element: alice.clone(),
             tag: tag.clone(),
         };
 
         set.apply_operation(add_op).unwrap();
-        assert!(set.contains(&"alice".to_string()));
+        assert!(set.contains(&alice));
         assert_eq!(set.vector_clock().get(&node_b()), 5);
 
         let remove_op = ORSetOperation::Remove {
-            element: "alice".to_string(),
+            element: alice.clone(),
             remove_tag: tag.clone(),
             add_tag: tag.clone(),
         };
 
         set.apply_operation(remove_op).unwrap();
-        assert!(!set.contains(&"alice".to_string()));
+        assert!(!set.contains(&alice));
     }
 
     #[test]
@@ -690,12 +702,16 @@ mod tests {
 
     #[test]
     fn test_orset_stats() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
-        set.add("charlie".to_string());
-        set.remove(&"bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
+        set.add(charlie.clone());
+        set.remove(&bob);
 
         let stats = set.stats();
         assert_eq!(stats.current_size, 2);
@@ -707,28 +723,35 @@ mod tests {
 
     #[test]
     fn test_orset_known_elements() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
-        set.remove(&"bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
+        set.remove(&bob);
 
         let known = set.all_known_elements();
         assert_eq!(known.len(), 2);
-        assert!(known.contains(&"alice".to_string()));
-        assert!(known.contains(&"bob".to_string()));
+        assert!(known.contains(&alice));
+        assert!(known.contains(&bob));
 
-        assert!(set.has_been_added(&"alice".to_string()));
-        assert!(set.has_been_added(&"bob".to_string()));
-        assert!(!set.has_been_added(&"charlie".to_string()));
+        assert!(set.has_been_added(&alice));
+        assert!(set.has_been_added(&bob));
+        assert!(!set.has_been_added(&charlie));
     }
 
     #[test]
     fn test_orset_contributing_nodes() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
         // Add from node_a
-        set.add("alice".to_string());
+        set.add(alice.clone());
 
         // Simulate operation from node_b
         let tag_b = ElementTag {
@@ -737,7 +760,7 @@ mod tests {
             sequence: 1,
         };
         set.apply_operation(ORSetOperation::Add {
-            element: "bob".to_string(),
+            element: bob.clone(),
             tag: tag_b,
         })
         .unwrap();
@@ -750,27 +773,33 @@ mod tests {
 
     #[test]
     fn test_orset_delta_since() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+        let charlie = "charlie".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
 
         let old_clock = set.vector_clock().clone();
 
-        set.add("charlie".to_string());
-        set.remove(&"bob".to_string());
+        set.add(charlie.clone());
+        set.remove(&bob);
 
         let delta = set.delta_since(&old_clock);
         assert_eq!(delta.operations.len(), 2); // Both new add and remove operations
 
         // Check that operations are for new changes
-        let has_charlie_add = delta.operations.iter().any(|op| {
-            matches!(op, ORSetOperation::Add { element, .. } if element == &"charlie".to_string())
-        });
+        let has_charlie_add = delta
+            .operations
+            .iter()
+            .any(|op| matches!(op, ORSetOperation::Add { element, .. } if element == &charlie));
 
-        let has_bob_remove = delta.operations.iter().any(|op| {
-            matches!(op, ORSetOperation::Remove { element, .. } if element == &"bob".to_string())
-        });
+        let has_bob_remove = delta
+            .operations
+            .iter()
+            .any(|op| matches!(op, ORSetOperation::Remove { element, .. } if element == &bob));
 
         assert!(has_charlie_add);
         assert!(has_bob_remove);
@@ -778,17 +807,20 @@ mod tests {
 
     #[test]
     fn test_orset_value_json() {
+        let alice = "alice".to_string();
+        let bob = "bob".to_string();
+
         let mut set: ORSet<String> = ORSet::new("test".to_string(), node_a());
 
-        set.add("alice".to_string());
-        set.add("bob".to_string());
-        set.remove(&"bob".to_string());
+        set.add(alice.clone());
+        set.add(bob.clone());
+        set.remove(&bob);
 
         let json_value = set.value();
         assert_eq!(json_value["size"], 1);
 
         let elements = json_value["elements"].as_array().unwrap();
         assert_eq!(elements.len(), 1);
-        assert!(elements.contains(&serde_json::Value::String("alice".to_string())));
+        assert!(elements.contains(&serde_json::Value::String(alice.clone())));
     }
 }

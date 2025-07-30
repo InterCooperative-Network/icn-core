@@ -56,7 +56,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ ARRAY OPERATIONS TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Analyzing array system issue:");
             let error_str = e.to_string();
@@ -71,7 +71,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation issue with array functions");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
 
             println!();

@@ -3,7 +3,8 @@ use icn_common::{Cid, Did};
 use icn_economics::ManaLedger;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{
-    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, Resources, SelectionPolicy,
+    select_executor, JobId, JobSpec, LatencyStore, MeshJobBid, NoOpCapabilityChecker, Resources,
+    SelectionPolicy,
 };
 use icn_reputation::InMemoryReputationStore;
 use std::str::FromStr;
@@ -82,6 +83,7 @@ fn bench_select_executor(c: &mut Criterion) {
             let ledger = BenchLedger::new();
             let mut bids = Vec::with_capacity(n);
             let latency = BenchLatency::new();
+            let capability_checker = NoOpCapabilityChecker;
             for i in 0..n {
                 let (_sk, vk) = generate_ed25519_keypair();
                 let did = Did::from_str(&did_key_from_verifying_key(&vk)).unwrap();
@@ -97,6 +99,9 @@ fn bench_select_executor(c: &mut Criterion) {
                         memory_mb: 512,
                         storage_mb: 0,
                     },
+                    executor_capabilities: vec![],
+                    executor_federations: vec![],
+                    executor_trust_scope: None,
                     signature: SignatureBytes(Vec::new()),
                 });
             }
@@ -104,7 +109,14 @@ fn bench_select_executor(c: &mut Criterion) {
                 || bids.clone(),
                 |bids_vec| {
                     black_box(select_executor(
-                        &job_id, &spec, bids_vec, &policy, &rep_store, &ledger, &latency,
+                        &job_id,
+                        &spec,
+                        bids_vec,
+                        &policy,
+                        &rep_store,
+                        &ledger,
+                        &latency,
+                        &capability_checker,
                     ));
                 },
                 BatchSize::SmallInput,

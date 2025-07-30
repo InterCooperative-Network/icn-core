@@ -25,7 +25,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test1) {
         Ok(_) => println!("✅ Test 1 (array indexing): PASSED"),
-        Err(e) => println!("❌ Test 1 (array indexing): FAILED - {}", e),
+        Err(e) => println!("❌ Test 1 (array indexing): FAILED - {e}"),
     }
 
     // Test struct field access after array indexing
@@ -50,7 +50,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test2) {
         Ok(_) => println!("✅ Test 2 (struct field access): PASSED"),
-        Err(e) => println!("❌ Test 2 (struct field access): FAILED - {}", e),
+        Err(e) => println!("❌ Test 2 (struct field access): FAILED - {e}"),
     }
 
     // Test string comparison
@@ -77,7 +77,7 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test3) {
         Ok(_) => println!("✅ Test 3 (string comparison): PASSED"),
-        Err(e) => println!("❌ Test 3 (string comparison): FAILED - {}", e),
+        Err(e) => println!("❌ Test 3 (string comparison): FAILED - {e}"),
     }
 
     // Test the arithmetic operations
@@ -103,6 +103,6 @@ fn main() {
 
     match compile_ccl_source_to_wasm(test4) {
         Ok(_) => println!("✅ Test 4 (arithmetic with struct field): PASSED"),
-        Err(e) => println!("❌ Test 4 (arithmetic with struct field): FAILED - {}", e),
+        Err(e) => println!("❌ Test 4 (arithmetic with struct field): FAILED - {e}"),
     }
 }

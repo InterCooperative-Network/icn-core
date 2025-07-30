@@ -531,15 +531,19 @@ impl GovernanceApi for GovernanceApiImpl {
             )
         })?;
 
-        module.submit_proposal(icn_governance::ProposalSubmission {
-            proposer: proposer_did,
-            proposal_type: core_proposal_type,
-            description: request.description,
-            duration_secs: request.duration_secs,
-            quorum: request.quorum,
-            threshold: request.threshold,
-            content_cid: None,
-        })
+        let time_provider = SystemTimeProvider;
+        module.submit_proposal(
+            icn_governance::ProposalSubmission {
+                proposer: proposer_did,
+                proposal_type: core_proposal_type,
+                description: request.description,
+                duration_secs: request.duration_secs,
+                quorum: request.quorum,
+                threshold: request.threshold,
+                content_cid: None,
+            },
+            &time_provider,
+        )
     }
 
     fn cast_vote(&self, request: GovernanceCastVoteRequest) -> Result<(), CommonError> {
@@ -579,7 +583,8 @@ impl GovernanceApi for GovernanceApiImpl {
         let mut module = self.gov_module.lock().map_err(|_e| {
             CommonError::ApiError("Failed to lock governance module for casting vote".to_string())
         })?;
-        module.cast_vote(voter_did, &proposal_id, vote_option)
+        let time_provider = SystemTimeProvider;
+        module.cast_vote(voter_did, &proposal_id, vote_option, &time_provider)
     }
 
     fn get_proposal(&self, id: ProposalId) -> Result<Option<Proposal>, CommonError> {

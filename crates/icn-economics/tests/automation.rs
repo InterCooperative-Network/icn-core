@@ -41,11 +41,80 @@ impl ManaLedger for InMemoryManaLedger {
 
 #[derive(Default)]
 struct InMemoryResourceLedger;
-impl ResourceLedger for InMemoryResourceLedger {}
+
+impl ResourceLedger for InMemoryResourceLedger {
+    fn create_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn get_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+    ) -> Option<icn_economics::TokenClass> {
+        None
+    }
+    fn update_class(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _class: icn_economics::TokenClass,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn list_classes(&self) -> Vec<(icn_economics::TokenClassId, icn_economics::TokenClass)> {
+        Vec::new()
+    }
+    fn mint(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn burn(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _owner: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn transfer(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
+    fn get_balance(&self, _class_id: &icn_economics::TokenClassId, _owner: &Did) -> u64 {
+        0
+    }
+    fn can_transfer(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _from: &Did,
+        _to: &Did,
+        _amount: u64,
+    ) -> Result<bool, icn_common::CommonError> {
+        Ok(true)
+    }
+    fn get_transfer_history(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _did: &Did,
+    ) -> Vec<icn_economics::TransferRecord> {
+        Vec::new()
+    }
+}
 
 #[tokio::test]
 async fn policy_enforcement_min_balance() {
-    let ledger = Arc::new(InMemoryManaLedger::default());
+    let ledger = Arc::new(InMemoryManaLedger {});
     let policies = Arc::new(RwLock::new(HashMap::new()));
     let alice = Did::from_str("did:icn:alice").unwrap();
     ledger.set_balance(&alice, 10).unwrap();
@@ -69,6 +138,8 @@ async fn policy_enforcement_min_balance() {
     let (tx, _rx) = mpsc::unbounded_channel();
     let tp = Arc::new(SystemTimeProvider);
 
+    let ledger: Arc<dyn ManaLedger> = ledger;
+    let tp: Arc<dyn icn_common::TimeProvider> = tp;
     EconomicAutomationEngine::enforce_economic_policies(
         &policies,
         &ledger,
@@ -84,8 +155,8 @@ async fn policy_enforcement_min_balance() {
 
 #[tokio::test]
 async fn health_monitoring_updates_metrics() {
-    let ledger = Arc::new(InMemoryManaLedger::default());
-    let resource = Arc::new(InMemoryResourceLedger::default());
+    let ledger: Arc<dyn ManaLedger> = Arc::new(InMemoryManaLedger {});
+    let resource: Arc<dyn ResourceLedger> = Arc::new(InMemoryResourceLedger {});
     let metrics = Arc::new(RwLock::new(EconomicHealthMetrics {
         overall_health: 1.0,
         mana_inequality: 0.0,
@@ -102,6 +173,7 @@ async fn health_monitoring_updates_metrics() {
     ledger.set_balance(&alice, 10).unwrap();
     ledger.set_balance(&bob, 40).unwrap();
 
+    let tp: Arc<dyn icn_common::TimeProvider> = tp;
     EconomicAutomationEngine::monitor_economic_health(
         &metrics,
         &ledger,
@@ -120,7 +192,12 @@ async fn health_monitoring_updates_metrics() {
 
 #[tokio::test]
 async fn market_making_and_prediction() {
-    let state = Arc::new(RwLock::new(MarketMakingState::default()));
+    let state = Arc::new(RwLock::new(MarketMakingState {
+        positions: std::collections::HashMap::new(),
+        inventory: std::collections::HashMap::new(),
+        performance: icn_economics::automation::MarketMakingPerformance {},
+        risk_metrics: icn_economics::automation::RiskMetrics {},
+    }));
     let model = DynamicPricingModel {
         base_price: 10.0,
         current_price: 10.0,
@@ -141,7 +218,8 @@ async fn market_making_and_prediction() {
     let (tx, _rx) = mpsc::unbounded_channel();
     let cfg = EconomicAutomationConfig::default();
 
-    EconomicAutomationEngine::execute_market_making(&state, &models, &cfg, &tx)
+    let tp: Arc<dyn icn_common::TimeProvider> = Arc::new(SystemTimeProvider);
+    EconomicAutomationEngine::execute_market_making(&state, &models, &cfg, &tx, &tp)
         .await
         .unwrap();
     {

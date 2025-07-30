@@ -27,7 +27,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Simple for loop compilation failed: {}", e);
+            println!("❌ Simple for loop compilation failed: {e}");
         }
     }
 
@@ -55,7 +55,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ For loop with access compilation failed: {}", e);
+            println!("❌ For loop with access compilation failed: {e}");
         }
     }
 }

@@ -36,18 +36,21 @@ async fn system_parameter_change_updates_rate_limit() {
         gov.add_member(Did::from_str("did:example:alice").unwrap());
         gov.add_member(Did::from_str("did:example:bob").unwrap());
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::SystemParameterChange(
-                    "open_rate_limit".into(),
-                    "5".into(),
-                ),
-                description: "increase limit".into(),
-                duration_secs: 60,
-                quorum: None,
-                threshold: None,
-                content_cid: None,
-            })
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: Did::from_str("did:example:alice").unwrap(),
+                    proposal_type: ProposalType::SystemParameterChange(
+                        "open_rate_limit".into(),
+                        "5".into(),
+                    ),
+                    description: "increase limit".into(),
+                    duration_secs: 60,
+                    quorum: None,
+                    threshold: None,
+                    content_cid: None,
+                },
+                &*ctx.time_provider,
+            )
             .unwrap();
         gov.open_voting(&pid).unwrap();
         pid
@@ -58,9 +61,10 @@ async fn system_parameter_change_updates_rate_limit() {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &*ctx.time_provider,
         )
         .unwrap();
-        gov.close_voting_period(&pid).unwrap();
+        gov.close_voting_period(&pid, &*ctx.time_provider).unwrap();
         gov.execute_proposal(&pid).unwrap();
     }
 

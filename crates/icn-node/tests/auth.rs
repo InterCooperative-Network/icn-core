@@ -1,3 +1,4 @@
+use base64::Engine;
 use icn_node::app_router_with_options;
 use rcgen::generate_simple_self_signed;
 use reqwest::Client;
@@ -7,6 +8,7 @@ use tokio::task;
 #[tokio::test]
 async fn api_key_required_for_requests() {
     let (router, _ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         Some("secret".into()),
         None,
         None,
@@ -53,6 +55,7 @@ async fn api_key_required_for_requests() {
 #[tokio::test]
 async fn bearer_token_required_for_requests() {
     let (router, _ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None,
         Some("s3cr3t".into()),
         None,
@@ -100,7 +103,11 @@ async fn bearer_token_required_for_requests() {
 async fn tls_api_key_and_bearer_token() {
     let cert = generate_simple_self_signed(["localhost".to_string()]).unwrap();
     let cert_pem = cert.serialize_pem().unwrap();
-    let key_pem = cert.serialize_private_key_pem();
+    let key_der = cert.get_key_pair().serialize_der();
+    let key_pem = format!(
+        "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
+        base64::engine::general_purpose::STANDARD.encode(&key_der)
+    );
 
     let cert_file = NamedTempFile::new().unwrap();
     let key_file = NamedTempFile::new().unwrap();
@@ -108,6 +115,7 @@ async fn tls_api_key_and_bearer_token() {
     std::fs::write(key_file.path(), key_pem).unwrap();
 
     let (router, _ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         Some("secret".into()),
         Some("token".into()),
         None,

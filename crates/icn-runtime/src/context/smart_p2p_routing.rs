@@ -4,7 +4,7 @@
 //! network topology, and adaptive routing strategies for optimal message delivery.
 
 use super::mesh_network::MeshNetworkService;
-use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
+use super::{HostAbiError, MeshNetworkServiceType};
 use icn_common::{Did, TimeProvider};
 use icn_reputation::ReputationStore;
 use std::collections::{HashMap, VecDeque};
@@ -975,7 +975,7 @@ impl SmartP2pRouter {
         peer_id: &Did,
     ) -> Result<ConnectionQuality, HostAbiError> {
         // Measure actual connection quality through ping and statistics
-        let start_time = Instant::now();
+        let _start_time = Instant::now();
 
         // Perform connection quality test
         match self.network_service.ping_peer(peer_id.clone()).await {
@@ -1092,7 +1092,7 @@ impl SmartP2pRouter {
                             routing_table
                                 .multi_hop_routes
                                 .entry(target_peer.clone())
-                                .or_insert_with(Vec::new)
+                                .or_default()
                                 .push(route);
                         }
                     }
@@ -1140,7 +1140,7 @@ impl SmartP2pRouter {
                     routing_table
                         .multi_hop_routes
                         .entry(target_peer.clone())
-                        .or_insert_with(Vec::new)
+                        .or_default()
                         .push(route);
                 }
             }
@@ -1257,10 +1257,8 @@ impl SmartP2pRouter {
                 Some(message)
             }
             // Finally retry queue
-            else if let Some(message) = queue.retry_queue.pop_front() {
-                Some(message)
-            } else {
-                None
+            else {
+                queue.retry_queue.pop_front()
             }
         };
 

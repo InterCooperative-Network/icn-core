@@ -5,7 +5,7 @@ mod simple_verification_test {
     use icn_mesh::{JobKind, JobSpec, Resources};
     use icn_runtime::RuntimeContext;
     use std::time::Duration;
-    use tokio::time::sleep;
+    use tokio::time::sleep; // Moved this line to keep necessary imports
 
     #[tokio::test]
     async fn simple_icn_core_verification() {
@@ -67,7 +67,7 @@ mod simple_verification_test {
             scope: None,
         };
 
-        let mut dag_store = rt_ctx.dag_store.lock().await;
+        let mut dag_store = rt_ctx.dag_store.store.lock().await;
         let put_result = dag_store.put(&dag_block).await;
         assert!(put_result.is_ok(), "DAG put should succeed");
 
@@ -96,6 +96,10 @@ mod simple_verification_test {
                 memory_mb: 128,
                 storage_mb: 0,
             },
+            required_capabilities: vec![],
+            required_trust_scope: None,
+            min_executor_reputation: None,
+            allowed_federations: vec![],
         };
         let spec_bytes = bincode::serialize(&spec).unwrap();
         let submit_result = rt_ctx

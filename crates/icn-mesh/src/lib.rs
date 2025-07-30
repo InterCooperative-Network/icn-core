@@ -351,7 +351,7 @@ pub trait DynamicCapabilityChecker: Send + Sync {
     fn get_current_resources(&self, executor_did: &Did) -> Option<Resources>;
 
     /// Check if an executor is currently available for new jobs.
-    fn is_executor_available(&self, executor_did: &Did) -> bool {
+    fn is_executor_available(&self, _executor_did: &Did) -> bool {
         true // Default implementation assumes availability
     }
 }
@@ -434,6 +434,7 @@ impl ReputationExecutorSelector {
 /// # Returns
 /// * `Some(Did)` of the selected executor if a suitable one is found.
 /// * `None` if no suitable executor could be selected based on the bids and policy.
+#[allow(clippy::too_many_arguments)]
 pub fn select_executor(
     job_id: &JobId,
     job_spec: &JobSpec,
@@ -1297,15 +1298,17 @@ mod tests {
             }
         }
 
+        #[allow(dead_code)]
         fn set_capability(&self, executor_did: &Did, capability: &str, has_capability: bool) {
             self.capabilities
                 .lock()
                 .unwrap()
                 .entry(executor_did.clone())
-                .or_insert_with(HashMap::new)
+                .or_default()
                 .insert(capability.to_string(), has_capability);
         }
 
+        #[allow(dead_code)]
         fn set_resources(&self, executor_did: &Did, resources: Resources) {
             self.resources
                 .lock()
@@ -1313,6 +1316,7 @@ mod tests {
                 .insert(executor_did.clone(), resources);
         }
 
+        #[allow(dead_code)]
         fn set_availability(&self, executor_did: &Did, available: bool) {
             self.availability
                 .lock()
@@ -1516,7 +1520,7 @@ mod tests {
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
-        let capability_checker = TestCapabilityChecker::new();
+        let _capability_checker = TestCapabilityChecker::new();
         latency.set_latency(high.clone(), 10);
         latency.set_latency(low.clone(), 20);
         let spec = JobSpec::default();
@@ -1942,7 +1946,6 @@ mod tests {
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
         let capability_checker = TestCapabilityChecker::new();
-        let capability_checker = TestCapabilityChecker::new();
         latency.set_latency(did_a.clone(), 5);
         latency.set_latency(did_b.clone(), 30);
         let score_a = score_bid(
@@ -2041,8 +2044,10 @@ mod tests {
         .unwrap();
 
         // Job that only allows federation A
-        let mut job_spec = JobSpec::default();
-        job_spec.allowed_federations = vec!["federation_a".to_string()];
+        let job_spec = JobSpec {
+            allowed_federations: vec!["federation_a".to_string()],
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
@@ -2108,8 +2113,10 @@ mod tests {
         .unwrap();
 
         // Job that requires GPU capability
-        let mut job_spec = JobSpec::default();
-        job_spec.required_capabilities = vec!["gpu".to_string()];
+        let job_spec = JobSpec {
+            required_capabilities: vec!["gpu".to_string()],
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
@@ -2173,8 +2180,10 @@ mod tests {
         .unwrap();
 
         // Job that requires minimum reputation of 10
-        let mut job_spec = JobSpec::default();
-        job_spec.min_executor_reputation = Some(10);
+        let job_spec = JobSpec {
+            min_executor_reputation: Some(10),
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();
@@ -2240,8 +2249,10 @@ mod tests {
         .unwrap();
 
         // Job that requires high security trust scope
-        let mut job_spec = JobSpec::default();
-        job_spec.required_trust_scope = Some("high_security".to_string());
+        let job_spec = JobSpec {
+            required_trust_scope: Some("high_security".to_string()),
+            ..Default::default()
+        };
 
         let policy = SelectionPolicy::default();
         let latency = InMemoryLatencyStore::new();

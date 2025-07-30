@@ -285,7 +285,7 @@ fn main() {
             println!("🌍 CCL is ready to power cooperative governance worldwide!");
         }
         Err(e) => {
-            println!("❌ Ultimate governance contract compilation failed: {}", e);
+            println!("❌ Ultimate governance contract compilation failed: {e}");
         }
     }
 }

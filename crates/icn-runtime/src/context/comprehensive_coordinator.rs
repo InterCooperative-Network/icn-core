@@ -4,24 +4,12 @@
 //! smart routing, governance automation, federation integration, reputation
 //! integration, and economic automation.
 
-use super::{
-    CclIntegrationCoordinator, CrossComponentCoordinator, EnhancedDagSync, MeshNetworkService,
-    RuntimeContext, SmartP2pRouter,
-};
-use crate::context::{stubs::StubMeshNetworkService, MeshNetworkServiceType};
-use icn_common::{Cid, CommonError, Did, TimeProvider};
-use icn_governance::{
-    GovernanceAutomationConfig, GovernanceAutomationEngine, GovernanceAutomationStats,
-    GovernanceEvent,
-};
-use icn_identity::{
-    FederationEvent, FederationIntegrationConfig, FederationIntegrationEngine,
-    FederationIntegrationStats,
-};
+use super::{RuntimeContext, SmartP2pRouter};
+use icn_common::{CommonError, TimeProvider};
+use icn_governance::{GovernanceAutomationEngine, GovernanceAutomationStats};
+use icn_identity::{FederationIntegrationEngine, FederationIntegrationStats};
 use icn_network::adaptive_routing::RoutePerformanceMetrics;
-use icn_network::{
-    AdaptiveRoutingConfig, AdaptiveRoutingEngine, NetworkService, NetworkTopology, RoutingEvent,
-};
+use icn_network::AdaptiveRoutingEngine;
 // Temporarily commented out due to circular dependencies
 // use icn_reputation::{
 //     ReputationIntegrationEngine, ReputationIntegrationConfig, ReputationEvent,
@@ -44,16 +32,13 @@ pub struct ReputationIntegrationConfig;
 pub struct ReputationEvent;
 #[derive(Debug, Clone)]
 pub struct ReputationIntegrationStats;
-use icn_common::DagBlock;
 use icn_dag::AsyncStorageService;
-use icn_economics::{
-    EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
-};
+use icn_economics::{EconomicAutomationEngine, EconomicAutomationStats};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, Mutex as TokioMutex};
+use tokio::sync::mpsc;
 
 /// Configuration for comprehensive coordination
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -719,61 +704,59 @@ impl ComprehensiveCoordinator {
         &self,
         opportunity_id: &str,
     ) -> Result<OptimizationExecutionResult, CommonError> {
-        let mut opportunities = self.optimization_opportunities.write().unwrap();
+        // Extract the actions to execute outside the lock
+        let actions_to_execute = {
+            let mut opportunities = self.optimization_opportunities.write().unwrap();
 
-        if let Some(opportunity) = opportunities
-            .iter_mut()
-            .find(|o| o.opportunity_id == opportunity_id)
-        {
-            opportunity.status = OpportunityStatus::Implementing;
+            if let Some(opportunity) = opportunities
+                .iter_mut()
+                .find(|o| o.opportunity_id == opportunity_id)
+            {
+                opportunity.status = OpportunityStatus::Implementing;
+                opportunity.actions.clone()
+            } else {
+                return Err(CommonError::InternalError(format!(
+                    "Optimization opportunity {} not found",
+                    opportunity_id
+                )));
+            }
+        }; // Lock is dropped here
 
-            let mut successful_actions = 0;
-            let mut failed_actions = 0;
-            let start_time = Instant::now();
+        let mut successful_actions = 0;
+        let mut failed_actions = 0;
+        let start_time = Instant::now();
 
-            for action in &opportunity.actions {
-                match self.execute_optimization_action(action).await {
-                    Ok(_) => {
-                        successful_actions += 1;
-                        log::info!("Successfully executed optimization action: {:?}", action);
-                    }
-                    Err(e) => {
-                        failed_actions += 1;
-                        log::error!(
-                            "Failed to execute optimization action: {:?} - {}",
-                            action,
-                            e
-                        );
-                    }
+        for action in &actions_to_execute {
+            match self.execute_optimization_action(action).await {
+                Ok(_) => {
+                    successful_actions += 1;
+                    log::info!("Successfully executed optimization action: {:?}", action);
+                }
+                Err(e) => {
+                    failed_actions += 1;
+                    log::error!(
+                        "Failed to execute optimization action: {:?} - {}",
+                        action,
+                        e
+                    );
                 }
             }
-
-            // Update opportunity status
-            opportunity.status = if failed_actions == 0 {
-                OpportunityStatus::Implemented
-            } else if successful_actions > 0 {
-                OpportunityStatus::Implemented // Partial success
-            } else {
-                OpportunityStatus::Failed {
-                    reason: "All actions failed".to_string(),
-                }
-            };
-
-            Ok(OptimizationExecutionResult {
-                opportunity_id: opportunity_id.to_string(),
-                successful_actions,
-                failed_actions,
-                execution_time: start_time.elapsed(),
-                impact_achieved: self
-                    .measure_optimization_impact(&opportunity.opportunity_id)
-                    .await?,
-            })
-        } else {
-            Err(CommonError::InternalError(format!(
-                "Optimization opportunity {} not found",
-                opportunity_id
-            )))
         }
+
+        // Update opportunity status after execution
+        self.update_opportunity_status_after_execution(
+            opportunity_id,
+            successful_actions,
+            failed_actions,
+        );
+
+        Ok(OptimizationExecutionResult {
+            opportunity_id: opportunity_id.to_string(),
+            successful_actions,
+            failed_actions,
+            execution_time: start_time.elapsed(),
+            impact_achieved: self.measure_optimization_impact(opportunity_id).await?,
+        })
     }
 
     // Background task methods
@@ -952,6 +935,7 @@ impl ComprehensiveCoordinator {
     }
 
     // Implementation methods (simplified for brevity)
+    #[allow(clippy::too_many_arguments)] // Monitoring function needs access to all components
     async fn monitor_system_health(
         _system_health: &Arc<RwLock<SystemHealthStatus>>,
         _smart_router: &Arc<SmartP2pRouter>,
@@ -1033,14 +1017,14 @@ impl ComprehensiveCoordinator {
             .get("cpu")
             .unwrap_or(&0.0);
         if cpu_usage > 70.0 {
+            #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
             let opportunity = OptimizationOpportunity {
-                opportunity_id: format!(
-                    "cpu_optimization_{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                ),
+                opportunity_id: format!("cpu_optimization_{}", timestamp),
                 systems: vec![SystemType::SmartRouting],
                 optimization_type: OptimizationType::PerformanceImprovement {
                     current_metric: cpu_usage,
@@ -1064,14 +1048,14 @@ impl ComprehensiveCoordinator {
             .get("memory")
             .unwrap_or(&0.0);
         if memory_usage > 80.0 {
+            #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
             let opportunity = OptimizationOpportunity {
-                opportunity_id: format!(
-                    "memory_optimization_{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                ),
+                opportunity_id: format!("memory_optimization_{}", timestamp),
                 systems: vec![SystemType::ReputationIntegration, SystemType::SmartRouting],
                 optimization_type: OptimizationType::ResourceUtilization {
                     current_utilization: memory_usage,
@@ -1095,14 +1079,14 @@ impl ComprehensiveCoordinator {
             .get("network_latency")
             .unwrap_or(&0.0);
         if network_latency > 200.0 {
+            #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
             let opportunity = OptimizationOpportunity {
-                opportunity_id: format!(
-                    "network_optimization_{}",
-                    std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs()
-                ),
+                opportunity_id: format!("network_optimization_{}", timestamp),
                 systems: vec![SystemType::SmartRouting, SystemType::FederationIntegration],
                 optimization_type: OptimizationType::PerformanceImprovement {
                     current_metric: network_latency,
@@ -1123,6 +1107,12 @@ impl ComprehensiveCoordinator {
 
         // Send optimization event if opportunities were found
         if !opportunities.is_empty() {
+            #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
+            let timestamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+
             let optimization_event = CoordinationEvent::OptimizationOpportunity {
                 system: SystemType::SmartRouting,
                 opportunity_type: OptimizationType::PerformanceImprovement {
@@ -1136,10 +1126,7 @@ impl ComprehensiveCoordinator {
                     current_value: "5000ms".to_string(),
                     new_value: "2000ms".to_string(),
                 }],
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs(),
+                timestamp,
             };
 
             if let Err(e) = _event_tx.send(optimization_event) {
@@ -1216,17 +1203,21 @@ impl ComprehensiveCoordinator {
         let mut correlation_predictions = Vec::new();
 
         for (system_type, events) in event_correlation.iter() {
-            let recent_events: Vec<&CoordinationEvent> = events
-                .iter()
-                .filter(|event| {
-                    // Events from the last hour
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    (now - event.timestamp()) < 3600
-                })
-                .collect();
+            let recent_events: Vec<&CoordinationEvent> = {
+                #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+
+                events
+                    .iter()
+                    .filter(|event| {
+                        // Events from the last hour
+                        (now - event.timestamp()) < 3600
+                    })
+                    .collect()
+            };
 
             if recent_events.len() > 3 {
                 correlation_predictions.push(format!(
@@ -1448,7 +1439,7 @@ impl ComprehensiveCoordinator {
         adaptive_routing: &Arc<AdaptiveRoutingEngine>,
     ) -> Result<(), CommonError> {
         // Extract all data from the health guard before any async operations
-        let (cpu_util, network_util, predicted_cpu, predicted_network) = {
+        let (_cpu_util, _network_util, predicted_cpu, predicted_network) = {
             let health = system_health.read().unwrap();
             let cpu_util = *health.resource_utilization.get("cpu").unwrap_or(&0.0);
             let network_util = *health.resource_utilization.get("network").unwrap_or(&0.0);
@@ -1669,6 +1660,30 @@ impl ComprehensiveCoordinator {
         // Return the impact as a fraction (0.0 to 1.0)
         Ok(impact_score / 100.0)
     }
+
+    /// Helper method to update opportunity status after execution
+    fn update_opportunity_status_after_execution(
+        &self,
+        opportunity_id: &str,
+        successful_actions: usize,
+        failed_actions: usize,
+    ) {
+        let mut opportunities = self.optimization_opportunities.write().unwrap();
+        if let Some(opportunity) = opportunities
+            .iter_mut()
+            .find(|o| o.opportunity_id == opportunity_id)
+        {
+            opportunity.status = if failed_actions == 0 {
+                OpportunityStatus::Implemented
+            } else if successful_actions > 0 {
+                OpportunityStatus::Implemented // Partial success
+            } else {
+                OpportunityStatus::Failed {
+                    reason: "All actions failed".to_string(),
+                }
+            };
+        }
+    }
 }
 
 /// Result of optimization execution
@@ -1721,8 +1736,9 @@ pub struct SystemStats {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{Did, MeshNetworkServiceType, StubMeshNetworkService};
     use icn_common::SystemTimeProvider;
-    use icn_network::{NetworkService, StubNetworkService};
+    use icn_network::{AdaptiveRoutingConfig, NetworkService, StubNetworkService};
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::time::Duration;

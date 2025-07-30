@@ -25,7 +25,7 @@ fn main() {
             println!("🚀 ADVANCED DEMOCRACY IS PRODUCTION-READY!");
         }
         Err(e) => {
-            println!("❌ Focused democracy test failed: {}", e);
+            println!("❌ Focused democracy test failed: {e}");
 
             // Analyze the specific error
             let error_str = e.to_string();

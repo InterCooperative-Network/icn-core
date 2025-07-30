@@ -149,8 +149,7 @@ where
             Ok(())
         } else {
             Err(CRDTError::InvalidOperation(format!(
-                "Key not found: {:?}",
-                key
+                "Key not found: {key:?}"
             )))
         }
     }
@@ -209,7 +208,7 @@ where
     /// Apply a remove operation with explicit timestamp.
     fn apply_remove(&mut self, key: K, timestamp: u64, node_id: NodeId) -> bool {
         // Create or update tombstone
-        let tombstone_id = format!("{}:tombstone:{:?}", self.id, key);
+        let tombstone_id = format!("{}:tombstone:{key:?}", self.id);
         let mut tombstone = self
             .tombstones
             .get(&key)
@@ -242,7 +241,7 @@ where
     pub fn all_keys(&self) -> Vec<K> {
         let mut keys: Vec<K> = self.entries.keys().cloned().collect();
         keys.extend(self.tombstones.keys().cloned());
-        keys.sort_by(|a, b| format!("{:?}", a).cmp(&format!("{:?}", b))); // Deterministic ordering
+        keys.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}"))); // Deterministic ordering
         keys.dedup();
         keys
     }
@@ -416,7 +415,7 @@ where
         let mut map_value = serde_json::Map::new();
 
         for (key, value) in self.iter() {
-            let key_str = format!("{:?}", key);
+            let key_str = format!("{key:?}");
             map_value.insert(key_str, value.value());
         }
 

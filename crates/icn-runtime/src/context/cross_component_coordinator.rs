@@ -8,7 +8,7 @@
 //! - Performance optimization across components
 
 use super::enhanced_dag_sync::{EnhancedDagSync, PropagationPriority, SyncResult};
-use super::realtime_ccl_integration::{CclIntegrationCoordinator, GovernanceEventType};
+use super::realtime_ccl_integration::CclIntegrationCoordinator;
 use super::smart_p2p_routing::{MessagePriority, RoutePath, RoutingStrategy, SmartP2pRouter};
 use super::{DagStorageService, DagStoreMutexType, HostAbiError, MeshNetworkServiceType};
 use icn_common::{Cid, Did, TimeProvider};
@@ -500,6 +500,7 @@ impl NetworkDagManager {
         optimization: OperationOptimization,
     ) -> Result<DagOperationResult, HostAbiError> {
         // Create DAG block
+        #[allow(clippy::disallowed_methods)] // Function doesn't have TimeProvider access
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
@@ -553,7 +554,7 @@ impl NetworkDagManager {
         // Try local retrieval first
         {
             let store = self.dag_store.lock().await;
-            if let Some(block) = store.get(&cid).await.ok() {
+            if let Ok(block) = store.get(&cid).await {
                 debug!("Found block locally: {}", cid);
                 return Ok(DagOperationResult::Retrieve {
                     cid,
@@ -1064,10 +1065,11 @@ impl HealthMonitor {
         // Try a simple DAG operation to check health
         let test_cid = Cid::new_v1_sha256(0x00, b"health_check");
 
-        match {
+        let res = {
             let store = self.dag_store.lock().await;
             store.get(&test_cid).await
-        } {
+        };
+        match res {
             Ok(_) => ComponentHealth {
                 status: HealthLevel::Healthy,
                 metrics: vec![
@@ -1256,7 +1258,7 @@ impl PerformanceOptimizer {
 
         let strategy = strategies
             .entry(operation_type.to_string())
-            .or_insert_with(|| OptimizationStrategy::default());
+            .or_insert_with(OptimizationStrategy::default);
 
         // Simple adaptive learning
         if success {

@@ -628,21 +628,21 @@ impl RuntimeConfig {
                             })?;
 
                             let signing_key = icn_identity::SigningKey::from_bytes(&key_bytes);
-                            return Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)));
+                            Ok(Arc::new(crate::context::Ed25519Signer::new(signing_key)))
                         }
                         Err(decode_error) => {
                             // Check if it might be an encrypted file or other format
                             if key_content.contains("BEGIN") && key_content.contains("END") {
-                                return Err(CommonError::ConfigError(format!(
+                                Err(CommonError::ConfigError(format!(
                         "Key file at {} appears to be in PEM or encrypted format, which is not currently supported. Please provide a base58-encoded Ed25519 private key, or use 'generate' key store type to create a new key.",
                         expanded_path.display()
-                    )));
+                    )))
                             } else {
-                                return Err(CommonError::ConfigError(format!(
+                                Err(CommonError::ConfigError(format!(
                         "Invalid key file at {}: failed to decode as base58 ({}). Key file must contain a base58-encoded Ed25519 private key.",
                         expanded_path.display(),
                         decode_error
-                    )));
+                    )))
                             }
                         }
                     }

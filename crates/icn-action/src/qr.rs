@@ -46,7 +46,7 @@ impl QrGenerator {
         };
 
         let code = QrCode::with_error_correction_level(action_url, ec_level)
-            .map_err(|e| ActionError::QrGeneration(format!("Failed to create QR code: {}", e)))?;
+            .map_err(|e| ActionError::QrGeneration(format!("Failed to create QR code: {e}")))?;
 
         match metadata.format {
             QrFormat::Png => Self::generate_png_bytes(&code, metadata),
@@ -90,7 +90,7 @@ impl QrGenerator {
         let qr_data = Self::generate_with_metadata(action_url, metadata)?;
 
         std::fs::write(file_path, qr_data)
-            .map_err(|e| ActionError::QrGeneration(format!("Failed to write file: {}", e)))?;
+            .map_err(|e| ActionError::QrGeneration(format!("Failed to write file: {e}")))?;
 
         Ok(())
     }
@@ -99,9 +99,8 @@ impl QrGenerator {
     pub fn display_terminal(action_url: &str) -> Result<String, ActionError> {
         #[cfg(feature = "qr")]
         {
-            let code = QrCode::new(action_url).map_err(|e| {
-                ActionError::QrGeneration(format!("Failed to create QR code: {}", e))
-            })?;
+            let code = QrCode::new(action_url)
+                .map_err(|e| ActionError::QrGeneration(format!("Failed to create QR code: {e}")))?;
 
             let string = code
                 .render::<char>()
@@ -116,10 +115,9 @@ impl QrGenerator {
         {
             // Simple fallback - just show the URL in a box
             let border = format!("{}{}{}", "+", "-".repeat(action_url.len() + 2), "+");
-            let content = format!("| {} |", action_url);
+            let content = format!("| {action_url} |");
             Ok(format!(
-                "{}\n{}\n{}\n[QR Code would be here with --features qr]",
-                border, content, border
+                "{border}\n{content}\n{border}\n[QR Code would be here with --features qr]"
             ))
         }
     }
@@ -137,7 +135,7 @@ impl QrGenerator {
                 &mut std::io::Cursor::new(&mut buffer),
                 image::ImageFormat::Png,
             )
-            .map_err(|e| ActionError::QrGeneration(format!("Failed to encode PNG: {}", e)))?;
+            .map_err(|e| ActionError::QrGeneration(format!("Failed to encode PNG: {e}")))?;
 
         Ok(buffer)
     }
@@ -195,7 +193,7 @@ impl QrUtils {
 
     /// Create a QR metadata configuration for common use cases
     pub fn config_for_use_case(use_case: &str, size: Option<u32>) -> QrMetadata {
-        let size = size.unwrap_or_else(|| match use_case {
+        let size = size.unwrap_or(match use_case {
             "business_card" => 128,
             "poster" => 512,
             "sticker" => 256,

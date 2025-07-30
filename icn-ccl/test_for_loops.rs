@@ -48,7 +48,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ FOR LOOP TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 Analyzing for loop implementation issue:");
             let error_str = e.to_string();
@@ -63,7 +63,7 @@ fn main() {
             } else if error_str.contains("WASM") {
                 println!("   • WASM generation issue with for loops");
             } else {
-                println!("   • Unexpected issue: {}", error_str);
+                println!("   • Unexpected issue: {error_str}");
             }
 
             println!();

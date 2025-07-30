@@ -23,7 +23,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Boolean type failed: {}", e);
+            println!("❌ Boolean type failed: {e}");
         }
     }
 
@@ -46,7 +46,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ Bool type failed: {}", e);
+            println!("❌ Bool type failed: {e}");
         }
     }
 
@@ -71,7 +71,7 @@ fn main() {
             println!("WASM size: {} bytes", wasm.len());
         }
         Err(e) => {
-            println!("❌ String comparison with Boolean failed: {}", e);
+            println!("❌ String comparison with Boolean failed: {e}");
         }
     }
 }

@@ -156,7 +156,7 @@ fn test_parse_rule_definition() {
     let source = "rule allow_all when true then allow";
     let ast = parse_ccl_source(source).expect("parse rule");
     let expected = AstNode::Policy(vec![PolicyStatementNode::RuleDef(
-        AstNode::RuleDefinition {
+        AstNode::EnumDefinition {
             name: "allow_all".to_string(),
             condition: ExpressionNode::BooleanLiteral(true),
             action: ActionNode::Allow,
@@ -195,8 +195,8 @@ async fn test_wasm_executor_with_ccl() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -304,7 +304,7 @@ fn test_parse_rule_with_charge() {
     let source = "rule pay when true then charge 5";
     let ast = parse_ccl_source(source).expect("parse rule");
     let expected = AstNode::Policy(vec![PolicyStatementNode::RuleDef(
-        AstNode::RuleDefinition {
+        AstNode::EnumDefinition {
             name: "pay".to_string(),
             condition: ExpressionNode::BooleanLiteral(true),
             action: ActionNode::Charge(ExpressionNode::IntegerLiteral(5)),
@@ -342,7 +342,7 @@ async fn test_wasm_executor_runs_addition() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -399,7 +399,7 @@ async fn test_wasm_executor_runs_proposal_flow() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -461,7 +461,7 @@ async fn test_wasm_executor_runs_voting_logic() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();

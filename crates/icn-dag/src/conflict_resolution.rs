@@ -226,6 +226,7 @@ pub struct ConflictResolver<S: StorageService<DagBlock>> {
     config: ConflictResolutionConfig,
     active_conflicts: HashMap<String, DagConflict>,
     resolution_history: VecDeque<DagConflict>,
+    #[allow(dead_code)]
     node_identity: Did,
     /// Federation nodes eligible to vote
     federation_nodes: HashSet<Did>,
@@ -278,6 +279,11 @@ impl<S: StorageService<DagBlock>> ConflictResolver<S> {
     /// Remove a node from the federation
     pub fn remove_federation_node(&mut self, node: &Did) {
         self.federation_nodes.remove(node);
+    }
+
+    /// Check if a node is a member of the federation
+    pub fn is_federation_member(&self, node: &Did) -> bool {
+        self.federation_nodes.contains(node)
     }
 
     /// Cast a vote on an active conflict
@@ -1034,7 +1040,7 @@ impl DagStructure {
             }
         }
 
-        missing.sort_by(|a, b| a.to_string().cmp(&b.to_string()));
+        missing.sort_by_key(|a| a.to_string());
         missing.dedup();
         missing
     }
@@ -1258,7 +1264,7 @@ mod tests {
         // Create a mock conflict
         let conflict_id = "test_conflict".to_string();
         let winner_cid = Cid::new_v1_sha256(0x55, b"winner");
-        let loser_cid = Cid::new_v1_sha256(0x55, b"loser");
+        let _loser_cid = Cid::new_v1_sha256(0x55, b"loser");
 
         // Initiate voting (manually for testing)
         resolver

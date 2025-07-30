@@ -1,11 +1,11 @@
 #[path = "federation.rs"]
 mod federation;
 
-use base64;
-use bincode;
+use base64::engine::general_purpose::STANDARD as BASE64_ENGINE;
+use base64::Engine;
 use federation::{ensure_devnet, wait_for_federation_ready, NODE_A_URL, NODE_C_URL};
 use icn_common::retry_with_backoff;
-use icn_mesh::{JobKind, JobSpec};
+// ...existing code...
 use reqwest::Client;
 use serde_json::Value;
 use std::process::Command;
@@ -38,7 +38,7 @@ async fn test_network_resilience() {
     };
     let job_request = serde_json::json!({
         "manifest_cid": "cidv1-resilience-test-manifest",
-        "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+        "spec_bytes": BASE64_ENGINE.encode(bincode::serialize(&spec).unwrap()),
         "spec_json": null,
         "cost_mana": 50
     });
@@ -153,9 +153,9 @@ impl TestCircuitBreaker {
         }
     }
 
-    async fn call<F, Fut>(&mut self, op: F) -> Result<(), &'static str>
+    async fn call<F, Fut>(&mut self, mut op: F) -> Result<(), &'static str>
     where
-        F: Fn() -> Fut,
+        F: FnMut() -> Fut,
         Fut: std::future::Future<Output = Result<(), reqwest::Error>>,
     {
         self.reset_if_needed();
@@ -276,7 +276,7 @@ async fn test_long_partition_circuit_breaker() {
 #[tokio::test]
 async fn test_stub_network_breaker_open_close() {
     use icn_common::Did;
-    use icn_network::{PeerId, StubNetworkService};
+    use icn_network::{NetworkService, PeerId, StubNetworkService};
     use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
     use std::time::Duration;
     use tokio::time::sleep;

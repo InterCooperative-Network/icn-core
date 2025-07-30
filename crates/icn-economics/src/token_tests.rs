@@ -2,10 +2,10 @@
 mod scoped_token_tests {
     use crate::{
         burn_tokens, mint_tokens, transfer_tokens, ManaLedger, ResourceLedger,
-        ResourceRepositoryAdapter, ScopingRules, TokenClass, TokenType, TransferabilityRule,
+        ResourceRepositoryAdapter, TokenClass, TokenType, TransferabilityRule,
     };
-    use icn_common::{CommonError, DagBlock, Did, NodeScope};
-    use icn_dag::{AsyncStorageService, TokioFileDagStore};
+    use icn_common::{CommonError, Did, NodeScope};
+    use icn_dag::InMemoryDagStore;
     use icn_reputation::InMemoryReputationStore;
     use std::collections::HashMap;
     use std::str::FromStr;
@@ -302,15 +302,14 @@ mod scoped_token_tests {
         let reputation_store = InMemoryReputationStore::new();
 
         // Create DAG store for anchoring token events
-        let dir = tempdir().unwrap();
-        let dag_store = Box::new(TokioFileDagStore::new(dir.keep()).unwrap());
+        let dag_store = Box::new(InMemoryDagStore::new());
         let mut token_repo = ResourceRepositoryAdapter::with_dag_store(resource_ledger, dag_store);
 
         // Set up test actors
         let issuer = Did::from_str("did:key:issuer123").unwrap();
         let alice = Did::from_str("did:key:alice456").unwrap();
         let bob = Did::from_str("did:key:bob789").unwrap();
-        let scope = Some(NodeScope::Federation("test_coop".to_string()));
+        let scope = Some(NodeScope("test_coop".to_string()));
 
         // Create a token class first
         let coop_shares = TokenClass::new_fungible(
@@ -492,9 +491,10 @@ mod scoped_token_tests {
 
     #[test]
     fn test_marketplace_functionality() {
+        use crate::marketplace::{LaborHoursConfig, PhysicalGoodConfig, ServiceConfig};
         use crate::{
-            BidStatus, InMemoryMarketplaceStore, ItemType, MarketplaceBid, MarketplaceOffer,
-            MarketplaceStore, OfferFilter, OfferStatus,
+            InMemoryMarketplaceStore, MarketplaceBid, MarketplaceOffer, MarketplaceStore,
+            OfferFilter, OfferStatus,
         };
 
         let marketplace = InMemoryMarketplaceStore::new();
@@ -502,16 +502,16 @@ mod scoped_token_tests {
         let buyer = Did::from_str("did:key:buyer456").unwrap();
 
         // Create an offer for physical goods
-        let offer = MarketplaceOffer::new_physical_good(
-            "offer_001".to_string(),
-            seller.clone(),
-            "Organic tomatoes from local farm".to_string(),
-            "vegetables".to_string(),
-            "fresh".to_string(),
-            100, // 100 units
-            5,   // 5 tokens per unit
-            "local_currency".to_string(),
-        );
+        let offer = MarketplaceOffer::new_physical_good(PhysicalGoodConfig {
+            offer_id: "offer_001".to_string(),
+            seller: seller.clone(),
+            description: "Organic tomatoes from local farm".to_string(),
+            category: "vegetables".to_string(),
+            condition: "fresh".to_string(),
+            quantity: 100,     // 100 units
+            price_per_unit: 5, // 5 tokens per unit
+            payment_token_class: "local_currency".to_string(),
+        });
 
         // Create the offer
         marketplace.create_offer(offer.clone()).unwrap();
@@ -561,21 +561,22 @@ mod scoped_token_tests {
 
     #[test]
     fn test_marketplace_item_types() {
+        use crate::marketplace::{LaborHoursConfig, ServiceConfig};
         use crate::{ItemType, MarketplaceOffer};
 
         let seller = Did::from_str("did:key:seller123").unwrap();
 
         // Test service offer
-        let service_offer = MarketplaceOffer::new_service(
-            "service_001".to_string(),
-            seller.clone(),
-            "Web development services".to_string(),
-            "software_development".to_string(),
-            Some("per_hour".to_string()),
-            40, // 40 hours available
-            50, // 50 tokens per hour
-            "time_banking".to_string(),
-        );
+        let service_offer = MarketplaceOffer::new_service(ServiceConfig {
+            offer_id: "service_001".to_string(),
+            seller: seller.clone(),
+            description: "Web development services".to_string(),
+            category: "software_development".to_string(),
+            duration_hours: 40, // 40 hours available
+            quantity: 1,
+            price_per_unit: 50, // 50 tokens per hour
+            payment_token_class: "time_banking".to_string(),
+        });
 
         if let ItemType::Service {
             service_type,
@@ -583,29 +584,29 @@ mod scoped_token_tests {
         } = &service_offer.item_type
         {
             assert_eq!(service_type, "software_development");
-            assert_eq!(duration, &Some("per_hour".to_string()));
+            assert_eq!(duration, &Some("40 hours".to_string()));
         } else {
             panic!("Expected Service item type");
         }
 
         // Test labor hours offer
-        let labor_offer = MarketplaceOffer::new_labor_hours(
-            "labor_001".to_string(),
-            seller.clone(),
-            "Carpentry work".to_string(),
-            "carpentry".to_string(),
-            "experienced".to_string(),
-            80, // 80 hours
-            25, // 25 tokens per hour
-            "time_banking".to_string(),
-        );
+        let labor_offer = MarketplaceOffer::new_labor_hours(LaborHoursConfig {
+            offer_id: "labor_001".to_string(),
+            seller: seller.clone(),
+            description: "Carpentry work".to_string(),
+            skill_level: "experienced".to_string(),
+            duration_hours: 80, // 80 hours
+            quantity: 1,
+            price_per_unit: 25, // 25 tokens per hour
+            payment_token_class: "time_banking".to_string(),
+        });
 
         if let ItemType::LaborHours {
             skill_type,
             experience_level,
         } = &labor_offer.item_type
         {
-            assert_eq!(skill_type, "carpentry");
+            assert_eq!(skill_type, "experienced (80h)");
             assert_eq!(experience_level, "experienced");
         } else {
             panic!("Expected LaborHours item type");

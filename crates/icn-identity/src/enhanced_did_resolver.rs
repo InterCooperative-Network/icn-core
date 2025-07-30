@@ -16,8 +16,11 @@ use std::sync::{Arc, Mutex, RwLock};
 struct CacheEntry {
     verifying_key: ed25519_dalek::VerifyingKey,
     expires_at: u64,
+    #[allow(dead_code)]
     method_used: String,
+    #[allow(dead_code)]
     access_count: u64,
+    #[allow(dead_code)]
     last_accessed: u64,
 }
 
@@ -206,8 +209,7 @@ impl EnhancedDidResolver {
         }
 
         Err(CommonError::IdentityError(format!(
-            "Failed to resolve DID {} with any available method",
-            did
+            "Failed to resolve DID {did} with any available method"
         )))
     }
 
@@ -230,8 +232,7 @@ impl EnhancedDidResolver {
                 }
             }
             _ => Err(CommonError::IdentityError(format!(
-                "Unsupported DID method: {}",
-                method
+                "Unsupported DID method: {method}"
             ))),
         }
     }
@@ -276,6 +277,7 @@ impl EnhancedDidResolver {
     }
 
     /// Evict oldest cache entry (simple FIFO for now)
+    #[allow(dead_code)]
     fn evict_oldest_entry(&self, cache: &mut HashMap<String, CacheEntry>) {
         let mut oldest_key = None;
         let mut oldest_time = u64::MAX;

@@ -172,6 +172,8 @@ pub struct ResponseEnvelope<T> {
     pub success: bool,
     pub message: Option<String>,
 }
+
+#[allow(async_fn_in_trait)]
 pub trait CredentialTrait {
     /// Issue a new credential
     async fn issue_credential(
@@ -222,7 +224,7 @@ pub trait CredentialTrait {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::{Cid, Did};
+    use icn_common::Did;
 
     #[test]
     fn test_issue_credential_request_serialization() {

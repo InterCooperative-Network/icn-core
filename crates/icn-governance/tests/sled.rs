@@ -1,6 +1,6 @@
 #[cfg(feature = "persist-sled")]
 mod tests {
-    use icn_common::Did;
+    use icn_common::{Did, FixedTimeProvider};
     use icn_governance::{
         GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
     };
@@ -9,21 +9,25 @@ mod tests {
 
     #[tokio::test]
     async fn sled_round_trip() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         // temp DB directory
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap(); // Pass PathBuf
 
         // 1. submit
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::GenericText("hello".into()),
-                description: "desc".into(),
-                duration_secs: 60,
-                quorum: None,
-                threshold: None,
-                content_cid: None,
-            })
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: Did::from_str("did:example:alice").unwrap(),
+                    proposal_type: ProposalType::GenericText("hello".into()),
+                    description: "desc".into(),
+                    duration_secs: 60,
+                    quorum: None,
+                    threshold: None,
+                    content_cid: None,
+                },
+                &time_provider,
+            )
             .unwrap();
 
         gov.open_voting(&pid).unwrap();
@@ -33,6 +37,7 @@ mod tests {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
 
@@ -50,36 +55,42 @@ mod tests {
 
     #[tokio::test]
     async fn sled_execute_persist() {
+        let time_provider = FixedTimeProvider::new(1640995200);
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
         gov.add_member(Did::from_str("did:example:alice").unwrap());
         gov.add_member(Did::from_str("did:example:bob").unwrap());
         gov.set_quorum(2);
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::GenericText("hi".into()),
-                description: "desc".into(),
-                duration_secs: 60,
-                quorum: None,
-                threshold: None,
-                content_cid: None,
-            })
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: Did::from_str("did:example:alice").unwrap(),
+                    proposal_type: ProposalType::GenericText("hi".into()),
+                    description: "desc".into(),
+                    duration_secs: 60,
+                    quorum: None,
+                    threshold: None,
+                    content_cid: None,
+                },
+                &time_provider,
+            )
             .unwrap();
         gov.open_voting(&pid).unwrap();
         gov.cast_vote(
             Did::from_str("did:example:alice").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
         gov.cast_vote(
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &time_provider,
         )
         .unwrap();
-        let _ = gov.close_voting_period(&pid).unwrap();
+        let _ = gov.close_voting_period(&pid, &time_provider).unwrap();
         gov.execute_proposal(&pid).unwrap();
         drop(gov);
         let gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
@@ -91,15 +102,11 @@ mod tests {
     async fn sled_external_proposal_persists() {
         use icn_governance::{Proposal, ProposalId};
         use std::collections::HashMap;
-        use std::time::{SystemTime, UNIX_EPOCH};
 
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
 
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = 1640995200u64; // Fixed timestamp
         let pid = ProposalId("ext-prop-1".to_string());
         let proposal = Proposal {
             id: pid.clone(),
@@ -126,29 +133,29 @@ mod tests {
     #[tokio::test]
     async fn sled_external_vote_persists() {
         use icn_governance::Vote;
-        use std::time::{SystemTime, UNIX_EPOCH};
 
+        let time_provider = FixedTimeProvider::new(1640995200);
         let dir = tempdir().unwrap();
         let mut gov = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::GenericText("vote".into()),
-                description: "desc".into(),
-                duration_secs: 60,
-                quorum: None,
-                threshold: None,
-                content_cid: None,
-            })
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: Did::from_str("did:example:alice").unwrap(),
+                    proposal_type: ProposalType::GenericText("vote".into()),
+                    description: "desc".into(),
+                    duration_secs: 60,
+                    quorum: None,
+                    threshold: None,
+                    content_cid: None,
+                },
+                &time_provider,
+            )
             .unwrap();
         gov.open_voting(&pid).unwrap();
         drop(gov);
 
         let mut gov2 = GovernanceModule::new_sled(dir.path().to_path_buf()).unwrap();
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let now = 1640995201u64; // Fixed timestamp
         let vote = Vote {
             voter: Did::from_str("did:example:bob").unwrap(),
             proposal_id: pid.clone(),

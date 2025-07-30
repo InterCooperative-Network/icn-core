@@ -4,9 +4,8 @@
 //! allowing for realistic trust relationship dynamics in the cooperative network.
 
 use crate::trust_graph::{TrustEdge, TrustGraph};
-use icn_common::{Did, TimeProvider};
+use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Different types of decay models for trust relationships
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -199,6 +198,7 @@ impl TrustDecayCalculator {
     }
 
     /// Apply a specific decay model to calculate decay factor
+    #[allow(clippy::only_used_in_recursion)]
     fn apply_decay_model(&self, model: &DecayModel, age_seconds: u64) -> f64 {
         match model {
             DecayModel::Exponential { half_life_seconds } => {
@@ -391,11 +391,11 @@ impl Default for TrustDecayCalculator {
 mod tests {
     use super::*;
     use crate::trust_graph::TrustGraph;
-    use icn_common::FixedTimeProvider;
+    use icn_common::{Did, FixedTimeProvider};
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
-        Did::from_str(&format!("did:test:{}", id)).unwrap()
+        Did::from_str(&format!("did:test:{id}")).unwrap()
     }
 
     #[test]
@@ -553,7 +553,7 @@ mod tests {
 
     #[test]
     fn test_apply_decay_to_graph() {
-        let mut calculator = TrustDecayCalculator::with_time_decay(DecayModel::Linear {
+        let calculator = TrustDecayCalculator::with_time_decay(DecayModel::Linear {
             decay_period_seconds: 86400, // 1 day
         });
         let mut graph = TrustGraph::new();

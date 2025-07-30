@@ -1,5 +1,4 @@
 use icn_runtime::context::{RuntimeContext, MANA_MAX_CAPACITY_KEY};
-use std::time::Duration;
 
 #[tokio::test]
 async fn balances_increase_when_regenerator_runs() {
@@ -24,7 +23,7 @@ async fn balances_increase_when_regenerator_runs() {
     let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
     let reputation = ctx.reputation_store.get_reputation(&ctx.current_identity);
     let base_regeneration = 10u64;
-    let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0);
+    let reputation_multiplier = (reputation as f64 / 100.0).clamp(0.1, 2.0);
     let regeneration_amount = (base_regeneration as f64 * reputation_multiplier) as u64;
     let max_capacity: u64 = ctx
         .parameters
@@ -33,7 +32,7 @@ async fn balances_increase_when_regenerator_runs() {
         .unwrap();
 
     let actual_regen = if current_balance < max_capacity {
-        let actual_regen = std::cmp::min(regeneration_amount, max_capacity - current_balance);
+        let actual_regen = regeneration_amount.clamp(0, max_capacity - current_balance);
         ctx.mana_ledger
             .set_balance(&ctx.current_identity, current_balance + actual_regen)
             .unwrap();
@@ -61,15 +60,15 @@ async fn capacity_updates_allow_more_mana() {
     let current_balance = ctx.mana_ledger.get_balance(&ctx.current_identity);
     let reputation = ctx.reputation_store.get_reputation(&ctx.current_identity);
     let base_regeneration = 10u64;
-    let reputation_multiplier = (reputation as f64 / 100.0).max(0.1).min(2.0);
+    let reputation_multiplier = (reputation as f64 / 100.0).clamp(0.1, 2.0);
     let regen_amount = (base_regeneration as f64 * reputation_multiplier) as u64;
     let cap1: u64 = ctx
         .parameters
         .get(MANA_MAX_CAPACITY_KEY)
         .and_then(|v| v.value().parse().ok())
         .unwrap();
-    let apply1 = if current_balance < cap1 {
-        let val = std::cmp::min(regen_amount, cap1 - current_balance);
+    let _apply1 = if current_balance < cap1 {
+        let val = regen_amount.clamp(0, cap1 - current_balance);
         ctx.mana_ledger
             .set_balance(&ctx.current_identity, current_balance + val)
             .unwrap();
@@ -91,7 +90,7 @@ async fn capacity_updates_allow_more_mana() {
         .and_then(|v| v.value().parse().ok())
         .unwrap();
     let _ = if current_balance < cap2 {
-        let val = std::cmp::min(regen_amount, cap2 - current_balance);
+        let val = regen_amount.clamp(0, cap2 - current_balance);
         ctx.mana_ledger
             .set_balance(&ctx.current_identity, current_balance + val)
             .unwrap();

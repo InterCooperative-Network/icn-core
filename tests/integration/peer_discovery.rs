@@ -2,12 +2,12 @@
 mod peer_discovery {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::NetworkService;
-    use libp2p::PeerId as Libp2pPeerId;
+    // ...existing code...
     use tokio::time::{sleep, Duration};
 
     #[tokio::test]
     async fn nodes_discover_each_other() {
-        env_logger::try_init().ok();
+        // ...existing code...
         let mut cfg_a = NetworkConfig::default();
         cfg_a.peer_discovery_interval = Duration::from_secs(2);
         let node_a = Libp2pNetworkService::new(cfg_a).await.expect("a start");

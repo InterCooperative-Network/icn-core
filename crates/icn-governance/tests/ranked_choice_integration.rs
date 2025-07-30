@@ -1,6 +1,6 @@
 //! Integration tests for ranked choice voting functionality
 
-use icn_common::{Did, DidDocument, Signable};
+use icn_common::{Did, DidDocument, FixedTimeProvider, Signable};
 use icn_governance::{
     BallotAnchoringService, BallotId, BallotValidator, Candidate, CandidateId, Election,
     ElectionId, EligibilityRules, RankedChoiceBallot, RankedChoiceBallotValidator,
@@ -29,7 +29,7 @@ fn create_test_did_document(id: &str) -> DidDocument {
 }
 
 fn create_test_election() -> Election {
-    let now = SystemTime::now();
+    let now = SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200);
     let voting_period = VotingPeriod {
         start_time: now,
         end_time: now + std::time::Duration::from_secs(3600), // 1 hour voting period
@@ -85,7 +85,7 @@ fn create_test_ballot(
             .into_iter()
             .map(|s| CandidateId(s.to_string()))
             .collect(),
-        timestamp: SystemTime::now(),
+        timestamp: SystemTime::UNIX_EPOCH + std::time::Duration::from_secs(1640995200),
         signature: Signature {
             algorithm: "ed25519".to_string(),
             value: vec![0u8; 64], // Mock signature
@@ -278,6 +278,7 @@ async fn test_ballot_preference_validation() {
 async fn test_enhanced_voting_primitives_integration() {
     use icn_dag::InMemoryDagStore;
 
+    let time_provider = FixedTimeProvider::new(1640995200);
     // Create comprehensive voting system with all components
     let did_resolver = Arc::new(KeyDidResolver);
     let voting_system = RankedChoiceVotingSystem::new(did_resolver.clone(), 1);
@@ -360,7 +361,7 @@ async fn test_enhanced_voting_primitives_integration() {
 
     // Test linking ballots for election result
     let election_result_cid = anchoring_service
-        .link_ballots(&election.election_id, ballot_cids.clone())
+        .link_ballots(&election.election_id, ballot_cids.clone(), &time_provider)
         .unwrap();
     assert!(!election_result_cid.to_string().is_empty());
 
@@ -389,6 +390,7 @@ async fn test_enhanced_voting_primitives_integration() {
 
 #[tokio::test]
 async fn test_election_configuration() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     let election = create_test_election();
 
     // Verify election properties
@@ -406,7 +408,7 @@ async fn test_election_configuration() {
     assert!(candidate_names.contains(&&"Charlie Brown".to_string()));
 
     // Verify voting period is active
-    assert!(election.voting_period.is_active());
-    assert!(!election.voting_period.has_ended());
-    assert!(!election.voting_period.has_not_started());
+    assert!(election.voting_period.is_active(&time_provider));
+    assert!(!election.voting_period.has_ended(&time_provider));
+    assert!(!election.voting_period.has_not_started(&time_provider));
 }

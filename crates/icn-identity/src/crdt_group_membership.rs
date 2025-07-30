@@ -100,7 +100,7 @@ impl CRDTGroupMembership {
                 .collect();
 
             if let Err(e) = manager.create_group_with_members(group_id, &members) {
-                warn!("Failed to create initial group {}: {}", group_id, e);
+                warn!("Failed to create initial group {group_id}: {e}");
             }
         }
 
@@ -145,12 +145,11 @@ impl CRDTGroupMembership {
 
     /// Create a new group.
     pub fn create_group(&self, group_id: &str) -> Result<(), CommonError> {
-        debug!("Creating group: {}", group_id);
+        debug!("Creating group: {group_id}");
 
         if self.group_exists(group_id) {
             return Err(CommonError::InvalidInputError(format!(
-                "Group {} already exists",
-                group_id
+                "Group {group_id} already exists"
             )));
         }
 
@@ -159,13 +158,13 @@ impl CRDTGroupMembership {
             .write()
             .map_err(|_| CommonError::LockError("Failed to acquire write lock".to_string()))?;
 
-        let or_set_id = format!("group_{}", group_id);
+        let or_set_id = format!("group_{group_id}");
         let or_set = ORSet::new(or_set_id, self.node_id.clone());
 
         map.put(group_id.to_string(), or_set, self.node_id.clone())
-            .map_err(|e| CommonError::CRDTError(format!("Failed to create group: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to create group: {e}")))?;
 
-        debug!("Successfully created group: {}", group_id);
+        debug!("Successfully created group: {group_id}");
         Ok(())
     }
 
@@ -191,7 +190,7 @@ impl CRDTGroupMembership {
 
     /// Add a member to a group.
     pub fn add_member(&self, group_id: &str, member: &Did) -> Result<(), CommonError> {
-        debug!("Adding member {} to group {}", member, group_id);
+        debug!("Adding member {member} to group {group_id}");
 
         // Auto-create group if enabled and group doesn't exist
         if !self.group_exists(group_id) {
@@ -199,8 +198,7 @@ impl CRDTGroupMembership {
                 self.create_group(group_id)?;
             } else {
                 return Err(CommonError::InvalidInputError(format!(
-                    "Group {} does not exist",
-                    group_id
+                    "Group {group_id} does not exist"
                 )));
             }
         }
@@ -225,18 +223,17 @@ impl CRDTGroupMembership {
         // Update the OR-Set in the map
         self.update_or_set(group_id, or_set)?;
 
-        debug!("Successfully added member {} to group {}", member, group_id);
+        debug!("Successfully added member {member} to group {group_id}");
         Ok(())
     }
 
     /// Remove a member from a group.
     pub fn remove_member(&self, group_id: &str, member: &Did) -> Result<(), CommonError> {
-        debug!("Removing member {} from group {}", member, group_id);
+        debug!("Removing member {member} from group {group_id}");
 
         if !self.group_exists(group_id) {
             return Err(CommonError::InvalidInputError(format!(
-                "Group {} does not exist",
-                group_id
+                "Group {group_id} does not exist"
             )));
         }
 
@@ -249,10 +246,7 @@ impl CRDTGroupMembership {
         // Update the OR-Set in the map
         self.update_or_set(group_id, or_set)?;
 
-        debug!(
-            "Successfully removed member {} from group {}",
-            member, group_id
-        );
+        debug!("Successfully removed member {member} from group {group_id}");
         Ok(())
     }
 
@@ -368,12 +362,11 @@ impl CRDTGroupMembership {
 
     /// Remove a group entirely.
     pub fn remove_group(&self, group_id: &str) -> Result<(), CommonError> {
-        debug!("Removing group: {}", group_id);
+        debug!("Removing group: {group_id}");
 
         if !self.group_exists(group_id) {
             return Err(CommonError::InvalidInputError(format!(
-                "Group {} does not exist",
-                group_id
+                "Group {group_id} does not exist"
             )));
         }
 
@@ -383,9 +376,9 @@ impl CRDTGroupMembership {
             .map_err(|_| CommonError::LockError("Failed to acquire write lock".to_string()))?;
 
         map.remove(&group_id.to_string(), self.node_id.clone())
-            .map_err(|e| CommonError::CRDTError(format!("Failed to remove group: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to remove group: {e}")))?;
 
-        debug!("Successfully removed group: {}", group_id);
+        debug!("Successfully removed group: {group_id}");
         Ok(())
     }
 
@@ -433,15 +426,15 @@ impl CRDTGroupMembership {
             Ok(or_set.clone())
         } else {
             // Create new OR-Set for this group
-            let or_set_id = format!("group_{}", group_id);
+            let or_set_id = format!("group_{group_id}");
             let or_set = ORSet::new(or_set_id, self.node_id.clone());
 
             map.put(group_id.to_string(), or_set.clone(), self.node_id.clone())
                 .map_err(|e| {
-                    CommonError::CRDTError(format!("Failed to create group OR-Set: {}", e))
+                    CommonError::CRDTError(format!("Failed to create group OR-Set: {e}"))
                 })?;
 
-            debug!("Created new OR-Set for group: {}", group_id);
+            debug!("Created new OR-Set for group: {group_id}");
             Ok(or_set)
         }
     }
@@ -454,7 +447,7 @@ impl CRDTGroupMembership {
             .map_err(|_| CommonError::LockError("Failed to acquire write lock".to_string()))?;
 
         map.put(group_id.to_string(), or_set, self.node_id.clone())
-            .map_err(|e| CommonError::CRDTError(format!("Failed to update group OR-Set: {}", e)))?;
+            .map_err(|e| CommonError::CRDTError(format!("Failed to update group OR-Set: {e}")))?;
 
         Ok(())
     }
@@ -566,9 +559,11 @@ mod tests {
 
     #[test]
     fn test_crdt_group_membership_auto_create() {
-        let mut config = CRDTGroupMembershipConfig::default();
-        config.node_id = "test_node".to_string();
-        config.auto_create_groups = true;
+        let config = CRDTGroupMembershipConfig {
+            node_id: "test_node".to_string(),
+            auto_create_groups: true,
+            ..Default::default()
+        };
 
         let manager = CRDTGroupMembership::new(config);
 
@@ -580,9 +575,11 @@ mod tests {
 
     #[test]
     fn test_crdt_group_membership_max_members() {
-        let mut config = CRDTGroupMembershipConfig::default();
-        config.node_id = "test_node".to_string();
-        config.max_members_per_group = 2;
+        let config = CRDTGroupMembershipConfig {
+            node_id: "test_node".to_string(),
+            max_members_per_group: 2,
+            ..Default::default()
+        };
 
         let manager = CRDTGroupMembership::new(config);
 

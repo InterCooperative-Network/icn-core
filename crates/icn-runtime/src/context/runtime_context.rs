@@ -102,7 +102,7 @@ use bincode;
 use dashmap::DashMap;
 use icn_common::{
     compute_merkle_cid, Cid, CommonError, DagBlock, Did, NodeScope, SysinfoSystemInfoProvider,
-    SystemInfoProvider, TimeProvider,
+    SystemInfoProvider, SystemTimeProvider, TimeProvider,
 };
 use icn_economics::{LedgerEvent, ManaLedger};
 use icn_governance::GovernanceModule;
@@ -1176,7 +1176,7 @@ impl RuntimeContext {
         {
             log::warn!("⚠️  No persistent storage features enabled for mana ledger");
             log::warn!("⚠️  This may indicate the use of a file-based or other fallback backend");
-            return Ok("File-based or fallback backend".to_string());
+            Ok("File-based or fallback backend".to_string())
         }
     }
 
@@ -1226,11 +1226,11 @@ impl RuntimeContext {
         // Create production network service
         #[cfg(feature = "enable-libp2p")]
         {
-            use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
+            use icn_network::libp2p_service::NetworkConfig;
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
-                bootstrap_peers: vec![], // No bootstrap peers by default
+                bootstrap_peers: vec![],     // No bootstrap peers by default
                 discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
@@ -1245,16 +1245,16 @@ impl RuntimeContext {
 
             // Create libp2p network service - this is async but we're in sync context
             // We'll need to return an error for now and suggest using the async version
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Cannot create libp2p network service in synchronous context. Use new_async() or new_with_network_service() instead.".to_string()
-            ));
+            ))
         }
 
         #[cfg(not(feature = "enable-libp2p"))]
         {
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Production RuntimeContext requires libp2p feature or explicit network service. Enable the 'enable-libp2p' feature or use new_with_network_service().".to_string()
-            ));
+            ))
         }
     }
 
@@ -1355,7 +1355,7 @@ impl RuntimeContext {
             signer,
             mana_ledger,
             network_service,
-            dag_store.map(|store| DagStoreWrapper::generic_production(store)),
+            dag_store.map(DagStoreWrapper::generic_production),
         )?;
         Self::from_service_config(config)
     }
@@ -1439,7 +1439,7 @@ impl RuntimeContext {
 
             let config = NetworkConfig {
                 listen_addresses: vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()], // Random port
-                bootstrap_peers: vec![], // No bootstrap peers by default
+                bootstrap_peers: vec![],     // No bootstrap peers by default
                 discovery_addresses: vec![], // No discovery addresses by default
                 enable_mdns: true,
                 max_peers: 100,
@@ -1474,9 +1474,9 @@ impl RuntimeContext {
 
         #[cfg(not(feature = "enable-libp2p"))]
         {
-            return Err(CommonError::InternalError(
+            Err(CommonError::InternalError(
                 "Production RuntimeContext requires libp2p feature enabled. Enable the 'enable-libp2p' feature.".to_string()
-            ));
+            ))
         }
     }
 
@@ -1860,7 +1860,10 @@ impl RuntimeContext {
         let temp_job_id_cid = Cid::new_v1_sha256(0x55, &hasher.finalize());
         let temp_job_id = JobId::from(temp_job_id_cid);
 
-        log::debug!("[handle_submit_job] Generated temporary job ID: {}", temp_job_id);
+        log::debug!(
+            "[handle_submit_job] Generated temporary job ID: {}",
+            temp_job_id
+        );
 
         // 5. Create the Job DAG node with temporary ID
         let mut job = Job {
@@ -1877,11 +1880,11 @@ impl RuntimeContext {
 
         // 6. Store job in DAG and get the actual computed CID
         let job_dag_cid = self.store_job_in_dag(&job).await?;
-        
+
         // 7. Update the job ID to match the actual DAG storage CID
         let actual_job_id = JobId::from(job_dag_cid.clone());
         job.id = actual_job_id.clone();
-        
+
         log::info!(
             "[handle_submit_job] Job stored in DAG with CID: {} (updated job ID from {} to {})",
             job_dag_cid,
@@ -1890,7 +1893,8 @@ impl RuntimeContext {
         );
 
         // 8. Update job state tracking with the actual job ID
-        self.job_states.insert(actual_job_id.clone(), JobState::Pending);
+        self.job_states
+            .insert(actual_job_id.clone(), JobState::Pending);
 
         // 9. Create ActualMeshJob for network announcement with the actual job ID
         let actual_job = ActualMeshJob {
@@ -3038,16 +3042,20 @@ impl RuntimeContext {
             None
         };
 
+        let time_provider = SystemTimeProvider;
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: self.current_identity.clone(),
-                proposal_type,
-                description: payload.description,
-                duration_secs: payload.duration_secs,
-                quorum: payload.quorum,
-                threshold: payload.threshold,
-                content_cid,
-            })
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: self.current_identity.clone(),
+                    proposal_type,
+                    description: payload.description,
+                    duration_secs: payload.duration_secs,
+                    quorum: payload.quorum,
+                    threshold: payload.threshold,
+                    content_cid,
+                },
+                &time_provider,
+            )
             .map_err(|e| {
                 HostAbiError::InternalError(format!("Failed to submit proposal: {}", e))
             })?;
@@ -3093,8 +3101,14 @@ impl RuntimeContext {
         };
 
         let mut gov = self.governance_module.lock().await;
-        gov.cast_vote(self.current_identity.clone(), &proposal_id, vote_option)
-            .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
+        let time_provider = SystemTimeProvider;
+        gov.cast_vote(
+            self.current_identity.clone(),
+            &proposal_id,
+            vote_option,
+            &time_provider,
+        )
+        .map_err(|e| HostAbiError::InternalError(format!("Failed to cast vote: {}", e)))?;
 
         let vote = icn_governance::Vote {
             voter: self.current_identity.clone(),
@@ -3124,8 +3138,9 @@ impl RuntimeContext {
             .map_err(|e| HostAbiError::InvalidParameters(format!("Invalid proposal id: {}", e)))?;
 
         let mut gov = self.governance_module.lock().await;
+        let time_provider = SystemTimeProvider;
         let (status, (yes, no, abstain)) = gov
-            .close_voting_period(&proposal_id)
+            .close_voting_period(&proposal_id, &time_provider)
             .map_err(|e| HostAbiError::InternalError(format!("Failed to close voting: {}", e)))?;
 
         let proposal = gov
@@ -4392,7 +4407,7 @@ impl RuntimeContext {
 
         let mut hasher = Sha256::new();
         hasher.update(seed);
-        hasher.update(&reputation.to_le_bytes());
+        hasher.update(reputation.to_le_bytes());
         let hash = hasher.finalize();
         let val = u64::from_le_bytes(hash[0..8].try_into().expect("slice"));
         0.9 + (val as f64 / u64::MAX as f64) * 0.2
@@ -4637,8 +4652,8 @@ impl RuntimeContext {
 mod tests {
     use super::*;
     use icn_identity::{verify_signature, verifying_key_from_did_key, EdSignature};
-    use icn_mesh::{JobKind, Resources};
-    use icn_protocol::{JobSpec, MeshJobAnnouncementMessage};
+    use icn_mesh::{JobKind, JobSpec as MeshJobSpec, Resources};
+    use icn_protocol::MeshJobAnnouncementMessage;
     use std::str::FromStr;
 
     #[tokio::test]
@@ -4656,7 +4671,7 @@ mod tests {
             manifest_cid: Cid::new_v1_sha256(0x71, b"man"),
             creator_did: did.clone(),
             max_cost_mana: 10,
-            job_spec: JobSpec {
+            job_spec: icn_protocol::JobSpec {
                 kind: icn_protocol::JobKind::Echo {
                     payload: "hi".into(),
                 },
@@ -4694,18 +4709,21 @@ mod tests {
             creator_did: did.clone(),
             cost_mana: 5,
             max_execution_wait_ms: None,
-            spec: JobSpec {
-                kind: icn_protocol::JobKind::Echo {
+            spec: MeshJobSpec {
+                kind: icn_mesh::JobKind::Echo {
                     payload: "hi".into(),
                 },
                 inputs: vec![],
                 outputs: vec![],
-                required_resources: icn_protocol::ResourceRequirements {
+                required_resources: icn_mesh::Resources {
                     cpu_cores: 8,
                     memory_mb: 2048,
                     storage_mb: 0,
-                    max_execution_time_secs: 60,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: None,
+                allowed_federations: vec![],
             },
             signature: icn_identity::SignatureBytes(vec![]),
         };

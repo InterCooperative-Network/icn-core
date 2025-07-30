@@ -64,7 +64,7 @@ fn main() {
         }
         Err(e) => {
             println!("❌ COMPREHENSIVE GOVERNANCE TEST FAILED:");
-            println!("   Error: {}", e);
+            println!("   Error: {e}");
             println!();
             println!("🔍 **Error Analysis:**");
             let error_str = e.to_string();
@@ -74,7 +74,7 @@ fn main() {
                     .split("Unknown function ")
                     .nth(1)
                     .unwrap_or("unknown");
-                println!("   🚨 Missing WASM backend for: {}", missing_func);
+                println!("   🚨 Missing WASM backend for: {missing_func}");
                 println!("   💡 Solution: Add function to wasm_backend.rs imports");
             } else if error_str.contains("Type mismatch") {
                 println!("   🚨 Type compatibility issue");
@@ -83,7 +83,7 @@ fn main() {
                 println!("   🚨 Grammar or syntax issue");
                 println!("   💡 Solution: Check CCL syntax");
             } else {
-                println!("   🚨 Other issue: {}", error_str);
+                println!("   🚨 Other issue: {error_str}");
             }
 
             println!();

@@ -169,7 +169,7 @@ fn main() {
             println!("🌍 **CCL is ready to empower cooperatives worldwide!**");
         }
         Err(e) => {
-            println!("❌ Final demo contract compilation failed: {}", e);
+            println!("❌ Final demo contract compilation failed: {e}");
         }
     }
 }

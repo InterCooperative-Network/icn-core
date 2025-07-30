@@ -12,7 +12,7 @@ use icn_dag::{
 use std::time::{SystemTime, UNIX_EPOCH};
 
 fn create_test_block(id: &str, links: Vec<DagLink>) -> DagBlock {
-    let data = format!("data for {}", id).into_bytes();
+    let data = format!("data for {id}").into_bytes();
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -39,7 +39,11 @@ fn test_federation_sync_complete_workflow() {
     let node_b_id = Did::new("key", "node_b");
 
     let store_a = InMemoryDagStore::new();
-    let store_b = InMemoryDagStore::new();
+    let mut store_b = InMemoryDagStore::new();
+
+    // Add a block to store B
+    let test_block = create_test_block("test_block", vec![]);
+    store_b.put(&test_block).unwrap();
 
     let config = FederationSyncConfig::default();
 
@@ -180,7 +184,7 @@ fn test_block_request_response_cycle() {
     let node_a_id = Did::new("key", "node_a");
     let node_b_id = Did::new("key", "node_b");
 
-    let mut store_a = InMemoryDagStore::new();
+    let store_a = InMemoryDagStore::new();
     let mut store_b = InMemoryDagStore::new();
 
     // Add a block to store B
@@ -189,7 +193,7 @@ fn test_block_request_response_cycle() {
 
     let config = FederationSyncConfig::default();
 
-    let mut sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
+    let _sync_a = FederationSync::new(store_a, node_a_id.clone(), config.clone());
     let mut sync_b = FederationSync::new(store_b, node_b_id.clone(), config);
 
     // Node A requests the block from Node B
@@ -223,7 +227,7 @@ fn test_delta_sync_request() {
     let node_a_id = Did::new("key", "node_a");
     let node_b_id = Did::new("key", "node_b");
 
-    let mut store_a = InMemoryDagStore::new();
+    let store_a = InMemoryDagStore::new();
     let mut store_b = InMemoryDagStore::new();
 
     // Create a chain of blocks in store B

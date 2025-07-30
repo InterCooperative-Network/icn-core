@@ -9,6 +9,7 @@ use crate::{MeshNetworkError, NetworkService, StubNetworkService};
 use icn_common::TimeProvider;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+#[cfg(feature = "libp2p")]
 use std::time::Duration;
 
 /// Network service environment types
@@ -145,15 +146,15 @@ impl NetworkServiceConfig {
         Self {
             listen_addresses: vec!["/ip4/0.0.0.0/tcp/4001".to_string()],
             bootstrap_peers: Vec::new(),
-            max_peers: 50, // Sufficient for devnet federation
+            max_peers: 50,        // Sufficient for devnet federation
             max_peers_per_ip: 10, // Allow multiple containers from same IP
             connection_timeout_ms: 10000,
             request_timeout_ms: 5000,
             heartbeat_interval_ms: 5000,
-            bootstrap_interval_secs: 30, // Much faster re-bootstrap
+            bootstrap_interval_secs: 30,      // Much faster re-bootstrap
             peer_discovery_interval_secs: 10, // Very fast discovery
-            enable_mdns: true, // Helps with local discovery in Docker
-            kademlia_replication_factor: 10, // Lower for smaller networks
+            enable_mdns: true,                // Helps with local discovery in Docker
+            kademlia_replication_factor: 10,  // Lower for smaller networks
             protocol_id: Some("icn-devnet".to_string()),
         }
     }
@@ -240,24 +241,19 @@ impl NetworkServiceFactory {
 
     /// Create development network service (prefers real, allows fallback)
     async fn create_development_service(
-        options: NetworkServiceOptions,
+        _options: NetworkServiceOptions,
     ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
-            let config = options.config.clone().unwrap_or_else(|| {
-                let mut cfg = NetworkServiceConfig::default();
-                cfg.enable_mdns = true; // Enable mDNS for local development
-                cfg.max_peers = 50; // Smaller peer limit for development
-                
-                // Add default development bootstrap peers if none provided
-                if cfg.bootstrap_peers.is_empty() {
-                    cfg.bootstrap_peers = Self::get_default_bootstrap_peers_for_env(NetworkEnvironment::Development);
+            let config = _options.config.clone().unwrap_or_else(|| {
+                NetworkServiceConfig {
+                    enable_mdns: true, // Enable mDNS for local development
+                    max_peers: 50,     // Smaller peer limit for development
+                    ..NetworkServiceConfig::default()
                 }
-                
-                cfg
             });
 
-            let libp2p_config = Self::convert_to_libp2p_config(config, &options);
+            let libp2p_config = Self::convert_to_libp2p_config(config, &_options);
 
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
@@ -290,21 +286,22 @@ impl NetworkServiceFactory {
 
     /// Create benchmarking network service (optimized for performance)
     async fn create_benchmarking_service(
-        options: NetworkServiceOptions,
+        _options: NetworkServiceOptions,
     ) -> NetworkServiceCreationResult {
         #[cfg(feature = "libp2p")]
         {
-            let config = options.config.clone().unwrap_or_else(|| {
-                let mut cfg = NetworkServiceConfig::default();
-                cfg.max_peers = 1000; // Higher peer limit for benchmarking
-                cfg.connection_timeout_ms = 5000; // Faster timeouts
-                cfg.request_timeout_ms = 2000;
-                cfg.heartbeat_interval_ms = 30000; // Less frequent heartbeats
-                cfg.enable_mdns = false; // Disable mDNS for cleaner benchmarks
-                cfg
+            let config = _options.config.clone().unwrap_or_else(|| {
+                NetworkServiceConfig {
+                    max_peers: 1000,             // Higher peer limit for benchmarking
+                    connection_timeout_ms: 5000, // Faster timeouts
+                    request_timeout_ms: 2000,
+                    heartbeat_interval_ms: 30000, // Less frequent heartbeats
+                    enable_mdns: false,           // Disable mDNS for cleaner benchmarks
+                    ..NetworkServiceConfig::default()
+                }
             });
 
-            let libp2p_config = Self::convert_to_libp2p_config(config, &options);
+            let libp2p_config = Self::convert_to_libp2p_config(config, &_options);
 
             match Libp2pNetworkService::new(libp2p_config).await {
                 Ok(service) => {
@@ -345,14 +342,18 @@ impl NetworkServiceFactory {
         // Parse bootstrap peers - only include those with valid peer IDs
         let mut bootstrap_peers = Vec::new();
         let mut discovery_addresses = Vec::new();
-        
+
         for peer in &config.bootstrap_peers {
             if let Ok(multiaddr) = peer.address.parse::<Multiaddr>() {
                 if !peer.peer_id.is_empty() {
                     // Explicit peer ID provided - validate it
                     if let Ok(peer_id) = PeerId::from_str(&peer.peer_id) {
                         bootstrap_peers.push((peer_id, multiaddr.clone()));
-                        log::debug!("Added bootstrap peer with known ID {} at {}", peer_id, multiaddr);
+                        log::debug!(
+                            "Added bootstrap peer with known ID {} at {}",
+                            peer_id,
+                            multiaddr
+                        );
                     } else {
                         log::warn!("Invalid peer ID for bootstrap peer: {}", peer.peer_id);
                     }
@@ -361,7 +362,11 @@ impl NetworkServiceFactory {
                     match Self::extract_peer_id_from_multiaddr(&multiaddr) {
                         Some(peer_id) => {
                             bootstrap_peers.push((peer_id, multiaddr.clone()));
-                            log::debug!("Extracted peer ID {} from multiaddr {}", peer_id, multiaddr);
+                            log::debug!(
+                                "Extracted peer ID {} from multiaddr {}",
+                                peer_id,
+                                multiaddr
+                            );
                         }
                         None => {
                             // No peer ID available - add to discovery addresses instead
@@ -378,15 +383,24 @@ impl NetworkServiceFactory {
                 log::warn!("Invalid bootstrap peer multiaddr: {}", peer.address);
             }
         }
-        
-        if bootstrap_peers.is_empty() && discovery_addresses.is_empty() && !config.bootstrap_peers.is_empty() {
+
+        if bootstrap_peers.is_empty()
+            && discovery_addresses.is_empty()
+            && !config.bootstrap_peers.is_empty()
+        {
             log::warn!("No valid bootstrap peers or discovery addresses could be parsed from configuration");
         } else {
             if !bootstrap_peers.is_empty() {
-                log::info!("Successfully configured {} bootstrap peer(s) with known IDs", bootstrap_peers.len());
+                log::info!(
+                    "Successfully configured {} bootstrap peer(s) with known IDs",
+                    bootstrap_peers.len()
+                );
             }
             if !discovery_addresses.is_empty() {
-                log::info!("Successfully configured {} discovery address(es) for initial connection", discovery_addresses.len());
+                log::info!(
+                    "Successfully configured {} discovery address(es) for initial connection",
+                    discovery_addresses.len()
+                );
             }
         }
 
@@ -465,7 +479,7 @@ impl NetworkServiceFactory {
     #[cfg(feature = "libp2p")]
     fn extract_peer_id_from_multiaddr(multiaddr: &libp2p::Multiaddr) -> Option<libp2p::PeerId> {
         use libp2p::multiaddr::Protocol;
-        
+
         for protocol in multiaddr.iter() {
             if let Protocol::P2p(peer_id) = protocol {
                 return Some(peer_id);
@@ -475,6 +489,7 @@ impl NetworkServiceFactory {
     }
 
     /// Get default bootstrap peers for specific environments
+    #[allow(dead_code)]
     fn get_default_bootstrap_peers_for_env(env: NetworkEnvironment) -> Vec<BootstrapPeer> {
         match env {
             NetworkEnvironment::Production => {
@@ -483,14 +498,12 @@ impl NetworkServiceFactory {
             }
             NetworkEnvironment::Development => {
                 // For development, provide some well-known development bootstrap addresses
-                vec![
-                    BootstrapPeer {
-                        peer_id: String::new(), // Will be discovered
-                        address: "/ip4/127.0.0.1/tcp/4001".to_string(),
-                        weight: Some(1),
-                        trusted: true,
-                    }
-                ]
+                vec![BootstrapPeer {
+                    peer_id: String::new(), // Will be discovered
+                    address: "/ip4/127.0.0.1/tcp/4001".to_string(),
+                    weight: Some(1),
+                    trusted: true,
+                }]
             }
             NetworkEnvironment::Testing => {
                 // For testing, no bootstrap peers needed typically

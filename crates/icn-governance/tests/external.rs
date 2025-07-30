@@ -1,20 +1,24 @@
-use icn_common::Did;
+use icn_common::{Did, FixedTimeProvider};
 use icn_governance::{GovernanceModule, ProposalSubmission, ProposalType};
 use std::str::FromStr;
 
 #[test]
 fn insert_external_proposal() {
+    let time_provider = FixedTimeProvider::new(1640995200);
     let mut gov = GovernanceModule::new();
     let pid = gov
-        .submit_proposal(ProposalSubmission {
-            proposer: Did::from_str("did:example:alice").unwrap(),
-            proposal_type: ProposalType::GenericText("external".into()),
-            description: "desc".into(),
-            duration_secs: 60,
-            quorum: None,
-            threshold: None,
-            content_cid: None,
-        })
+        .submit_proposal(
+            ProposalSubmission {
+                proposer: Did::from_str("did:example:alice").unwrap(),
+                proposal_type: ProposalType::GenericText("external".into()),
+                description: "desc".into(),
+                duration_secs: 60,
+                quorum: None,
+                threshold: None,
+                content_cid: None,
+            },
+            &time_provider,
+        )
         .unwrap();
     let proposal = gov.get_proposal(&pid).unwrap().unwrap();
 

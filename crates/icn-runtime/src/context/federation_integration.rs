@@ -4,13 +4,13 @@
 //! real federation management capabilities and replace hardcoded federations.
 
 use super::{HostAbiError, MeshNetworkServiceType};
-use icn_common::{CommonError, Did, TimeProvider};
+use icn_common::{Did, TimeProvider};
 use icn_identity::federation_manager::{FederationStatus, FederationType, MembershipPolicy};
 use icn_identity::{
     FederationInfo, FederationManager, FederationMembershipService, MembershipStatus,
 };
 use icn_reputation::ReputationStore;
-use log::{debug, error, info, warn};
+use log::{debug, info};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;

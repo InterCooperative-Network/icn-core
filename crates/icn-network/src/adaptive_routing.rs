@@ -157,7 +157,7 @@ impl RouteInfo {
         self.usage_count += 1;
 
         // Update success rate (exponential moving average)
-        self.success_rate = self.success_rate * 0.9;
+        self.success_rate *= 0.9;
         self.is_healthy = self.success_rate >= 0.8;
     }
 }
@@ -197,6 +197,7 @@ pub struct AdaptiveRoutingEngine {
     config: AdaptiveRoutingConfig,
     network_service: Arc<dyn NetworkService>,
     reputation_store: Option<Arc<dyn ReputationStore>>,
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
 
     // Route state
@@ -274,37 +275,10 @@ impl AdaptiveRoutingEngine {
     ) -> Result<Option<RouteInfo>, MeshNetworkError> {
         self.update_reputation_cache().await?;
 
-        let routes = self.routes.read().unwrap();
-        let reputation_cache = self.peer_reputation_cache.read().unwrap();
+        let best_route = self.select_best_route_from_available(destination)?;
 
-        if let Some(destination_routes) = routes.get(destination) {
-            // Filter healthy routes
-            let healthy_routes: Vec<&RouteInfo> = destination_routes
-                .iter()
-                .filter(|route| route.is_healthy)
-                .collect();
-
-            if healthy_routes.is_empty() {
-                return Ok(None);
-            }
-
-            // Score and select best route
-            let mut scored_routes: Vec<(f64, &RouteInfo)> = healthy_routes
-                .iter()
-                .map(|route| {
-                    let score =
-                        route.calculate_score(&self.config.selection_weights, &reputation_cache);
-                    (score, *route)
-                })
-                .collect();
-
-            scored_routes
-                .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
-
-            if let Some((score, best_route)) = scored_routes.first() {
-                log::debug!("Selected route to {} with score {:.3}", destination, score);
-                return Ok(Some((*best_route).clone()));
-            }
+        if let Some(route) = best_route {
+            return Ok(Some(route));
         }
 
         // No existing route found, try to discover one
@@ -397,7 +371,7 @@ impl AdaptiveRoutingEngine {
         let mut routes = self.routes.write().unwrap();
         routes
             .entry(destination.clone())
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(route.clone());
 
         let _ = self.event_tx.send(RoutingEvent::RouteDiscovered {
@@ -467,7 +441,7 @@ impl AdaptiveRoutingEngine {
         route: RouteInfo,
     ) -> Result<(), MeshNetworkError> {
         let mut routes = self.routes.write().unwrap();
-        let destination_routes = routes.entry(destination.clone()).or_insert_with(Vec::new);
+        let destination_routes = routes.entry(destination.clone()).or_default();
 
         // Don't add duplicate routes
         if !destination_routes.iter().any(|r| r.hops == route.hops) {
@@ -491,16 +465,25 @@ impl AdaptiveRoutingEngine {
     /// Update reputation cache from reputation store
     async fn update_reputation_cache(&self) -> Result<(), MeshNetworkError> {
         if let Some(reputation_store) = &self.reputation_store {
-            let mut cache = self.peer_reputation_cache.write().unwrap();
-
             // Get connected peers and their reputations
             let peers = self.network_service.discover_peers(None).await?;
+
+            // Collect all peer reputations first
+            let mut peer_reputations = Vec::new();
             for peer in peers {
                 if let Ok(did) = self.peer_id_to_did(&peer).await {
                     let reputation = reputation_store.get_reputation(&did) as f64 / 100.0; // Normalize
-                    cache.insert(peer, reputation);
+                    peer_reputations.push((peer, reputation));
                 }
             }
+
+            // Update cache in one go (lock held for shorter time)
+            {
+                let mut cache = self.peer_reputation_cache.write().unwrap();
+                for (peer, reputation) in peer_reputations {
+                    cache.insert(peer, reputation);
+                }
+            } // Lock is dropped here
         }
 
         Ok(())
@@ -605,7 +588,7 @@ impl AdaptiveRoutingEngine {
             .read()
             .unwrap()
             .get(destination)
-            .map(|routes| routes.clone())
+            .cloned()
             .unwrap_or_default()
     }
 
@@ -657,6 +640,49 @@ impl AdaptiveRoutingEngine {
         }
 
         Ok(topology)
+    }
+
+    /// Helper method to select the best route from available routes to a destination
+    fn select_best_route_from_available(
+        &self,
+        destination: &Did,
+    ) -> Result<Option<RouteInfo>, MeshNetworkError> {
+        let routes = self.routes.read().unwrap();
+        let reputation_cache = self.peer_reputation_cache.read().unwrap();
+
+        if let Some(destination_routes) = routes.get(destination) {
+            // Filter healthy routes
+            let healthy_routes: Vec<&RouteInfo> = destination_routes
+                .iter()
+                .filter(|route| route.is_healthy)
+                .collect();
+
+            if healthy_routes.is_empty() {
+                return Ok(None);
+            }
+
+            // Score and select best route
+            let mut scored_routes: Vec<(f64, &RouteInfo)> = healthy_routes
+                .iter()
+                .map(|route| {
+                    let score =
+                        route.calculate_score(&self.config.selection_weights, &reputation_cache);
+                    (score, *route)
+                })
+                .collect();
+
+            scored_routes
+                .sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
+
+            if let Some((score, best_route)) = scored_routes.first() {
+                log::debug!("Selected route to {} with score {:.3}", destination, score);
+                Ok(Some((*best_route).clone()))
+            } else {
+                Ok(None)
+            }
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -872,7 +898,7 @@ mod tests {
         };
 
         // Record success
-        route.record_success(Duration::from_millis(50));
+        route.record_success(50);
         assert!(route.success_rate > 0.8);
         assert_eq!(route.usage_count, 1);
 

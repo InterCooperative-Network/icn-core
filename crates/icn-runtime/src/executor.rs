@@ -322,7 +322,7 @@ impl CheckpointManager {
     /// Check if a job has any checkpoints (indicating it's a long-running job)
     pub async fn has_checkpoints(&self, job_id: &icn_mesh::JobId) -> bool {
         let checkpoints = self.checkpoints.read().await;
-        checkpoints.get(job_id).map_or(false, |cp| !cp.is_empty())
+        checkpoints.get(job_id).is_some_and(|cp| !cp.is_empty())
     }
 
     /// Clean up completed job data
@@ -387,22 +387,26 @@ impl SimpleExecutor {
         execution_state: Vec<u8>,
         intermediate_data_cid: Option<Cid>,
     ) -> Result<JobCheckpoint, CommonError> {
-        let checkpoint_id = format!(
-            "checkpoint_{}_{}",
+        let current_timestamp = if let Some(ctx) = &self.ctx {
+            ctx.time_provider.unix_seconds()
+        } else {
+            #[allow(clippy::disallowed_methods)] // Fallback when no context available
             SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_millis(),
+                .as_secs()
+        };
+
+        let checkpoint_id = format!(
+            "checkpoint_{}_{}",
+            current_timestamp * 1000, // Convert to milliseconds for compatibility
             stage
         );
 
         let checkpoint = JobCheckpoint {
             job_id: job_id.clone(),
             checkpoint_id,
-            timestamp: SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: current_timestamp,
             stage: stage.to_string(),
             progress_percent,
             execution_state,
@@ -436,6 +440,17 @@ impl SimpleExecutor {
             // we would deserialize and resume from the checkpoint state
         }
 
+        let current_timestamp = if let Some(ctx) = &self.ctx {
+            ctx.time_provider.unix_seconds()
+        } else {
+            #[allow(clippy::disallowed_methods)] // Fallback when no context available
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        };
+
+        #[allow(clippy::disallowed_methods)] // Used for performance measurement, not consensus
         let start_time = SystemTime::now();
 
         // Update initial progress
@@ -445,10 +460,7 @@ impl SimpleExecutor {
             progress_percent: 0.0,
             eta_seconds: None,
             message: "Starting job execution".to_string(),
-            timestamp: SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: current_timestamp,
             executor_did: self.node_did.clone(),
             completed_stages: vec![],
             remaining_stages: vec![
@@ -510,10 +522,7 @@ impl SimpleExecutor {
                             job_id: job.id.clone(),
                             output_id: format!("stage_{}_{}", i, stage),
                             stage: stage.to_string(),
-                            timestamp: SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap_or_default()
-                                .as_secs(),
+                            timestamp: current_timestamp,
                             output_cid: Cid::new_v1_sha256(0x55, result.as_bytes()),
                             output_size: result.len() as u64,
                             output_format: Some("text/plain".to_string()),
@@ -553,10 +562,7 @@ impl SimpleExecutor {
                         progress_percent,
                         eta_seconds: Some((stages.len() - i - 1) as u64 * checkpoint_interval_secs),
                         message: format!("Processing stage: {}", stage),
-                        timestamp: SystemTime::now()
-                            .duration_since(std::time::UNIX_EPOCH)
-                            .unwrap_or_default()
-                            .as_secs(),
+                        timestamp: current_timestamp,
                         executor_did: self.node_did.clone(),
                         completed_stages: stages[..=i].iter().map(|s| s.to_string()).collect(),
                         remaining_stages: stages[i + 1..].iter().map(|s| s.to_string()).collect(),
@@ -614,6 +620,7 @@ impl JobExecutor for SimpleExecutor {
             "[SimpleExecutor] Received job for execution: Job ID {:?}, Manifest CID: {:?}",
             job.id, job.manifest_cid
         );
+        #[allow(clippy::disallowed_methods)] // Used for performance measurement, not consensus
         let start_time = SystemTime::now();
 
         let result_bytes = match &job.spec.kind {
@@ -763,16 +770,23 @@ impl JobExecutor for SimpleExecutor {
         // and restore the job context
 
         // Update progress to indicate resumption
+        let current_timestamp = if let Some(ctx) = &self.ctx {
+            ctx.time_provider.unix_seconds()
+        } else {
+            #[allow(clippy::disallowed_methods)] // Fallback when no context available
+            SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs()
+        };
+
         let resume_progress = ProgressReport {
             job_id: job.id.clone(),
             current_stage: checkpoint.stage.clone(),
             progress_percent: checkpoint.progress_percent,
             eta_seconds: None,
             message: format!("Resumed from checkpoint at stage: {}", checkpoint.stage),
-            timestamp: SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs(),
+            timestamp: current_timestamp,
             executor_did: self.node_did.clone(),
             completed_stages: vec![],
             remaining_stages: vec![],
@@ -983,6 +997,7 @@ impl JobExecutor for WasmExecutor {
             .get_typed_func::<(), i64>(&mut store, "run")
             .map_err(|e| CommonError::InternalError(e.to_string()))?;
 
+        #[allow(clippy::disallowed_methods)] // Used for performance measurement, not consensus
         let start_time = SystemTime::now();
 
         // Execute with timeout handling

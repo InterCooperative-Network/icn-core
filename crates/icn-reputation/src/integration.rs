@@ -86,7 +86,7 @@ pub struct ExecutorCapabilities {
     pub supported_platforms: Vec<String>,
 }
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -362,12 +362,17 @@ pub struct RouteAlternative {
 pub struct ReputationIntegrationEngine {
     config: ReputationIntegrationConfig,
     reputation_store: Arc<dyn ReputationStore>,
+    #[allow(dead_code)]
     trust_calculation_engine: Arc<TrustCalculationEngine>,
+    #[allow(dead_code)]
     trust_graph: Arc<RwLock<TrustGraph>>,
     network_service: Arc<dyn NetworkService>,
     governance_module: Arc<TokioMutex<dyn GovernanceModule>>,
+    #[allow(dead_code)]
     mana_ledger: Arc<dyn ManaLedger>,
+    #[allow(dead_code)]
     did_resolver: Arc<dyn DidResolver>,
+    #[allow(dead_code)]
     time_provider: Arc<dyn TimeProvider>,
 
     // Integration state
@@ -483,6 +488,7 @@ pub struct GovernanceWeight {
 
 impl ReputationIntegrationEngine {
     /// Create a new reputation integration engine
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         config: ReputationIntegrationConfig,
         reputation_store: Arc<dyn ReputationStore>,
@@ -623,7 +629,7 @@ impl ReputationIntegrationEngine {
                 .map(|(executor, score, _)| ExecutorAlternative {
                     executor: executor.clone(),
                     score: *score,
-                    rejection_reason: format!("Lower score: {:.3}", score),
+                    rejection_reason: format!("Lower score: {score:.3}"),
                 })
                 .collect();
 
@@ -645,7 +651,7 @@ impl ReputationIntegrationEngine {
     /// Select best network route based on reputation and performance
     pub async fn select_route_with_reputation(
         &self,
-        destination: &Did,
+        _destination: &Did,
         available_routes: &[Vec<PeerId>],
     ) -> Result<ReputationBasedRoutingDecision, CommonError> {
         let mut scored_routes = Vec::new();
@@ -674,7 +680,7 @@ impl ReputationIntegrationEngine {
                 .map(|(route, score, _)| RouteAlternative {
                     route: route.clone(),
                     score: *score,
-                    rejection_reason: format!("Lower score: {:.3}", score),
+                    rejection_reason: format!("Lower score: {score:.3}"),
                 })
                 .collect();
 
@@ -768,7 +774,7 @@ impl ReputationIntegrationEngine {
                 if let Err(e) =
                     Self::update_reputation_cache(&reputation_cache, &reputation_store).await
                 {
-                    log::error!("Error updating reputation cache: {}", e);
+                    log::error!("Error updating reputation cache: {e}");
                 }
             }
         });
@@ -793,7 +799,7 @@ impl ReputationIntegrationEngine {
                     Self::update_executor_rankings(&executor_rankings, &reputation_store, &config)
                         .await
                 {
-                    log::error!("Error updating executor rankings: {}", e);
+                    log::error!("Error updating executor rankings: {e}");
                 }
             }
         });
@@ -821,7 +827,7 @@ impl ReputationIntegrationEngine {
                 )
                 .await
                 {
-                    log::error!("Error updating routing preferences: {}", e);
+                    log::error!("Error updating routing preferences: {e}");
                 }
             }
         });
@@ -851,7 +857,7 @@ impl ReputationIntegrationEngine {
                 )
                 .await
                 {
-                    log::error!("Error updating governance weights: {}", e);
+                    log::error!("Error updating governance weights: {e}");
                 }
             }
         });
@@ -1061,7 +1067,6 @@ pub struct ReputationIntegrationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::SystemTimeProvider;
 
     #[test]
     fn test_reputation_integration_config() {
@@ -1087,7 +1092,7 @@ mod tests {
 
     #[test]
     fn test_trust_level_hierarchy() {
-        let levels = vec![
+        let levels = [
             TrustLevel::Untrusted,
             TrustLevel::Basic,
             TrustLevel::Established,

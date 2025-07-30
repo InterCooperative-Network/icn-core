@@ -412,7 +412,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_prevents_calls_when_open() {
         let ctx = create_test_context();
-        let mut resilient_ctx = ResilientRuntimeContext::new(ctx);
+        let resilient_ctx = ResilientRuntimeContext::new(ctx);
 
         // Manually open the mana circuit breaker
         for _ in 0..10 {

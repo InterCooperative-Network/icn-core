@@ -3,13 +3,12 @@
 //! This module provides type-safe service creation and mapping to ensure
 //! that stub services are never accidentally used in production.
 
-use super::dag_store_factory::{DagStoreConfig, DagStoreFactory};
+use super::dag_store_factory::DagStoreFactory;
 use super::dag_store_wrapper::DagStoreWrapper;
 use super::mesh_network::DefaultMeshNetworkService;
 use super::runtime_context::MeshNetworkServiceType;
 use super::signers::Signer;
-use super::stubs::{StubDagStore, StubMeshNetworkService};
-use super::{DagStorageService, DagStoreMutexType};
+use super::stubs::StubMeshNetworkService;
 use downcast_rs::Downcast;
 use icn_common::{CommonError, Did};
 use icn_reputation::ReputationStore;
@@ -200,17 +199,17 @@ impl ServiceConfigBuilder {
                 #[cfg(feature = "enable-libp2p")]
                 {
                     // For production, require explicit network service since we can't async create here
-                    return Err(CommonError::InternalError(
+                    Err(CommonError::InternalError(
                         "Production environment requires explicit network service in non-async context. Use RuntimeContext::new_async() or provide explicit network service.".to_string(),
-                    ));
+                    ))
                 }
 
                 // If libp2p feature is not enabled, require explicit network service
                 #[cfg(not(feature = "enable-libp2p"))]
                 {
-                    return Err(CommonError::InternalError(
+                    Err(CommonError::InternalError(
                         "Production environment requires either explicit network service or 'enable-libp2p' feature enabled".to_string(),
-                    ));
+                    ))
                 }
             }
             ServiceEnvironment::Development => {
@@ -263,9 +262,9 @@ impl ServiceConfigBuilder {
                     // Production builds should fail if no explicit store is provided
                     #[cfg(feature = "production")]
                     {
-                        return Err(CommonError::InternalError(
+                        Err(CommonError::InternalError(
                             "DAG store is required for production environment. Use ServiceConfigBuilder::with_dag_store() or DagStoreFactory::create_production().".to_string()
-                        ));
+                        ))
                     }
 
                     // Development builds can auto-create a production store
@@ -582,5 +581,28 @@ impl ServiceConfig {
             network_service,
             dag_store,
         )
+    }
+}
+
+impl std::fmt::Debug for ServiceConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ServiceConfig")
+            .field("environment", &self.environment)
+            .field("current_identity", &self.current_identity)
+            .field("mesh_network_service", &"Arc<dyn MeshNetworkService>")
+            .field("signer", &"Arc<dyn Signer>")
+            .field("did_resolver", &"Arc<dyn DidResolver>")
+            .field("dag_store", &self.dag_store)
+            .field("mana_ledger", &self.mana_ledger)
+            .field("reputation_store", &"Arc<dyn ReputationStore>")
+            .field("time_provider", &"Arc<dyn TimeProvider>")
+            .field(
+                "policy_enforcer",
+                &self
+                    .policy_enforcer
+                    .as_ref()
+                    .map(|_| "Some(Arc<dyn ScopedPolicyEnforcer>)"),
+            )
+            .finish()
     }
 }

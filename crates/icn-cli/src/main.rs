@@ -1,5 +1,12 @@
 #![doc = include_str!("../README.md")]
 #![allow(clippy::uninlined_format_args)]
+#![allow(clippy::too_many_arguments)] // CLI functions often need many parameters
+#![allow(clippy::redundant_closure)] // Development code with closures
+#![allow(clippy::collapsible_if)] // Development code with nested conditions
+#![allow(clippy::ptr_arg)] // Development code with string parameters
+#![allow(deprecated)] // Development code with deprecated functions
+#![allow(unused_variables)] // Development code with unused variables
+#![allow(dead_code)] // Development code with dead code
 
 //! # ICN CLI Crate
 //! This crate provides a command-line interface (CLI) for interacting with an ICN HTTP node.
@@ -8,10 +15,8 @@ mod credential_lifecycle;
 
 use base64::{self, Engine};
 extern crate bincode;
-use bs58;
 use clap::{Parser, Subcommand};
 use icn_common::CommonError;
-use prometheus_parse;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use serde_json::Value as JsonValue; // For generic JSON data if needed
@@ -24,7 +29,6 @@ use std::str::FromStr;
 // These types are expected to be sent to/received from the icn-node HTTP API.
 use icn_common::{Cid, DagBlock, Did, NodeInfo, NodeStatus, ZkCredentialProof, ZkProofType};
 // Using aliased request structs from icn-api for clarity, these are what the node expects
-use chrono;
 use icn_action::{Action, ActionEncoder, QrGenerator, VoteChoice};
 use icn_api::governance_trait::{
     CastVoteRequest as ApiCastVoteRequest, SubmitProposalRequest as ApiSubmitProposalRequest,
@@ -34,7 +38,6 @@ use icn_ccl::{check_ccl_file, compile_ccl_file, compile_ccl_file_to_wasm, explai
 use icn_governance::{Proposal, ProposalId};
 use icn_identity::generate_ed25519_keypair;
 use icn_runtime::context::{Ed25519Signer, Signer};
-use icn_templates;
 
 fn anyhow_to_common(e: anyhow::Error) -> CommonError {
     if let Some(c) = e.downcast_ref::<CommonError>() {

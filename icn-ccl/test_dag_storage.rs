@@ -10,7 +10,7 @@ fn main() {
     let ccl_source = std::fs::read_to_string("icn-ccl/test_dag_storage.ccl")
         .expect("Failed to read icn-ccl/test_dag_storage.ccl");
 
-    println!("📄 CCL Source:\n{}", ccl_source);
+    println!("📄 CCL Source:\n{ccl_source}");
 
     // Compile CCL to WASM
     match compile_ccl_source_to_wasm(&ccl_source) {
@@ -20,7 +20,7 @@ fn main() {
             println!("📋 Contract CID: {}", metadata.cid);
 
             // Basic validation that WASM was generated
-            if wasm_bytes.len() > 0 && wasm_bytes.starts_with(&[0x00, 0x61, 0x73, 0x6D]) {
+            if !wasm_bytes.is_empty() && wasm_bytes.starts_with(&[0x00, 0x61, 0x73, 0x6D]) {
                 println!("🎯 WASM format validation: PASSED");
                 println!("🏆 All DAG storage functions compiled successfully:");
                 println!("   - dag_put / dag_get");
@@ -37,7 +37,7 @@ fn main() {
         }
         Err(err) => {
             println!("❌ DAG Storage Operations Compilation FAILED:");
-            println!("Error: {:?}", err);
+            println!("Error: {err:?}");
             std::process::exit(1);
         }
     }

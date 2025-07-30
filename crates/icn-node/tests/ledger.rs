@@ -10,11 +10,14 @@ async fn ledger_persists_between_restarts() {
     let ledger_path = dir.path().join("mana.sled");
 
     let (_router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
-        Some(ledger_path.clone()),
         None,
         None,
         None,
@@ -28,11 +31,14 @@ async fn ledger_persists_between_restarts() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
+        icn_node::RuntimeMode::Development,
         None,
         None,
         None,
+        Some(icn_runtime::context::LedgerBackend::Sled(
+            ledger_path.clone(),
+        )),
         None,
-        Some(ledger_path.clone()),
         None,
         None,
         None,

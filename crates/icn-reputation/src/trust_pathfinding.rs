@@ -494,7 +494,7 @@ mod tests {
     use std::str::FromStr;
 
     fn create_test_did(id: &str) -> Did {
-        Did::from_str(&format!("did:test:{}", id)).unwrap()
+        Did::from_str(&format!("did:test:{id}")).unwrap()
     }
 
     #[test]
@@ -677,7 +677,7 @@ mod tests {
         let bob = create_test_did("bob");
         let mut path = TrustPath::new(alice.clone(), bob.clone());
 
-        let edge = TrustEdge::new(alice, bob, 0.8, 1000);
+        let edge = TrustEdge::new(alice, bob.clone(), 0.8, 1000);
         path.add_edge(edge, 1.0);
 
         // With no distance penalty (penalty = 1.0)

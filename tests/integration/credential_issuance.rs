@@ -54,7 +54,7 @@ async fn credential_issue_route() {
     let resp_body: CredentialResponse = resp.json().await.unwrap();
     let cid = resp_body.cid.clone();
     let cred: Credential = resp_body.credential;
-    for (k, _) in &cred.claims {
+    for k in cred.claims.keys() {
         assert!(cred.verify_claim(k, ctx.signer.verifying_key_ref()).is_ok());
     }
 
