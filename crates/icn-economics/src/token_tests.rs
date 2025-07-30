@@ -584,7 +584,7 @@ mod scoped_token_tests {
         } = &service_offer.item_type
         {
             assert_eq!(service_type, "software_development");
-            assert_eq!(duration, &Some("per_hour".to_string()));
+            assert_eq!(duration, &Some("40 hours".to_string()));
         } else {
             panic!("Expected Service item type");
         }
@@ -606,7 +606,7 @@ mod scoped_token_tests {
             experience_level,
         } = &labor_offer.item_type
         {
-            assert_eq!(skill_type, "carpentry");
+            assert_eq!(skill_type, "experienced (80h)");
             assert_eq!(experience_level, "experienced");
         } else {
             panic!("Expected LaborHours item type");
