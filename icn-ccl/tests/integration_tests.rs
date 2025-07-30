@@ -196,7 +196,7 @@ async fn test_wasm_executor_with_ccl() {
     };
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 

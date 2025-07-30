@@ -1,4 +1,4 @@
-use icn_common::{parse_cid_from_string, Cid};
+use icn_common::parse_cid_from_string;
 use icn_node::app_router;
 use reqwest::Client;
 use tokio::task;

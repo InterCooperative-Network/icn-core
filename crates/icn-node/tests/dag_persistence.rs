@@ -13,11 +13,12 @@ async fn dag_persists_between_restarts_sled() {
     let dag_path = dir.path().join("dag_db");
 
     let (_router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Test,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(icn_node::config::LedgerBackend::Sled(ledger_path.clone())),
         Some(StorageBackendType::Sled),
         Some(dag_path.clone()),
         None,
@@ -40,7 +41,7 @@ async fn dag_persists_between_restarts_sled() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 

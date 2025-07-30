@@ -12,11 +12,12 @@ async fn parameter_persists_between_restarts() {
     let param_path = dir.path().join("params.toml");
 
     let (_router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Test,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(icn_node::config::LedgerBackend::Sled(ledger_path.clone())),
         None,
         None,
         None,

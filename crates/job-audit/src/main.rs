@@ -1,4 +1,3 @@
-#![allow(clippy::manual_abs_diff)] // Development utility with manual patterns
 #![allow(clippy::uninlined_format_args)] // Development utility with format strings
 
 use anyhow::{anyhow, Result};

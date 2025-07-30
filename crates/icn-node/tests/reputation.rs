@@ -11,11 +11,12 @@ async fn reputation_persists_between_restarts() {
     let rep_path = dir.path().join("rep.sled");
 
     let (_router, ctx) = app_router_with_options(
+        icn_node::RuntimeMode::Test,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(icn_node::config::LedgerBackend::Sled(ledger_path.clone())),
         None,
         None,
         Some(rep_path.clone()),
