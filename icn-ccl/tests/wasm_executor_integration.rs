@@ -50,7 +50,7 @@ async fn wasm_executor_runs_compiled_ccl() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -101,7 +101,7 @@ async fn wasm_executor_runs_compiled_addition() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -152,7 +152,7 @@ async fn wasm_executor_fails_without_run() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -202,7 +202,7 @@ async fn compile_and_execute_simple_contract() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 
@@ -252,7 +252,7 @@ async fn wasm_executor_runs_compiled_file() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 
@@ -305,7 +305,7 @@ async fn wasm_executor_runs_while_loop() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 
@@ -355,7 +355,7 @@ async fn wasm_executor_runs_for_loop() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 
@@ -410,7 +410,7 @@ async fn contract_queries_reputation() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
 

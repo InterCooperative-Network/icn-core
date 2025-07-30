@@ -4,7 +4,7 @@ use icn_dag::InMemoryDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
-use icn_runtime::executor::{WasmExecutor, WasmExecutorConfig};
+use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
@@ -59,7 +59,7 @@ async fn array_reallocation_integers() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
@@ -118,7 +118,7 @@ async fn array_push_bool_and_string() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();

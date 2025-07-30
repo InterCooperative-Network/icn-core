@@ -28,7 +28,7 @@ async fn compile_and_run_with_import() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).unwrap();
     }
     let cid = block.cid.clone();
