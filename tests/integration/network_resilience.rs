@@ -276,7 +276,7 @@ async fn test_long_partition_circuit_breaker() {
 #[tokio::test]
 async fn test_stub_network_breaker_open_close() {
     use icn_common::Did;
-use icn_network::{PeerId, StubNetworkService, NetworkService};
+    use icn_network::{NetworkService, PeerId, StubNetworkService};
     use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
     use std::time::Duration;
     use tokio::time::sleep;
