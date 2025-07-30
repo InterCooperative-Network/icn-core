@@ -42,6 +42,8 @@ async fn submit_and_vote_proposal() {
         quorum: None,
         threshold: None,
         body: None,
+        credential_proof: None,
+        revocation_proof: None,
     };
     let submit_resp = client
         .post(format!("http://{addr}/governance/submit"))
@@ -61,6 +63,8 @@ async fn submit_and_vote_proposal() {
         voter_did: "did:example:bob".to_string(),
         proposal_id: pid_str,
         vote_option: "yes".to_string(),
+        credential_proof: None,
+        revocation_proof: None,
     };
     let vote_resp = client
         .post(format!("http://{addr}/governance/vote"))

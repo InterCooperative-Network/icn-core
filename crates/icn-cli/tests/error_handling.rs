@@ -326,7 +326,7 @@ async fn test_stdin_input_errors() {
     let base = format!("http://{addr}");
 
     // Test with stdin input that contains invalid JSON
-    let invalid_input = "invalid json content";
+    let _invalid_input = "invalid json content";
 
     tokio::task::spawn_blocking(move || {
         // For now, we'll skip this test since stdin handling is complex

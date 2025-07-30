@@ -1,3 +1,4 @@
+use icn_runtime::context::LedgerBackend;
 use icn_common::Did;
 use icn_node::app_router_with_options;
 use std::str::FromStr;
@@ -11,12 +12,12 @@ async fn reputation_persists_between_restarts() {
     let rep_path = dir.path().join("rep.sled");
 
     let (_router, ctx) = app_router_with_options(
-        icn_node::RuntimeMode::Test,
+        icn_node::RuntimeMode::Testing,
         None,
         None,
         None,
         None,
-        Some(icn_node::config::LedgerBackend::Sled(ledger_path.clone())),
+        Some(LedgerBackend::Sled(ledger_path.clone())),
         None,
         None,
         Some(rep_path.clone()),
@@ -30,11 +31,12 @@ async fn reputation_persists_between_restarts() {
     drop(_router);
 
     let (_router2, ctx2) = app_router_with_options(
+        icn_node::RuntimeMode::Testing,
         None,
         None,
         None,
         None,
-        Some(ledger_path.clone()),
+        Some(LedgerBackend::Sled(ledger_path.clone())),
         None,
         None,
         Some(rep_path.clone()),
