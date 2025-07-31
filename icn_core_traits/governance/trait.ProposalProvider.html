@@ -2,7 +2,7 @@
     // Required methods
     fn <a href="#tymethod.create_proposal" class="fn">create_proposal</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        submitter: &amp;'life1 Did,
+        submitter: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
         proposal_data: <a class="struct" href="struct.ProposalData.html" title="struct icn_core_traits::governance::ProposalData">ProposalData</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
@@ -32,7 +32,7 @@
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Proposal provider trait</p>
 </div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.create_proposal" class="method"><a class="src rightside" href="../../src/icn_core_traits/governance.rs.html#37-41">Source</a><h4 class="code-header">fn <a href="#tymethod.create_proposal" class="fn">create_proposal</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    submitter: &amp;'life1 Did,
+    submitter: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
     proposal_data: <a class="struct" href="struct.ProposalData.html" title="struct icn_core_traits::governance::ProposalData">ProposalData</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/1.88.0/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/1.88.0/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/1.88.0/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/1.88.0/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
