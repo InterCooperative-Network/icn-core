@@ -217,8 +217,12 @@ impl QrUtils {
 #[cfg(test)]
 mod tests {
     use super::*;
+    
+    #[cfg(feature = "qr")]
     use crate::Action;
+    #[cfg(feature = "qr")]
     use icn_common::Did;
+    #[cfg(feature = "qr")]
     use std::str::FromStr;
 
     #[test]

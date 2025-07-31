@@ -128,6 +128,10 @@ async fn wasm_executor_host_submit_mesh_job_json() {
                 memory_mb: 256,
                 storage_mb: 0,
             },
+            required_capabilities: vec![],
+            required_trust_scope: None,
+            min_executor_reputation: None,
+            allowed_federations: vec![],
         },
         creator_did: node_did.clone(),
         cost_mana: 10,
@@ -327,7 +331,8 @@ async fn queued_compiled_ccl_executes() {
         max_execution_wait_ms: None,
         signature: SignatureBytes(vec![]),
     };
-    ctx.internal_queue_mesh_job(job.clone()).await.unwrap();
+    let spec_bytes = bincode::serialize(&job.spec).unwrap();
+    ctx.handle_submit_job(job.manifest_cid.clone(), spec_bytes, job.cost_mana).await.unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     if let Some(icn_mesh::JobState::Completed { receipt }) =
         ctx.job_states.get(&job.id).map(|s| s.value().clone())
