@@ -1,4 +1,3 @@
-use assert_cmd::prelude::*;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use tempfile::tempdir;

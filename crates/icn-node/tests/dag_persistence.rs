@@ -9,7 +9,7 @@ use tempfile::tempdir;
 
 async fn dag_persists_between_restarts_sled() {
     let dir = tempdir().unwrap();
-    let ledger_path = dir.path().join("mana.sled");
+    let _ledger_path = dir.path().join("mana.sled");
     let dag_path = dir.path().join("dag_db");
 
     let (_router, ctx) = app_router_with_options(

@@ -83,6 +83,7 @@ mod comprehensive_e2e_test {
 
     #[derive(Debug)]
     struct JobResult {
+        #[allow(dead_code)]
         job_id: String,
         #[allow(dead_code)]
         submitter_node: String,
@@ -162,7 +163,7 @@ mod comprehensive_e2e_test {
 
             // Start with monitoring profile
             let status = Command::new("docker-compose")
-                .args(&[
+                .args([
                     "-f",
                     "icn-devnet/docker-compose.yml",
                     "--profile",
@@ -207,7 +208,7 @@ mod comprehensive_e2e_test {
 
                 for (name, url, api_key) in &nodes {
                     match client
-                        .get(&format!("{}/info", url))
+                        .get(format!("{}/info", url))
                         .header("X-API-Key", *api_key)
                         .send()
                         .await
@@ -254,7 +255,7 @@ mod comprehensive_e2e_test {
                     .header("X-API-Key", &node.api_key)
                     .send()
                     .await
-                    .expect(&format!("Failed to connect to {}", node.name));
+                    .unwrap_or_else(|_| panic!("Failed to connect to {}", node.name));
 
                 assert_eq!(
                     response.status(),
@@ -871,6 +872,7 @@ mod comprehensive_e2e_test {
         }
 
         /// Get mana balance for a node
+        #[allow(dead_code)]
         async fn get_mana_balance(&self, node_url: &str, api_key: &str) -> u64 {
             // First get the node's DID from /keys endpoint
             let keys_response = self
@@ -933,6 +935,7 @@ mod comprehensive_e2e_test {
         }
 
         /// Get mana transaction history
+        #[allow(dead_code)]
         async fn get_mana_transactions(&self, _node_url: &str, _api_key: &str) -> Vec<Value> {
             // Note: ICN node doesn't currently expose a mana transactions endpoint
             // This is a placeholder implementation that returns an empty list
@@ -947,7 +950,7 @@ mod comprehensive_e2e_test {
             // Clean up federation if we started it
             if std::env::var("ICN_DEVNET_RUNNING").is_err() {
                 let _ = Command::new("docker-compose")
-                    .args(&[
+                    .args([
                         "-f",
                         "icn-devnet/docker-compose.yml",
                         "down",

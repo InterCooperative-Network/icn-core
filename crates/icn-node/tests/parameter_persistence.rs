@@ -17,7 +17,8 @@ async fn parameter_persists_between_restarts() {
         None,
         None,
         None,
-        Some(icn_node::config::LedgerBackend::Sled(ledger_path.clone())),
+        Some(icn_runtime::context::LedgerBackend::Sled),
+        Some(ledger_path.clone()),
         None,
         None,
         None,
@@ -69,10 +70,11 @@ async fn parameter_persists_between_restarts() {
     assert_eq!(store.open_rate_limit(), 5);
 
     let (_r2, _ctx2) = app_router_with_options(
+        icn_node::RuntimeMode::Test,
         None,
         None,
         None,
-        None,
+        Some(icn_runtime::context::LedgerBackend::Sled),
         Some(ledger_path.clone()),
         None,
         None,
