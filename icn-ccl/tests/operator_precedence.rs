@@ -13,7 +13,7 @@ fn arithmetic_mixed_precedence() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(expr) = &body.statements[0] {
+            if let StatementNode::Return(Some(expr)) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::BinaryOp {
                         left: Box::new(ExpressionNode::IntegerLiteral(1)),
@@ -51,7 +51,7 @@ fn nested_gte_comparisons() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(expr) = &body.statements[0] {
+            if let StatementNode::Return(Some(expr)) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::BinaryOp {
                         left: Box::new(ExpressionNode::Identifier("a".into())),
@@ -82,7 +82,7 @@ fn unary_logic_combination() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(expr) = &body.statements[0] {
+            if let StatementNode::Return(Some(expr)) = &body.statements[0] {
                 let expected = ExpressionNode::BinaryOp {
                     left: Box::new(ExpressionNode::UnaryOp {
                         operator: UnaryOperator::Not,

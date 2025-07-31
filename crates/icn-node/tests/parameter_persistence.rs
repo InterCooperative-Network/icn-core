@@ -1,8 +1,9 @@
-use icn_common::Did;
+use icn_common::{Did, FixedTimeProvider};
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 use icn_node::app_router_with_options;
 use icn_node::parameter_store::ParameterStore;
 use std::str::FromStr;
+use std::sync::Arc;
 use tempfile::tempdir;
 
 #[tokio::test]
@@ -12,8 +13,7 @@ async fn parameter_persists_between_restarts() {
     let param_path = dir.path().join("params.toml");
 
     let (_router, ctx) = app_router_with_options(
-        icn_node::RuntimeMode::Test,
-        None,
+        icn_node::RuntimeMode::Testing,
         None,
         None,
         None,
@@ -26,6 +26,8 @@ async fn parameter_persists_between_restarts() {
         Some(param_path.clone()),
     )
     .await;
+
+    let time_provider = Arc::new(FixedTimeProvider::new(1640995200)); // Jan 1, 2022
 
     let pid = {
         let mut gov = ctx.governance_module.lock().await;
@@ -43,7 +45,7 @@ async fn parameter_persists_between_restarts() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            })
+            }, &*time_provider)
             .unwrap();
         gov.open_voting(&pid).unwrap();
         pid
@@ -54,9 +56,10 @@ async fn parameter_persists_between_restarts() {
             Did::from_str("did:example:bob").unwrap(),
             &pid,
             VoteOption::Yes,
+            &*time_provider,
         )
         .unwrap();
-        gov.close_voting_period(&pid).unwrap();
+        gov.close_voting_period(&pid, &*time_provider).unwrap();
         gov.execute_proposal(&pid).unwrap();
     }
 
@@ -70,7 +73,7 @@ async fn parameter_persists_between_restarts() {
     assert_eq!(store.open_rate_limit(), 5);
 
     let (_r2, _ctx2) = app_router_with_options(
-        icn_node::RuntimeMode::Test,
+        icn_node::RuntimeMode::Testing,
         None,
         None,
         None,

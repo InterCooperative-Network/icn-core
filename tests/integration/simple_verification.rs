@@ -14,7 +14,7 @@ mod simple_verification_test {
         // Test 1: Create runtime context
         println!("📋 Test 1: Creating RuntimeContext...");
         let test_did = Did::new("key", "test_node");
-        let rt_ctx = RuntimeContext::new_testing(test_did.clone(), Some(1000))
+        let rt_ctx = RuntimeContext::new_for_testing(test_did.clone(), Some(1000))
             .expect("Failed to create test RuntimeContext");
 
         // Test 2: Verify mana management
