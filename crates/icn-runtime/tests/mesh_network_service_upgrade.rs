@@ -121,14 +121,13 @@ async fn test_default_mesh_network_service_connectivity_validation() {
         let did_str = "did:icn:test:connectivity_validation";
         let ctx = RuntimeContext::new_for_testing(Did::from_str(did_str).unwrap(), None).unwrap();
 
-        if let Some(default_mesh) = ctx
+        if let Some(_default_mesh) = ctx
             .mesh_network_service
             .as_any()
             .downcast_ref::<DefaultMeshNetworkService>()
         {
             // Test basic functionality instead of validate_connectivity method
-            // The mesh service should be properly initialized
-            assert!(true, "DefaultMeshNetworkService is properly initialized");
+            // The mesh service should be properly initialized and accessible
         }
     }
 
@@ -211,7 +210,7 @@ fn test_dag_storage_availability() {
     // The specific implementation depends on which persistence features are enabled
     // but we can verify the store exists and basic operations work
     assert!(
-        !ctx.dag_store.store.try_lock().is_err(),
+        ctx.dag_store.store.try_lock().is_ok(),
         "DAG store should be accessible"
     );
 
