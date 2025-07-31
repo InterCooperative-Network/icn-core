@@ -1,7 +1,7 @@
 #[cfg(feature = "enable-libp2p")]
 mod icn_node_end_to_end {
     use axum::Router;
-    use env_logger;
+
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
     use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};

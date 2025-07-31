@@ -28,7 +28,7 @@ pub async fn ensure_10node_devnet() -> Option<TenDevnetGuard> {
         return None;
     }
     let lock = DEVNET_LOCK.get_or_init(|| Arc::new(Mutex::new(())));
-    let guard = lock.lock_owned().await;
+    let guard = lock.clone().lock_owned().await;
 
     Command::new("bash")
         .arg("./scripts/run_10node_devnet.sh")

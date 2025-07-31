@@ -25,14 +25,14 @@ mod persistence_rocksdb {
         }
     }
 
-    async fn create_ctx(id: Did, dag: PathBuf, mana: PathBuf, rep: PathBuf) -> Arc<RuntimeContext> {
+    async fn create_ctx(id: Did, _dag: PathBuf, _mana: PathBuf, _rep: PathBuf) -> Arc<RuntimeContext> {
         let service = Arc::new(
             Libp2pNetworkService::new(NetworkConfig::default())
                 .await
                 .unwrap(),
         ) as Arc<dyn NetworkService>;
         let signer = Arc::new(StubSigner::new());
-        let mesh = Arc::new(DefaultMeshNetworkService::new(service, signer.clone()));
+        let _mesh = Arc::new(DefaultMeshNetworkService::new(service, signer.clone()));
         // Use new_for_testing for context creation
         RuntimeContext::new_for_testing(id, Some(42)).unwrap()
     }

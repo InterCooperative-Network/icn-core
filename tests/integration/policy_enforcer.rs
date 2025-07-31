@@ -39,7 +39,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     }
 
     {
-        let store = ctx.dag_store.lock().await;
+        let store = ctx.dag_store.store.lock().await;
         for link in &block.links {
             if !store.contains(&link.cid).unwrap() {
                 return Err(PolicyError::InvalidParent);
@@ -48,7 +48,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     }
 
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(block).unwrap();
     }
     Ok(())
@@ -56,7 +56,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
 
 #[tokio::test]
 async fn authorized_dag_write_succeeds() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -79,13 +79,13 @@ async fn authorized_dag_write_succeeds() {
         .await
         .expect("write succeeds");
 
-    let stored = ctx.dag_store.lock().await.get(&cid).unwrap();
+    let stored = ctx.dag_store.store.lock().await.get(&cid).unwrap();
     assert!(stored.is_some());
 }
 
 #[tokio::test]
 async fn unauthorized_write_denied() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -111,7 +111,7 @@ async fn unauthorized_write_denied() {
 
 #[tokio::test]
 async fn invalid_parent_is_rejected() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -142,7 +142,7 @@ async fn invalid_parent_is_rejected() {
 
 #[tokio::test]
 async fn scope_membership_enforced() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let scope = NodeScope("testscope".into());
     let mut submitters = HashSet::new();
@@ -175,7 +175,7 @@ async fn scope_membership_enforced() {
 
 #[tokio::test]
 async fn proof_required_without_proof_fails() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -200,7 +200,7 @@ async fn proof_required_without_proof_fails() {
 
 #[tokio::test]
 async fn proof_required_invalid_proof_fails() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -239,7 +239,7 @@ async fn proof_required_invalid_proof_fails() {
 
 #[tokio::test]
 async fn proof_required_valid_proof_allows() {
-    let ctx = RuntimeContext::new_with_stubs("did:example:alice").unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "alice"), Some(1000)).unwrap();
     let alice = Did::from_str("did:example:alice").unwrap();
     let mut submitters = HashSet::new();
     submitters.insert(alice.clone());
@@ -277,6 +277,6 @@ async fn proof_required_valid_proof_allows() {
     anchor_block_with_policy(&ctx, &block, &enforcer, Some(&proof), None)
         .await
         .expect("write succeeds with proof");
-    let stored = ctx.dag_store.lock().await.get(&cid).unwrap();
+    let stored = ctx.dag_store.store.lock().await.get(&cid).unwrap();
     assert!(stored.is_some());
 }

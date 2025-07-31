@@ -2,7 +2,7 @@
 mod simple_verification_test {
 
     use icn_common::{Cid, DagBlock, Did};
-    use icn_mesh::{JobKind, JobSpec, Resources};
+    use icn_mesh::{JobSpec};
     use icn_runtime::RuntimeContext;
     use std::time::Duration;
     use tokio::time::sleep; // Moved this line to keep necessary imports
