@@ -3,7 +3,7 @@ use icn_runtime::{context::RuntimeContext, host_generate_zk_proof, host_verify_z
 
 #[tokio::test]
 async fn host_generate_then_verify_roundtrip() {
-    let ctx = RuntimeContext::new_for_testing(&Did::new("key", "testZk"), Some(10)).unwrap();
+    let ctx = RuntimeContext::new_for_testing(Did::new("key", "testZk"), Some(10)).unwrap();
     let issuer = Did::new("key", "issuer");
     let holder = Did::new("key", "holder");
     let schema = Cid::new_v1_sha256(0x55, b"schema");

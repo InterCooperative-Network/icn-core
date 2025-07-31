@@ -19,8 +19,8 @@ async fn reputation_persists_between_restarts() {
         Some(ledger_path.clone()),
         None,
         None,
-        Some(rep_path.clone()),
         None,
+        Some(rep_path.clone()),
         None,
     )
     .await;
@@ -34,13 +34,12 @@ async fn reputation_persists_between_restarts() {
         None,
         None,
         None,
-        None,
         Some(icn_runtime::context::LedgerBackend::Sled),
         Some(ledger_path.clone()),
         None,
         None,
-        Some(rep_path.clone()),
         None,
+        Some(rep_path.clone()),
         None,
     )
     .await;

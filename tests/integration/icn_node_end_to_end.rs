@@ -11,7 +11,7 @@ mod icn_node_end_to_end {
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
-    use icn_runtime::host_submit_mesh_job;
+
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
     use reqwest::Client;
     use std::str::FromStr;

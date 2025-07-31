@@ -1,6 +1,6 @@
 #[cfg(feature = "enable-libp2p")]
 mod simple_verification_test {
-    use bincode;
+
     use icn_common::{Cid, DagBlock, Did};
     use icn_mesh::{JobKind, JobSpec, Resources};
     use icn_runtime::RuntimeContext;
