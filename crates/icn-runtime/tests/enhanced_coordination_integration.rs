@@ -277,10 +277,8 @@ async fn test_runtime_context_constructor_consistency() -> Result<(), Box<dyn st
 
     // Test deprecated constructor (still should work)
     #[allow(deprecated)]
-    let deprecated_ctx = RuntimeContext::new_for_testing(
-        Did::from_str("did:key:zTestDeprecated")?, 
-        None
-    )?;
+    let deprecated_ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:key:zTestDeprecated")?, None)?;
     assert!(deprecated_ctx.cross_component_coordinator.as_ref() as *const _ != std::ptr::null());
     println!("✅ Deprecated constructor properly initializes CrossComponentCoordinator");
 
