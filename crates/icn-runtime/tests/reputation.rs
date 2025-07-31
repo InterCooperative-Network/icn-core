@@ -17,7 +17,7 @@ async fn anchor_receipt_updates_reputation() {
     let did = icn_common::Did::from_str(&did_str).unwrap();
     let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
 
-    let ctx = RuntimeContext::new()?.unwrap();
+    let ctx = RuntimeContext::new_for_testing(did.clone(), Some(100)).unwrap();
 
     let job_id = Cid::new_v1_sha256(0x55, b"rep_job");
     let result_cid = Cid::new_v1_sha256(0x55, b"res");

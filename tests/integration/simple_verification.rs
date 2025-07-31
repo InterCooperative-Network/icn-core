@@ -1,8 +1,8 @@
 #[cfg(feature = "enable-libp2p")]
 mod simple_verification_test {
-    use bincode;
+
     use icn_common::{Cid, DagBlock, Did};
-    use icn_mesh::{JobKind, JobSpec, Resources};
+    use icn_mesh::{JobSpec};
     use icn_runtime::RuntimeContext;
     use std::time::Duration;
     use tokio::time::sleep; // Moved this line to keep necessary imports
@@ -14,7 +14,7 @@ mod simple_verification_test {
         // Test 1: Create runtime context
         println!("📋 Test 1: Creating RuntimeContext...");
         let test_did = Did::new("key", "test_node");
-        let rt_ctx = RuntimeContext::new_testing(test_did.clone(), Some(1000))
+        let rt_ctx = RuntimeContext::new_for_testing(test_did.clone(), Some(1000))
             .expect("Failed to create test RuntimeContext");
 
         // Test 2: Verify mana management

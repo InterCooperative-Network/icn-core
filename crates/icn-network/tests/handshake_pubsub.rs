@@ -4,7 +4,6 @@ mod handshake_pubsub {
     use icn_network::libp2p_service::{Libp2pNetworkService, NetworkConfig};
     use icn_network::NetworkService;
     use icn_protocol::{GossipMessage, MessagePayload, ProtocolMessage};
-    use libp2p::PeerId as Libp2pPeerId;
     use std::str::FromStr;
     use tokio::time::{sleep, timeout, Duration};
 
@@ -19,8 +18,10 @@ mod handshake_pubsub {
         let peer_a = *node_a.local_peer_id();
 
         // start node B bootstrapping to A
-        let mut config_b = NetworkConfig::default();
-        config_b.bootstrap_peers = vec![(peer_a, addr)];
+        let config_b = NetworkConfig {
+            bootstrap_peers: vec![(peer_a, addr)],
+            ..Default::default()
+        };
         let node_b = Libp2pNetworkService::new(config_b).await.expect("node b");
 
         // give time for handshake

@@ -21,7 +21,7 @@ async fn test_network_resilience() {
 
     // Stop Node C to simulate a disconnect
     Command::new("docker-compose")
-        .args(&["-f", "icn-devnet/docker-compose.yml", "stop", "icn-node-c"])
+        .args(["-f", "icn-devnet/docker-compose.yml", "stop", "icn-node-c"])
         .status()
         .expect("failed to stop node c");
 
@@ -44,7 +44,7 @@ async fn test_network_resilience() {
     });
 
     let submit_res: Value = client
-        .post(&format!("{}/mesh/submit", NODE_A_URL))
+        .post(format!("{}/mesh/submit", NODE_A_URL))
         .header("Content-Type", "application/json")
         .json(&job_request)
         .send()
@@ -60,7 +60,7 @@ async fn test_network_resilience() {
     let mut completed = false;
     for _ in 0..MAX_RETRIES {
         let resp = client
-            .get(&format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+            .get(format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
             .send()
             .await
             .expect("job status");
@@ -78,7 +78,7 @@ async fn test_network_resilience() {
 
     // Restart Node C
     Command::new("docker-compose")
-        .args(&["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
+        .args(["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
         .status()
         .expect("failed to start node c");
 
@@ -91,7 +91,7 @@ async fn test_network_resilience() {
     let mut node_c_synced = false;
     for _ in 0..MAX_RETRIES {
         if let Ok(resp) = client
-            .get(&format!("{}/mesh/jobs/{}", NODE_C_URL, &job_id))
+            .get(format!("{}/mesh/jobs/{}", NODE_C_URL, &job_id))
             .send()
             .await
         {
@@ -101,7 +101,7 @@ async fn test_network_resilience() {
                     let result_cid = status["status"]["result_cid"].as_str().unwrap_or("");
                     if !result_cid.is_empty() {
                         let dag_res = client
-                            .post(&format!("{}/dag/get", NODE_C_URL))
+                            .post(format!("{}/dag/get", NODE_C_URL))
                             .json(&serde_json::json!({ "cid": result_cid }))
                             .send()
                             .await
@@ -183,7 +183,7 @@ async fn test_long_partition_circuit_breaker() {
     let _devnet = ensure_devnet().await;
 
     Command::new("docker-compose")
-        .args(&["-f", "icn-devnet/docker-compose.yml", "stop", "icn-node-c"])
+        .args(["-f", "icn-devnet/docker-compose.yml", "stop", "icn-node-c"])
         .status()
         .expect("failed to stop node c");
 
@@ -232,7 +232,7 @@ async fn test_long_partition_circuit_breaker() {
     );
 
     Command::new("docker-compose")
-        .args(&["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
+        .args(["-f", "icn-devnet/docker-compose.yml", "start", "icn-node-c"])
         .status()
         .expect("failed to start node c");
 

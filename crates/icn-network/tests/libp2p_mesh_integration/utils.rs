@@ -152,6 +152,9 @@ pub fn create_test_bid(
         executor_did: executor_did.clone(),
         price_mana,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     bid.sign(signing_key).unwrap()

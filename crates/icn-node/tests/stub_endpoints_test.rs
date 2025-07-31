@@ -60,7 +60,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     let spec_bytes =
         base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&job_spec).unwrap());
     let job_response = client
-        .post(&format!("{}/mesh/submit", base_url))
+        .post(format!("{}/mesh/submit", base_url))
         .json(&json!({
             "manifest_cid": "bafybeigdyrztktx5b5m2y4sogf2hf5uq3k5knv5c5k2pvx7aq5w3sh7g5e",
             "spec_bytes": spec_bytes,
@@ -84,7 +84,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Test 2: Inject a bid
     println!("\n2. Testing stub bid injection...");
     let bid_response = client
-        .post(&format!("{}/mesh/stub/bid", base_url))
+        .post(format!("{}/mesh/stub/bid", base_url))
         .json(&json!({
             "job_id": job_id,
             "executor_id": "test-executor",
@@ -106,7 +106,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     // Test 3: Inject a receipt
     println!("\n3. Testing stub receipt injection...");
     let receipt_response = client
-        .post(&format!("{}/mesh/stub/receipt", base_url))
+        .post(format!("{}/mesh/stub/receipt", base_url))
         .json(&json!({
             "job_id": job_id,
             "executor_id": "test-executor",
@@ -135,7 +135,7 @@ async fn test_stub_endpoints_full_lifecycle() {
     tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
     let status_response = client
-        .get(&format!("{}/mesh/jobs/{}", base_url, job_id))
+        .get(format!("{}/mesh/jobs/{}", base_url, job_id))
         .send()
         .await
         .unwrap();

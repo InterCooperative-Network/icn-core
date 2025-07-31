@@ -3,15 +3,12 @@
 //! Tests the integration between smart P2P routing, real-time CCL integration,
 //! enhanced DAG synchronization, and comprehensive health monitoring.
 
-use icn_common::{Did, TimeProvider};
+use icn_common::Did;
 use icn_runtime::context::{
-    CclIntegrationCoordinator, CrossComponentCoordinator, DagOperation, EnvironmentType,
-    HostAbiError, MessagePriority, Priority, PropagationPriority, RuntimeContext,
-    RuntimeContextBuilder, SmartP2pRouter,
+    DagOperation, EnvironmentType, MessagePriority, Priority, PropagationPriority, RuntimeContext,
+    RuntimeContextBuilder,
 };
 use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
 use tokio;
 
 /// Test basic cross-component coordinator initialization
@@ -280,7 +277,8 @@ async fn test_runtime_context_constructor_consistency() -> Result<(), Box<dyn st
 
     // Test deprecated constructor (still should work)
     #[allow(deprecated)]
-    let deprecated_ctx = RuntimeContext::new_with_stubs("did:key:zTestDeprecated")?;
+    let deprecated_ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:key:zTestDeprecated")?, None)?;
     assert!(deprecated_ctx.cross_component_coordinator.as_ref() as *const _ != std::ptr::null());
     println!("✅ Deprecated constructor properly initializes CrossComponentCoordinator");
 

@@ -3,8 +3,8 @@ use icn_common::{Cid, DagBlock};
 use icn_dag::InMemoryDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
-use icn_runtime::context::{RuntimeContext, StubMeshNetworkService, StubSigner};
-use icn_runtime::executor::{WasmExecutor, WasmExecutorConfig};
+use icn_runtime::context::{RuntimeContext, StubSigner};
+use icn_runtime::executor::{JobExecutor, WasmExecutor, WasmExecutorConfig};
 use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
@@ -12,21 +12,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::Mutex as TokioMutex;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    let temp = tempfile::tempdir().unwrap();
-    let dag_store = Arc::new(TokioMutex::new(InMemoryDagStore::new()));
-    let ctx = RuntimeContext::new_with_ledger_path(
-        icn_common::Did::from_str(did).unwrap(),
-        Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new()),
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store,
-        temp.path().join("mana"),
-        temp.path().join("reputation"),
-        None,
-    );
-    ctx.mana_ledger
-        .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)
-        .unwrap();
+    let ctx = RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap();
     ctx
 }
 
@@ -59,8 +45,8 @@ async fn array_reallocation_integers() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -118,8 +104,8 @@ async fn array_push_bool_and_string() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 

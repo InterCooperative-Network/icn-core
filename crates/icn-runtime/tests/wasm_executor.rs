@@ -36,7 +36,7 @@ async fn wasm_executor_runs_wasm() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
@@ -82,7 +82,7 @@ async fn wasm_executor_runs_compiled_ccl_contract() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
@@ -158,7 +158,7 @@ async fn wasm_executor_host_submit_mesh_job_json() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
 
@@ -225,7 +225,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
 
@@ -245,7 +245,7 @@ async fn wasm_executor_host_anchor_receipt_json() {
 
     let rec_bytes = serde_json::to_vec(&receipt).unwrap();
     let expected = Cid::new_v1_sha256(0x71, &rec_bytes);
-    let store = ctx.dag_store.lock().await;
+    let store = ctx.dag_store.store.lock().await;
     assert!(store.get(&expected).await.unwrap().is_some());
     assert!(ctx.reputation_store.get_reputation(&executor_did) > 0);
 }
@@ -269,7 +269,7 @@ async fn submit_compiled_ccl_runs_via_executor() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
@@ -314,7 +314,7 @@ async fn queued_compiled_ccl_executes() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
@@ -357,7 +357,7 @@ async fn compiled_example_contract_file_runs() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
@@ -392,7 +392,7 @@ async fn wasm_executor_enforces_memory_limit() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -429,7 +429,7 @@ async fn wasm_executor_enforces_fuel_limit() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -469,7 +469,7 @@ async fn wasm_executor_rejects_memory_growth() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -506,7 +506,7 @@ async fn wasm_executor_errors_on_large_initial_memory() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {
@@ -543,7 +543,7 @@ async fn wasm_executor_enforces_timeout() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     let job = ActualMeshJob {

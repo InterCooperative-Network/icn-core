@@ -21,8 +21,10 @@ mod federation_discover {
             .expect("node a addr");
         let peer_a = node_a.local_peer_id().clone();
 
-        let mut config_b = NetworkConfig::default();
-        config_b.bootstrap_peers = vec![(peer_a, addr.clone())];
+        let config_b = NetworkConfig {
+            bootstrap_peers: vec![(peer_a, addr.clone())],
+            ..Default::default()
+        };
         let node_b = Libp2pNetworkService::new(config_b)
             .await
             .expect("node b start");

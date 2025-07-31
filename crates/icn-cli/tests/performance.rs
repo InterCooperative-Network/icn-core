@@ -261,13 +261,13 @@ async fn test_repeated_commands_stress() {
 
     for i in 0..num_iterations {
         let bin = bin.clone();
-        let _base = base.clone();
+        let base_clone = base.clone();
 
         let start = Instant::now();
 
         tokio::task::spawn_blocking(move || {
             Command::new(bin)
-                .args(["--api-url", &base, "info"])
+                .args(["--api-url", &base_clone, "info"])
                 .assert()
                 .success();
         })
@@ -335,7 +335,6 @@ async fn test_memory_usage_patterns() {
 
         let start = Instant::now();
 
-        let base = base.clone();
         tokio::task::spawn_blocking(move || {
             Command::new(bin).args(cmd_args).assert().success();
         })

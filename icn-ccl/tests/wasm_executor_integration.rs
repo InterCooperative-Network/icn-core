@@ -12,21 +12,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::Mutex as TokioMutex;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    let temp = tempfile::tempdir().unwrap();
-    let dag_store = Arc::new(TokioMutex::new(InMemoryDagStore::new()));
-    let ctx = RuntimeContext::new_with_ledger_path(
-        icn_common::Did::from_str(did).unwrap(),
-        Arc::new(StubMeshNetworkService::new()),
-        Arc::new(StubSigner::new()),
-        Arc::new(icn_identity::KeyDidResolver),
-        dag_store,
-        temp.path().join("mana"),
-        temp.path().join("reputation"),
-        None,
-    );
-    ctx.mana_ledger
-        .set_balance(&icn_common::Did::from_str(did).unwrap(), mana)
-        .unwrap();
+    let ctx = RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap();
     ctx
 }
 
@@ -50,8 +36,8 @@ async fn wasm_executor_runs_compiled_ccl() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -101,8 +87,8 @@ async fn wasm_executor_runs_compiled_addition() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -152,8 +138,8 @@ async fn wasm_executor_fails_without_run() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -202,8 +188,8 @@ async fn compile_and_execute_simple_contract() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
 
     let (sk, vk) = generate_ed25519_keypair();
@@ -252,8 +238,8 @@ async fn wasm_executor_runs_compiled_file() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
 
     let (sk, vk) = generate_ed25519_keypair();
@@ -305,8 +291,8 @@ async fn wasm_executor_runs_while_loop() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
 
     let (sk, vk) = generate_ed25519_keypair();
@@ -355,8 +341,8 @@ async fn wasm_executor_runs_for_loop() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
 
     let (sk, vk) = generate_ed25519_keypair();
@@ -410,8 +396,8 @@ async fn contract_queries_reputation() {
         scope: None,
     };
     {
-        let mut store = ctx.dag_store.lock().await;
-        store.put(&block).unwrap();
+        let mut store = ctx.dag_store.store.lock().await;
+        store.put(&block).await.unwrap();
     }
 
     let (sk, vk) = generate_ed25519_keypair();

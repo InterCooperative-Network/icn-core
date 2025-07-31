@@ -37,7 +37,7 @@ async fn credential_issue_route() {
 
     sleep(Duration::from_millis(100)).await;
     let client = Client::new();
-    let url = format!("http://{}/identity/credentials/issue", addr);
+    let url = format!("http://{addr}/identity/credentials/issue");
 
     let mut attrs = BTreeMap::new();
     attrs.insert("role".to_string(), "tester".to_string());
@@ -66,7 +66,7 @@ async fn credential_issue_route() {
     assert_eq!(retrieved.cid, cid);
 
     // verify via API
-    let verify_url = format!("http://{}/identity/credentials/verify", addr);
+    let verify_url = format!("http://{addr}/identity/credentials/verify");
     let resp = client
         .post(&verify_url)
         .json(&retrieved.credential)
@@ -78,7 +78,7 @@ async fn credential_issue_route() {
     assert!(v.valid);
 
     // revoke
-    let revoke_url = format!("http://{}/identity/credentials/revoke", addr);
+    let revoke_url = format!("http://{addr}/identity/credentials/revoke");
     let resp = client
         .post(&revoke_url)
         .json(&RevokeCredentialRequest { cid: cid.clone() })
@@ -120,7 +120,7 @@ async fn expired_credential_rejected() {
     });
     sleep(Duration::from_millis(100)).await;
     let client = Client::new();
-    let issue_url = format!("http://{}/identity/credentials/issue", addr);
+    let issue_url = format!("http://{addr}/identity/credentials/issue");
 
     let mut attrs = BTreeMap::new();
     attrs.insert("role".to_string(), "tester".to_string());
@@ -136,7 +136,7 @@ async fn expired_credential_rejected() {
     assert_eq!(resp.status(), StatusCode::CREATED);
     let cred_resp: CredentialResponse = resp.json().await.unwrap();
 
-    let verify_url = format!("http://{}/identity/credentials/verify", addr);
+    let verify_url = format!("http://{addr}/identity/credentials/verify");
     let resp = client
         .post(&verify_url)
         .json(&cred_resp.credential)

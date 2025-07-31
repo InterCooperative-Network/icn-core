@@ -35,6 +35,7 @@ mod p2p_dag_e2e_tests {
     /// A test node with real P2P networking and DAG storage
     struct TestNode {
         did: Did,
+        #[allow(dead_code)]
         signing_key: ed25519_dalek::SigningKey,
         dag_store: Arc<Mutex<InMemoryDagStore>>,
         network_service: Arc<Libp2pNetworkService>,
@@ -61,7 +62,7 @@ mod p2p_dag_e2e_tests {
             let network_service = Arc::new(
                 Libp2pNetworkService::new(config)
                     .await
-                    .expect(&format!("Failed to create network service for {}", name)),
+                    .unwrap_or_else(|_| panic!("Failed to create network service for {name}")),
             );
 
             let peer_id = network_service.local_peer_id().to_string();
@@ -125,6 +126,7 @@ mod p2p_dag_e2e_tests {
         }
 
         /// Request a block from the network
+        #[allow(dead_code)]
         async fn request_block_from_network(
             &self,
             cid: &Cid,
@@ -218,7 +220,7 @@ mod p2p_dag_e2e_tests {
 
             // Create remaining nodes that bootstrap to the first node
             for i in 1..node_count {
-                let node_name = format!("node_{}", i);
+                let node_name = format!("node_{i}");
                 let bootstrap_peers = vec![(bootstrap_peer_id, bootstrap_addr.clone())];
                 let node = TestNode::new(&node_name, bootstrap_peers).await;
                 nodes.push(node);
@@ -252,8 +254,7 @@ mod p2p_dag_e2e_tests {
                     // Skip bootstrap node check since it might not connect to itself
                     assert!(
                         stats.peer_count > 0,
-                        "Node {} should be connected to at least one peer",
-                        i
+                        "Node {i} should be connected to at least one peer"
                     );
                 }
             }
@@ -330,7 +331,7 @@ mod p2p_dag_e2e_tests {
                 let node = &self.nodes[node_idx];
 
                 // Create and store a block
-                let test_data = format!("load_test_data_{}", i).into_bytes();
+                let test_data = format!("load_test_data_{i}").into_bytes();
                 let block = node.create_test_block(&test_data, vec![]);
 
                 let node_peer_id = node.peer_id.clone();
@@ -407,8 +408,7 @@ mod p2p_dag_e2e_tests {
             let is_connected = node.is_connected().await;
             assert!(
                 is_connected || i == 0,
-                "Node {} should be connected to the network",
-                i
+                "Node {i} should be connected to the network"
             );
 
             let stats = node.get_connectivity_stats().await.unwrap();
@@ -480,7 +480,7 @@ mod p2p_dag_e2e_tests {
         // Test that the network remains functional even if some connections fail
         // Store blocks on different nodes
         for (i, node) in network.nodes.iter().enumerate() {
-            let test_data = format!("partition_test_data_{}", i).into_bytes();
+            let test_data = format!("partition_test_data_{i}").into_bytes();
             let block = node.create_test_block(&test_data, vec![]);
 
             node.store_block(&block).await.unwrap();

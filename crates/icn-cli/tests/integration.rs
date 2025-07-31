@@ -39,7 +39,7 @@ async fn test_dag_put_get_workflow() {
         let base = base.clone();
         let dag_block = dag_block.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "dag", "put", &dag_block])
                 .output()
                 .unwrap()
@@ -55,7 +55,7 @@ async fn test_dag_put_get_workflow() {
         // ...existing code...
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "dag", "get", "\"bafytest123\""])
                 .output()
                 .unwrap()
@@ -101,7 +101,7 @@ async fn test_mesh_job_workflow() {
         let base = base.clone();
         let job_request = job_request.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "mesh", "submit", &job_request])
                 .output()
                 .unwrap()
@@ -118,10 +118,9 @@ async fn test_mesh_job_workflow() {
 
     // List jobs and verify our job appears
     let list_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "mesh", "jobs"])
                 .output()
                 .unwrap()
@@ -136,11 +135,10 @@ async fn test_mesh_job_workflow() {
 
     // Check job status
     let status_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         let job_id = job_id.to_string();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "mesh", "status", &job_id])
                 .output()
                 .unwrap()
@@ -185,11 +183,10 @@ async fn test_governance_workflow() {
     .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         let proposal_request = proposal_request.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args([
                     "--api-url",
                     &base,
@@ -211,10 +208,9 @@ async fn test_governance_workflow() {
 
     // List proposals and verify our proposal appears
     let list_output = tokio::task::spawn_blocking({
-        let bin = bin;
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "governance", "proposals"])
                 .output()
                 .unwrap()
@@ -248,10 +244,10 @@ async fn test_federation_workflow() {
 
     // Initialize federation
     let init_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "federation", "init"])
                 .output()
                 .unwrap()
@@ -264,10 +260,10 @@ async fn test_federation_workflow() {
 
     // Join a peer
     let join_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "federation", "join", "test-peer"])
                 .output()
                 .unwrap()
@@ -280,10 +276,10 @@ async fn test_federation_workflow() {
 
     // Check federation status
     let status_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "federation", "status"])
                 .output()
                 .unwrap()
@@ -298,10 +294,10 @@ async fn test_federation_workflow() {
 
     // Leave the peer
     let leave_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "federation", "leave", "test-peer"])
                 .output()
                 .unwrap()
@@ -333,9 +329,9 @@ async fn test_identity_workflow() {
 
     // Generate a proof
     let generate_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args([
                     "identity",
                     "generate-proof",
@@ -369,11 +365,11 @@ async fn test_identity_workflow() {
 
     // Verify the proof (this will likely fail since it's a dummy proof, but we test the flow)
     let verify_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         let proof_str = generate_stdout.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "identity", "verify-proof", &proof_str])
                 .output()
                 .unwrap()
@@ -405,10 +401,10 @@ async fn test_ccl_workflow() {
 
     // Compile the CCL file
     let compile_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let file_str = file_str.to_string();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["ccl", "compile", &file_str])
                 .output()
                 .unwrap()
@@ -423,10 +419,10 @@ async fn test_ccl_workflow() {
 
     // Lint the CCL file
     let lint_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let file_str = file_str.to_string();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["ccl", "lint", &file_str])
                 .output()
                 .unwrap()
@@ -441,10 +437,10 @@ async fn test_ccl_workflow() {
 
     // Explain the CCL file
     let explain_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let file_str = file_str.to_string();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["ccl", "explain", &file_str])
                 .output()
                 .unwrap()
@@ -476,10 +472,10 @@ async fn test_network_workflow() {
 
     // Get network stats
     let stats_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "network", "stats"])
                 .output()
                 .unwrap()
@@ -494,10 +490,10 @@ async fn test_network_workflow() {
 
     // Get network peers
     let peers_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "network", "peers"])
                 .output()
                 .unwrap()
@@ -510,10 +506,10 @@ async fn test_network_workflow() {
 
     // Test network ping
     let ping_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "network", "ping", "test-peer"])
                 .output()
                 .unwrap()
@@ -547,10 +543,10 @@ async fn test_multi_command_workflow() {
 
     // Step 1: Get node info
     let info_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "info"])
                 .output()
                 .unwrap()
@@ -563,10 +559,10 @@ async fn test_multi_command_workflow() {
 
     // Step 2: Check node status
     let status_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "status"])
                 .output()
                 .unwrap()
@@ -587,11 +583,11 @@ async fn test_multi_command_workflow() {
     .to_string();
 
     let submit_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         let job_request = job_request.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "mesh", "submit", &job_request])
                 .output()
                 .unwrap()
@@ -604,10 +600,10 @@ async fn test_multi_command_workflow() {
 
     // Step 4: List jobs to verify submission
     let list_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "mesh", "jobs"])
                 .output()
                 .unwrap()
@@ -620,10 +616,10 @@ async fn test_multi_command_workflow() {
 
     // Step 5: Get metrics
     let metrics_output = tokio::task::spawn_blocking({
-        let bin = bin.clone();
+        let bin = bin.to_string();
         let base = base.clone();
         move || {
-            Command::new(bin)
+            Command::new(&bin)
                 .args(["--api-url", &base, "metrics"])
                 .output()
                 .unwrap()

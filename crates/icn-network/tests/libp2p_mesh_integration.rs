@@ -70,6 +70,9 @@ mod libp2p_mesh_integration {
             executor_did,
             price_mana: 50,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         }
         .sign(&sk)
@@ -461,6 +464,9 @@ mod libp2p_mesh_integration {
                                 max_execution_time_secs: 300, // Set default timeout
                             },
                             reputation_score: 0,
+                            executor_capabilities: vec![],
+                            executor_federations: vec![],
+                            executor_trust_scope: None,
                         }),
                         Did::new("key", "node_b"),
                         None,
@@ -704,6 +710,9 @@ mod libp2p_mesh_integration {
                     max_execution_time_secs: 300, // Set default timeout
                 },
                 reputation_score: 0,
+                executor_capabilities: vec![],
+                executor_federations: vec![],
+                executor_trust_scope: None,
             }),
             Did::new("key", "node_b"),
             None,
@@ -793,7 +802,12 @@ mod libp2p_mesh_integration {
                 required_resources: icn_mesh::Resources {
                     cpu_cores: received_job.job_spec.required_resources.cpu_cores,
                     memory_mb: received_job.job_spec.required_resources.memory_mb,
+                    storage_mb: 0,
                 },
+                required_capabilities: vec![],
+                required_trust_scope: None,
+                min_executor_reputation: None,
+                allowed_federations: vec![],
             },
         };
 
@@ -943,6 +957,9 @@ mod libp2p_mesh_integration {
                     max_execution_time_secs: 300, // Set default timeout
                 },
                 reputation_score: 0,
+                executor_capabilities: vec![],
+                executor_federations: vec![],
+                executor_trust_scope: None,
             }),
             Did::new("key", "node_b"),
             None,

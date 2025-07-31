@@ -23,12 +23,12 @@ async fn integrity_checker_detects_corruption() {
     let ctx = RuntimeContext::new_with_stubs_and_mana("did:icn:test:intcheck", 0).unwrap();
     let block = create_block("good");
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         store.put(&block).await.unwrap();
     }
     assert!(ctx.integrity_check_once().await.is_ok());
     {
-        let mut store = ctx.dag_store.lock().await;
+        let mut store = ctx.dag_store.store.lock().await;
         let stub = store
             .as_any_mut()
             .downcast_mut::<icn_runtime::context::StubDagStore>()

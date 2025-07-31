@@ -83,6 +83,7 @@ mod comprehensive_e2e_test {
 
     #[derive(Debug)]
     struct JobResult {
+        #[allow(dead_code)]
         job_id: String,
         #[allow(dead_code)]
         submitter_node: String,
@@ -162,7 +163,7 @@ mod comprehensive_e2e_test {
 
             // Start with monitoring profile
             let status = Command::new("docker-compose")
-                .args(&[
+                .args([
                     "-f",
                     "icn-devnet/docker-compose.yml",
                     "--profile",
@@ -207,7 +208,7 @@ mod comprehensive_e2e_test {
 
                 for (name, url, api_key) in &nodes {
                     match client
-                        .get(&format!("{}/info", url))
+                        .get(format!("{}/info", url))
                         .header("X-API-Key", *api_key)
                         .send()
                         .await
@@ -250,11 +251,11 @@ mod comprehensive_e2e_test {
             for node in &self.nodes {
                 let response = self
                     .client
-                    .get(&format!("{}/info", node.url))
+                    .get(format!("{}/info", node.url))
                     .header("X-API-Key", &node.api_key)
                     .send()
                     .await
-                    .expect(&format!("Failed to connect to {}", node.name));
+                    .unwrap_or_else(|_| panic!("Failed to connect to {}", node.name));
 
                 assert_eq!(
                     response.status(),
@@ -266,7 +267,7 @@ mod comprehensive_e2e_test {
                 let info: Value = response
                     .json()
                     .await
-                    .expect(&format!("Failed to parse info from {}", node.name));
+                    .unwrap_or_else(|_| panic!("Failed to parse info from {}", node.name));
 
                 assert!(info["name"].is_string(), "Node {} missing name", node.name);
                 assert!(
@@ -295,16 +296,16 @@ mod comprehensive_e2e_test {
                 for node in &self.nodes {
                     let response = self
                         .client
-                        .get(&format!("{}/status", node.url))
+                        .get(format!("{}/status", node.url))
                         .header("X-API-Key", &node.api_key)
                         .send()
                         .await
-                        .expect(&format!("Failed to get status from {}", node.name));
+                        .unwrap_or_else(|_| panic!("Failed to get status from {}", node.name));
 
                     let status: Value = response
                         .json()
                         .await
-                        .expect(&format!("Failed to parse status from {}", node.name));
+                        .unwrap_or_else(|_| panic!("Failed to parse status from {}", node.name));
 
                     let peer_count = status["peer_count"].as_u64().unwrap_or(0);
                     peer_counts.push((node.name.clone(), peer_count));
@@ -344,7 +345,7 @@ mod comprehensive_e2e_test {
             let prometheus_url = "http://localhost:9090";
             let response = self
                 .client
-                .get(&format!("{}/api/v1/query", prometheus_url))
+                .get(format!("{}/api/v1/query", prometheus_url))
                 .query(&[("query", "up")])
                 .send()
                 .await
@@ -356,11 +357,11 @@ mod comprehensive_e2e_test {
             for node in &self.nodes {
                 let metrics_response = self
                     .client
-                    .get(&format!("{}/metrics", node.url))
+                                         .get(format!("{}/metrics", node.url))
                     .header("X-API-Key", &node.api_key)
                     .send()
                     .await
-                    .expect(&format!("Failed to get metrics from {}", node.name));
+                    .unwrap_or_else(|_| panic!("Failed to get metrics from {}", node.name));
 
                 assert_eq!(
                     metrics_response.status(),
@@ -372,7 +373,7 @@ mod comprehensive_e2e_test {
                 let metrics_text = metrics_response
                     .text()
                     .await
-                    .expect(&format!("Failed to parse metrics from {}", node.name));
+                    .unwrap_or_else(|_| panic!("Failed to parse metrics from {}", node.name));
 
                 // Verify key metrics are present (using actual metric names)
                 assert!(
@@ -410,6 +411,7 @@ mod comprehensive_e2e_test {
                 allowed_federations: vec![],
                 min_executor_reputation: Some(0),
                 required_capabilities: vec![],
+                required_trust_scope: None,
                 // Add the missing field if needed, e.g. 'timeout: None,'
                 // ...removed timeout field, not present in JobSpec...
                 kind: icn_mesh::JobKind::Echo {
@@ -436,7 +438,7 @@ mod comprehensive_e2e_test {
             println!("  📤 Submitting computational job...");
             let submit_response = self
                 .client
-                .post(&format!("{}/mesh/submit", submitter_node.url))
+                .post(format!("{}/mesh/submit", submitter_node.url))
                 .header("Content-Type", "application/json")
                 .header("X-API-Key", &submitter_node.api_key)
                 .json(&job_request)
@@ -490,7 +492,7 @@ mod comprehensive_e2e_test {
             while start_wait.elapsed() < MAX_WAIT {
                 let status_response = self
                     .client
-                    .get(&format!("{}/mesh/jobs/{}", submitter_node.url, job_id))
+                    .get(format!("{}/mesh/jobs/{}", submitter_node.url, job_id))
                     .header("X-API-Key", &submitter_node.api_key)
                     .send()
                     .await
@@ -625,7 +627,7 @@ mod comprehensive_e2e_test {
             let submitter_node = &self.nodes[0];
             let dag_response = self
                 .client
-                .get(&format!("{}/dag/get/{}", submitter_node.url, receipt_cid))
+                .get(format!("{}/dag/get/{}", submitter_node.url, receipt_cid))
                 .header("X-API-Key", &submitter_node.api_key)
                 .send()
                 .await
@@ -662,7 +664,7 @@ mod comprehensive_e2e_test {
             for node in &self.nodes {
                 let node_dag_response = self
                     .client
-                    .get(&format!("{}/dag/get/{}", node.url, receipt_cid))
+                    .get(format!("{}/dag/get/{}", node.url, receipt_cid))
                     .header("X-API-Key", &node.api_key)
                     .send()
                     .await;
@@ -709,7 +711,7 @@ mod comprehensive_e2e_test {
                     });
 
                     let submit_response = client
-                        .post(&format!("{}/mesh/submit", url))
+                        .post(format!("{}/mesh/submit", url))
                         .header("Content-Type", "application/json")
                         .header("X-API-Key", &api_key)
                         .json(&job_request)
@@ -760,7 +762,7 @@ mod comprehensive_e2e_test {
                 for job_id in &job_ids {
                     let status_response = self
                         .client
-                        .get(&format!("{}/mesh/jobs/{}", submitter_node.url, job_id))
+                        .get(format!("{}/mesh/jobs/{}", submitter_node.url, job_id))
                         .header("X-API-Key", &submitter_node.api_key)
                         .send()
                         .await;
@@ -833,11 +835,11 @@ mod comprehensive_e2e_test {
             for (metric_name, query) in metrics_queries {
                 let response = self
                     .client
-                    .get(&format!("{}/api/v1/query", prometheus_url))
+                    .get(format!("{}/api/v1/query", prometheus_url))
                     .query(&[("query", query)])
                     .send()
                     .await
-                    .expect(&format!("Failed to query metric: {}", metric_name));
+                    .unwrap_or_else(|_| panic!("Failed to query metric: {}", metric_name));
 
                 if response.status() == 200 {
                     let query_result: Value = response
@@ -870,11 +872,12 @@ mod comprehensive_e2e_test {
         }
 
         /// Get mana balance for a node
+        #[allow(dead_code)]
         async fn get_mana_balance(&self, node_url: &str, api_key: &str) -> u64 {
             // First get the node's DID from /keys endpoint
             let keys_response = self
                 .client
-                .get(&format!("{}/keys", node_url))
+                .get(format!("{}/keys", node_url))
                 .header("X-API-Key", api_key)
                 .send()
                 .await
@@ -920,7 +923,7 @@ mod comprehensive_e2e_test {
             // Now get the mana balance using the correct endpoint
             let response = self
                 .client
-                .get(&format!("{}/account/{}/mana", node_url, node_did))
+                .get(format!("{}/account/{}/mana", node_url, node_did))
                 .header("X-API-Key", api_key)
                 .send()
                 .await
@@ -932,6 +935,7 @@ mod comprehensive_e2e_test {
         }
 
         /// Get mana transaction history
+        #[allow(dead_code)]
         async fn get_mana_transactions(&self, _node_url: &str, _api_key: &str) -> Vec<Value> {
             // Note: ICN node doesn't currently expose a mana transactions endpoint
             // This is a placeholder implementation that returns an empty list
@@ -946,7 +950,7 @@ mod comprehensive_e2e_test {
             // Clean up federation if we started it
             if std::env::var("ICN_DEVNET_RUNNING").is_err() {
                 let _ = Command::new("docker-compose")
-                    .args(&[
+                    .args([
                         "-f",
                         "icn-devnet/docker-compose.yml",
                         "down",

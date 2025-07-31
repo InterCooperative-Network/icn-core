@@ -12,12 +12,7 @@ async fn anchor_receipt_valid_signature() {
     let did_str = did_key_from_verifying_key(&vk);
     let did = Did::from_str(&did_str).unwrap();
     let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
-    let ctx = RuntimeContext::new_with_ledger_path(
-        &did_str,
-        std::path::PathBuf::from("./mana_ledger.sled"),
-        signer.clone(),
-    )
-    .unwrap();
+    let ctx = RuntimeContext::new_for_testing(did.clone(), Some(100)).unwrap();
 
     let job_id = Cid::new_v1_sha256(0x55, b"sig_job");
     ctx.job_states.insert(
@@ -47,12 +42,7 @@ async fn anchor_receipt_invalid_signature() {
     let did_str = did_key_from_verifying_key(&vk);
     let did = Did::from_str(&did_str).unwrap();
     let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
-    let ctx = RuntimeContext::new_with_ledger_path(
-        &did_str,
-        std::path::PathBuf::from("./mana_ledger.sled"),
-        signer.clone(),
-    )
-    .unwrap();
+    let ctx = RuntimeContext::new_for_testing(did.clone(), Some(100)).unwrap();
 
     let job_id = Cid::new_v1_sha256(0x55, b"sig_job_bad");
     ctx.job_states.insert(

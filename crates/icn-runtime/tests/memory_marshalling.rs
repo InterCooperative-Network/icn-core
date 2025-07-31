@@ -4,7 +4,11 @@ use wasmtime::{Engine, Linker, Module, Store};
 
 #[tokio::test]
 async fn write_string_limited_truncates() {
-    let ctx = RuntimeContext::new_with_stubs("did:key:zMemTest").unwrap();
+    let ctx = RuntimeContext::new_for_testing(
+        icn_common::Did::from_str("did:key:zMemTest").unwrap(),
+        Some(100),
+    )
+    .unwrap();
     let engine = Engine::default();
     let module_wat = r#"(module
         (import "t" "write" (func $write (param i32 i32) (result i32)))
@@ -37,7 +41,11 @@ async fn write_string_limited_truncates() {
 
 #[tokio::test]
 async fn read_string_safe_empty() {
-    let ctx = RuntimeContext::new_with_stubs("did:key:zMemRead").unwrap();
+    let ctx = RuntimeContext::new_for_testing(
+        icn_common::Did::from_str("did:key:zMemRead").unwrap(),
+        Some(100),
+    )
+    .unwrap();
     let engine = Engine::default();
     let module_wat = r#"(module
         (import "t" "read" (func $read (param i32 i32) (result i32)))

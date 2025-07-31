@@ -4,20 +4,19 @@ mod federation;
 #[cfg(feature = "enable-libp2p")]
 mod libp2p_job_pipeline {
     use super::federation::{ensure_devnet, NODE_A_URL, NODE_B_URL, NODE_C_URL};
-    use base64;
-    use bincode;
+
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
-    use icn_mesh::{ActualMeshJob, JobKind, JobSpec, JobState, MeshJobBid, Resources};
+    use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
     use icn_network::NetworkService;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
-    use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
+    use libp2p::{Multiaddr};
     use reqwest::Client;
     use serde_json::Value;
-    use std::str::FromStr;
+
     use std::sync::Arc;
     use tokio::time::{sleep, timeout, Duration};
 
@@ -59,7 +58,7 @@ mod libp2p_job_pipeline {
         };
         let job_request = serde_json::json!({
             "manifest_cid": "cidv1-libp2p-test-manifest",
-            "spec_bytes": base64::encode(bincode::serialize(&spec).unwrap()),
+            "spec_bytes": base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&spec).unwrap()),
             "spec_json": null,
             "cost_mana": 50
         });
@@ -156,7 +155,7 @@ mod libp2p_job_pipeline {
         };
         let job_request = serde_json::json!({
             "manifest_cid": manifest_cid,
-            "spec_bytes": base64::encode(bincode::serialize(&job_spec).unwrap()),
+            "spec_bytes": base64::engine::general_purpose::STANDARD.encode(bincode::serialize(&job_spec).unwrap()),
             "spec_json": null,
             "cost_mana": 50
         });
@@ -400,7 +399,7 @@ mod libp2p_job_pipeline {
 
         let stored = node_a
             .dag_store
-            .lock()
+            .store.lock()
             .await
             .get(&cid)?
             .expect("receipt stored");

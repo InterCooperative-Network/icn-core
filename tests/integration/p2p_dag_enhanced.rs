@@ -577,7 +577,7 @@ impl EnhancedTestNetwork {
 async fn test_enhanced_network_coordination() {
     init_tracing();
 
-    let network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
+    let _network = timeout(Duration::from_secs(30), EnhancedTestNetwork::new(3))
         .await
         .expect("Network setup should not timeout")
         .expect("Network should be created successfully");
