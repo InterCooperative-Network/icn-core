@@ -26,8 +26,7 @@ fn test_else_if_chain_compilation() {
     let result = compile_ccl_source_to_wasm(source);
     assert!(
         result.is_ok(),
-        "Else-if chain should compile successfully: {:?}",
-        result
+        "Else-if chain should compile successfully: {result:?}"
     );
 
     let (wasm, _meta) = result.unwrap();
