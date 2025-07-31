@@ -4,7 +4,7 @@
 //! features work correctly and provide the production readiness needed.
 
 use icn_runtime::error_recovery::{
-    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig, DefaultErrorClassifier,
+    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig,
     ErrorRecoveryConfig, RecoveryError,
 };
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -77,12 +77,12 @@ async fn test_production_error_recovery_patterns() {
     // Test 2: Circuit breaker opens after failures
     println!("\n2️⃣ Testing circuit breaker pattern...");
 
-    let config = CircuitBreakerConfig {
+    let circuit_config = CircuitBreakerConfig {
         failure_threshold: 3,
         recovery_timeout: Duration::from_millis(50),
         success_threshold: 2,
     };
-    let circuit_breaker = CircuitBreaker::new(config);
+    let circuit_breaker = CircuitBreaker::new(circuit_config);
 
     // Cause failures to open the circuit
     for i in 0..4 {
