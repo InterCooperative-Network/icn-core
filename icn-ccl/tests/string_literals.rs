@@ -11,7 +11,7 @@ fn test_string_with_punctuation() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(ExpressionNode::StringLiteral(val)) = &body.statements[0] {
+            if let StatementNode::Return(Some(ExpressionNode::StringLiteral(val))) = &body.statements[0] {
                 assert_eq!(val, "Hello, world!");
             } else {
                 panic!("unexpected statement")
@@ -32,7 +32,7 @@ fn test_string_with_newline_escape() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(ExpressionNode::StringLiteral(val)) = &body.statements[0] {
+            if let StatementNode::Return(Some(ExpressionNode::StringLiteral(val))) = &body.statements[0] {
                 assert_eq!(val, "Line1\nLine2");
             } else {
                 panic!("unexpected statement")
@@ -53,7 +53,7 @@ fn test_string_with_quote_escape() {
         if let PolicyStatementNode::FunctionDef(AstNode::FunctionDefinition { body, .. }) =
             &items[0]
         {
-            if let StatementNode::Return(ExpressionNode::StringLiteral(val)) = &body.statements[0] {
+            if let StatementNode::Return(Some(ExpressionNode::StringLiteral(val))) = &body.statements[0] {
                 assert_eq!(val, "She said \"hi\"");
             } else {
                 panic!("unexpected statement")
