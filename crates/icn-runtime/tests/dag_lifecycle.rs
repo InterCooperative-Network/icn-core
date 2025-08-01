@@ -89,9 +89,12 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
         sig: SignatureBytes(vec![0; 64]),
     };
 
-    stub.stage_receipt(job_id.clone(), LocalMeshSubmitReceiptMessage {
-        receipt: receipt.clone(),
-    })
+    stub.stage_receipt(
+        job_id.clone(),
+        LocalMeshSubmitReceiptMessage {
+            receipt: receipt.clone(),
+        },
+    )
     .await;
 
     sleep(Duration::from_millis(200)).await;
@@ -101,5 +104,8 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
     assert_eq!(lifecycle.job.spec_json, Some(spec_json));
     assert_eq!(lifecycle.bids.len(), 2);
     assert!(lifecycle.receipt.is_some());
-    assert_eq!(lifecycle.receipt.as_ref().unwrap().executor_did, bid1.executor_did);
+    assert_eq!(
+        lifecycle.receipt.as_ref().unwrap().executor_did,
+        bid1.executor_did
+    );
 }

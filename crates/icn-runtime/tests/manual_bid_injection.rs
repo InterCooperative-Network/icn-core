@@ -1,4 +1,6 @@
-#![cfg(feature = "manual-bid-injection-tests")] // Disabled - needs refactoring for private method access
+// TODO: This test is disabled - needs refactoring for private method access
+#![cfg(test)]
+#![allow(dead_code)]
 
 use icn_common::{Cid, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes};

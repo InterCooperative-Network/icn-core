@@ -332,7 +332,9 @@ async fn queued_compiled_ccl_executes() {
         signature: SignatureBytes(vec![]),
     };
     let spec_bytes = bincode::serialize(&job.spec).unwrap();
-    ctx.handle_submit_job(job.manifest_cid.clone(), spec_bytes, job.cost_mana).await.unwrap();
+    ctx.handle_submit_job(job.manifest_cid.clone(), spec_bytes, job.cost_mana)
+        .await
+        .unwrap();
     tokio::time::sleep(std::time::Duration::from_millis(200)).await;
     if let Some(icn_mesh::JobState::Completed { receipt }) =
         ctx.job_states.get(&job.id).map(|s| s.value().clone())

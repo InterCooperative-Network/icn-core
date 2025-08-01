@@ -1,5 +1,3 @@
-#![cfg(feature = "enable-zk-proofs")]
-
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;

@@ -6,7 +6,6 @@ use icn_common::Did;
 use icn_runtime::context::{EnvironmentType, HostAbiError, RuntimeContextBuilder};
 use std::str::FromStr;
 use std::time::Duration;
-use tokio;
 
 /// Test CCL Integration initialization through RuntimeContext
 #[tokio::test]

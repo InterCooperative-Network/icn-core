@@ -169,7 +169,8 @@ mod cross_node_tests {
         assert_eq!(submitted_job_id, test_job.id);
         
         // Queue job in Node A's mesh job manager
-        node_a.internal_queue_mesh_job(test_job.clone()).await?;
+        let spec_bytes = bincode::serialize(&test_job.spec).unwrap();
+        node_a.handle_submit_job(test_job.manifest_cid.clone(), spec_bytes, test_job.cost_mana).await?;
         
         // Start Node A's job manager (which should announce the job)
         let node_a_clone = node_a.clone();

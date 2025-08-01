@@ -200,8 +200,13 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         max_execution_wait_ms: None,
         signature: SignatureBytes(Vec::new()),
     };
+    let spec_bytes = bincode::serialize(&submitted_job_details.spec).unwrap();
     arc_ctx_job_manager
-        .internal_queue_mesh_job(submitted_job_details.clone())
+        .handle_submit_job(
+            submitted_job_details.manifest_cid.clone(),
+            spec_bytes,
+            submitted_job_details.cost_mana,
+        )
         .await
         .unwrap();
 
@@ -1256,7 +1261,7 @@ async fn test_checkpoint_dag_anchoring() -> Result<(), Box<dyn std::error::Error
 
     // Verify checkpoint was stored in DAG
     let dag_store = ctx.dag_store.store.lock().await;
-    let stored_block = dag_store.get(&checkpoint_cid).unwrap().unwrap();
+    let stored_block = dag_store.get(&checkpoint_cid).await.unwrap().unwrap();
 
     assert_eq!(stored_block.cid, checkpoint_cid);
     assert_eq!(stored_block.author_did, executor_did);
@@ -1313,7 +1318,7 @@ async fn test_partial_output_dag_anchoring() -> Result<(), Box<dyn std::error::E
 
     // Verify partial output was stored in DAG
     let dag_store = ctx.dag_store.store.lock().await;
-    let stored_block = dag_store.get(&output_cid).unwrap().unwrap();
+    let stored_block = dag_store.get(&output_cid).await.unwrap().unwrap();
 
     assert_eq!(stored_block.cid, output_cid);
     assert_eq!(stored_block.author_did, executor_did);

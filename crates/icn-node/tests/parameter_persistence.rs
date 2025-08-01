@@ -34,18 +34,21 @@ async fn parameter_persists_between_restarts() {
         gov.add_member(Did::from_str("did:example:alice").unwrap());
         gov.add_member(Did::from_str("did:example:bob").unwrap());
         let pid = gov
-            .submit_proposal(ProposalSubmission {
-                proposer: Did::from_str("did:example:alice").unwrap(),
-                proposal_type: ProposalType::SystemParameterChange(
-                    "open_rate_limit".into(),
-                    "5".into(),
-                ),
-                description: "desc".into(),
-                duration_secs: 60,
-                quorum: None,
-                threshold: None,
-                content_cid: None,
-            }, &*time_provider)
+            .submit_proposal(
+                ProposalSubmission {
+                    proposer: Did::from_str("did:example:alice").unwrap(),
+                    proposal_type: ProposalType::SystemParameterChange(
+                        "open_rate_limit".into(),
+                        "5".into(),
+                    ),
+                    description: "desc".into(),
+                    duration_secs: 60,
+                    quorum: None,
+                    threshold: None,
+                    content_cid: None,
+                },
+                &*time_provider,
+            )
             .unwrap();
         gov.open_voting(&pid).unwrap();
         pid

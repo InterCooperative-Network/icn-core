@@ -13,7 +13,7 @@ mod libp2p_job_pipeline {
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
-    use libp2p::{Multiaddr};
+    use libp2p::Multiaddr;
     use reqwest::Client;
     use serde_json::Value;
 
@@ -399,7 +399,8 @@ mod libp2p_job_pipeline {
 
         let stored = node_a
             .dag_store
-            .store.lock()
+            .store
+            .lock()
             .await
             .get(&cid)?
             .expect("receipt stored");

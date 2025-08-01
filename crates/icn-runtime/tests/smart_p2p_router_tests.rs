@@ -302,7 +302,7 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
             println!("  - Peers contacted: {}", result.peers_contacted);
             println!("  - Strategy used: {}", result.strategy_used);
 
-            // Verify result structure - note: blocks_received, blocks_sent, and peers_contacted 
+            // Verify result structure - note: blocks_received, blocks_sent, and peers_contacted
             // are unsigned types so they're always >= 0
             assert!(!result.strategy_used.is_empty());
         }

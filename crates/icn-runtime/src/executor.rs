@@ -636,6 +636,11 @@ impl JobExecutor for SimpleExecutor {
                 })?;
 
                 // Fetch metadata block from the DAG store
+                #[cfg(not(feature = "async"))]
+                return Err(CommonError::InternalError(
+                    "Async feature required".to_string(),
+                ));
+
                 #[cfg(feature = "async")]
                 let meta_bytes = {
                     let store = ctx.dag_store.store.lock().await;
@@ -645,13 +650,6 @@ impl JobExecutor for SimpleExecutor {
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
                         .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
                         .data
-                };
-
-                #[cfg(not(feature = "async"))]
-                let meta_bytes: Vec<u8> = {
-                    return Err(CommonError::InternalError(
-                        "Async feature required".to_string(),
-                    ));
                 };
 
                 // Parse and validate metadata
@@ -704,6 +702,11 @@ impl JobExecutor for SimpleExecutor {
                     )
                 })?;
 
+                #[cfg(not(feature = "async"))]
+                return Err(CommonError::InternalError(
+                    "Async feature required".to_string(),
+                ));
+
                 #[cfg(feature = "async")]
                 let manifest_bytes = {
                     let store = ctx.dag_store.store.lock().await;
@@ -713,13 +716,6 @@ impl JobExecutor for SimpleExecutor {
                         .map_err(|e| CommonError::InternalError(e.to_string()))?
                         .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
                         .data
-                };
-
-                #[cfg(not(feature = "async"))]
-                let manifest_bytes: Vec<u8> = {
-                    return Err(CommonError::InternalError(
-                        "Async feature required".to_string(),
-                    ));
                 };
 
                 // Compute SHA-256 of the manifest bytes

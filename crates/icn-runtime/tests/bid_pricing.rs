@@ -4,7 +4,6 @@ use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, Resources};
 use icn_runtime::context::RuntimeContext;
 use std::str::FromStr;
 
-
 #[tokio::test]
 async fn bid_price_deterministic() {
     let did = Did::from_str("did:icn:test:exec").unwrap();

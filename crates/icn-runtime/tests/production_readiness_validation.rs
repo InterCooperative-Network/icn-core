@@ -4,8 +4,7 @@
 //! features work correctly and provide the production readiness needed.
 
 use icn_runtime::error_recovery::{
-    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig,
-    ErrorRecoveryConfig, RecoveryError,
+    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig, ErrorRecoveryConfig, RecoveryError,
 };
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;

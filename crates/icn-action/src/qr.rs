@@ -217,7 +217,7 @@ impl QrUtils {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[cfg(feature = "qr")]
     use crate::Action;
     #[cfg(feature = "qr")]
