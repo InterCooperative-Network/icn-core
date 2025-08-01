@@ -1,7 +1,10 @@
 #[cfg(feature = "persist-sled")]
 use icn_common::{compute_merkle_cid, DagBlock, Did};
+#[cfg(feature = "persist-sled")]
 use icn_node::app_router_with_options;
+#[cfg(feature = "persist-sled")]
 use std::str::FromStr;
+#[cfg(feature = "persist-sled")]
 use tempfile::tempdir;
 
 #[cfg(feature = "persist-sled")]

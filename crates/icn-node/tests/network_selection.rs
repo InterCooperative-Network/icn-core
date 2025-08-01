@@ -11,7 +11,10 @@ async fn enable_p2p_uses_libp2p() {
     let mut cfg = NodeConfig::default();
     cfg.apply_cli_overrides(&cli, &matches);
 
+    #[cfg(feature = "enable-libp2p")]
     let svc = build_network_service(&cfg).await.unwrap();
+    #[cfg(not(feature = "enable-libp2p"))]
+    let _svc = build_network_service(&cfg).await.unwrap();
     #[cfg(feature = "enable-libp2p")]
     {
         use icn_network::NetworkService;

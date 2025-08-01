@@ -4,6 +4,7 @@ use icn_common::Did;
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 #[cfg(feature = "persist-sled")]
 use icn_node::app_router_with_options;
+#[cfg(feature = "persist-sled")]
 use icn_runtime::context::LedgerBackend;
 #[cfg(feature = "persist-sled")]
 use std::str::FromStr;
