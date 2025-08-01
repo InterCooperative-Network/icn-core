@@ -40,13 +40,12 @@ mod icn_node_end_to_end {
     ) {
         let did = format!("did:key:z6Mkv{}", suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
         let ctx = RuntimeContext::new_with_real_libp2p(
             &did,
             listen,
             bootstrap,
-            std::path::PathBuf::from(format!("./dag_{suffix}")),
-            std::path::PathBuf::from(format!("./mana_{suffix}.sled")),
-            std::path::PathBuf::from(format!("./rep_{suffix}.sled")),
+            signer,
         )
         .await
         .unwrap();
