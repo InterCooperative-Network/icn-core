@@ -100,11 +100,9 @@ async fn bearer_token_required_for_requests() {
 
 #[tokio::test]
 async fn tls_api_key_and_bearer_token() {
-    let _cert = generate_simple_self_signed(["localhost".to_string()]).unwrap();
-    // For now, let's create dummy content to make the test compile
-    // TODO: Fix certificate serialization when rcgen API is clarified
-    let cert_pem = "-----BEGIN CERTIFICATE-----\nMIIBkTCB+wIJAMlyFqk69v+9MA0GCSqGSIb3DQEBCwUAMBQxEjAQBgNVBAMMCWxvY2FsaG9zdDAeFw0yMzEwMDEwMDAwMDBaFw0yNDEwMDEwMDAwMDBaMBQxEjAQBgNVBAMMCWxvY2FsaG9zdDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABEqJ8MzQ3zK8bH9K2J9aE5vN7dX8Q1eJ8Zx3VzJ2DzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMwDQYJKoZIhvcNAQELBQADQQBL2eJ8MzQ3zK8bH9K2J9aE5vN7dX8Q1eJ8Zx3VzJ2DzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMzQzMz\n-----END CERTIFICATE-----\n".to_string();
-    let key_pem = "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQg8bH9K2J9aE5vN7dX8Q1eJ8Zx3VzJ2DzMzQzMzQzMzQzMzQhRANCAAQqifDM0N8yvGx/StifWhObze3V/ENXifGcd1cydg8zM0MzM0MzM0MzM0MzM0MzM0MzM0MzM0MzM0MzM0MzM0MzM0Mz\n-----END PRIVATE KEY-----\n".to_string();
+    let cert = generate_simple_self_signed(["localhost".to_string()]).unwrap();
+    let cert_pem = cert.serialize_pem().unwrap();
+    let key_pem = cert.serialize_private_key_pem();
 
     let cert_file = NamedTempFile::new().unwrap();
     let key_file = NamedTempFile::new().unwrap();
