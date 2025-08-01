@@ -149,7 +149,7 @@ mod ten_node_propagation {
                 }
             })
             .await?;
-            ctx.ingest_external_proposal(&bytes).await?;
+            ctx.ingest_external_proposal(&bytes.proposal_data).await?;
             let gov = ctx.governance_module.lock().await;
             assert!(gov.get_proposal(&pid)?.is_some());
         }
