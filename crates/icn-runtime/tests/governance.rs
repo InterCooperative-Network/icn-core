@@ -10,7 +10,7 @@ use std::str::FromStr;
 #[tokio::test]
 async fn proposal_can_be_closed_and_executed() {
     // setup context
-    let ctx = RuntimeContext::new_testing("did:icn:test:alice").unwrap();
+    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000)).unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -37,14 +37,14 @@ async fn proposal_can_be_closed_and_executed() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
         gov.cast_vote(
             Did::from_str("did:icn:test:charlie").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
@@ -152,7 +152,7 @@ async fn vote_succeeds_with_sufficient_mana() {
 
 #[tokio::test]
 async fn lifecycle_with_member_add_and_remove() {
-    let ctx = RuntimeContext::new_testing("did:icn:test:alice").unwrap();
+    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000)).unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -177,7 +177,7 @@ async fn lifecycle_with_member_add_and_remove() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
@@ -232,7 +232,7 @@ async fn execution_rewards_proposer() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
@@ -293,7 +293,7 @@ async fn failed_execution_no_rewards() {
 
 #[tokio::test]
 async fn proposal_body_is_stored_in_dag() {
-    let ctx = RuntimeContext::new_testing("did:icn:test:cid").unwrap();
+    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:cid").unwrap(), Some(1000)).unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:cid").unwrap());
@@ -321,7 +321,7 @@ async fn proposal_body_is_stored_in_dag() {
 
 #[tokio::test]
 async fn parameter_change_execution_updates_runtime() {
-    let ctx = RuntimeContext::new_testing("did:icn:test:param").unwrap();
+    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:param").unwrap(), Some(1000)).unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:param").unwrap());
@@ -347,7 +347,7 @@ async fn parameter_change_execution_updates_runtime() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
@@ -395,7 +395,7 @@ async fn parameter_change_anchors_dag_entry() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
@@ -450,7 +450,7 @@ async fn budget_allocation_credits_mana() {
             Did::from_str("did:icn:test:bob").unwrap(),
             &pid,
             VoteOption::Yes,
-            ctx.time_provider(),
+            ctx.time_provider.as_ref(),
         )
         .unwrap();
     }
