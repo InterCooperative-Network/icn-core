@@ -192,7 +192,8 @@ impl MessageHandler {
         let block_data = {
             let store = self.dag_store.lock().await;
             match store.get(&request.block_cid) {
-                Ok(block_opt) => block_opt,
+                Ok(Some(block)) => Some(block.data.clone()), // Assuming DagBlock has a `data: Vec<u8>` field
+                Ok(None) => None,
                 _ => None,
             }
         };
