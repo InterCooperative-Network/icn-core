@@ -10,7 +10,9 @@ use std::str::FromStr;
 use tokio::runtime::Runtime;
 
 async fn queue_and_process_job() {
-    let ctx = std::sync::Arc::new(RuntimeContext::new_with_stubs_and_mana("did:icn:bench:node", 100).unwrap());
+    let ctx = std::sync::Arc::new(
+        RuntimeContext::new_with_stubs_and_mana("did:icn:bench:node", 100).unwrap(),
+    );
 
     let stub = ctx
         .mesh_network_service
@@ -67,9 +69,7 @@ async fn queue_and_process_job() {
 fn bench_job_manager(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     c.bench_function("queue_and_process_job", |b| {
-        b.iter(|| {
-            rt.block_on(queue_and_process_job())
-        });
+        b.iter(|| rt.block_on(queue_and_process_job()));
     });
 }
 

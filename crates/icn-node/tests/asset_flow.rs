@@ -29,7 +29,7 @@ async fn asset_class_lifecycle_unimplemented() {
     let client = Client::new();
 
     let resp = client
-        .post(format!("http://{}/assets/classes", addr))
+        .post(format!("http://{addr}/assets/classes"))
         .json(&json!({"name": "test"}))
         .send()
         .await
@@ -37,7 +37,7 @@ async fn asset_class_lifecycle_unimplemented() {
     assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
 
     let resp = client
-        .post(format!("http://{}/assets/mint", addr))
+        .post(format!("http://{addr}/assets/mint"))
         .json(&json!({"class_id": "test", "to": "did:example:alice", "amount": 1}))
         .send()
         .await
@@ -45,7 +45,7 @@ async fn asset_class_lifecycle_unimplemented() {
     assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
 
     let resp = client
-        .post(format!("http://{}/assets/transfer", addr))
+        .post(format!("http://{addr}/assets/transfer"))
         .json(&json!({
             "class_id": "test",
             "from": "did:example:alice",
@@ -58,7 +58,7 @@ async fn asset_class_lifecycle_unimplemented() {
     assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
 
     let resp = client
-        .post(format!("http://{}/assets/burn", addr))
+        .post(format!("http://{addr}/assets/burn"))
         .json(&json!({"class_id": "test", "from": "did:example:bob", "amount": 1}))
         .send()
         .await
@@ -66,7 +66,7 @@ async fn asset_class_lifecycle_unimplemented() {
     assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
 
     let resp = client
-        .get(format!("http://{}/dag/events", addr))
+        .get(format!("http://{addr}/dag/events"))
         .send()
         .await
         .unwrap();

@@ -41,14 +41,9 @@ mod icn_node_end_to_end {
         let did = format!("did:key:z6Mkv{}", suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let signer = Arc::new(icn_runtime::context::StubSigner::new());
-        let ctx = RuntimeContext::new_with_real_libp2p(
-            &did,
-            listen,
-            bootstrap,
-            signer,
-        )
-        .await
-        .unwrap();
+        let ctx = RuntimeContext::new_with_real_libp2p(&did, listen, bootstrap, signer)
+            .await
+            .unwrap();
         let did_struct = Did::from_str(&did).unwrap();
         ctx.mana_ledger.set_balance(&did_struct, 1000).unwrap();
         ctx.clone().spawn_mesh_job_manager().await;
