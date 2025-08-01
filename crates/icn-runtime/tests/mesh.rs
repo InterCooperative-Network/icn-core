@@ -1016,8 +1016,16 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
             executor_did: bid.executor_did.clone(),
             cost_mana: bid.price_mana,
             estimated_duration_secs: 0,
-            offered_resources: bid.resources.clone(),
+            offered_resources: icn_protocol::ResourceRequirements {
+                cpu_cores: bid.resources.cpu_cores,
+                memory_mb: bid.resources.memory_mb,
+                storage_mb: bid.resources.storage_mb,
+                max_execution_time_secs: 300, // 5 minutes default
+            },
             reputation_score: 0,
+            executor_capabilities: vec![icn_protocol::ExecutorCapability::CclWasm],
+            executor_federations: vec!["default-federation".to_string()],
+            executor_trust_scope: Some("local".to_string()),
         }),
         executor_did.clone(),
         None,

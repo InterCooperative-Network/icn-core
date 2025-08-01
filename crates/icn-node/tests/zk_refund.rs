@@ -1,5 +1,6 @@
 use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
-use icn_node::app_router_with_options;
+use icn_node::{app_router_with_options, RuntimeMode};
+use icn_runtime::context::LedgerBackend;
 use reqwest::Client;
 use std::str::FromStr;
 use tempfile::tempdir;
@@ -10,10 +11,11 @@ async fn verification_failure_refunds_mana() {
     let tmp = tempdir().unwrap();
     let ledger_path = tmp.path().join("ledger.json");
     let (router, ctx) = app_router_with_options(
+        RuntimeMode::Testing,
         None,
         None,
         None,
-        None,
+        Some(LedgerBackend::File),
         Some(ledger_path),
         None,
         None,

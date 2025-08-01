@@ -41,7 +41,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
     {
         let store = ctx.dag_store.store.lock().await;
         for link in &block.links {
-            if !store.contains(&link.cid).unwrap() {
+            if !store.contains(&link.cid).await.unwrap() {
                 return Err(PolicyError::InvalidParent);
             }
         }
@@ -49,7 +49,7 @@ async fn anchor_block_with_policy<E: ScopedPolicyEnforcer>(
 
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(block).unwrap();
+        store.put(block).await.unwrap();
     }
     Ok(())
 }
@@ -79,7 +79,7 @@ async fn authorized_dag_write_succeeds() {
         .await
         .expect("write succeeds");
 
-    let stored = ctx.dag_store.store.lock().await.get(&cid).unwrap();
+    let stored = ctx.dag_store.store.lock().await.get(&cid).await.unwrap();
     assert!(stored.is_some());
 }
 
@@ -257,6 +257,7 @@ async fn proof_required_valid_proof_allows() {
             Some(Cid::new_v1_sha256(0x55, b"schema")),
             Some(&[]),
             Some(Groth16Circuit::AgeOver18 { current_year: 2020 }),
+            None, // private_fields
         )
         .unwrap();
     let proof = proof_opt.expect("proof");
@@ -277,6 +278,6 @@ async fn proof_required_valid_proof_allows() {
     anchor_block_with_policy(&ctx, &block, &enforcer, Some(&proof), None)
         .await
         .expect("write succeeds with proof");
-    let stored = ctx.dag_store.store.lock().await.get(&cid).unwrap();
+    let stored = ctx.dag_store.store.lock().await.get(&cid).await.unwrap();
     assert!(stored.is_some());
 }

@@ -3,7 +3,13 @@ use icn_ccl::{parser::parse_ccl_source, semantic_analyzer::SemanticAnalyzer, Ccl
 fn analyze_ok(src: &str) -> Result<(), CclError> {
     let ast = parse_ccl_source(src)?;
     let mut analyzer = SemanticAnalyzer::new();
-    analyzer.analyze(&ast)
+    analyzer.analyze(&ast).map_err(|errors| {
+        if errors.is_empty() {
+            CclError::SemanticError("Unknown semantic error".to_string())
+        } else {
+            errors.into_iter().next().unwrap() // Return the first error
+        }
+    })
 }
 
 #[test]

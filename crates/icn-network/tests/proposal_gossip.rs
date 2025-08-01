@@ -34,9 +34,12 @@ impl NetworkService for FlakyService {
         self.inner.send_message(p, m).await
     }
     async fn broadcast_message(&self, m: ProtocolMessage) -> Result<(), MeshNetworkError> {
-        let mut count = self.attempts.lock().unwrap();
-        *count += 1;
-        if *count <= self.fail_for {
+        let should_fail = {
+            let mut count = self.attempts.lock().unwrap();
+            *count += 1;
+            *count <= self.fail_for
+        };
+        if should_fail {
             return Err(MeshNetworkError::Libp2p("temporary failure".into()));
         }
         self.inner.broadcast_message(m).await
