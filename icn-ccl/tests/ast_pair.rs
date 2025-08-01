@@ -1,6 +1,6 @@
 use icn_ccl::{
     ast::{
-        self, ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
+        self, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
         PolicyStatementNode, StatementNode, TypeExprNode,
     },
     parser::{CclParser, Rule},
