@@ -138,12 +138,6 @@ mod icn_node_end_to_end {
             }
         })
         .await?;
-        let bytes = unsigned.to_signable_bytes().unwrap();
-        let sig = ctx_b.signer.sign(&bytes).unwrap();
-        let bid = MeshJobBid {
-            signature: SignatureBytes(sig),
-            ..unsigned
-        };
         let unsigned = MeshJobBid {
             job_id: job.id.clone(),
             executor_did: ctx_b.current_identity.clone(),
@@ -153,6 +147,12 @@ mod icn_node_end_to_end {
             executor_capabilities: vec![],
             executor_federations: vec![],
             executor_trust_scope: vec![],
+        };
+        let bytes = unsigned.to_signable_bytes().unwrap();
+        let sig = ctx_b.signer.sign(&bytes).unwrap();
+        let bid = MeshJobBid {
+            signature: SignatureBytes(sig),
+            ..unsigned
         };
         // Wait for bid submission on A
         timeout(Duration::from_secs(5), async {

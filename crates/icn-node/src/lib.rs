@@ -8,4 +8,4 @@ pub mod circuit_registry;
 pub mod config;
 pub mod node;
 pub mod parameter_store;
-pub use node::{app_router, app_router_with_options, run_node, RuntimeMode};
+pub use node::{app_router, app_router_from_context, app_router_with_options, run_node, RuntimeMode};
