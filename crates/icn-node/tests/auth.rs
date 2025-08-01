@@ -102,12 +102,8 @@ async fn bearer_token_required_for_requests() {
 #[tokio::test]
 async fn tls_api_key_and_bearer_token() {
     let cert = generate_simple_self_signed(["localhost".to_string()]).unwrap();
-    let cert_pem = cert.serialize_pem().unwrap();
-    let key_der = cert.get_key_pair().serialize_der();
-    let key_pem = format!(
-        "-----BEGIN PRIVATE KEY-----\n{}\n-----END PRIVATE KEY-----\n",
-        base64::engine::general_purpose::STANDARD.encode(&key_der)
-    );
+    let cert_pem = cert.cert.serialize_pem();
+    let key_pem = cert.signing_key.serialize_pem();
 
     let cert_file = NamedTempFile::new().unwrap();
     let key_file = NamedTempFile::new().unwrap();

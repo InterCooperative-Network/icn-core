@@ -322,12 +322,12 @@ async fn test_memory_usage_patterns() {
 
     // Test different command types that might use different amounts of memory
     let commands = vec![
-        vec!["--api-url", &base, "info"],
-        vec!["--api-url", &base, "status"],
-        vec!["--api-url", &base, "metrics"],
-        vec!["--api-url", &base, "network", "stats"],
-        vec!["--api-url", &base, "mesh", "jobs"],
-        vec!["--api-url", &base, "governance", "proposals"],
+        vec!["--api-url".to_string(), base.clone(), "info".to_string()],
+        vec!["--api-url".to_string(), base.clone(), "status".to_string()],
+        vec!["--api-url".to_string(), base.clone(), "metrics".to_string()],
+        vec!["--api-url".to_string(), base.clone(), "network".to_string(), "stats".to_string()],
+        vec!["--api-url".to_string(), base.clone(), "mesh".to_string(), "jobs".to_string()],
+        vec!["--api-url".to_string(), base.clone(), "governance".to_string(), "proposals".to_string()],
     ];
 
     for cmd_args in commands {

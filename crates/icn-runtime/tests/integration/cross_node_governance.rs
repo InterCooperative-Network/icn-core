@@ -1,6 +1,6 @@
 #[cfg(feature = "enable-libp2p")]
 mod cross_node_governance {
-    use icn_governance::Proposal;
+    use icn_governance::{Proposal, Vote, VoteOption, ProposalId};
     use icn_network::NetworkService;
     use icn_protocol::MessagePayload;
     use icn_runtime::context::RuntimeContext;
@@ -62,8 +62,8 @@ mod cross_node_governance {
         })
         .await
         .expect("timeout waiting for proposal");
-        node_b.ingest_external_proposal(&proposal_bytes).await?;
-        let proposal: Proposal = bincode::deserialize(&proposal_bytes)?;
+        node_b.ingest_external_proposal(&proposal_bytes.proposal_data).await?;
+        let proposal: Proposal = bincode::deserialize(&proposal_bytes.proposal_data)?;
         {
             let gov = node_b.governance_module.lock().await;
             assert!(gov.get_proposal(&proposal.id)?.is_some());
@@ -86,7 +86,19 @@ mod cross_node_governance {
         })
         .await
         .expect("timeout waiting for vote");
-        node_a.ingest_external_vote(&vote_bytes).await?;
+        // Convert GovernanceVoteMessage to Vote struct
+        let vote = Vote {
+            voter: vote_bytes.voter_did,
+            proposal_id: ProposalId(vote_bytes.proposal_id),
+            option: match vote_bytes.vote_option {
+                icn_protocol::VoteOption::Yes => VoteOption::Yes,
+                icn_protocol::VoteOption::No => VoteOption::No,
+                icn_protocol::VoteOption::Abstain => VoteOption::Abstain,
+            },
+            voted_at: vote_bytes.voted_at,
+        };
+        let vote_serialized = bincode::serialize(&vote)?;
+        node_a.ingest_external_vote(&vote_serialized).await?;
         {
             let gov = node_a.governance_module.lock().await;
             let pid = icn_governance::ProposalId(pid_str.clone());
