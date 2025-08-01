@@ -36,7 +36,7 @@ mod runtime_host_abi_tests {
         let identity_did = Did::from_str(&identity_did_str)?;
 
         let tmp = tempdir()?;
-        let base = tmp.keep()?;
+        let base = tmp.keep().map_err(|e| anyhow::anyhow!("Failed to keep temp directory: {}", e))?;
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
 
         let signer = Arc::new(icn_runtime::context::StubSigner::new());
