@@ -1,3 +1,5 @@
+#![cfg(feature = "zk-proofs")]
+
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
 use std::sync::Arc;
@@ -22,7 +24,7 @@ fn valid_groth16_proof_bytes() -> Vec<u8> {
     let pk = setup(circuit.clone(), &mut rng).expect("setup");
     let proof = prove(&pk, circuit, &mut rng).expect("prove");
     let mut bytes = Vec::new();
-    proof.serialize_compressed(&mut bytes).unwrap();
+    proof.serialize_uncompressed(&mut bytes).unwrap();
     bytes
 }
 

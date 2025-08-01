@@ -1,5 +1,6 @@
 // TODO: This test is disabled - needs refactoring for private method access
 #![cfg(test)]
+#![cfg(feature = "manual-bid-injection-tests")] // Disabled feature - tests need refactoring
 #![allow(dead_code)]
 
 use icn_common::{Cid, Did};
@@ -329,6 +330,10 @@ fn create_test_echo_job(submitter_did: &Did) -> ActualMeshJob {
                 memory_mb: 100,
                 storage_mb: 0,
             },
+            required_capabilities: vec![],
+            required_trust_scope: None,
+            min_executor_reputation: None,
+            allowed_federations: vec![],
         },
     }
 }

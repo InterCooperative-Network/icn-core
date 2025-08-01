@@ -803,6 +803,10 @@ async fn test_executor_selection_uses_job_spec_from_dag() {
             memory_mb: 1024,
             storage_mb: 0,
         },
+        required_capabilities: vec![],
+        required_trust_scope: None,
+        min_executor_reputation: None,
+        allowed_federations: vec![],
     };
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"ignored")),

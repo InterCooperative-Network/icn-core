@@ -10,8 +10,9 @@ use std::str::FromStr;
 #[tokio::test]
 async fn proposal_can_be_closed_and_executed() {
     // setup context
-    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000))
-        .unwrap();
+    let ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000))
+            .unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -153,8 +154,9 @@ async fn vote_succeeds_with_sufficient_mana() {
 
 #[tokio::test]
 async fn lifecycle_with_member_add_and_remove() {
-    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000))
-        .unwrap();
+    let ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:icn:test:alice").unwrap(), Some(1000))
+            .unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:alice").unwrap());
@@ -295,8 +297,9 @@ async fn failed_execution_no_rewards() {
 
 #[tokio::test]
 async fn proposal_body_is_stored_in_dag() {
-    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:cid").unwrap(), Some(1000))
-        .unwrap();
+    let ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:icn:test:cid").unwrap(), Some(1000))
+            .unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:cid").unwrap());
@@ -324,8 +327,9 @@ async fn proposal_body_is_stored_in_dag() {
 
 #[tokio::test]
 async fn parameter_change_execution_updates_runtime() {
-    let ctx = RuntimeContext::new_testing(Did::from_str("did:icn:test:param").unwrap(), Some(1000))
-        .unwrap();
+    let ctx =
+        RuntimeContext::new_for_testing(Did::from_str("did:icn:test:param").unwrap(), Some(1000))
+            .unwrap();
     {
         let mut gov = ctx.governance_module.lock().await;
         gov.add_member(Did::from_str("did:icn:test:param").unwrap());
