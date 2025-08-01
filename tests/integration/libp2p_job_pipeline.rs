@@ -5,6 +5,7 @@ mod federation;
 mod libp2p_job_pipeline {
     use super::federation::{ensure_devnet, NODE_A_URL, NODE_B_URL, NODE_C_URL};
 
+    use base64::Engine;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
     use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
@@ -17,7 +18,6 @@ mod libp2p_job_pipeline {
     use reqwest::Client;
     use serde_json::Value;
 
-    use std::sync::Arc;
     use tokio::time::{sleep, timeout, Duration};
 
     const RETRY_DELAY: Duration = Duration::from_secs(3);

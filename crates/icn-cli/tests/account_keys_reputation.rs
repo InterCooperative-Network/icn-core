@@ -14,7 +14,7 @@ async fn account_keys_reputation_commands() {
     });
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let bin = env!("CARGO_BIN_EXE_icn-cli");
     // keys show
     let output = task::spawn_blocking(move || {
@@ -30,7 +30,7 @@ async fn account_keys_reputation_commands() {
     let did = body["did"].as_str().unwrap().to_string();
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
-    let base_bal = format!("http://{}", addr);
+    let base_bal = format!("http://{addr}");
     let did_clone = did.clone();
     task::spawn_blocking(move || {
         Command::new(bin)
@@ -43,7 +43,7 @@ async fn account_keys_reputation_commands() {
     .unwrap();
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
-    let base_rep = format!("http://{}", addr);
+    let base_rep = format!("http://{addr}");
     task::spawn_blocking(move || {
         Command::new(bin)
             .args(["--api-url", &base_rep, "reputation", "get", &did])
@@ -55,7 +55,7 @@ async fn account_keys_reputation_commands() {
     .unwrap();
 
     let bin = env!("CARGO_BIN_EXE_icn-cli");
-    let base_net = format!("http://{}", addr);
+    let base_net = format!("http://{addr}");
     task::spawn_blocking(move || {
         Command::new(bin)
             .args(["--api-url", &base_net, "network", "peers"])

@@ -2,8 +2,7 @@
 //! Credential lifecycle management CLI commands
 
 use clap::Subcommand;
-use icn_common::{Cid, Did, ZkCredentialProof};
-
+use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -437,7 +436,13 @@ mod tests {
             holder: Did::new("key", "holder456"),
             claim_type: "skill".to_string(),
             proof: vec![1, 2, 3, 4],
-            schema: Cid::new("test-schema"),
+            schema: Cid::new_v1_dummy(0, 0, b"test-schema"),
+            vk_cid: None,
+            disclosed_fields: vec!["name".to_string()],
+            challenge: Some("test-challenge".to_string()),
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vec![5, 6, 7, 8]),
+            public_inputs: Some(serde_json::json!({"age": 25})),
         };
 
         let presentation = CredentialLifecycleCommands::create_presentation(
@@ -459,7 +464,13 @@ mod tests {
             holder: Did::new("key", "holder456"),
             claim_type: "skill".to_string(),
             proof: vec![1, 2, 3, 4],
-            schema: Cid::new("test-schema"),
+            schema: Cid::new_v1_dummy(0, 0, b"test-schema"),
+            vk_cid: None,
+            disclosed_fields: vec!["name".to_string()],
+            challenge: Some("test-challenge".to_string()),
+            backend: ZkProofType::Groth16,
+            verification_key: Some(vec![5, 6, 7, 8]),
+            public_inputs: Some(serde_json::json!({"age": 25})),
         };
 
         let presentation = CredentialLifecycleCommands::create_presentation(

@@ -2,7 +2,6 @@
 mod simple_verification_test {
 
     use icn_common::{Cid, DagBlock, Did};
-    use icn_mesh::JobSpec;
     use icn_runtime::RuntimeContext;
     use std::time::Duration;
     use tokio::time::sleep; // Moved this line to keep necessary imports
@@ -108,7 +107,7 @@ mod simple_verification_test {
         assert!(submit_result.is_ok(), "Job submission should succeed");
 
         if let Ok(job_id) = submit_result {
-            println!("✅ Job submitted with ID: {}", job_id);
+            println!("✅ Job submitted with ID: {job_id}");
 
             // Wait a bit and check job status
             sleep(Duration::from_secs(1)).await;
@@ -117,7 +116,7 @@ mod simple_verification_test {
             assert!(job_status.is_ok(), "Should be able to get job status");
 
             if let Ok(status) = job_status {
-                println!("📊 Job status: {:?}", status);
+                println!("📊 Job status: {status:?}");
             }
         }
 
