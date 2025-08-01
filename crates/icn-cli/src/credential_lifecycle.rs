@@ -2,7 +2,9 @@
 //! Credential lifecycle management CLI commands
 
 use clap::Subcommand;
-use icn_common::{Cid, Did, ZkCredentialProof, ZkProofType};
+#[cfg(test)]
+use icn_common::ZkProofType;
+use icn_common::{Cid, Did, ZkCredentialProof};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 

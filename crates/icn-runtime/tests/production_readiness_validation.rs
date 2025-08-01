@@ -65,11 +65,11 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Ok(success_msg) => {
-            println!("✅ Retry succeeded: {}", success_msg);
+            println!("✅ Retry succeeded: {success_msg}");
             assert_eq!(attempt_count.load(Ordering::SeqCst), 3);
         }
         Err(e) => {
-            panic!("❌ Retry should have succeeded: {:?}", e);
+            panic!("❌ Retry should have succeeded: {e:?}");
         }
     }
 
@@ -94,12 +94,12 @@ async fn test_production_error_recovery_patterns() {
             })
             .await;
 
-        println!("   Attempt {}: {:?}", i + 1, result.is_err());
+        println!("   Attempt {}: {}", i + 1, result.is_err());
     }
 
     // Circuit should be open now
     let is_open_before = circuit_breaker.is_open();
-    println!("   Circuit breaker open: {}", is_open_before);
+    println!("   Circuit breaker open: {is_open_before}");
 
     // Wait for recovery timeout
     sleep(Duration::from_millis(60)).await;
@@ -113,10 +113,10 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Ok(success_msg) => {
-            println!("✅ Circuit breaker recovered: {:?}", success_msg);
+            println!("✅ Circuit breaker recovered: {success_msg:?}");
         }
         Err(e) => {
-            println!("⚠️  Circuit breaker result: {:?}", e);
+            println!("⚠️  Circuit breaker result: {e:?}");
         }
     }
 
@@ -140,7 +140,7 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Err(RecoveryError::ExhaustedRetries { attempts, .. }) => {
-            println!("✅ Permanent error failed fast with {} attempts", attempts);
+            println!("✅ Permanent error failed fast with {attempts} attempts");
             assert_eq!(attempts, 1); // Should not retry permanent errors
         }
         _ => {

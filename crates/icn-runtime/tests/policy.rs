@@ -21,7 +21,7 @@ async fn anchor_receipt_denied_by_policy() {
     // Submit the job to make it exist in the system
     let job_submit_result = ctx.handle_submit_job(manifest_cid, spec_bytes, 10).await;
     if let Err(e) = &job_submit_result {
-        panic!("Failed to submit job: {:?}", e);
+        panic!("Failed to submit job: {e:?}");
     }
     let job_id = job_submit_result.unwrap();
 
@@ -56,7 +56,7 @@ async fn anchor_receipt_denied_by_policy() {
         }
         Err(other) => {
             // Print the actual error for debugging
-            println!("Unexpected error type: {:?}", other);
+            println!("Unexpected error type: {other:?}");
             // For now, accept other errors as the test setup may be incomplete
         }
     }
