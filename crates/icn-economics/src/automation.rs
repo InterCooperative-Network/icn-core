@@ -1914,7 +1914,6 @@ pub struct EconomicAutomationStats {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::SystemTimeProvider;
 
     #[test]
     fn test_economic_automation_config() {
