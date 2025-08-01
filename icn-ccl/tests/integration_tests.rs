@@ -1,7 +1,7 @@
 // icn-ccl/tests/integration_tests.rs
 #![allow(clippy::uninlined_format_args)]
 use icn_ccl::{
-    ast::{ActionNode, AstNode, ExpressionNode, PolicyStatementNode},
+    ast::{AstNode, PolicyStatementNode},
     compile_ccl_file_to_wasm, compile_ccl_source_to_wasm,
     parser::parse_ccl_source,
     CclError, ContractMetadata,

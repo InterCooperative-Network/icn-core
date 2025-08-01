@@ -1,5 +1,5 @@
 use icn_ccl::compile_ccl_source_to_wasm;
-use icn_ccl::{ast::ExpressionNode, parser::parse_ccl_source, CclError};
+use icn_ccl::{ast::ExpressionNode, parser::parse_ccl_source};
 
 #[test]
 fn parse_match_with_multiple_arms() {

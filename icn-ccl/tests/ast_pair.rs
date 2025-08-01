@@ -1,7 +1,7 @@
 use icn_ccl::{
     ast::{
         self, ActionNode, AstNode, BinaryOperator, BlockNode, ExpressionNode, ParameterNode,
-        PolicyStatementNode, StatementNode, TypeAnnotationNode,
+        PolicyStatementNode, StatementNode, TypeExprNode,
     },
     parser::{CclParser, Rule},
 };

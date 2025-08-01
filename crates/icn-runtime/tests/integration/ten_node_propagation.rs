@@ -4,10 +4,11 @@ mod ten_node_propagation {
     use icn_common::{Cid, Did};
     use icn_governance::ProposalId;
     use icn_identity::SignatureBytes;
-    use icn_mesh::{ActualMeshJob, JobKind, JobSpec, Resources};
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
     use icn_network::NetworkService;
     use icn_runtime::context::RuntimeContext;
-    use icn_runtime::{host_create_governance_proposal, DefaultMeshNetworkService};
+    use icn_runtime::context::signers::{Signer, StubSigner};
+    use icn_runtime::{host_create_governance_proposal, DefaultMeshNetworkService, MeshNetworkService};
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -19,14 +20,12 @@ mod ten_node_propagation {
     ) -> Result<Arc<RuntimeContext>> {
         let did = format!("did:key:z6MkTenNode{}", suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
-        let path = format!("./dag_store_{}", suffix);
+        let signer = Arc::new(StubSigner::new()) as Arc<dyn Signer>;
         let ctx = RuntimeContext::new_with_real_libp2p(
             &did,
             listen,
             bootstrap,
-            path.clone().into(),
-            format!("./mana_{}.sled", suffix).into(),
-            format!("./rep_{}.sled", suffix).into(),
+            signer,
         )
         .await?;
         let did_parsed = Did::from_str(&did)?;
@@ -65,7 +64,7 @@ mod ten_node_propagation {
 
         let submitter_did = Did::from_str("did:key:z6MkTenNodeA")?;
         let job = ActualMeshJob {
-            id: Cid::new_v1_sha256(0x55, b"ten_node_job"),
+            id: JobId(Cid::new_v1_sha256(0x55, b"ten_node_job")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
             spec: JobSpec {
                 kind: JobKind::Echo {
@@ -78,7 +77,8 @@ mod ten_node_propagation {
             max_execution_wait_ms: None,
             signature: SignatureBytes(vec![0u8; 64]),
         };
-        let network = DefaultMeshNetworkService::new(a_net.clone());
+        let signer = Arc::new(StubSigner::new()) as Arc<dyn Signer>;
+        let network = DefaultMeshNetworkService::new(a_net.clone(), signer);
         network.announce_job(&job).await?;
 
         for mut rx in receivers {
@@ -87,7 +87,7 @@ mod ten_node_propagation {
                     if let Some(msg) = rx.recv().await {
                         if let icn_protocol::MessagePayload::MeshJobAnnouncement(ann) = &msg.payload
                         {
-                            if ann.id == job.id {
+                            if ann.job_id == job.id.0 {
                                 break;
                             }
                         }
