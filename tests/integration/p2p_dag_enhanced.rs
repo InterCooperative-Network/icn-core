@@ -9,8 +9,6 @@
 
 use icn_common::{Cid, DagBlock, Did};
 use icn_dag::{InMemoryDagStore, StorageService};
-use icn_identity::KeyDidResolver;
-use icn_network::{Libp2pNetworkService, NetworkConfig, NetworkService};
 use icn_protocol::{
     DagBlockAnnouncementMessage, DagBlockRequestMessage, DagBlockResponseMessage, MessagePayload,
     ProtocolMessage,
@@ -22,7 +20,7 @@ use icn_runtime::context::{
 use std::collections::HashMap;
 use std::sync::{Arc, Once};
 use std::time::{Duration, Instant};
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::RwLock;
 use tokio::time::{sleep, timeout};
 use tracing::{debug, error, info, warn};
 
@@ -60,9 +58,13 @@ impl EnhancedTestNode {
         // Get the coordinator from the runtime context
         let coordinator = runtime_context.cross_component_coordinator.clone();
 
+        // Create a separate in-memory store for the message handler
+        // Note: This is a test limitation - ideally MessageHandler should work with DagStoreWrapper
+        let test_dag_store = Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
+
         // Create message handler for enhanced networking
         let message_handler = Arc::new(MessageHandler::new(
-            runtime_context.dag_store.clone(),
+            test_dag_store,
             coordinator.clone(),
         ));
 
@@ -189,16 +191,16 @@ impl MessageHandler {
         // Try to retrieve the block
         let block_data = {
             let store = self.dag_store.lock().await;
-            match store.get(&request.block_cid).await {
-                Ok(block) => Some(block.data),
-                Err(_) => None,
+            match store.get(&request.block_cid) {
+                Ok(block_opt) => block_opt,
+                _ => None,
             }
         };
 
         // Create and send response
         let response = DagBlockResponseMessage {
             block_cid: request.block_cid.clone(),
-            block_data,
+            block_data: block_data.clone(),
             error: if block_data.is_none() {
                 Some("Block not found".to_string())
             } else {
@@ -250,24 +252,11 @@ impl MessageHandler {
             response.block_cid
         );
 
-        if let Some(data) = &response.block_data {
+        if let Some(block) = &response.block_data {
             // Store the received block
-            let block = DagBlock {
-                cid: response.block_cid.clone(),
-                data: data.clone(),
-                links: vec![],
-                timestamp: std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs(),
-                author_did: Did::new("network", "received"),
-                signature: None,
-                scope: None,
-            };
-
             {
                 let mut store = self.dag_store.lock().await;
-                if let Err(e) = store.put(&block).await {
+                if let Err(e) = store.put(block) {
                     error!("Failed to store received block: {}", e);
                     return;
                 }
@@ -277,7 +266,7 @@ impl MessageHandler {
             let mut pending = self.pending_requests.write().await;
             if let Some(senders) = pending.remove(&response.block_cid) {
                 for sender in senders {
-                    let _ = sender.send(Some(data.clone()));
+                    let _ = sender.send(Some(block.data.clone()));
                 }
             }
 
@@ -332,7 +321,7 @@ impl MessageHandler {
         // Check local store first
         {
             let store = self.dag_store.lock().await;
-            if let Ok(block) = store.get(cid).await {
+            if let Ok(Some(block)) = store.get(cid) {
                 debug!("Found block locally: {}", cid);
                 return Ok(block.data);
             }
@@ -350,6 +339,7 @@ impl MessageHandler {
         // Create and broadcast request
         let request = DagBlockRequestMessage {
             block_cid: cid.clone(),
+            priority: 128, // medium priority
         };
 
         debug!("Broadcasting block request for: {}", cid);

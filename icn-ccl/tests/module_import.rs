@@ -29,7 +29,7 @@ async fn compile_and_run_with_import() {
     };
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
