@@ -343,7 +343,7 @@ async fn test_wasm_executor_runs_addition() {
     };
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -400,7 +400,7 @@ async fn test_wasm_executor_runs_proposal_flow() {
     };
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
@@ -462,7 +462,7 @@ async fn test_wasm_executor_runs_voting_logic() {
     };
     {
         let mut store = ctx.dag_store.store.lock().await;
-        store.put(&block).unwrap();
+        store.put(&block).await.unwrap();
     }
     let cid = block.cid.clone();
 
