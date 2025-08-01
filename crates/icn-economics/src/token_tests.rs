@@ -10,7 +10,6 @@ mod scoped_token_tests {
     use std::collections::HashMap;
     use std::str::FromStr;
     use std::sync::Mutex;
-    use tempfile::tempdir;
 
     // Helper struct for in-memory resource ledger for testing
     #[derive(Default)]
@@ -491,7 +490,7 @@ mod scoped_token_tests {
 
     #[test]
     fn test_marketplace_functionality() {
-        use crate::marketplace::{LaborHoursConfig, PhysicalGoodConfig, ServiceConfig};
+        use crate::marketplace::PhysicalGoodConfig;
         use crate::{
             InMemoryMarketplaceStore, MarketplaceBid, MarketplaceOffer, MarketplaceStore,
             OfferFilter, OfferStatus,

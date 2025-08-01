@@ -71,7 +71,7 @@ async fn system_parameter_change_updates_rate_limit() {
     sleep(Duration::from_millis(100)).await;
 
     let client = Client::new();
-    let url = format!("http://{}/info", addr);
+    let url = format!("http://{addr}/info");
 
     for _ in 0..3 {
         let resp = client.get(&url).send().await.unwrap();

@@ -1,4 +1,5 @@
 use icn_runtime::{context::RuntimeContext, memory};
+use std::str::FromStr;
 use std::sync::Arc;
 use wasmtime::{Engine, Linker, Module, Store};
 

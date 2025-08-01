@@ -3,12 +3,11 @@ use icn_identity::SignatureBytes;
 use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, Resources};
 use icn_runtime::context::RuntimeContext;
 use std::str::FromStr;
-use std::sync::Arc;
 
 #[tokio::test]
 async fn bid_price_deterministic() {
     let did = Did::from_str("did:icn:test:exec").unwrap();
-    let ctx = RuntimeContext::new_testing(did.clone(), Some(1000)).unwrap();
+    let ctx = RuntimeContext::new_for_testing(did.clone(), Some(1000)).unwrap();
 
     let job = ActualMeshJob {
         id: JobId(Cid::new_v1_sha256(0x55, b"bid_price")),
@@ -22,6 +21,10 @@ async fn bid_price_deterministic() {
                 memory_mb: 128,
                 storage_mb: 0,
             },
+            required_capabilities: vec![],
+            required_trust_scope: None,
+            min_executor_reputation: None,
+            allowed_federations: vec![],
         },
         creator_did: did.clone(),
         cost_mana: 10,

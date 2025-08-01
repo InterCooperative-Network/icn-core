@@ -15,7 +15,7 @@ async fn anchor_receipt_updates_reputation() {
     let (sk, vk) = generate_ed25519_keypair();
     let did_str = did_key_from_verifying_key(&vk);
     let did = icn_common::Did::from_str(&did_str).unwrap();
-    let signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
+    let _signer = Arc::new(StubSigner::new_with_keys(sk.clone(), vk));
 
     let ctx = RuntimeContext::new_for_testing(did.clone(), Some(100)).unwrap();
 

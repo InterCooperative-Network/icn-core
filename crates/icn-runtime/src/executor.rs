@@ -636,45 +636,6 @@ impl JobExecutor for SimpleExecutor {
                 })?;
 
                 // Fetch metadata block from the DAG store
-                #[cfg(feature = "async")]
-                let meta_bytes = {
-                    let store = ctx.dag_store.store.lock().await;
-                    store
-                        .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::InternalError(e.to_string()))?
-                        .ok_or_else(|| CommonError::ResourceNotFound("Metadata not found".into()))?
-                        .data
-                };
-
-                #[cfg(not(feature = "async"))]
-                let meta_bytes: Vec<u8> = {
-                    return Err(CommonError::InternalError(
-                        "Async feature required".to_string(),
-                    ));
-                };
-
-                // Parse and validate metadata
-                let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
-                    .map_err(|e| CommonError::DeserError(format!("{e}")))?;
-                let wasm_cid = icn_common::parse_cid_from_string(&meta.cid)
-                    .map_err(|e| CommonError::DeserError(format!("{e}")))?;
-
-                // Ensure the referenced WASM module exists
-                #[cfg(feature = "async")]
-                {
-                    let store = ctx.dag_store.store.lock().await;
-                    store
-                        .get(&wasm_cid)
-                        .await
-                        .map_err(|e| CommonError::InternalError(e.to_string()))?
-                        .ok_or_else(|| {
-                            CommonError::ResourceNotFound(
-                                "Referenced WASM module not found".to_string(),
-                            )
-                        })?;
-                }
-
                 #[cfg(not(feature = "async"))]
                 {
                     return Err(CommonError::InternalError(
@@ -682,17 +643,53 @@ impl JobExecutor for SimpleExecutor {
                     ));
                 }
 
-                let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
-                    self.signing_key.clone(),
-                    self.signing_key.verifying_key(),
-                )) as std::sync::Arc<dyn crate::context::Signer>;
+                #[cfg(feature = "async")]
+                {
+                    let meta_bytes = {
+                        let store = ctx.dag_store.store.lock().await;
+                        store
+                            .get(&job.manifest_cid)
+                            .await
+                            .map_err(|e| CommonError::InternalError(e.to_string()))?
+                            .ok_or_else(|| {
+                                CommonError::ResourceNotFound("Metadata not found".into())
+                            })?
+                            .data
+                    };
 
-                let wasm_exec =
-                    WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
-                let mut wasm_job = job.clone();
-                wasm_job.manifest_cid = wasm_cid;
-                let receipt = wasm_exec.execute_job(&wasm_job).await?;
-                return Ok(receipt);
+                    // Parse and validate metadata
+                    let meta: ContractMetadata = serde_json::from_slice(&meta_bytes)
+                        .map_err(|e| CommonError::DeserError(format!("{e}")))?;
+                    let wasm_cid = icn_common::parse_cid_from_string(&meta.cid)
+                        .map_err(|e| CommonError::DeserError(format!("{e}")))?;
+
+                    // Ensure the referenced WASM module exists
+                    {
+                        let store = ctx.dag_store.store.lock().await;
+                        store
+                            .get(&wasm_cid)
+                            .await
+                            .map_err(|e| CommonError::InternalError(e.to_string()))?
+                            .ok_or_else(|| {
+                                CommonError::ResourceNotFound(
+                                    "Referenced WASM module not found".to_string(),
+                                )
+                            })?;
+                    }
+
+                    let signer = std::sync::Arc::new(crate::context::StubSigner::new_with_keys(
+                        self.signing_key.clone(),
+                        self.signing_key.verifying_key(),
+                    ))
+                        as std::sync::Arc<dyn crate::context::Signer>;
+
+                    let wasm_exec =
+                        WasmExecutor::new(ctx.clone(), signer, WasmExecutorConfig::default());
+                    let mut wasm_job = job.clone();
+                    wasm_job.manifest_cid = wasm_cid;
+                    let receipt = wasm_exec.execute_job(&wasm_job).await?;
+                    return Ok(receipt);
+                }
             }
             JobKind::GenericPlaceholder => {
                 info!("[SimpleExecutor] Executing hashing job: {:?}", job.id);
@@ -704,27 +701,31 @@ impl JobExecutor for SimpleExecutor {
                     )
                 })?;
 
-                #[cfg(feature = "async")]
-                let manifest_bytes = {
-                    let store = ctx.dag_store.store.lock().await;
-                    store
-                        .get(&job.manifest_cid)
-                        .await
-                        .map_err(|e| CommonError::InternalError(e.to_string()))?
-                        .ok_or_else(|| CommonError::ResourceNotFound("Manifest not found".into()))?
-                        .data
-                };
-
                 #[cfg(not(feature = "async"))]
-                let manifest_bytes: Vec<u8> = {
+                {
                     return Err(CommonError::InternalError(
                         "Async feature required".to_string(),
                     ));
-                };
+                }
 
-                // Compute SHA-256 of the manifest bytes
-                use sha2::{Digest, Sha256};
-                Sha256::digest(&manifest_bytes).to_vec()
+                #[cfg(feature = "async")]
+                {
+                    let manifest_bytes = {
+                        let store = ctx.dag_store.store.lock().await;
+                        store
+                            .get(&job.manifest_cid)
+                            .await
+                            .map_err(|e| CommonError::InternalError(e.to_string()))?
+                            .ok_or_else(|| {
+                                CommonError::ResourceNotFound("Manifest not found".into())
+                            })?
+                            .data
+                    };
+
+                    // Compute SHA-256 of the manifest bytes
+                    use sha2::{Digest, Sha256};
+                    Sha256::digest(&manifest_bytes).to_vec()
+                }
             }
         };
 

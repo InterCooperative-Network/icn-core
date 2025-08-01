@@ -181,7 +181,8 @@ mod tests {
     #[test]
     fn test_basic_formatting() {
         let input = "contract MyContract{function test(){return 42;}}";
-        let expected = "contract MyContract {\n    function test() {\n        return 42;\n    }\n}";
+        let _expected =
+            "contract MyContract {\n    function test() {\n        return 42;\n    }\n}";
         let result = format_ccl_code(input);
         // Note: This is a simplified test - real formatting would be more sophisticated
         assert_ne!(result, input); // Should be different from unformatted input

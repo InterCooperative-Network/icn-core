@@ -66,10 +66,10 @@ async fn test_federation_node_health() {
         ("Node B", NODE_B_URL),
         ("Node C", NODE_C_URL),
     ] {
-        println!("  Testing {} at {}", name, url);
+        println!("  Testing {name} at {url}");
 
         let response = client
-            .get(format!("{}/info", url))
+            .get(format!("{url}/info"))
             .send()
             .await
             .expect("Failed to connect to node");
@@ -81,13 +81,13 @@ async fn test_federation_node_health() {
         assert!(info["version"].is_string());
 
         let dag_resp = client
-            .get(format!("{}/sync/status", url))
+            .get(format!("{url}/sync/status"))
             .send()
             .await
             .expect("dag status");
         assert!(dag_resp.status().is_success());
 
-        println!("    ✅ {} is healthy", name);
+        println!("    ✅ {name} is healthy");
     }
 
     println!("✅ All nodes are healthy");
@@ -102,7 +102,7 @@ async fn test_federation_p2p_convergence() {
 
     // Wait for network convergence
     for attempt in 1..=MAX_RETRIES {
-        println!("  Convergence check attempt {}/{}", attempt, MAX_RETRIES);
+        println!("  Convergence check attempt {attempt}/{MAX_RETRIES}");
 
         let mut all_connected = true;
         let mut peer_counts = Vec::new();
@@ -113,7 +113,7 @@ async fn test_federation_p2p_convergence() {
             ("Node C", NODE_C_URL),
         ] {
             let response = client
-                .get(format!("{}/status", url))
+                .get(format!("{url}/status"))
                 .send()
                 .await
                 .expect("Failed to get node status");
@@ -129,7 +129,7 @@ async fn test_federation_p2p_convergence() {
             }
         }
 
-        println!("    Peer counts: {:?}", peer_counts);
+        println!("    Peer counts: {peer_counts:?}");
 
         if all_connected {
             println!("✅ P2P network has converged");
@@ -141,10 +141,7 @@ async fn test_federation_p2p_convergence() {
         }
     }
 
-    panic!(
-        "❌ P2P network failed to converge within {} attempts",
-        MAX_RETRIES
-    );
+    panic!("❌ P2P network failed to converge within {MAX_RETRIES} attempts");
 }
 
 #[tokio::test]
@@ -171,7 +168,7 @@ async fn test_federation_mesh_job_lifecycle() {
     });
 
     let submit_response = client
-        .post(format!("{}/mesh/submit", NODE_A_URL))
+        .post(format!("{NODE_A_URL}/mesh/submit"))
         .header("Content-Type", "application/json")
         .json(&job_request)
         .send()
@@ -189,7 +186,7 @@ async fn test_federation_mesh_job_lifecycle() {
         .expect("No job_id in response")
         .to_string();
 
-    println!("    ✅ Job submitted with ID: {}", job_id);
+    println!("    ✅ Job submitted with ID: {job_id}");
 
     // Check job status on Node A
     println!("  📊 Checking job status on Node A...");
@@ -197,7 +194,7 @@ async fn test_federation_mesh_job_lifecycle() {
     let mut job_found = false;
     for attempt in 1..=MAX_RETRIES {
         let status_response = client
-            .get(format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+            .get(format!("{NODE_A_URL}/mesh/jobs/{job_id}"))
             .send()
             .await
             .expect("Failed to get job status");
@@ -229,7 +226,7 @@ async fn test_federation_mesh_job_lifecycle() {
         ("Node C", NODE_C_URL),
     ] {
         let jobs_response = client
-            .get(format!("{}/mesh/jobs", url))
+            .get(format!("{url}/mesh/jobs"))
             .send()
             .await
             .expect("Failed to get jobs list");
@@ -275,10 +272,10 @@ async fn test_federation_cross_node_api_consistency() {
             ("Node C", NODE_C_URL),
         ] {
             let response = client
-                .get(format!("{}{}", url, endpoint))
+                .get(format!("{url}{endpoint}"))
                 .send()
                 .await
-                .unwrap_or_else(|_| panic!("Failed to reach {} on {}", endpoint, name));
+                .unwrap_or_else(|_| panic!("Failed to reach {endpoint} on {name}"));
 
             assert!(
                 response.status().is_success(),
@@ -324,9 +321,9 @@ pub async fn wait_for_federation_ready() -> Result<(), Box<dyn std::error::Error
             ("Node B", NODE_B_URL),
             ("Node C", NODE_C_URL),
         ] {
-            match client.get(format!("{}/info", url)).send().await {
+            match client.get(format!("{url}/info")).send().await {
                 Ok(response) if response.status().is_success() => {
-                    println!("  ✅ {} is ready", name);
+                    println!("  ✅ {name} is ready");
                 }
                 _ => {
                     println!("  ⏳ {} not ready yet", name);
@@ -373,11 +370,11 @@ async fn join_and_leave_federation_via_http() {
     });
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
-    let base = format!("http://{}", addr);
+    let base = format!("http://{addr}");
     let client = reqwest::Client::new();
 
     let resp = client
-        .post(format!("{}/federation/join", base))
+        .post(format!("{base}/federation/join"))
         .json(&serde_json::json!({"peer":"peerA"}))
         .send()
         .await
@@ -385,7 +382,7 @@ async fn join_and_leave_federation_via_http() {
     assert!(resp.status().is_success());
 
     let status: serde_json::Value = client
-        .get(format!("{}/federation/status", base))
+        .get(format!("{base}/federation/status"))
         .send()
         .await
         .unwrap()
@@ -395,7 +392,7 @@ async fn join_and_leave_federation_via_http() {
     assert_eq!(status["peer_count"], 1);
 
     let resp = client
-        .post(format!("{}/federation/leave", base))
+        .post(format!("{base}/federation/leave"))
         .json(&serde_json::json!({"peer":"peerA"}))
         .send()
         .await
@@ -403,7 +400,7 @@ async fn join_and_leave_federation_via_http() {
     assert!(resp.status().is_success());
 
     let status: serde_json::Value = client
-        .get(format!("{}/federation/status", base))
+        .get(format!("{base}/federation/status"))
         .send()
         .await
         .unwrap()

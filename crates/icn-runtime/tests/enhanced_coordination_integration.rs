@@ -263,7 +263,7 @@ async fn test_runtime_context_constructor_consistency() -> Result<(), Box<dyn st
 
     // Test testing constructor
     let test_did = Did::from_str("did:key:zTestConstructor1")?;
-    let testing_ctx = RuntimeContext::new_testing(test_did.clone(), Some(1000))?;
+    let testing_ctx = RuntimeContext::new_for_testing(test_did.clone(), Some(1000))?;
     assert!(testing_ctx.cross_component_coordinator.as_ref() as *const _ != std::ptr::null());
     println!("✅ Testing constructor properly initializes CrossComponentCoordinator");
 

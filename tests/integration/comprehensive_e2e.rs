@@ -357,7 +357,7 @@ mod comprehensive_e2e_test {
             for node in &self.nodes {
                 let metrics_response = self
                     .client
-                                         .get(format!("{}/metrics", node.url))
+                    .get(format!("{}/metrics", node.url))
                     .header("X-API-Key", &node.api_key)
                     .send()
                     .await

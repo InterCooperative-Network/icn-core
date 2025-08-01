@@ -4,8 +4,7 @@
 //! features work correctly and provide the production readiness needed.
 
 use icn_runtime::error_recovery::{
-    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig, DefaultErrorClassifier,
-    ErrorRecoveryConfig, RecoveryError,
+    retry_with_backoff, CircuitBreaker, CircuitBreakerConfig, ErrorRecoveryConfig, RecoveryError,
 };
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
@@ -66,23 +65,23 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Ok(success_msg) => {
-            println!("✅ Retry succeeded: {}", success_msg);
+            println!("✅ Retry succeeded: {success_msg}");
             assert_eq!(attempt_count.load(Ordering::SeqCst), 3);
         }
         Err(e) => {
-            panic!("❌ Retry should have succeeded: {:?}", e);
+            panic!("❌ Retry should have succeeded: {e:?}");
         }
     }
 
     // Test 2: Circuit breaker opens after failures
     println!("\n2️⃣ Testing circuit breaker pattern...");
 
-    let config = CircuitBreakerConfig {
+    let circuit_config = CircuitBreakerConfig {
         failure_threshold: 3,
         recovery_timeout: Duration::from_millis(50),
         success_threshold: 2,
     };
-    let circuit_breaker = CircuitBreaker::new(config);
+    let circuit_breaker = CircuitBreaker::new(circuit_config);
 
     // Cause failures to open the circuit
     for i in 0..4 {
@@ -95,12 +94,12 @@ async fn test_production_error_recovery_patterns() {
             })
             .await;
 
-        println!("   Attempt {}: {:?}", i + 1, result.is_err());
+        println!("   Attempt {}: {}", i + 1, result.is_err());
     }
 
     // Circuit should be open now
     let is_open_before = circuit_breaker.is_open();
-    println!("   Circuit breaker open: {}", is_open_before);
+    println!("   Circuit breaker open: {is_open_before}");
 
     // Wait for recovery timeout
     sleep(Duration::from_millis(60)).await;
@@ -114,10 +113,10 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Ok(success_msg) => {
-            println!("✅ Circuit breaker recovered: {:?}", success_msg);
+            println!("✅ Circuit breaker recovered: {success_msg:?}");
         }
         Err(e) => {
-            println!("⚠️  Circuit breaker result: {:?}", e);
+            println!("⚠️  Circuit breaker result: {e:?}");
         }
     }
 
@@ -131,7 +130,7 @@ async fn test_production_error_recovery_patterns() {
         })
     };
 
-    let result = retry_with_backoff(
+    let result: Result<String, RecoveryError<TestError>> = retry_with_backoff(
         permanent_error_operation,
         &config,
         &classifier,
@@ -141,7 +140,7 @@ async fn test_production_error_recovery_patterns() {
 
     match result {
         Err(RecoveryError::ExhaustedRetries { attempts, .. }) => {
-            println!("✅ Permanent error failed fast with {} attempts", attempts);
+            println!("✅ Permanent error failed fast with {attempts} attempts");
             assert_eq!(attempts, 1); // Should not retry permanent errors
         }
         _ => {

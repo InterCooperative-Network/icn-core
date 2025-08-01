@@ -1,6 +1,5 @@
 use assert_cmd::prelude::*;
 use base64::Engine;
-use icn_mesh::{JobKind, JobSpec};
 use icn_node::app_router;
 use predicates::prelude::PredicateBooleanExt;
 use std::process::Command;

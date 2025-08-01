@@ -6,7 +6,6 @@ use icn_common::Did;
 use icn_runtime::context::{EnvironmentType, HostAbiError, RuntimeContextBuilder};
 use std::str::FromStr;
 use std::time::Duration;
-use tokio;
 
 /// Test CCL Integration initialization through RuntimeContext
 #[tokio::test]
@@ -88,7 +87,7 @@ async fn test_ccl_integration_in_system_status() -> Result<(), Box<dyn std::erro
     );
 
     // Verify status structure includes relevant information
-    assert!(status.performance.total_operations >= 0);
+    // total_operations is unsigned, so no need to check >= 0
     assert!(status.performance.success_rate >= 0.0 && status.performance.success_rate <= 1.0);
 
     Ok(())
@@ -145,9 +144,10 @@ async fn test_dag_sync_for_ccl_integration() -> Result<(), Box<dyn std::error::E
             println!("  - Peers contacted: {}", result.peers_contacted);
             println!("  - Strategy used: {}", result.strategy_used);
 
-            // Verify result structure
-            assert!(result.blocks_received >= 0);
-            assert!(result.blocks_sent >= 0);
+            // blocks_received and blocks_sent are unsigned, so no need to check >= 0
+            // Just check they exist
+            let _ = result.blocks_received;
+            let _ = result.blocks_sent;
         }
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ DAG sync failed as expected (no network in test)");
@@ -183,8 +183,8 @@ async fn test_dag_sync_status_for_ccl() -> Result<(), Box<dyn std::error::Error>
     );
     println!("  - Last maintenance: {:?}", sync_status.last_maintenance);
 
-    // Verify sync status structure
-    assert!(sync_status.pending_propagations >= 0);
+    // pending_propagations is unsigned, so no need to check >= 0
+    let _ = sync_status.pending_propagations;
     assert!(!sync_status.sync_health.is_empty());
 
     Ok(())
@@ -215,9 +215,9 @@ async fn test_ccl_integration_metrics() -> Result<(), Box<dyn std::error::Error>
     );
     println!("  - Success rate: {:.1}%", metrics.success_rate * 100.0);
 
-    // Verify metrics structure
-    assert!(metrics.total_operations >= 0);
-    assert!(metrics.successful_operations >= 0);
+    // total_operations and successful_operations are unsigned, so no need to check >= 0
+    let _ = metrics.total_operations;
+    let _ = metrics.successful_operations;
     assert!(metrics.success_rate >= 0.0 && metrics.success_rate <= 1.0);
 
     Ok(())
@@ -237,10 +237,7 @@ async fn test_ccl_integration_health_check() -> Result<(), Box<dyn std::error::E
     // Test component health check through health monitor
     let health_status = coordinator.health_monitor.check_component_health().await;
 
-    println!(
-        "✅ Component health check includes CCL integration: {:?}",
-        health_status
-    );
+    println!("✅ Component health check includes CCL integration: {health_status:?}");
 
     // Verify we got a valid health status
     assert!(health_status.is_healthy() || !health_status.is_healthy()); // Always true, just checking access
