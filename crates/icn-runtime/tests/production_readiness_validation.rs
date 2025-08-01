@@ -131,7 +131,7 @@ async fn test_production_error_recovery_patterns() {
         })
     };
 
-    let result = retry_with_backoff(
+    let result: Result<String, RecoveryError<TestError>> = retry_with_backoff(
         permanent_error_operation,
         &config,
         &classifier,

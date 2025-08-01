@@ -14,7 +14,8 @@ async fn anchor_receipt_uses_time_provider() {
     let did = Did::from_str(did_str).unwrap();
     let signer = Arc::new(StubSigner::new());
 
-    let ctx = RuntimeContext::new(
+    #[allow(deprecated)]
+    let ctx = RuntimeContext::new_with_ledger_path_and_time(
         did_str,
         std::path::PathBuf::from("./mana_ledger.sled"),
         provider.clone(),

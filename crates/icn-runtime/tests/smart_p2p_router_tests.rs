@@ -206,7 +206,6 @@ async fn test_system_status() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Verify status structure is reasonable
-    assert!(status.performance.total_operations >= 0);
     assert!(status.performance.success_rate >= 0.0 && status.performance.success_rate <= 1.0);
 
     Ok(())
@@ -303,10 +302,9 @@ async fn test_intelligent_dag_sync() -> Result<(), Box<dyn std::error::Error>> {
             println!("  - Peers contacted: {}", result.peers_contacted);
             println!("  - Strategy used: {}", result.strategy_used);
 
-            // Verify result structure
-            assert!(result.blocks_received >= 0);
-            assert!(result.blocks_sent >= 0);
-            assert!(result.peers_contacted >= 0);
+            // Verify result structure - note: blocks_received, blocks_sent, and peers_contacted 
+            // are unsigned types so they're always >= 0
+            assert!(!result.strategy_used.is_empty());
         }
         Err(HostAbiError::NetworkError(_)) => {
             println!("✅ DAG sync failed as expected (no network in test)");

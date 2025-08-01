@@ -10,7 +10,7 @@ use tokio::time::{sleep, Duration};
 
 fn get_stub_network_service(context: &Arc<RuntimeContext>) -> Arc<StubMeshNetworkService> {
     match &*context.mesh_network_service {
-        MeshNetworkServiceType::Stub(stub) => Arc::new(stub.clone()),
+        MeshNetworkServiceType::Stub(_stub) => Arc::new(StubMeshNetworkService::new()),
         _ => panic!("Expected StubMeshNetworkService"),
     }
 }
@@ -19,7 +19,6 @@ fn get_stub_network_service(context: &Arc<RuntimeContext>) -> Arc<StubMeshNetwor
 async fn lifecycle_reconstructs_spec_and_tracks_bid() {
     let submitter = Did::from_str("did:icn:test:submitter").unwrap();
     let ctx = RuntimeContext::new_for_testing(submitter.clone(), Some(1000)).unwrap();
-    ctx.default_receipt_wait_ms = 500;
 
     let stub = get_stub_network_service(&ctx);
 
@@ -76,34 +75,31 @@ async fn lifecycle_reconstructs_spec_and_tracks_bid() {
         signature: SignatureBytes(vec![0; 64]),
     };
 
-    ctx.submit_bid(bid1.clone()).await.unwrap();
-    ctx.submit_bid(bid2.clone()).await.unwrap();
+    stub.stage_bid(job_id.clone(), bid1.clone()).await;
+    stub.stage_bid(job_id.clone(), bid2).await;
 
     sleep(Duration::from_millis(100)).await;
 
     let receipt = ExecutionReceipt {
-        job_id: job_id.clone(),
+        job_id: job_id.clone().into(),
         executor_did: bid1.executor_did.clone(),
-        result: icn_identity::ExecutionResult {
-            success: true,
-            output_cids: vec![Cid::new_v1_sha256(0x55, b"result")],
-            error_message: None,
-            gas_used: 10,
-        },
-        signature: SignatureBytes(vec![0; 64]),
+        result_cid: Cid::new_v1_sha256(0x55, b"result"),
+        cpu_ms: 10,
+        success: true,
+        sig: SignatureBytes(vec![0; 64]),
     };
 
-    stub.send_receipt(LocalMeshSubmitReceiptMessage {
+    stub.stage_receipt(job_id.clone(), LocalMeshSubmitReceiptMessage {
         receipt: receipt.clone(),
     })
-    .await
-    .unwrap();
+    .await;
 
     sleep(Duration::from_millis(200)).await;
 
-    let lifecycle = ctx.get_job_lifecycle(&job_id).await.unwrap();
+    let status = ctx.get_job_status(&job_id).await.unwrap();
+    let lifecycle = status.expect("Job status should be available");
     assert_eq!(lifecycle.job.spec_json, Some(spec_json));
     assert_eq!(lifecycle.bids.len(), 2);
-    assert_eq!(lifecycle.receipts.len(), 1);
-    assert_eq!(lifecycle.receipts[0].executor_did, bid1.executor_did);
+    assert!(lifecycle.receipt.is_some());
+    assert_eq!(lifecycle.receipt.as_ref().unwrap().executor_did, bid1.executor_did);
 }

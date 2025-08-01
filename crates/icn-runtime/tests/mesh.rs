@@ -222,6 +222,9 @@ async fn test_mesh_job_full_lifecycle_happy_path() {
         executor_did: executor_did.clone(),
         price_mana: 10,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     let sig = arc_ctx_job_manager
@@ -599,6 +602,9 @@ fn create_test_bid(job_id: &Cid, executor_ctx: &Arc<RuntimeContext>, price: u64)
         executor_did: executor_ctx.current_identity.clone(),
         price_mana: price,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     let sig = executor_ctx
@@ -622,6 +628,9 @@ fn create_test_bid_with_resources(
         executor_did: executor_ctx.current_identity.clone(),
         price_mana: price,
         resources,
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     let sig = executor_ctx
@@ -978,6 +987,9 @@ async fn test_full_mesh_job_cycle_libp2p() -> Result<(), anyhow::Error> {
         executor_did: executor_did.clone(),
         price_mana: 30,
         resources: Resources::default(),
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     let sig = node_b
