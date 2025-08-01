@@ -1914,42 +1914,41 @@
 <a href=#1914 id=1914 data-nosnippet>1914</a><span class="attr">#[cfg(test)]
 <a href=#1915 id=1915 data-nosnippet>1915</a></span><span class="kw">mod </span>tests {
 <a href=#1916 id=1916 data-nosnippet>1916</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1917 id=1917 data-nosnippet>1917</a>    <span class="kw">use </span>icn_common::SystemTimeProvider;
-<a href=#1918 id=1918 data-nosnippet>1918</a>
-<a href=#1919 id=1919 data-nosnippet>1919</a>    <span class="attr">#[test]
-<a href=#1920 id=1920 data-nosnippet>1920</a>    </span><span class="kw">fn </span>test_economic_automation_config() {
-<a href=#1921 id=1921 data-nosnippet>1921</a>        <span class="kw">let </span>config = EconomicAutomationConfig::default();
-<a href=#1922 id=1922 data-nosnippet>1922</a>        <span class="macro">assert!</span>(config.enable_mana_regeneration);
-<a href=#1923 id=1923 data-nosnippet>1923</a>        <span class="macro">assert!</span>(config.base_regeneration_rate &gt; <span class="number">0.0</span>);
-<a href=#1924 id=1924 data-nosnippet>1924</a>        <span class="macro">assert!</span>(config.enable_dynamic_pricing);
-<a href=#1925 id=1925 data-nosnippet>1925</a>    }
-<a href=#1926 id=1926 data-nosnippet>1926</a>
-<a href=#1927 id=1927 data-nosnippet>1927</a>    <span class="attr">#[test]
-<a href=#1928 id=1928 data-nosnippet>1928</a>    </span><span class="kw">fn </span>test_economic_penalty() {
-<a href=#1929 id=1929 data-nosnippet>1929</a>        <span class="kw">let </span>penalty = EconomicPenalty {
-<a href=#1930 id=1930 data-nosnippet>1930</a>            penalty_type: PenaltyType::ManaPenalty,
-<a href=#1931 id=1931 data-nosnippet>1931</a>            severity: <span class="number">0.5</span>,
-<a href=#1932 id=1932 data-nosnippet>1932</a>            duration: <span class="prelude-val">Some</span>(Duration::from_secs(<span class="number">3600</span>)),
-<a href=#1933 id=1933 data-nosnippet>1933</a>            amount: <span class="prelude-val">Some</span>(<span class="number">100</span>),
-<a href=#1934 id=1934 data-nosnippet>1934</a>            restrictions: <span class="macro">vec!</span>[<span class="string">"market_participation"</span>.to_string()],
-<a href=#1935 id=1935 data-nosnippet>1935</a>        };
-<a href=#1936 id=1936 data-nosnippet>1936</a>
-<a href=#1937 id=1937 data-nosnippet>1937</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(penalty.penalty_type, PenaltyType::ManaPenalty));
-<a href=#1938 id=1938 data-nosnippet>1938</a>        <span class="macro">assert_eq!</span>(penalty.severity, <span class="number">0.5</span>);
-<a href=#1939 id=1939 data-nosnippet>1939</a>        <span class="macro">assert_eq!</span>(penalty.amount, <span class="prelude-val">Some</span>(<span class="number">100</span>));
-<a href=#1940 id=1940 data-nosnippet>1940</a>    }
-<a href=#1941 id=1941 data-nosnippet>1941</a>
-<a href=#1942 id=1942 data-nosnippet>1942</a>    <span class="attr">#[test]
-<a href=#1943 id=1943 data-nosnippet>1943</a>    </span><span class="kw">fn </span>test_allocation_strategy() {
-<a href=#1944 id=1944 data-nosnippet>1944</a>        <span class="kw">let </span>strategy = AllocationStrategy::MeritBased {
-<a href=#1945 id=1945 data-nosnippet>1945</a>            reputation_weight: <span class="number">0.7</span>,
-<a href=#1946 id=1946 data-nosnippet>1946</a>        };
-<a href=#1947 id=1947 data-nosnippet>1947</a>
-<a href=#1948 id=1948 data-nosnippet>1948</a>        <span class="kw">match </span>strategy {
-<a href=#1949 id=1949 data-nosnippet>1949</a>            AllocationStrategy::MeritBased { reputation_weight } =&gt; {
-<a href=#1950 id=1950 data-nosnippet>1950</a>                <span class="macro">assert_eq!</span>(reputation_weight, <span class="number">0.7</span>);
-<a href=#1951 id=1951 data-nosnippet>1951</a>            }
-<a href=#1952 id=1952 data-nosnippet>1952</a>            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Unexpected allocation strategy"</span>),
-<a href=#1953 id=1953 data-nosnippet>1953</a>        }
-<a href=#1954 id=1954 data-nosnippet>1954</a>    }
-<a href=#1955 id=1955 data-nosnippet>1955</a>}</code></pre></div></section></main></body></html>
+<a href=#1917 id=1917 data-nosnippet>1917</a>
+<a href=#1918 id=1918 data-nosnippet>1918</a>    <span class="attr">#[test]
+<a href=#1919 id=1919 data-nosnippet>1919</a>    </span><span class="kw">fn </span>test_economic_automation_config() {
+<a href=#1920 id=1920 data-nosnippet>1920</a>        <span class="kw">let </span>config = EconomicAutomationConfig::default();
+<a href=#1921 id=1921 data-nosnippet>1921</a>        <span class="macro">assert!</span>(config.enable_mana_regeneration);
+<a href=#1922 id=1922 data-nosnippet>1922</a>        <span class="macro">assert!</span>(config.base_regeneration_rate &gt; <span class="number">0.0</span>);
+<a href=#1923 id=1923 data-nosnippet>1923</a>        <span class="macro">assert!</span>(config.enable_dynamic_pricing);
+<a href=#1924 id=1924 data-nosnippet>1924</a>    }
+<a href=#1925 id=1925 data-nosnippet>1925</a>
+<a href=#1926 id=1926 data-nosnippet>1926</a>    <span class="attr">#[test]
+<a href=#1927 id=1927 data-nosnippet>1927</a>    </span><span class="kw">fn </span>test_economic_penalty() {
+<a href=#1928 id=1928 data-nosnippet>1928</a>        <span class="kw">let </span>penalty = EconomicPenalty {
+<a href=#1929 id=1929 data-nosnippet>1929</a>            penalty_type: PenaltyType::ManaPenalty,
+<a href=#1930 id=1930 data-nosnippet>1930</a>            severity: <span class="number">0.5</span>,
+<a href=#1931 id=1931 data-nosnippet>1931</a>            duration: <span class="prelude-val">Some</span>(Duration::from_secs(<span class="number">3600</span>)),
+<a href=#1932 id=1932 data-nosnippet>1932</a>            amount: <span class="prelude-val">Some</span>(<span class="number">100</span>),
+<a href=#1933 id=1933 data-nosnippet>1933</a>            restrictions: <span class="macro">vec!</span>[<span class="string">"market_participation"</span>.to_string()],
+<a href=#1934 id=1934 data-nosnippet>1934</a>        };
+<a href=#1935 id=1935 data-nosnippet>1935</a>
+<a href=#1936 id=1936 data-nosnippet>1936</a>        <span class="macro">assert!</span>(<span class="macro">matches!</span>(penalty.penalty_type, PenaltyType::ManaPenalty));
+<a href=#1937 id=1937 data-nosnippet>1937</a>        <span class="macro">assert_eq!</span>(penalty.severity, <span class="number">0.5</span>);
+<a href=#1938 id=1938 data-nosnippet>1938</a>        <span class="macro">assert_eq!</span>(penalty.amount, <span class="prelude-val">Some</span>(<span class="number">100</span>));
+<a href=#1939 id=1939 data-nosnippet>1939</a>    }
+<a href=#1940 id=1940 data-nosnippet>1940</a>
+<a href=#1941 id=1941 data-nosnippet>1941</a>    <span class="attr">#[test]
+<a href=#1942 id=1942 data-nosnippet>1942</a>    </span><span class="kw">fn </span>test_allocation_strategy() {
+<a href=#1943 id=1943 data-nosnippet>1943</a>        <span class="kw">let </span>strategy = AllocationStrategy::MeritBased {
+<a href=#1944 id=1944 data-nosnippet>1944</a>            reputation_weight: <span class="number">0.7</span>,
+<a href=#1945 id=1945 data-nosnippet>1945</a>        };
+<a href=#1946 id=1946 data-nosnippet>1946</a>
+<a href=#1947 id=1947 data-nosnippet>1947</a>        <span class="kw">match </span>strategy {
+<a href=#1948 id=1948 data-nosnippet>1948</a>            AllocationStrategy::MeritBased { reputation_weight } =&gt; {
+<a href=#1949 id=1949 data-nosnippet>1949</a>                <span class="macro">assert_eq!</span>(reputation_weight, <span class="number">0.7</span>);
+<a href=#1950 id=1950 data-nosnippet>1950</a>            }
+<a href=#1951 id=1951 data-nosnippet>1951</a>            <span class="kw">_ </span>=&gt; <span class="macro">panic!</span>(<span class="string">"Unexpected allocation strategy"</span>),
+<a href=#1952 id=1952 data-nosnippet>1952</a>        }
+<a href=#1953 id=1953 data-nosnippet>1953</a>    }
+<a href=#1954 id=1954 data-nosnippet>1954</a>}</code></pre></div></section></main></body></html>

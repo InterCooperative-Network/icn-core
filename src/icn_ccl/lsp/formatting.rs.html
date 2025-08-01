@@ -181,16 +181,17 @@
 <a href=#181 id=181 data-nosnippet>181</a>    <span class="attr">#[test]
 <a href=#182 id=182 data-nosnippet>182</a>    </span><span class="kw">fn </span>test_basic_formatting() {
 <a href=#183 id=183 data-nosnippet>183</a>        <span class="kw">let </span>input = <span class="string">"contract MyContract{function test(){return 42;}}"</span>;
-<a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">let </span>expected = <span class="string">"contract MyContract {\n    function test() {\n        return 42;\n    }\n}"</span>;
-<a href=#185 id=185 data-nosnippet>185</a>        <span class="kw">let </span>result = format_ccl_code(input);
-<a href=#186 id=186 data-nosnippet>186</a>        <span class="comment">// Note: This is a simplified test - real formatting would be more sophisticated
-<a href=#187 id=187 data-nosnippet>187</a>        </span><span class="macro">assert_ne!</span>(result, input); <span class="comment">// Should be different from unformatted input
-<a href=#188 id=188 data-nosnippet>188</a>    </span>}
-<a href=#189 id=189 data-nosnippet>189</a>
-<a href=#190 id=190 data-nosnippet>190</a>    <span class="attr">#[test]
-<a href=#191 id=191 data-nosnippet>191</a>    </span><span class="kw">fn </span>test_indentation() {
-<a href=#192 id=192 data-nosnippet>192</a>        <span class="kw">let </span>input = <span class="string">"{\ntest\n}"</span>;
-<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>result = format_ccl_code(input);
-<a href=#194 id=194 data-nosnippet>194</a>        <span class="macro">assert!</span>(result.contains(<span class="string">"    test"</span>)); <span class="comment">// Should have proper indentation
-<a href=#195 id=195 data-nosnippet>195</a>    </span>}
-<a href=#196 id=196 data-nosnippet>196</a>}</code></pre></div></section></main></body></html>
+<a href=#184 id=184 data-nosnippet>184</a>        <span class="kw">let </span>_expected =
+<a href=#185 id=185 data-nosnippet>185</a>            <span class="string">"contract MyContract {\n    function test() {\n        return 42;\n    }\n}"</span>;
+<a href=#186 id=186 data-nosnippet>186</a>        <span class="kw">let </span>result = format_ccl_code(input);
+<a href=#187 id=187 data-nosnippet>187</a>        <span class="comment">// Note: This is a simplified test - real formatting would be more sophisticated
+<a href=#188 id=188 data-nosnippet>188</a>        </span><span class="macro">assert_ne!</span>(result, input); <span class="comment">// Should be different from unformatted input
+<a href=#189 id=189 data-nosnippet>189</a>    </span>}
+<a href=#190 id=190 data-nosnippet>190</a>
+<a href=#191 id=191 data-nosnippet>191</a>    <span class="attr">#[test]
+<a href=#192 id=192 data-nosnippet>192</a>    </span><span class="kw">fn </span>test_indentation() {
+<a href=#193 id=193 data-nosnippet>193</a>        <span class="kw">let </span>input = <span class="string">"{\ntest\n}"</span>;
+<a href=#194 id=194 data-nosnippet>194</a>        <span class="kw">let </span>result = format_ccl_code(input);
+<a href=#195 id=195 data-nosnippet>195</a>        <span class="macro">assert!</span>(result.contains(<span class="string">"    test"</span>)); <span class="comment">// Should have proper indentation
+<a href=#196 id=196 data-nosnippet>196</a>    </span>}
+<a href=#197 id=197 data-nosnippet>197</a>}</code></pre></div></section></main></body></html>
