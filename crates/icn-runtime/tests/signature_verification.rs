@@ -1,3 +1,5 @@
+#![cfg(feature = "enable-libp2p")]
+
 use async_trait::async_trait;
 use icn_common::Cid;
 use icn_identity::{ExecutionReceipt, SignatureBytes};
@@ -8,7 +10,6 @@ use icn_protocol::{
     ProtocolMessage, ResourceRequirements,
 };
 use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService as _, Signer};
-use libp2p::Multiaddr;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
@@ -81,6 +82,10 @@ impl Signer for TestSigner {
     fn verifying_key_ref(&self) -> &icn_identity::VerifyingKey {
         &self.pk
     }
+
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
 }
 
 #[async_trait]
@@ -114,7 +119,8 @@ impl NetworkService for ChannelNetworkService {
     async fn get_record(&self, _key: String) -> Result<Option<Vec<u8>>, MeshNetworkError> {
         Ok(None)
     }
-    async fn connect_peer(&self, _addr: Multiaddr) -> Result<(), MeshNetworkError> {
+    async fn connect_peer(&self, _addr: libp2p::Multiaddr) -> Result<(), MeshNetworkError> {
+        // Test implementation - just return Ok
         Ok(())
     }
     fn as_any(&self) -> &dyn std::any::Any {
@@ -137,7 +143,11 @@ async fn collect_bids_signature_validation() {
         resources: Resources {
             cpu_cores: 1,
             memory_mb: 1,
+            storage_mb: 0,
         },
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
         signature: SignatureBytes(vec![]),
     };
     let sig = signer.sign(&unsigned.to_signable_bytes().unwrap()).unwrap();
@@ -158,6 +168,9 @@ async fn collect_bids_signature_validation() {
             max_execution_time_secs: 300,
         },
         reputation_score: 0,
+        executor_capabilities: vec![],
+        executor_federations: vec![],
+        executor_trust_scope: None,
     };
 
     let protocol_msg = ProtocolMessage {

@@ -5,7 +5,7 @@ use wasmtime::{Engine, Linker, Module, Store};
 #[tokio::test]
 async fn write_string_limited_truncates() {
     let ctx = RuntimeContext::new_for_testing(
-        icn_common::Did::from_str("did:key:zMemTest").unwrap(),
+        icn_common::Did::from("did:key:zMemTest"),
         Some(100),
     )
     .unwrap();
@@ -42,7 +42,7 @@ async fn write_string_limited_truncates() {
 #[tokio::test]
 async fn read_string_safe_empty() {
     let ctx = RuntimeContext::new_for_testing(
-        icn_common::Did::from_str("did:key:zMemRead").unwrap(),
+        icn_common::Did::from("did:key:zMemRead"),
         Some(100),
     )
     .unwrap();
