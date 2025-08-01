@@ -1,6 +1,6 @@
 #[cfg(feature = "enable-libp2p")]
 mod cross_node_governance {
-    use icn_governance::{Proposal, Vote, VoteOption, ProposalId};
+    use icn_governance::{Proposal, ProposalId, Vote, VoteOption};
     use icn_network::NetworkService;
     use icn_protocol::MessagePayload;
     use icn_runtime::context::RuntimeContext;
@@ -62,7 +62,9 @@ mod cross_node_governance {
         })
         .await
         .expect("timeout waiting for proposal");
-        node_b.ingest_external_proposal(&proposal_bytes.proposal_data).await?;
+        node_b
+            .ingest_external_proposal(&proposal_bytes.proposal_data)
+            .await?;
         let proposal: Proposal = bincode::deserialize(&proposal_bytes.proposal_data)?;
         {
             let gov = node_b.governance_module.lock().await;

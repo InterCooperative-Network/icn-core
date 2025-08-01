@@ -70,7 +70,7 @@ async fn test_concurrent_commands() {
     let start = Instant::now();
 
     for i in 0..num_concurrent {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
         let base = base.to_string();
 
         let handle = tokio::task::spawn_blocking(move || {
@@ -218,7 +218,7 @@ async fn test_command_parsing_performance() {
     let start = Instant::now();
 
     for cmd_args in commands {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         tokio::task::spawn_blocking(move || {
             Command::new(bin).args(cmd_args).assert().success();
@@ -260,7 +260,7 @@ async fn test_repeated_commands_stress() {
     let mut durations = Vec::new();
 
     for i in 0..num_iterations {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
         let base_clone = base.clone();
 
         let start = Instant::now();
@@ -325,13 +325,28 @@ async fn test_memory_usage_patterns() {
         vec!["--api-url".to_string(), base.clone(), "info".to_string()],
         vec!["--api-url".to_string(), base.clone(), "status".to_string()],
         vec!["--api-url".to_string(), base.clone(), "metrics".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "network".to_string(), "stats".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "mesh".to_string(), "jobs".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "governance".to_string(), "proposals".to_string()],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "network".to_string(),
+            "stats".to_string(),
+        ],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "mesh".to_string(),
+            "jobs".to_string(),
+        ],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "governance".to_string(),
+            "proposals".to_string(),
+        ],
     ];
 
     for cmd_args in commands {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         let start = Instant::now();
 
@@ -369,7 +384,7 @@ async fn test_error_handling_performance() {
     ];
 
     for cmd_args in error_cases {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         let start = Instant::now();
 

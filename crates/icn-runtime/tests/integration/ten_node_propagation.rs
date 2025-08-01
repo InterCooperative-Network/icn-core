@@ -6,9 +6,11 @@ mod ten_node_propagation {
     use icn_identity::SignatureBytes;
     use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec};
     use icn_network::NetworkService;
-    use icn_runtime::context::RuntimeContext;
     use icn_runtime::context::signers::{Signer, StubSigner};
-    use icn_runtime::{host_create_governance_proposal, DefaultMeshNetworkService, MeshNetworkService};
+    use icn_runtime::context::RuntimeContext;
+    use icn_runtime::{
+        host_create_governance_proposal, DefaultMeshNetworkService, MeshNetworkService,
+    };
     use libp2p::{Multiaddr, PeerId as Libp2pPeerId};
     use std::str::FromStr;
     use std::sync::Arc;
@@ -21,13 +23,7 @@ mod ten_node_propagation {
         let did = format!("did:key:z6MkTenNode{}", suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let signer = Arc::new(StubSigner::new()) as Arc<dyn Signer>;
-        let ctx = RuntimeContext::new_with_real_libp2p(
-            &did,
-            listen,
-            bootstrap,
-            signer,
-        )
-        .await?;
+        let ctx = RuntimeContext::new_with_real_libp2p(&did, listen, bootstrap, signer).await?;
         let did_parsed = Did::from_str(&did)?;
         ctx.mana_ledger
             .set_balance(&did_parsed, 1000)
