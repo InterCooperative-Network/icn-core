@@ -8,9 +8,11 @@
 #[cfg(feature = "enable-libp2p")]
 use icn_network::NetworkService;
 #[cfg(feature = "enable-libp2p")]
-use icn_runtime::context::RuntimeContext;
+use icn_runtime::context::{RuntimeContext, StubSigner};
 #[cfg(feature = "enable-libp2p")]
 use std::str::FromStr;
+#[cfg(feature = "enable-libp2p")]
+use std::sync::Arc;
 
 #[cfg(feature = "enable-libp2p")]
 #[tokio::main]
@@ -21,14 +23,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n✅ Phase 1: Creating RuntimeContext with real libp2p networking...");
 
     let node_identity = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK";
+    let signer = Arc::new(StubSigner::new());
 
     let runtime_ctx = RuntimeContext::new_with_real_libp2p(
         node_identity,
         vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()],
         None, // No bootstrap peers for this demo
-        std::path::PathBuf::from("./dag_demo"),
-        std::path::PathBuf::from("./mana_ledger.sled"),
-        std::path::PathBuf::from("./reputation.sled"),
+        signer,
     )
     .await?;
 

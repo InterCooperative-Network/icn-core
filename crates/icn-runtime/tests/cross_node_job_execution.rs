@@ -36,7 +36,7 @@ mod runtime_host_abi_tests {
         let identity_did = Did::from_str(&identity_did_str)?;
 
         let tmp = tempdir()?;
-        let base = tmp.into_path();
+        let base = tmp.keep()?;
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
 
         let signer = Arc::new(icn_runtime::context::StubSigner::new());
