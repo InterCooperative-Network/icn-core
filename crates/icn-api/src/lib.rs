@@ -989,7 +989,15 @@ mod tests {
         let author = Did::new("key", "tester");
         let sig_opt = None;
         // Compute the CID correctly using the same function as submit_dag_block
-        let cid = compute_merkle_cid(0x71, &data, std::slice::from_ref(&link), ts, &author, &sig_opt, &None);
+        let cid = compute_merkle_cid(
+            0x71,
+            &data,
+            std::slice::from_ref(&link),
+            ts,
+            &author,
+            &sig_opt,
+            &None,
+        );
         let block = DagBlock {
             cid: cid.clone(),
             data: data.clone(),

@@ -280,9 +280,7 @@ async fn test_repeated_commands_stress() {
     // Calculate average duration
     let avg_duration = durations.iter().sum::<Duration>() / num_iterations as u32;
 
-    println!(
-        "Average command duration over {num_iterations} iterations: {avg_duration:?}"
-    );
+    println!("Average command duration over {num_iterations} iterations: {avg_duration:?}");
 
     // Average should be reasonable
     assert!(
