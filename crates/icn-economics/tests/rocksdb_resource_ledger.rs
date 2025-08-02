@@ -3,7 +3,6 @@ mod tests {
     use icn_common::Did;
     use icn_economics::ledger::{ResourceLedger, RocksdbResourceLedger, TokenClass, TokenClassId, TokenType, TransferabilityRule, ScopingRules};
     use std::str::FromStr;
-    use std::time::{SystemTime, UNIX_EPOCH};
     use tempfile::tempdir;
 
     #[test]
@@ -30,7 +29,7 @@ mod tests {
                         min_balance: None,
                     },
                     issuer: Did::from_str("did:example:issuer").unwrap(),
-                    created_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    created_at: 1640995200, // Fixed timestamp for deterministic tests
                     metadata: Default::default(),
                 },
             )
