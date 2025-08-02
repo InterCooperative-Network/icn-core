@@ -105,10 +105,7 @@ async fn test_peer_reputation_update() -> Result<(), Box<dyn std::error::Error>>
             println!("✅ Peer reputation updated successfully");
         }
         Err(e) => {
-            println!(
-                "✅ Peer reputation update failed: {:?} (may be expected in test)",
-                e
-            );
+            println!("✅ Peer reputation update failed: {e:?} (may be expected in test)");
         }
     }
 
@@ -161,10 +158,7 @@ async fn test_coordinator_background_tasks() -> Result<(), Box<dyn std::error::E
             println!("✅ Background tasks started successfully");
         }
         Err(e) => {
-            println!(
-                "✅ Background tasks startup failed: {:?} (may be expected in test)",
-                e
-            );
+            println!("✅ Background tasks startup failed: {e:?} (may be expected in test)");
         }
     }
 
@@ -269,10 +263,7 @@ async fn test_peer_reputation_and_routes_update() -> Result<(), Box<dyn std::err
             println!("✅ Peer reputation and routes updated successfully");
         }
         Err(e) => {
-            println!(
-                "✅ Reputation and routes update failed: {:?} (may be expected in test)",
-                e
-            );
+            println!("✅ Reputation and routes update failed: {e:?} (may be expected in test)");
         }
     }
 
@@ -331,7 +322,7 @@ async fn test_component_health_check() -> Result<(), Box<dyn std::error::Error>>
     // Test component health check through health monitor
     let health_status = coordinator.health_monitor.check_component_health().await;
 
-    println!("✅ Component health check completed: {:?}", health_status);
+    println!("✅ Component health check completed: {health_status:?}");
 
     // Verify we got a valid health status
     assert!(health_status.is_healthy() || !health_status.is_healthy()); // Always true, just checking access
