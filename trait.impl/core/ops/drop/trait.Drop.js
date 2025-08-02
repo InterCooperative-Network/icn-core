@@ -1,9 +1,9 @@
 (function() {
-    var implementors = Object.fromEntries([["icn_identity",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/1.88.0/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"icn_identity/security/struct.SecureBytes.html\" title=\"struct icn_identity::security::SecureBytes\">SecureBytes</a>"]]]]);
+    var implementors = Object.fromEntries([["icn_identity",[["impl <a class=\"trait\" href=\"https://doc.rust-lang.org/nightly/core/ops/drop/trait.Drop.html\" title=\"trait core::ops::drop::Drop\">Drop</a> for <a class=\"struct\" href=\"icn_identity/security/struct.SecureBytes.html\" title=\"struct icn_identity::security::SecureBytes\">SecureBytes</a>"]]]]);
     if (window.register_implementors) {
         window.register_implementors(implementors);
     } else {
         window.pending_implementors = implementors;
     }
 })()
-//{"start":57,"fragment_lengths":[313]}
+//{"start":57,"fragment_lengths":[314]}
