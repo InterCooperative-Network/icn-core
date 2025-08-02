@@ -26,7 +26,7 @@ mod libp2p_job_pipeline {
 
     async fn extract_did(client: &Client, url: &str) -> String {
         let info: Value = client
-            .get(&format!("{}/info", url))
+            .get(format!("{}/info", url))
             .send()
             .await
             .expect("info request")
@@ -65,7 +65,7 @@ mod libp2p_job_pipeline {
         });
 
         let submit_res: Value = client
-            .post(&format!("{}/mesh/submit", NODE_A_URL))
+            .post(format!("{}/mesh/submit", NODE_A_URL))
             .header("Content-Type", "application/json")
             .json(&job_request)
             .send()
@@ -80,7 +80,7 @@ mod libp2p_job_pipeline {
         let mut final_status: Value = Value::Null;
         for _ in 0..MAX_RETRIES {
             let resp = client
-                .get(&format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+                .get(format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
                 .send()
                 .await
                 .expect("status");
@@ -108,7 +108,7 @@ mod libp2p_job_pipeline {
         };
 
         let exec_status: Value = client
-            .get(&format!("{}/mesh/jobs/{}", executor_url, job_id))
+            .get(format!("{}/mesh/jobs/{}", executor_url, job_id))
             .send()
             .await
             .expect("executor status")
@@ -123,7 +123,7 @@ mod libp2p_job_pipeline {
 
         for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
             let dag_res = client
-                .post(&format!("{}/dag/get", url))
+                .post(format!("{}/dag/get", url))
                 .json(&serde_json::json!({ "cid": result_cid }))
                 .send()
                 .await
@@ -139,7 +139,7 @@ mod libp2p_job_pipeline {
 
         let contract_source = "fn run() -> Integer { return 7; }";
         let contract_res: Value = client
-            .post(&format!("{}/contracts", NODE_A_URL))
+            .post(format!("{}/contracts", NODE_A_URL))
             .header("Content-Type", "application/json")
             .json(&serde_json::json!({ "source": contract_source }))
             .send()
@@ -162,7 +162,7 @@ mod libp2p_job_pipeline {
         });
 
         let submit_res: Value = client
-            .post(&format!("{}/mesh/submit", NODE_A_URL))
+            .post(format!("{}/mesh/submit", NODE_A_URL))
             .header("Content-Type", "application/json")
             .json(&job_request)
             .send()
@@ -177,7 +177,7 @@ mod libp2p_job_pipeline {
         let mut final_status: Value = Value::Null;
         for _ in 0..MAX_RETRIES {
             let resp = client
-                .get(&format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
+                .get(format!("{}/mesh/jobs/{}", NODE_A_URL, job_id))
                 .send()
                 .await
                 .expect("status");
@@ -197,7 +197,7 @@ mod libp2p_job_pipeline {
 
         for url in [NODE_A_URL, NODE_B_URL, NODE_C_URL] {
             let dag_res = client
-                .post(&format!("{}/dag/get", url))
+                .post(format!("{}/dag/get", url))
                 .json(&serde_json::json!({ "cid": result_cid }))
                 .send()
                 .await

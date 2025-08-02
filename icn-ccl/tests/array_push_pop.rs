@@ -10,8 +10,7 @@ use std::thread;
 use tokio::runtime::Runtime;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    let ctx = RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap();
-    ctx
+    RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]

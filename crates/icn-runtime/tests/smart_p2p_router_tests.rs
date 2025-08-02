@@ -19,7 +19,7 @@ async fn test_smart_p2p_router_initialization() -> Result<(), Box<dyn std::error
     let coordinator = &runtime_ctx.cross_component_coordinator;
 
     // Verify router is properly initialized through coordinator
-    assert!(coordinator.smart_p2p_router.as_ref() as *const _ != std::ptr::null());
+    assert!(!std::ptr::addr_of!(*coordinator.smart_p2p_router.as_ref()).is_null());
 
     println!("✅ Smart P2P Router properly initialized via RuntimeContext");
     Ok(())

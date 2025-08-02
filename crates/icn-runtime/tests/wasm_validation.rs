@@ -84,8 +84,10 @@ async fn validator_enforces_function_limit() {
         signature: SignatureBytes(vec![]),
     };
     let signer = Arc::new(icn_runtime::context::StubSigner::new());
-    let mut limits = WasmSecurityLimits::default();
-    limits.max_functions = 1;
+    let limits = WasmSecurityLimits {
+        max_functions: 1,
+        ..Default::default()
+    };
     let config = WasmExecutorConfig {
         max_memory: 10 * 1024 * 1024,
         fuel: 1_000_000,

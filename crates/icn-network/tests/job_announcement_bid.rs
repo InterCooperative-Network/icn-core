@@ -20,8 +20,10 @@ mod job_announcement_bid {
         let peer_a = *node_a.local_peer_id();
 
         // Node B bootstraps to node A
-        let mut config_b = NetworkConfig::default();
-        config_b.bootstrap_peers = vec![(peer_a, addr)];
+        let config_b = NetworkConfig {
+            bootstrap_peers: vec![(peer_a, addr)],
+            ..Default::default()
+        };
         let node_b = Libp2pNetworkService::new(config_b).await.expect("node b");
 
         // allow discovery
