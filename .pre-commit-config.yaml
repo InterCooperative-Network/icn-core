@@ -1,15 +1,15 @@
 repos:
-  - repo: https://github.com/rust-lang/rustfmt
-    rev: stable
+  - repo: local
     hooks:
-      - id: rustfmt
+      - id: cargo-fmt
         name: cargo fmt
         entry: cargo fmt --all -- --check
         language: system
-  - repo: https://github.com/rust-lang/rust-clippy
-    rev: stable
-    hooks:
-      - id: clippy
+        types: [rust]
+        pass_filenames: false
+      - id: cargo-clippy
         name: cargo clippy
         entry: cargo clippy --all-targets --all-features -- -D warnings
         language: system
+        types: [rust]
+        pass_filenames: false
