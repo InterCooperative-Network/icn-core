@@ -1,6 +1,7 @@
 #[cfg(feature = "enable-libp2p")]
 mod icn_node_end_to_end {
     use axum::Router;
+    use std::env;
 
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
@@ -78,7 +79,11 @@ mod icn_node_end_to_end {
         // Node A bootstrap
         let (url_a, ctx_a, net_a, handle_a) = create_node("IntA", None).await;
         // Use actual peer ID from net_a for integration testing
-        let peer_a = net_a.peer_id();
+        let peer_a = if let Some(libp2p_service) = icn_network::NetworkService::as_any(net_a.as_ref()).downcast_ref::<icn_network::libp2p_service::Libp2pNetworkService>() {
+            *libp2p_service.local_peer_id()
+        } else {
+            return Err(anyhow::Error::msg("Failed to downcast NetworkService to Libp2pNetworkService"));
+        };
         // Use environment variable to allow configurable IP address for testing
         let ip_addr = env::var("TEST_NODE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
         let addr_a_str = format!("/ip4/{}/tcp/0", ip_addr);
