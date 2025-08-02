@@ -66,7 +66,7 @@ mod job_announcement_bid {
             .expect("announcement recv");
         let received_job = match announcement.payload {
             MessagePayload::MeshJobAnnouncement(j) => j,
-            other => panic!("unexpected payload: {:?}", other),
+            other => panic!("unexpected payload: {other:?}"),
         };
         assert_eq!(received_job.job_id, job_id);
 
@@ -100,7 +100,7 @@ mod job_announcement_bid {
             MessagePayload::MeshBidSubmission(b) => {
                 assert_eq!(b.job_id, job_id);
             }
-            other => panic!("unexpected payload: {:?}", other),
+            other => panic!("unexpected payload: {other:?}"),
         }
     }
 }
