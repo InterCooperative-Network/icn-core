@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 ark-std = "0.4"
-ark-relations = "0.4"
+ark-relations = "0.5"
 ark-r1cs-std = "0.4"
 ark-groth16 = "0.4"
 ark-bn254 = "0.4"
