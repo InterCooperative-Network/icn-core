@@ -20,7 +20,7 @@ mod ten_node_propagation {
         suffix: &str,
         bootstrap: Option<Vec<(Libp2pPeerId, Multiaddr)>>,
     ) -> Result<Arc<RuntimeContext>> {
-        let did = format!("did:key:z6MkTenNode{}", suffix);
+        let did = format!("did:key:z6MkTenNode{suffix}");
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
         let signer = Arc::new(StubSigner::new()) as Arc<dyn Signer>;
         let ctx = RuntimeContext::new_with_real_libp2p(&did, listen, bootstrap, signer).await?;
