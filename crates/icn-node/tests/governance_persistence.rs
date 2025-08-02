@@ -4,8 +4,7 @@ use icn_common::Did;
 use icn_governance::{ProposalSubmission, ProposalType, VoteOption};
 #[cfg(feature = "persist-sled")]
 use icn_node::app_router_with_options;
-#[cfg(feature = "persist-sled")]
-use icn_runtime::context::LedgerBackend;
+
 #[cfg(feature = "persist-sled")]
 use std::str::FromStr;
 #[cfg(feature = "persist-sled")]
@@ -15,20 +14,18 @@ use tempfile::tempdir;
 #[tokio::test]
 async fn governance_persists_between_restarts() {
     let dir = tempdir().unwrap();
-    let ledger_path = dir.path().join("mana.sled");
+    let _ledger_path = dir.path().join("mana.sled");
     let gov_path = dir.path().join("gov.sled");
 
     let (_router, ctx) = app_router_with_options(
         icn_node::RuntimeMode::Testing,
-        None, // api_key
-        None, // auth_token
-        None, // rate_limit
-        None, // mana ledger backend
-        Some(icn_runtime::context::LedgerBackend::Sled(
-            ledger_path.clone(),
-        )),
-        None, // storage backend
-        None, // storage path
+        None,                                                  // api_key
+        None,                                                  // auth_token
+        None,                                                  // rate_limit
+        Some(icn_runtime::context::LedgerBackend::Sled),       // mana ledger backend
+        Some(std::path::PathBuf::from("/tmp/test_mana.sled")), // mana ledger path
+        None,                                                  // storage backend
+        None,                                                  // storage path
         Some(gov_path.clone()),
         None,
         None,
@@ -75,10 +72,8 @@ async fn governance_persists_between_restarts() {
         None,
         None,
         None,
-        None,
-        Some(icn_runtime::context::LedgerBackend::Sled(
-            ledger_path.clone(),
-        )),
+        Some(icn_runtime::context::LedgerBackend::Sled),
+        Some(std::path::PathBuf::from("/tmp/test_mana2.sled")),
         None,
         None,
         Some(gov_path.clone()),

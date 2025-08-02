@@ -2012,7 +2012,7 @@ impl RuntimeContext {
         let bid_cid = icn_common::compute_merkle_cid(
             0x55, // CBOR codec for bids
             &bid_bytes,
-            &[job_link.clone()],
+            std::slice::from_ref(&job_link),
             bid.submitted_at,
             &bid.executor_did,
             &None,
@@ -2057,7 +2057,7 @@ impl RuntimeContext {
         let assignment_cid = icn_common::compute_merkle_cid(
             0x55, // CBOR codec for assignments
             &assignment_bytes,
-            &[job_link.clone()],
+            std::slice::from_ref(&job_link),
             assignment.assigned_at,
             &self.current_identity,
             &None,
@@ -2099,7 +2099,7 @@ impl RuntimeContext {
         let receipt_cid = icn_common::compute_merkle_cid(
             0x55, // CBOR codec for receipts
             &receipt_bytes,
-            &[job_link.clone()],
+            std::slice::from_ref(&job_link),
             receipt.completed_at,
             &receipt.executor_did,
             &None,

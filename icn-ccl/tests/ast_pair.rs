@@ -115,7 +115,9 @@ fn test_pair_to_ast_block() {
     let pair = pairs.next().unwrap();
     let ast = ast::pair_to_ast(pair).unwrap();
     let expected = AstNode::Block(BlockNode {
-        statements: vec![StatementNode::Return(Some(ExpressionNode::IntegerLiteral(1)))],
+        statements: vec![StatementNode::Return(Some(ExpressionNode::IntegerLiteral(
+            1,
+        )))],
     });
     assert_eq!(ast, expected);
 }
@@ -141,7 +143,9 @@ fn test_pair_to_ast_statement_return() {
     let pair = pairs.next().unwrap();
     let ast = ast::pair_to_ast(pair).unwrap();
     let expected = AstNode::Block(BlockNode {
-        statements: vec![StatementNode::Return(Some(ExpressionNode::IntegerLiteral(5)))],
+        statements: vec![StatementNode::Return(Some(ExpressionNode::IntegerLiteral(
+            5,
+        )))],
     });
     assert_eq!(ast, expected);
 }

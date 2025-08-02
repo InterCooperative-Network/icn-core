@@ -53,8 +53,8 @@ async fn https_serving() {
     let std_listener = listener.into_std().unwrap();
 
     let cert = generate_simple_self_signed(["localhost".into()]).unwrap();
-    let cert_pem = cert.serialize_pem().unwrap();
-    let key_pem = cert.serialize_private_key_pem();
+    let cert_pem = cert.cert.pem();
+    let key_pem = cert.signing_key.serialize_pem();
     let dir = tempfile::tempdir().unwrap();
     let cert_path = dir.path().join("cert.pem");
     let key_path = dir.path().join("key.pem");

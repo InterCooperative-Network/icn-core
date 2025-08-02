@@ -24,8 +24,7 @@ mod scoped_token_tests {
             let mut classes = self.classes.lock().unwrap();
             if classes.contains_key(class_id) {
                 return Err(CommonError::InvalidInputError(format!(
-                    "Token class {} already exists",
-                    class_id
+                    "Token class {class_id} already exists"
                 )));
             }
             classes.insert(class_id.clone(), class);
@@ -49,8 +48,7 @@ mod scoped_token_tests {
                 Ok(())
             } else {
                 Err(CommonError::InvalidInputError(format!(
-                    "Token class {} not found",
-                    class_id
+                    "Token class {class_id} not found"
                 )))
             }
         }
@@ -110,7 +108,7 @@ mod scoped_token_tests {
             _amount: u64,
         ) -> Result<bool, CommonError> {
             let token_class = self.get_class(class_id).ok_or_else(|| {
-                CommonError::InvalidInputError(format!("Token class {} not found", class_id))
+                CommonError::InvalidInputError(format!("Token class {class_id} not found"))
             })?;
 
             match &token_class.transferability {
@@ -352,8 +350,7 @@ mod scoped_token_tests {
         );
         assert!(
             mint_result.is_ok(),
-            "Minting should succeed: {:?}",
-            mint_result
+            "Minting should succeed: {mint_result:?}"
         );
 
         // Verify Alice's balance
@@ -383,8 +380,7 @@ mod scoped_token_tests {
         );
         assert!(
             transfer_result.is_ok(),
-            "Transfer should succeed: {:?}",
-            transfer_result
+            "Transfer should succeed: {transfer_result:?}"
         );
 
         // Verify balances after transfer
@@ -418,8 +414,7 @@ mod scoped_token_tests {
         );
         assert!(
             burn_result.is_ok(),
-            "Burning should succeed: {:?}",
-            burn_result
+            "Burning should succeed: {burn_result:?}"
         );
 
         // Verify Bob's balance after burning

@@ -4,8 +4,8 @@ mod icn_node_end_to_end {
 
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
-    use icn_mesh::{ActualMeshJob, JobSpec, MeshJobBid, Resources};
-    use icn_network::libp2p_service::Libp2pNetworkService;
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, MeshJobBid, Resources};
+
     use icn_network::NetworkService;
     use icn_node::app_router_from_context;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
@@ -40,16 +40,10 @@ mod icn_node_end_to_end {
     ) {
         let did = format!("did:key:z6Mkv{}", suffix);
         let listen: Vec<Multiaddr> = vec!["/ip4/0.0.0.0/tcp/0".parse().unwrap()];
-        let ctx = RuntimeContext::new_with_real_libp2p(
-            &did,
-            listen,
-            bootstrap,
-            std::path::PathBuf::from(format!("./dag_{suffix}")),
-            std::path::PathBuf::from(format!("./mana_{suffix}.sled")),
-            std::path::PathBuf::from(format!("./rep_{suffix}.sled")),
-        )
-        .await
-        .unwrap();
+        let signer = Arc::new(icn_runtime::context::StubSigner::new());
+        let ctx = RuntimeContext::new_with_real_libp2p(&did, listen, bootstrap, signer)
+            .await
+            .unwrap();
         let did_struct = Did::from_str(&did).unwrap();
         ctx.mana_ledger.set_balance(&did_struct, 1000).unwrap();
         ctx.clone().spawn_mesh_job_manager().await;
@@ -64,10 +58,11 @@ mod icn_node_end_to_end {
         let job_id = Cid::new_v1_sha256(0x55, format!("job_{id_suffix}").as_bytes());
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{id_suffix}").as_bytes());
         ActualMeshJob {
-            id: job_id,
+            id: JobId(job_id),
             manifest_cid,
-            spec: JobSpec::Echo {
-                payload: "libp2p integration".into(),
+            spec: JobSpec {
+                kind: JobKind::GenericPlaceholder,
+                ..Default::default()
             },
             creator_did: creator.clone(),
             cost_mana: 50,
@@ -82,20 +77,16 @@ mod icn_node_end_to_end {
 
         // Node A bootstrap
         let (url_a, ctx_a, net_a, handle_a) = create_node("IntA", None).await;
-        let peer_a = downcast_rs::Downcast::as_any(&*net_a)
-            .downcast_ref::<Libp2pNetworkService>()
-            .unwrap()
-            .local_peer_id()
-            .clone();
-        let addr_a = downcast_rs::Downcast::as_any(&*net_a)
-            .downcast_ref::<Libp2pNetworkService>()
-            .unwrap()
-            .listening_addresses()[0]
-            .clone();
+        // Use actual peer ID from net_a for integration testing
+        let peer_a = net_a.peer_id();
+        // Use environment variable to allow configurable IP address for testing
+        let ip_addr = env::var("TEST_NODE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let addr_a_str = format!("/ip4/{}/tcp/0", ip_addr);
+        let addr_a = addr_a_str.parse::<Multiaddr>().unwrap();
 
         // Node B bootstrapped to A
         let bootstrap = vec![(peer_a, addr_a.clone())];
-        let (url_b, ctx_b, net_b, handle_b) = create_node("IntB", Some(bootstrap)).await;
+        let (_url_b, ctx_b, net_b, handle_b) = create_node("IntB", Some(bootstrap)).await;
 
         // Reputation before
         let rep_before = ctx_a
@@ -130,7 +121,7 @@ mod icn_node_end_to_end {
             loop {
                 if let Some(message) = recv_b.recv().await {
                     if let MessagePayload::MeshJobAnnouncement(j) = &message.payload {
-                        if j.id.to_string() == job_id {
+                        if j.job_id.to_string() == job_id {
                             break;
                         }
                     }
@@ -138,12 +129,6 @@ mod icn_node_end_to_end {
             }
         })
         .await?;
-        let bytes = unsigned.to_signable_bytes().unwrap();
-        let sig = ctx_b.signer.sign(&bytes).unwrap();
-        let bid = MeshJobBid {
-            signature: SignatureBytes(sig),
-            ..unsigned
-        };
         let unsigned = MeshJobBid {
             job_id: job.id.clone(),
             executor_did: ctx_b.current_identity.clone(),
@@ -152,7 +137,13 @@ mod icn_node_end_to_end {
             signature: SignatureBytes(vec![]),
             executor_capabilities: vec![],
             executor_federations: vec![],
-            executor_trust_scope: vec![],
+            executor_trust_scope: None,
+        };
+        let bytes = unsigned.to_signable_bytes().unwrap();
+        let sig = ctx_b.signer.sign(&bytes).unwrap();
+        let _bid = MeshJobBid {
+            signature: SignatureBytes(sig),
+            ..unsigned
         };
         // Wait for bid submission on A
         timeout(Duration::from_secs(5), async {
@@ -169,11 +160,11 @@ mod icn_node_end_to_end {
         // Assign job to B
         let assign_msg = ProtocolMessage::new(
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
-                job_id: job.job_id.clone(),
+                job_id: job.id.clone().into(),
                 executor_did: ctx_b.current_identity.clone(),
                 agreed_cost_mana: 30,
-                completion_deadline: None,
-                manifest_cid: job.manifest_cid.clone(),
+                completion_deadline: chrono::Utc::now().timestamp() as u64 + 3600,
+                manifest_cid: Some(job.manifest_cid.clone()),
             }),
             ctx_a.current_identity.clone(),
             None,
@@ -188,6 +179,12 @@ mod icn_node_end_to_end {
         let receipt_msg = ProtocolMessage::new(
             MessagePayload::MeshReceiptSubmission(icn_protocol::MeshReceiptSubmissionMessage {
                 receipt: receipt.clone(),
+                execution_metadata: icn_protocol::ExecutionMetadata {
+                    wall_time_ms: 1000,
+                    peak_memory_mb: 64,
+                    exit_code: 0,
+                    execution_logs: Some("Job executed successfully".to_string()),
+                },
             }),
             ctx_b.current_identity.clone(),
             None,

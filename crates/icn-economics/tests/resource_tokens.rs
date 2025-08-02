@@ -131,7 +131,7 @@ fn mint_transfer_burn_flow() {
         &repo,
         &mana,
         &issuer,
-        &"token".to_string(),
+        "token",
         5,
         &recipient,
         Some(scope.clone()),
@@ -147,7 +147,7 @@ fn mint_transfer_burn_flow() {
         &repo,
         &mana,
         &issuer,
-        &"token".to_string(),
+        "token",
         3,
         &recipient,
         &other,
@@ -160,16 +160,7 @@ fn mint_transfer_burn_flow() {
     );
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 3);
 
-    burn_tokens(
-        &repo,
-        &mana,
-        &issuer,
-        &"token".to_string(),
-        2,
-        &other,
-        Some(scope),
-    )
-    .unwrap();
+    burn_tokens(&repo, &mana, &issuer, "token", 2, &other, Some(scope)).unwrap();
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 1);
 }
 

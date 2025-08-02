@@ -344,7 +344,7 @@ impl LoadTestRunner {
                     results.lock().await.push(result);
 
                     // Log progress periodically
-                    if total_requests.load(Ordering::Relaxed) % 100 == 0 {
+                    if total_requests.load(Ordering::Relaxed).is_multiple_of(100) {
                         debug!(
                             "Worker {}: {} requests completed",
                             worker_id,

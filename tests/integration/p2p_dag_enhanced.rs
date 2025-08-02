@@ -7,7 +7,7 @@
 //! - Performance optimization learning
 //! - Real-time network status reporting
 
-use icn_common::{Cid, DagBlock, Did};
+use icn_common::{Cid, Did};
 use icn_dag::{InMemoryDagStore, StorageService};
 use icn_protocol::{
     DagBlockAnnouncementMessage, DagBlockRequestMessage, DagBlockResponseMessage, MessagePayload,
@@ -24,6 +24,9 @@ use tokio::sync::RwLock;
 use tokio::time::{sleep, timeout};
 use tracing::{debug, error, info, warn};
 
+// Type aliases for complex types
+type PendingRequestSender = tokio::sync::oneshot::Sender<Option<Vec<u8>>>;
+
 // Global tracing initialization
 static INIT: Once = Once::new();
 
@@ -38,14 +41,14 @@ pub struct EnhancedTestNode {
     pub identity: Did,
     pub runtime_context: Arc<RuntimeContext>,
     pub coordinator: Arc<CrossComponentCoordinator>,
-    message_handler: Arc<MessageHandler>,
+    _message_handler: Arc<MessageHandler>,
 }
 
 impl EnhancedTestNode {
     /// Create a new enhanced test node with full coordination
     pub async fn new(
         node_id: u32,
-        bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>,
+        _bootstrap_peers: Vec<(libp2p::PeerId, libp2p::Multiaddr)>,
     ) -> Result<Self, Box<dyn std::error::Error + Send + Sync>> {
         let identity = Did::new("test", &format!("enhanced_node_{}", node_id));
 
@@ -63,16 +66,13 @@ impl EnhancedTestNode {
         let test_dag_store = Arc::new(tokio::sync::Mutex::new(InMemoryDagStore::new()));
 
         // Create message handler for enhanced networking
-        let message_handler = Arc::new(MessageHandler::new(
-            test_dag_store,
-            coordinator.clone(),
-        ));
+        let message_handler = Arc::new(MessageHandler::new(test_dag_store, coordinator.clone()));
 
         Ok(Self {
             identity,
             runtime_context,
             coordinator,
-            message_handler,
+            _message_handler: message_handler,
         })
     }
 
@@ -126,8 +126,8 @@ impl EnhancedTestNode {
 /// Enhanced message handler with intelligent routing
 pub struct MessageHandler {
     dag_store: Arc<tokio::sync::Mutex<InMemoryDagStore>>,
-    coordinator: Arc<CrossComponentCoordinator>,
-    pending_requests: Arc<RwLock<HashMap<Cid, Vec<tokio::sync::oneshot::Sender<Option<Vec<u8>>>>>>>,
+    _coordinator: Arc<CrossComponentCoordinator>,
+    pending_requests: Arc<RwLock<HashMap<Cid, Vec<PendingRequestSender>>>>,
     known_blocks: Arc<RwLock<HashMap<Cid, Instant>>>,
 }
 
@@ -138,7 +138,7 @@ impl MessageHandler {
     ) -> Self {
         Self {
             dag_store,
-            coordinator,
+            _coordinator: coordinator,
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             known_blocks: Arc::new(RwLock::new(HashMap::new())),
         }
@@ -192,14 +192,14 @@ impl MessageHandler {
         let block_data = {
             let store = self.dag_store.lock().await;
             match store.get(&request.block_cid) {
-                Ok(Some(block)) => Some(block.data.clone()), // Assuming DagBlock has a `data: Vec<u8>` field
+                Ok(Some(block)) => Some(block), // Return the entire DagBlock
                 Ok(None) => None,
                 _ => None,
             }
         };
 
         // Create and send response
-        let response = DagBlockResponseMessage {
+        let _response = DagBlockResponseMessage {
             block_cid: request.block_cid.clone(),
             block_data: block_data.clone(),
             error: if block_data.is_none() {
@@ -338,7 +338,7 @@ impl MessageHandler {
         }
 
         // Create and broadcast request
-        let request = DagBlockRequestMessage {
+        let _request = DagBlockRequestMessage {
             block_cid: cid.clone(),
             priority: 128, // medium priority
         };

@@ -1,6 +1,5 @@
 use icn_ccl::compile_ccl_source_to_wasm;
 use icn_common::{Cid, DagBlock};
-use icn_dag::InMemoryDagStore;
 use icn_identity::{did_key_from_verifying_key, generate_ed25519_keypair, SignatureBytes};
 use icn_mesh::{ActualMeshJob, JobId, JobSpec};
 use icn_runtime::context::{RuntimeContext, StubSigner};
@@ -9,11 +8,9 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::thread;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex as TokioMutex;
 
 fn ctx_with_temp_store(did: &str, mana: u64) -> Arc<RuntimeContext> {
-    let ctx = RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap();
-    ctx
+    RuntimeContext::new_with_stubs_and_mana(did, mana).unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread")]

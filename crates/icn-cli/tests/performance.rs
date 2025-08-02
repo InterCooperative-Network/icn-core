@@ -38,11 +38,10 @@ async fn test_info_command_performance() {
     // Info command should complete within 5 seconds
     assert!(
         duration < Duration::from_secs(5),
-        "Info command took too long: {:?}",
-        duration
+        "Info command took too long: {duration:?}"
     );
 
-    println!("Info command completed in: {:?}", duration);
+    println!("Info command completed in: {duration:?}");
 
     server.abort();
 }
@@ -70,7 +69,7 @@ async fn test_concurrent_commands() {
     let start = Instant::now();
 
     for i in 0..num_concurrent {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
         let base = base.to_string();
 
         let handle = tokio::task::spawn_blocking(move || {
@@ -97,23 +96,20 @@ async fn test_concurrent_commands() {
 
     // All commands should succeed
     for (i, success, duration) in &results {
-        assert!(*success, "Command {} failed", i);
+        assert!(*success, "Command {i} failed");
         assert!(
             *duration < Duration::from_secs(10),
-            "Command {} took too long: {:?}",
-            i,
-            duration
+            "Command {i} took too long: {duration:?}"
         );
     }
 
     // Total time should be reasonable (concurrent execution)
     assert!(
         total_duration < Duration::from_secs(30),
-        "Concurrent commands took too long: {:?}",
-        total_duration
+        "Concurrent commands took too long: {total_duration:?}"
     );
 
-    println!("Concurrent commands completed in: {:?}", total_duration);
+    println!("Concurrent commands completed in: {total_duration:?}");
 
     server.abort();
 }
@@ -160,11 +156,10 @@ async fn test_large_payload_handling() {
     // Large payload should still complete within reasonable time
     assert!(
         duration < Duration::from_secs(30),
-        "Large payload command took too long: {:?}",
-        duration
+        "Large payload command took too long: {duration:?}"
     );
 
-    println!("Large payload command completed in: {:?}", duration);
+    println!("Large payload command completed in: {duration:?}");
 
     server.abort();
 }
@@ -188,11 +183,10 @@ async fn test_cli_startup_time() {
     // CLI should start up quickly
     assert!(
         duration < Duration::from_secs(2),
-        "CLI startup took too long: {:?}",
-        duration
+        "CLI startup took too long: {duration:?}"
     );
 
-    println!("CLI startup completed in: {:?}", duration);
+    println!("CLI startup completed in: {duration:?}");
 }
 
 /// Test command parsing performance
@@ -218,7 +212,7 @@ async fn test_command_parsing_performance() {
     let start = Instant::now();
 
     for cmd_args in commands {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         tokio::task::spawn_blocking(move || {
             Command::new(bin).args(cmd_args).assert().success();
@@ -232,11 +226,10 @@ async fn test_command_parsing_performance() {
     // All help commands should complete quickly
     assert!(
         duration < Duration::from_secs(10),
-        "Command parsing took too long: {:?}",
-        duration
+        "Command parsing took too long: {duration:?}"
     );
 
-    println!("Command parsing completed in: {:?}", duration);
+    println!("Command parsing completed in: {duration:?}");
 }
 
 /// Test CLI with repeated commands (stress test)
@@ -260,7 +253,7 @@ async fn test_repeated_commands_stress() {
     let mut durations = Vec::new();
 
     for i in 0..num_iterations {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
         let base_clone = base.clone();
 
         let start = Instant::now();
@@ -280,25 +273,19 @@ async fn test_repeated_commands_stress() {
         // Each iteration should complete reasonably quickly
         assert!(
             duration < Duration::from_secs(10),
-            "Iteration {} took too long: {:?}",
-            i,
-            duration
+            "Iteration {i} took too long: {duration:?}"
         );
     }
 
     // Calculate average duration
     let avg_duration = durations.iter().sum::<Duration>() / num_iterations as u32;
 
-    println!(
-        "Average command duration over {} iterations: {:?}",
-        num_iterations, avg_duration
-    );
+    println!("Average command duration over {num_iterations} iterations: {avg_duration:?}");
 
     // Average should be reasonable
     assert!(
         avg_duration < Duration::from_secs(5),
-        "Average command duration too high: {:?}",
-        avg_duration
+        "Average command duration too high: {avg_duration:?}"
     );
 
     server.abort();
@@ -325,13 +312,28 @@ async fn test_memory_usage_patterns() {
         vec!["--api-url".to_string(), base.clone(), "info".to_string()],
         vec!["--api-url".to_string(), base.clone(), "status".to_string()],
         vec!["--api-url".to_string(), base.clone(), "metrics".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "network".to_string(), "stats".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "mesh".to_string(), "jobs".to_string()],
-        vec!["--api-url".to_string(), base.clone(), "governance".to_string(), "proposals".to_string()],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "network".to_string(),
+            "stats".to_string(),
+        ],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "mesh".to_string(),
+            "jobs".to_string(),
+        ],
+        vec![
+            "--api-url".to_string(),
+            base.clone(),
+            "governance".to_string(),
+            "proposals".to_string(),
+        ],
     ];
 
     for cmd_args in commands {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         let start = Instant::now();
 
@@ -346,8 +348,7 @@ async fn test_memory_usage_patterns() {
         // Each command should complete within reasonable time
         assert!(
             duration < Duration::from_secs(15),
-            "Command took too long: {:?}",
-            duration
+            "Command took too long: {duration:?}"
         );
     }
 
@@ -369,7 +370,7 @@ async fn test_error_handling_performance() {
     ];
 
     for cmd_args in error_cases {
-        let bin = bin.to_string();  // Convert to owned String
+        let bin = bin.to_string(); // Convert to owned String
 
         let start = Instant::now();
 
@@ -384,8 +385,7 @@ async fn test_error_handling_performance() {
         // Error cases should fail quickly (not hang)
         assert!(
             duration < Duration::from_secs(30),
-            "Error case took too long: {:?}",
-            duration
+            "Error case took too long: {duration:?}"
         );
     }
 

@@ -232,7 +232,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match valid_config.validate() {
         Ok(_) => println!("   Valid configuration: ✓"),
-        Err(e) => println!("   Valid configuration failed: {}", e),
+        Err(e) => println!("   Valid configuration failed: {e}"),
     }
 
     // Invalid configuration (initial mana > max capacity)
@@ -243,7 +243,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match invalid_config.validate() {
         Ok(_) => println!("   Invalid configuration: ✗ (should have failed)"),
-        Err(e) => println!("   Invalid configuration correctly rejected: {}", e),
+        Err(e) => println!("   Invalid configuration correctly rejected: {e}"),
     }
 
     // Example 8: File-based Configuration Integration

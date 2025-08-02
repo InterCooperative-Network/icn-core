@@ -125,7 +125,15 @@ async fn invalid_parent_is_rejected() {
     };
     let data = b"child".to_vec();
     let ts = 0u64;
-    let cid = compute_merkle_cid(0x71, &data, &[link.clone()], ts, &alice, &None, &None);
+    let cid = compute_merkle_cid(
+        0x71,
+        &data,
+        std::slice::from_ref(&link),
+        ts,
+        &alice,
+        &None,
+        &None,
+    );
     let block = DagBlock {
         cid,
         data,

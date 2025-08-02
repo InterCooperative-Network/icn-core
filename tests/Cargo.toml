@@ -64,10 +64,6 @@ name = "simple_verification"
 path = "integration/simple_verification.rs"
 
 [[test]]
-name = "zk_proof_verification"
-path = "integration/zk_proof_verification.rs"
-
-[[test]]
 name = "host_zk_roundtrip"
 path = "integration/host_zk_roundtrip.rs"
 

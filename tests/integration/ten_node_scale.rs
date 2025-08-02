@@ -94,7 +94,7 @@ async fn scale_test_10node_load() {
     let mut nodes_with_jobs = 0;
     for port in NODE_PORTS.iter() {
         let metrics = client
-            .get(&format!("http://localhost:{}/metrics", port))
+            .get(format!("http://localhost:{}/metrics", port))
             .send()
             .await
             .expect("metrics")
@@ -137,7 +137,7 @@ async fn scale_test_10node_load() {
         let mut all_seen = true;
         for port in NODE_PORTS.iter() {
             let list: Vec<Value> = client
-                .get(&format!("http://localhost:{}/governance/proposals", port))
+                .get(format!("http://localhost:{}/governance/proposals", port))
                 .send()
                 .await
                 .expect("list proposals")
@@ -158,7 +158,7 @@ async fn scale_test_10node_load() {
     // Final assertion on propagation
     for port in NODE_PORTS.iter() {
         let list: Vec<Value> = client
-            .get(&format!("http://localhost:{}/governance/proposals", port))
+            .get(format!("http://localhost:{}/governance/proposals", port))
             .send()
             .await
             .expect("list proposals")

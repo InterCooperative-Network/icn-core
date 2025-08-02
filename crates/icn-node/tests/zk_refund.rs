@@ -47,7 +47,7 @@ async fn verification_failure_refunds_mana() {
     };
     let client = Client::new();
     let resp = client
-        .post(&format!("http://{}/identity/verify", addr))
+        .post(format!("http://{addr}/identity/verify"))
         .json(&bad_proof)
         .send()
         .await
