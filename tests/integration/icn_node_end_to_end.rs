@@ -79,7 +79,10 @@ mod icn_node_end_to_end {
         let (url_a, ctx_a, net_a, handle_a) = create_node("IntA", None).await;
         // Use actual peer ID from net_a for integration testing
         let peer_a = net_a.peer_id();
-        let addr_a = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>().unwrap();
+        // Use environment variable to allow configurable IP address for testing
+        let ip_addr = env::var("TEST_NODE_IP").unwrap_or_else(|_| "127.0.0.1".to_string());
+        let addr_a_str = format!("/ip4/{}/tcp/0", ip_addr);
+        let addr_a = addr_a_str.parse::<Multiaddr>().unwrap();
 
         // Node B bootstrapped to A
         let bootstrap = vec![(peer_a, addr_a.clone())];
