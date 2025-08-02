@@ -1,9 +1,9 @@
 #[cfg(feature = "persist-rocksdb")]
 mod tests {
     use icn_common::Did;
-    use icn_economics::ledger::TokenClassId;
-    use icn_economics::ledger::{ResourceLedger, RocksdbResourceLedger, TokenClass};
+    use icn_economics::ledger::{ResourceLedger, RocksdbResourceLedger, TokenClass, TokenClassId, TokenType, TransferabilityRule, ScopingRules};
     use std::str::FromStr;
+    use std::time::{SystemTime, UNIX_EPOCH};
     use tempfile::tempdir;
 
     #[test]
@@ -17,6 +17,21 @@ mod tests {
                 &class_id,
                 TokenClass {
                     name: "Gold".into(),
+                    description: "A precious metal token".into(),
+                    symbol: "GOLD".into(),
+                    decimals: 0,
+                    token_type: TokenType::Fungible,
+                    transferability: TransferabilityRule::FreelyTransferable,
+                    scoping_rules: ScopingRules {
+                        geographic_scope: None,
+                        community_scope: None,
+                        validity_period: None,
+                        max_supply: None,
+                        min_balance: None,
+                    },
+                    issuer: Did::from_str("did:example:issuer").unwrap(),
+                    created_at: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs(),
+                    metadata: Default::default(),
                 },
             )
             .unwrap();
