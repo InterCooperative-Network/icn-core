@@ -113,8 +113,7 @@ async fn test_ccl_integration_background_tasks() -> Result<(), Box<dyn std::erro
         }
         Err(e) => {
             println!(
-                "✅ Background tasks startup failed: {:?} (may be expected in test)",
-                e
+                "✅ Background tasks startup failed: {e:?} (may be expected in test)"
             );
         }
     }
