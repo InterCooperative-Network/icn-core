@@ -241,7 +241,7 @@ mod enhanced_p2p_dag_tests {
             let network_service =
                 Arc::new(Libp2pNetworkService::new(network_config).await.unwrap());
             let peer_id = PeerId::from(*network_service.local_peer_id());
-            let did = Did::new("test", &format!("node_{}", name));
+            let did = Did::new("test", &format!("node_{name}"));
             let dag_store = Arc::new(Mutex::new(InMemoryDagStore::new()));
 
             // Create message handler
@@ -385,7 +385,7 @@ mod enhanced_p2p_dag_tests {
 
             // Create remaining nodes
             for i in 1..node_count {
-                let node_name = format!("node_{}", i);
+                let node_name = format!("node_{i}");
                 let bootstrap_peers = vec![(bootstrap_peer_id, bootstrap_addr.clone())];
                 let node = EnhancedTestNode::new(&node_name, bootstrap_peers).await;
                 nodes.push(node);
@@ -414,8 +414,7 @@ mod enhanced_p2p_dag_tests {
                 if i > 0 {
                     assert!(
                         stats.peer_count > 0,
-                        "Node {} should be connected to at least one peer",
-                        i
+                        "Node {i} should be connected to at least one peer"
                     );
                 }
             }
@@ -488,7 +487,7 @@ mod enhanced_p2p_dag_tests {
                 let node_idx = i % self.nodes.len();
                 let node = &self.nodes[node_idx];
 
-                let test_data = format!("concurrent_test_data_{}", i).into_bytes();
+                let test_data = format!("concurrent_test_data_{i}").into_bytes();
                 let block = node.create_test_block(&test_data, vec![]);
                 let block_cid = block.cid.clone();
 

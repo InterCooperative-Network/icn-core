@@ -27,8 +27,8 @@ fn root_deterministic() {
         size: 0,
     };
     let parent = make_block("parent", vec![link]);
-    let root1 = compute_dag_root(&[parent.cid.clone()]);
-    let root2 = compute_dag_root(&[parent.cid.clone()]);
+    let root1 = compute_dag_root(std::slice::from_ref(&parent.cid));
+    let root2 = compute_dag_root(std::slice::from_ref(&parent.cid));
     assert_eq!(root1, root2);
 }
 
