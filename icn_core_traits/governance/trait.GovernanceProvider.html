@@ -2,10 +2,10 @@
     // Required methods
     fn <a href="#tymethod.submit_proposal" class="fn">submit_proposal</a>&lt;'life0, 'life1, 'async_trait&gt;(
         &amp;'life0 self,
-        submitter: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+        submitter: &amp;'life1 Did,
         title: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
         description: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-        policy_cid: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../icn_common/struct.Cid.html" title="struct icn_common::Cid">Cid</a>&gt;,
+        policy_cid: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Cid&gt;,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
              'life0: 'async_trait,
@@ -24,7 +24,7 @@
              'life0: 'async_trait</span>;
 <span class="item-spacer"></span>    fn <a href="#tymethod.check_permissions" class="fn">check_permissions</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
         &amp;'life0 self,
-        did: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+        did: &amp;'life1 Did,
         action: &amp;'life2 <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>,
     ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;
        <span class="where">where Self: 'async_trait,
@@ -34,10 +34,10 @@
 }</code></pre><details class="toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Governance provider trait</p>
 </div></details><h2 id="required-methods" class="section-header">Required Methods<a href="#required-methods" class="anchor">§</a></h2><div class="methods"><details class="toggle method-toggle" open><summary><section id="tymethod.submit_proposal" class="method"><a class="src rightside" href="../../src/icn_core_traits/governance.rs.html#12-18">Source</a><h4 class="code-header">fn <a href="#tymethod.submit_proposal" class="fn">submit_proposal</a>&lt;'life0, 'life1, 'async_trait&gt;(
     &amp;'life0 self,
-    submitter: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    submitter: &amp;'life1 Did,
     title: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
     description: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>,
-    policy_cid: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="struct" href="../../icn_common/struct.Cid.html" title="struct icn_common::Cid">Cid</a>&gt;,
+    policy_cid: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Cid&gt;,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
     'life0: 'async_trait,
@@ -56,7 +56,7 @@
     'life0: 'async_trait,</div></h4></section></summary><div class="docblock"><p>Get all active proposals</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="tymethod.check_permissions" class="method"><a class="src rightside" href="../../src/icn_core_traits/governance.rs.html#30">Source</a><h4 class="code-header">fn <a href="#tymethod.check_permissions" class="fn">check_permissions</a>&lt;'life0, 'life1, 'life2, 'async_trait&gt;(
     &amp;'life0 self,
-    did: &amp;'life1 <a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    did: &amp;'life1 Did,
     action: &amp;'life2 <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>,
 ) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/core/pin/struct.Pin.html" title="struct core::pin::Pin">Pin</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;dyn <a class="trait" href="https://doc.rust-lang.org/nightly/core/future/future/trait.Future.html" title="trait core::future::future::Future">Future</a>&lt;Output = <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a>, <a class="enum" href="../error/enum.CoreTraitsError.html" title="enum icn_core_traits::error::CoreTraitsError">CoreTraitsError</a>&gt;&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + 'async_trait&gt;&gt;<div class="where">where
     Self: 'async_trait,
