@@ -19,7 +19,7 @@ async fn test_ccl_integration_initialization() -> Result<(), Box<dyn std::error:
     let coordinator = &runtime_ctx.cross_component_coordinator;
 
     // Verify CCL integration is properly initialized through coordinator
-    assert!(coordinator.ccl_integration.as_ref() as *const _ != std::ptr::null());
+    assert!(!std::ptr::addr_of!(*coordinator.ccl_integration.as_ref()).is_null());
 
     println!("✅ CCL Integration properly initialized via RuntimeContext");
     Ok(())

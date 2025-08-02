@@ -24,6 +24,9 @@ use tokio::sync::RwLock;
 use tokio::time::{sleep, timeout};
 use tracing::{debug, error, info, warn};
 
+// Type aliases for complex types
+type PendingRequestSender = tokio::sync::oneshot::Sender<Option<Vec<u8>>>;
+
 // Global tracing initialization
 static INIT: Once = Once::new();
 
@@ -124,7 +127,7 @@ impl EnhancedTestNode {
 pub struct MessageHandler {
     dag_store: Arc<tokio::sync::Mutex<InMemoryDagStore>>,
     _coordinator: Arc<CrossComponentCoordinator>,
-    pending_requests: Arc<RwLock<HashMap<Cid, Vec<tokio::sync::oneshot::Sender<Option<Vec<u8>>>>>>>,
+    pending_requests: Arc<RwLock<HashMap<Cid, Vec<PendingRequestSender>>>>,
     known_blocks: Arc<RwLock<HashMap<Cid, Instant>>>,
 }
 

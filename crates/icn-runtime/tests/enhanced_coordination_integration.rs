@@ -9,7 +9,7 @@ use icn_runtime::context::{
     RuntimeContextBuilder,
 };
 use std::str::FromStr;
-use tokio;
+
 
 /// Test basic cross-component coordinator initialization
 #[tokio::test]
@@ -26,11 +26,11 @@ async fn test_cross_component_coordinator_initialization() -> Result<(), Box<dyn
     let coordinator = &runtime_ctx.cross_component_coordinator;
 
     // Test that all components are properly initialized
-    assert!(coordinator.smart_p2p_router.as_ref() as *const _ != std::ptr::null());
-    assert!(coordinator.ccl_integration.as_ref() as *const _ != std::ptr::null());
-    assert!(coordinator.dag_sync.as_ref() as *const _ != std::ptr::null());
-    assert!(coordinator.health_monitor.as_ref() as *const _ != std::ptr::null());
-    assert!(coordinator.performance_optimizer.as_ref() as *const _ != std::ptr::null());
+    assert!(!std::ptr::addr_of!(*coordinator.smart_p2p_router.as_ref()).is_null());
+    assert!(!std::ptr::addr_of!(*coordinator.ccl_integration.as_ref()).is_null());
+    assert!(!std::ptr::addr_of!(*coordinator.dag_sync.as_ref()).is_null());
+    assert!(!std::ptr::addr_of!(*coordinator.health_monitor.as_ref()).is_null());
+    assert!(!std::ptr::addr_of!(*coordinator.performance_optimizer.as_ref()).is_null());
 
     println!("✅ Cross-component coordinator properly initialized with all services");
     Ok(())

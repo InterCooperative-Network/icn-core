@@ -563,8 +563,10 @@ async fn wasm_executor_enforces_timeout() {
         signature: SignatureBytes(vec![]),
     };
     let signer = Arc::new(StubSigner::new());
-    let mut limits = WasmSecurityLimits::default();
-    limits.max_execution_time_secs = 1;
+    let limits = WasmSecurityLimits {
+        max_execution_time_secs: 1,
+        ..Default::default()
+    };
     let config = WasmExecutorConfig {
         max_memory: 256 * 1024,
         fuel: 1_000_000_000,

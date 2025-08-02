@@ -8,13 +8,14 @@ mod libp2p_job_pipeline {
     use base64::Engine;
     use icn_common::{Cid, Did};
     use icn_identity::{generate_ed25519_keypair, SignatureBytes};
-    use icn_mesh::{ActualMeshJob, JobSpec, JobState, MeshJobBid, Resources};
+    use icn_mesh::{ActualMeshJob, JobId, JobKind, JobSpec, JobState, MeshJobBid, Resources};
     use icn_network::NetworkService;
     use icn_protocol::{MeshJobAssignmentMessage, MessagePayload, ProtocolMessage};
     use icn_runtime::context::{DefaultMeshNetworkService, MeshNetworkService, RuntimeContext};
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
     use libp2p::Multiaddr;
+    use std::sync::Arc;
     use reqwest::Client;
     use serde_json::Value;
 
@@ -215,9 +216,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestA",
             listen.clone(),
             None,
-            std::path::PathBuf::from("./dag_a"),
-            std::path::PathBuf::from("./mana_a.sled"),
-            std::path::PathBuf::from("./rep_a.sled"),
+            Arc::new(icn_runtime::context::StubSigner::new()),
         )
         .await?;
         node_a
@@ -229,7 +228,7 @@ mod libp2p_job_pipeline {
         let peer_a = *service_a.local_peer_id();
         let addr_a = service_a
             .listening_addresses()
-            .get(0)
+            .first()
             .cloned()
             .expect("addr_a");
 
@@ -238,9 +237,7 @@ mod libp2p_job_pipeline {
             "did:key:z6MktestB",
             listen,
             Some(vec![(peer_a, addr_a.clone())]),
-            std::path::PathBuf::from("./dag_b"),
-            std::path::PathBuf::from("./mana_b.sled"),
-            std::path::PathBuf::from("./rep_b.sled"),
+            Arc::new(icn_runtime::context::StubSigner::new()),
         )
         .await?;
         let service_b = node_b.get_libp2p_service()?;
@@ -252,7 +249,7 @@ mod libp2p_job_pipeline {
 
         let mut recv_a = service_a.subscribe().await?;
         let mut recv_b = service_b.subscribe().await?;
-        let mesh_a = DefaultMeshNetworkService::new(service_a.clone());
+        let mesh_a = DefaultMeshNetworkService::new(service_a.clone(), Arc::new(icn_runtime::context::StubSigner::new()));
 
         // --- Submit job on Node A ---
         let job = create_job("pipeline", &node_a.current_identity);
@@ -273,7 +270,7 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_b.recv().await {
                     if let MessagePayload::MeshJobAnnouncement(j) = &message.payload {
-                        if j.id == job_id {
+                        if j.job_id == job_id.clone().into() {
                             break;
                         }
                     }
@@ -288,18 +285,32 @@ mod libp2p_job_pipeline {
             executor_did: node_b.current_identity.clone(),
             price_mana: 30,
             resources: Resources::default(),
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
             signature: SignatureBytes(vec![]),
         };
         let sig = node_b
             .signer
             .sign(&unsigned.to_signable_bytes().unwrap())
             .unwrap();
-        let bid = MeshJobBid {
+        let _bid = MeshJobBid {
             signature: SignatureBytes(sig),
             ..unsigned
         };
+        let bid_message = icn_protocol::MeshBidSubmissionMessage {
+            job_id: job_id.clone().into(),
+            executor_did: node_b.current_identity.clone(),
+            cost_mana: 30,
+            estimated_duration_secs: 300,
+            offered_resources: icn_protocol::ResourceRequirements::default(),
+            reputation_score: 100,
+            executor_capabilities: vec![],
+            executor_federations: vec![],
+            executor_trust_scope: None,
+        };
         let msg = ProtocolMessage::new(
-            MessagePayload::MeshBidSubmission(bid),
+            MessagePayload::MeshBidSubmission(bid_message),
             node_b.current_identity.clone(),
             None,
         );
@@ -310,7 +321,7 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_a.recv().await {
                     if let MessagePayload::MeshBidSubmission(b) = &message.payload {
-                        if b.job_id == job_id {
+                        if b.job_id == job_id.clone().into() {
                             break;
                         }
                     }
@@ -322,8 +333,11 @@ mod libp2p_job_pipeline {
         // Assign job to B
         let msg = ProtocolMessage::new(
             MessagePayload::MeshJobAssignment(MeshJobAssignmentMessage {
-                job_id: job_id.clone(),
+                job_id: job_id.clone().into(),
                 executor_did: node_b.current_identity.clone(),
+                agreed_cost_mana: 30,
+                completion_deadline: chrono::Utc::now().timestamp() as u64 + 3600,
+                manifest_cid: None,
             }),
             node_a.current_identity.clone(),
             None,
@@ -344,7 +358,7 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_b.recv().await {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == job_id && assign.executor_did == node_b.current_identity
+                        if assign.job_id == job_id.clone().into() && assign.executor_did == node_b.current_identity
                         {
                             break;
                         }
@@ -360,8 +374,17 @@ mod libp2p_job_pipeline {
         let receipt = executor.execute_job(&job).await?;
         assert!(receipt.verify_against_key(&pk).is_ok());
 
+        let receipt_message = icn_protocol::MeshReceiptSubmissionMessage {
+            receipt: receipt.clone(),
+            execution_metadata: icn_protocol::ExecutionMetadata {
+                wall_time_ms: 1000,
+                peak_memory_mb: 64,
+                exit_code: 0,
+                execution_logs: Some("Job executed successfully".to_string()),
+            },
+        };
         let msg = ProtocolMessage::new(
-            MessagePayload::MeshReceiptSubmission(receipt.clone()),
+            MessagePayload::MeshReceiptSubmission(receipt_message),
             node_b.current_identity.clone(),
             None,
         );
@@ -372,15 +395,14 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_a.recv().await {
                     if let MessagePayload::MeshReceiptSubmission(r) = &message.payload {
-                        if r.job_id == job_id {
+                        if r.receipt.job_id == job_id.clone().into() {
                             break r.clone();
                         }
                     }
                 }
             }
         })
-        .await?
-        .unwrap();
+        .await?;
 
         let receipt_json = serde_json::to_string(&final_receipt)?;
         let cid = host_anchor_receipt(&node_a, &receipt_json, &ReputationUpdater::new()).await?;
@@ -402,7 +424,8 @@ mod libp2p_job_pipeline {
             .store
             .lock()
             .await
-            .get(&cid)?
+            .get(&cid)
+            .await?
             .expect("receipt stored");
         assert_eq!(stored.cid, cid);
 
@@ -413,10 +436,11 @@ mod libp2p_job_pipeline {
         let job_id = Cid::new_v1_sha256(0x55, format!("job_{suffix}").as_bytes());
         let manifest_cid = Cid::new_v1_sha256(0x55, format!("manifest_{suffix}").as_bytes());
         ActualMeshJob {
-            id: job_id,
+            id: JobId(job_id),
             manifest_cid,
-            spec: JobSpec::Echo {
-                payload: "two node".into(),
+            spec: JobSpec {
+                kind: JobKind::GenericPlaceholder,
+                ..Default::default()
             },
             creator_did: creator.clone(),
             cost_mana: 50,
