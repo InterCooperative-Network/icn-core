@@ -16,7 +16,7 @@ bincode = { version = "1.3", optional = true }
 async-trait = "0.1"
 tokio = { workspace = true, optional = true }
 sqlx = { version = "0.8.1", optional = true, features = ["runtime-tokio-rustls", "sqlite"] }
-rocksdb = { version = "0.21", optional = true }
+rocksdb = { version = "0.23", optional = true }
 prometheus-client = "0.22"
 once_cell = "1.21"
 log = "0.4"
