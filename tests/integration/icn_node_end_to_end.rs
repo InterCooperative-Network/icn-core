@@ -79,10 +79,12 @@ mod icn_node_end_to_end {
         let (url_a, ctx_a, net_a, handle_a) = create_node("IntA", None).await;
         // TODO: Fix downcast_rs version conflict - using mock values for now
         // This is a temporary workaround for integration testing
-        let peer_a = "12D3KooWMockPeerIdForTestingPurposes".parse::<Libp2pPeerId>().unwrap_or_else(|_| {
-            // If parsing fails, create a random peer ID
-            Libp2pPeerId::random()
-        });
+        let peer_a = "12D3KooWMockPeerIdForTestingPurposes"
+            .parse::<Libp2pPeerId>()
+            .unwrap_or_else(|_| {
+                // If parsing fails, create a random peer ID
+                Libp2pPeerId::random()
+            });
         let addr_a = "/ip4/127.0.0.1/tcp/0".parse::<Multiaddr>().unwrap();
 
         // Node B bootstrapped to A

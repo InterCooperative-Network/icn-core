@@ -10,7 +10,6 @@ use icn_runtime::context::{
 };
 use std::str::FromStr;
 
-
 /// Test basic cross-component coordinator initialization
 #[tokio::test]
 async fn test_cross_component_coordinator_initialization() -> Result<(), Box<dyn std::error::Error>>

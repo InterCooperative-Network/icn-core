@@ -15,9 +15,9 @@ mod libp2p_job_pipeline {
     use icn_runtime::executor::{JobExecutor, SimpleExecutor};
     use icn_runtime::{host_anchor_receipt, host_submit_mesh_job, ReputationUpdater};
     use libp2p::Multiaddr;
-    use std::sync::Arc;
     use reqwest::Client;
     use serde_json::Value;
+    use std::sync::Arc;
 
     use tokio::time::{sleep, timeout, Duration};
 
@@ -249,7 +249,10 @@ mod libp2p_job_pipeline {
 
         let mut recv_a = service_a.subscribe().await?;
         let mut recv_b = service_b.subscribe().await?;
-        let mesh_a = DefaultMeshNetworkService::new(service_a.clone(), Arc::new(icn_runtime::context::StubSigner::new()));
+        let mesh_a = DefaultMeshNetworkService::new(
+            service_a.clone(),
+            Arc::new(icn_runtime::context::StubSigner::new()),
+        );
 
         // --- Submit job on Node A ---
         let job = create_job("pipeline", &node_a.current_identity);
@@ -358,7 +361,8 @@ mod libp2p_job_pipeline {
             loop {
                 if let Some(message) = recv_b.recv().await {
                     if let MessagePayload::MeshJobAssignment(assign) = &message.payload {
-                        if assign.job_id == job_id.clone().into() && assign.executor_did == node_b.current_identity
+                        if assign.job_id == job_id.clone().into()
+                            && assign.executor_did == node_b.current_identity
                         {
                             break;
                         }

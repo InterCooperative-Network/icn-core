@@ -1,7 +1,10 @@
 #[cfg(feature = "persist-rocksdb")]
 mod tests {
     use icn_common::Did;
-    use icn_economics::ledger::{ResourceLedger, RocksdbResourceLedger, TokenClass, TokenClassId, TokenType, TransferabilityRule, ScopingRules};
+    use icn_economics::ledger::{
+        ResourceLedger, RocksdbResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
+        TransferabilityRule,
+    };
     use std::str::FromStr;
     use tempfile::tempdir;
 

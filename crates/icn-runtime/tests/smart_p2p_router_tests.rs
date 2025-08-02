@@ -6,7 +6,6 @@ use icn_common::Did;
 use icn_runtime::context::{EnvironmentType, HostAbiError, RuntimeContextBuilder};
 use std::str::FromStr;
 
-
 /// Test Smart P2P Router initialization through RuntimeContext
 #[tokio::test]
 async fn test_smart_p2p_router_initialization() -> Result<(), Box<dyn std::error::Error>> {

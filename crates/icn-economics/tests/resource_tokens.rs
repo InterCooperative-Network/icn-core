@@ -160,16 +160,7 @@ fn mint_transfer_burn_flow() {
     );
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 3);
 
-    burn_tokens(
-        &repo,
-        &mana,
-        &issuer,
-        "token",
-        2,
-        &other,
-        Some(scope),
-    )
-    .unwrap();
+    burn_tokens(&repo, &mana, &issuer, "token", 2, &other, Some(scope)).unwrap();
     assert_eq!(repo.ledger().get_balance(&"token".to_string(), &other), 1);
 }
 

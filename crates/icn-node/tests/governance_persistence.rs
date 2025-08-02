@@ -19,13 +19,13 @@ async fn governance_persists_between_restarts() {
 
     let (_router, ctx) = app_router_with_options(
         icn_node::RuntimeMode::Testing,
-        None, // api_key
-        None, // auth_token
-        None, // rate_limit
-        Some(icn_runtime::context::LedgerBackend::Sled), // mana ledger backend
+        None,                                                  // api_key
+        None,                                                  // auth_token
+        None,                                                  // rate_limit
+        Some(icn_runtime::context::LedgerBackend::Sled),       // mana ledger backend
         Some(std::path::PathBuf::from("/tmp/test_mana.sled")), // mana ledger path
-        None, // storage backend
-        None, // storage path
+        None,                                                  // storage backend
+        None,                                                  // storage path
         Some(gov_path.clone()),
         None,
         None,
