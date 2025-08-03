@@ -722,8 +722,581 @@ impl EconomicAutomationEngine {
         self.event_rx.take()
     }
 
-    /// Calculate optimal mana price for a job
+    /// Enhanced mana price calculation with cross-cooperative awareness
     pub async fn calculate_optimal_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
+        let (price, duration_ms) = crate::metrics::helpers::time_operation(|| {
+            self.calculate_optimal_mana_price_internal(job)
+        });
+        
+        // Record performance metrics
+        if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
+            registry.record_mana_operation(duration_ms);
+        }
+        
+        price
+    }
+
+    fn calculate_optimal_mana_price_internal(&self, job: &MeshJob) -> Result<u64, CommonError> {
+        // Get current pricing model
+        let job_type = job
+            .job_type
+            .clone()
+            .unwrap_or_else(|| "default".to_string());
+
+        let model_opt = {
+            let pricing_models = self.pricing_models.read().unwrap();
+            pricing_models.get(&job_type).cloned()
+        };
+
+        if let Some(model) = model_opt {
+            // Enhanced calculation based on demand, quality, market conditions, and cross-cooperative factors
+            let base_price = model.base_price;
+            let demand_multiplier = self.calculate_demand_multiplier_internal(&job_type)?;
+            let quality_multiplier = model.quality_factor;
+            let competition_multiplier = model.competition_factor;
+            
+            // New: Cross-cooperative pricing factor
+            let cross_coop_multiplier = self.calculate_cross_cooperative_multiplier(&job_type)?;
+            
+            // New: Network congestion factor
+            let congestion_multiplier = self.calculate_network_congestion_multiplier()?;
+            
+            // New: Time-of-day pricing (if applicable)
+            let time_multiplier = self.calculate_time_based_multiplier()?;
+
+            let optimal_price = base_price 
+                * demand_multiplier 
+                * quality_multiplier 
+                * competition_multiplier
+                * cross_coop_multiplier
+                * congestion_multiplier
+                * time_multiplier;
+                
+            Ok(optimal_price as u64)
+        } else {
+            // Fallback to enhanced basic calculation
+            self.calculate_enhanced_basic_mana_price(job)
+        }
+    }
+
+    /// Calculate cross-cooperative pricing multiplier
+    fn calculate_cross_cooperative_multiplier(&self, job_type: &str) -> Result<f64, CommonError> {
+        // Factor in cross-cooperative resource sharing and demand
+        let cross_coop_metrics = {
+            if let Ok(registry) = crate::metrics::METRICS_REGISTRY.read() {
+                registry.cross_cooperative.clone()
+            } else {
+                return Ok(1.0);
+            }
+        };
+
+        let success_rate = if cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares > 0 {
+            cross_coop_metrics.successful_shares as f64 / 
+            (cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares) as f64
+        } else {
+            1.0
+        };
+
+        // Higher success rate in cross-cooperative sharing = slight price reduction
+        // Lower success rate = price increase to account for risk
+        let multiplier = match success_rate {
+            rate if rate > 0.9 => 0.95, // Excellent cross-coop success
+            rate if rate > 0.8 => 0.98, // Good success
+            rate if rate > 0.6 => 1.0,  // Average success
+            rate if rate > 0.4 => 1.05, // Below average
+            _ => 1.1, // Poor cross-coop performance
+        };
+
+        // Factor in cross-cooperative demand
+        let demand_factor = if cross_coop_metrics.active_cooperatives > 0 {
+            let avg_shared_volume = cross_coop_metrics.total_shared_volume / cross_coop_metrics.active_cooperatives;
+            match avg_shared_volume {
+                vol if vol > 10000 => 1.1, // High cross-coop activity
+                vol if vol > 5000 => 1.05, // Medium activity
+                _ => 1.0, // Low activity
+            }
+        } else {
+            1.0
+        };
+
+        Ok(multiplier * demand_factor)
+    }
+
+    /// Calculate network congestion multiplier
+    fn calculate_network_congestion_multiplier(&self) -> Result<f64, CommonError> {
+        let health_metrics = self.health_metrics.read().unwrap();
+        
+        // Use resource efficiency as a proxy for network congestion
+        let congestion_level = 1.0 - health_metrics.resource_efficiency;
+        
+        let multiplier = match congestion_level {
+            level if level > 0.8 => 1.5, // Severe congestion
+            level if level > 0.6 => 1.3, // High congestion
+            level if level > 0.4 => 1.1, // Moderate congestion
+            level if level > 0.2 => 1.0, // Light congestion
+            _ => 0.95, // Low congestion - slight discount
+        };
+
+        Ok(multiplier)
+    }
+
+    /// Calculate time-based pricing multiplier (peak vs off-peak)
+    fn calculate_time_based_multiplier(&self) -> Result<f64, CommonError> {
+        let current_time = self.time_provider.unix_seconds();
+        
+        // Simple time-based pricing: higher during peak hours (UTC 12-18)
+        let hour_of_day = (current_time % 86400) / 3600;
+        
+        let multiplier = match hour_of_day {
+            12..=17 => 1.1, // Peak hours
+            18..=22 => 1.05, // Evening
+            6..=11 => 1.0,   // Morning
+            _ => 0.95,       // Off-peak (night)
+        };
+
+        Ok(multiplier)
+    }
+
+    /// Enhanced basic mana price calculation
+    fn calculate_enhanced_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
+        let base_cost = job.estimated_cost;
+
+        // Enhanced job type complexity multipliers
+        let complexity_multiplier = match job.job_type.as_deref() {
+            Some("compute_intensive") => 1.5,
+            Some("memory_intensive") => 1.3,
+            Some("network_intensive") => 1.2,
+            Some("storage_intensive") => 1.1,
+            Some("gpu_compute") => 2.0,
+            Some("machine_learning") => 1.8,
+            Some("blockchain_validation") => 1.6,
+            Some("cryptographic") => 1.7,
+            Some("real_time") => 1.4,
+            Some("batch_processing") => 0.9,
+            _ => 1.0,
+        };
+
+        // System load multiplier
+        let health_metrics = self.health_metrics.read().unwrap();
+        let load_multiplier = match health_metrics.resource_efficiency {
+            e if e < 0.2 => 2.5, // System severely overloaded
+            e if e < 0.3 => 2.0, // System overloaded
+            e if e < 0.5 => 1.5, // System under stress
+            e if e < 0.7 => 1.2, // System moderately loaded
+            _ => 1.0,            // System operating normally
+        };
+
+        // Market liquidity multiplier
+        let liquidity_multiplier = match health_metrics.market_liquidity {
+            l if l < 0.2 => 1.8, // Very low liquidity
+            l if l < 0.3 => 1.5, // Low liquidity
+            l if l < 0.6 => 1.2, // Medium liquidity
+            _ => 1.0,            // Good liquidity
+        };
+
+        // Price volatility multiplier
+        let volatility_multiplier = match health_metrics.price_stability {
+            s if s < 0.3 => 1.5, // High volatility
+            s if s < 0.5 => 1.3, // Medium volatility
+            s if s < 0.7 => 1.1, // Low volatility
+            _ => 1.0,            // Stable pricing
+        };
+
+        // Economic health multiplier
+        let health_multiplier = match health_metrics.overall_health {
+            h if h < 0.3 => 1.4, // Poor economic health
+            h if h < 0.5 => 1.2, // Below average health
+            h if h < 0.7 => 1.1, // Average health
+            _ => 1.0,            // Good economic health
+        };
+
+        // Calculate final price with all factors
+        let calculated_price = (base_cost as f64
+            * complexity_multiplier
+            * load_multiplier
+            * liquidity_multiplier
+            * volatility_multiplier
+            * health_multiplier) as u64;
+
+        // Apply reasonable bounds with dynamic limits
+        let dynamic_min = base_cost.saturating_mul(3) / 10; // 30% of base cost
+        let dynamic_max = base_cost.saturating_mul(8); // 800% of base cost
+        let min_price = dynamic_min.max(1); // Never less than 1 mana
+        let max_price = dynamic_max;
+
+        Ok(calculated_price.max(min_price).min(max_price))
+    }
+
+    /// Optimized execute allocation plan with better error handling and metrics
+    pub async fn execute_allocation_plan(
+        &self,
+        plan_id: &str,
+    ) -> Result<AllocationExecutionResult, CommonError> {
+        let start_time = Instant::now();
+        
+        // Get and validate plan
+        let (allocations, allocation_id, resource_type, strategy, created_at) = {
+            let mut allocation_plans = self.allocation_plans.write().unwrap();
+            if let Some(plan) = allocation_plans.get_mut(plan_id) {
+                // Check if plan is ready for execution
+                if !matches!(plan.status, AllocationStatus::Ready | AllocationStatus::Planning) {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Allocation plan {} is not ready for execution (status: {:?})",
+                        plan_id, plan.status
+                    )));
+                }
+                
+                plan.status = AllocationStatus::Executing;
+                (
+                    plan.allocations.clone(),
+                    plan.allocation_id.clone(),
+                    plan.resource_type.clone(),
+                    plan.strategy.clone(),
+                    plan.created_at,
+                )
+            } else {
+                return Err(CommonError::InternalError(format!(
+                    "Allocation plan {plan_id} not found"
+                )));
+            }
+        };
+
+        // Execute allocations with improved error handling
+        let mut successful_allocations = 0;
+        let mut failed_allocations = 0;
+        let mut total_allocated = 0;
+        let mut allocation_errors = Vec::new();
+
+        // Sort allocations by priority for better execution order
+        let mut sorted_allocations: Vec<_> = allocations.iter().collect();
+        sorted_allocations.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap_or(std::cmp::Ordering::Equal));
+
+        for (did, allocation) in sorted_allocations {
+            match self.execute_individual_allocation_enhanced(did, allocation).await {
+                Ok(amount) => {
+                    successful_allocations += 1;
+                    total_allocated += amount;
+
+                    // Record success metrics
+                    if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
+                        registry.record_allocation_performance(true, start_time.elapsed().as_millis() as f64, allocation.score);
+                    }
+
+                    // Emit allocation event
+                    let _ = self.event_tx.send(EconomicEvent::ResourceAllocated {
+                        allocation_id: allocation_id.clone(),
+                        resource_type: resource_type.clone(),
+                        amount,
+                        recipient: did.clone(),
+                        allocation_strategy: strategy.clone(),
+                        timestamp: self.time_provider.unix_seconds(),
+                    });
+                }
+                Err(e) => {
+                    log::error!("Failed to allocate to {did}: {e}");
+                    failed_allocations += 1;
+                    allocation_errors.push((did.clone(), e.to_string()));
+                    
+                    // Record failure metrics
+                    if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
+                        registry.record_allocation_performance(false, start_time.elapsed().as_millis() as f64, 0.0);
+                    }
+                }
+            }
+        }
+
+        // Update plan status with detailed results
+        {
+            let mut allocation_plans = self.allocation_plans.write().unwrap();
+            if let Some(plan) = allocation_plans.get_mut(plan_id) {
+                plan.status = if failed_allocations == 0 {
+                    AllocationStatus::Completed
+                } else if successful_allocations > 0 {
+                    AllocationStatus::PartiallyCompleted {
+                        successful: successful_allocations,
+                        failed: failed_allocations,
+                    }
+                } else {
+                    AllocationStatus::Failed {
+                        reason: format!("All allocations failed: {:?}", allocation_errors),
+                    }
+                };
+            }
+        }
+
+        let execution_time = Instant::now().duration_since(created_at);
+        
+        // Log execution summary
+        log::info!(
+            "Allocation plan {} execution completed: {}/{} successful, {} total allocated, took {:?}",
+            plan_id, successful_allocations, successful_allocations + failed_allocations,
+            total_allocated, execution_time
+        );
+
+        Ok(AllocationExecutionResult {
+            plan_id: plan_id.to_string(),
+            successful_allocations,
+            failed_allocations,
+            total_allocated,
+            execution_time,
+        })
+    }
+
+    /// Enhanced individual allocation with better validation and efficiency scoring
+    async fn execute_individual_allocation_enhanced(
+        &self,
+        recipient: &Did,
+        allocation: &AllocationEntry,
+    ) -> Result<u64, CommonError> {
+        let base_amount = allocation.amount;
+
+        // Enhanced reputation factor with more granular scaling
+        let reputation_multiplier = {
+            let rep = self.reputation_store.get_reputation(recipient);
+            match rep {
+                r if r >= 95 => 1.8,  // Exceptional reputation
+                r if r >= 90 => 1.5,  // Excellent reputation
+                r if r >= 80 => 1.3,  // Very good reputation
+                r if r >= 70 => 1.2,  // Good reputation
+                r if r >= 60 => 1.1,  // Above average reputation
+                r if r >= 50 => 1.0,  // Average reputation
+                r if r >= 40 => 0.9,  // Below average
+                r if r >= 30 => 0.7,  // Poor reputation
+                r if r >= 20 => 0.5,  // Very poor reputation
+                _ => 0.3,             // Extremely poor reputation
+            }
+        };
+
+        // Enhanced balance factor with capacity awareness
+        let balance_factor = {
+            let current_balance = self.mana_ledger.get_balance(recipient);
+            let mana_accounts = self.mana_accounts.read().unwrap();
+            
+            if let Some(account) = mana_accounts.get(recipient) {
+                let capacity_ratio = current_balance as f64 / account.capacity as f64;
+                let usage_efficiency = self.calculate_usage_efficiency(account);
+                
+                let base_factor = match capacity_ratio {
+                    r if r > 0.95 => 0.05, // Almost full - minimal allocation
+                    r if r > 0.9 => 0.1,   // Very high balance
+                    r if r > 0.7 => 0.5,   // High balance
+                    r if r > 0.5 => 0.8,   // Medium balance
+                    r if r > 0.3 => 1.0,   // Normal allocation
+                    r if r > 0.1 => 1.3,   // Low balance
+                    _ => 1.5,              // Very low balance
+                };
+                
+                // Adjust based on usage efficiency
+                base_factor * usage_efficiency
+            } else {
+                1.0 // Default if no account state tracked
+            }
+        };
+
+        // Enhanced priority multiplier with more nuanced scoring
+        let priority_multiplier = match allocation.score {
+            s if s >= 0.95 => 1.8, // Critical priority
+            s if s >= 0.9 => 1.5,  // Very high priority
+            s if s >= 0.8 => 1.3,  // High priority
+            s if s >= 0.7 => 1.2,  // Medium-high priority
+            s if s >= 0.6 => 1.1,  // Above average priority
+            s if s >= 0.5 => 1.0,  // Normal priority
+            s if s >= 0.4 => 0.9,  // Below average priority
+            s if s >= 0.3 => 0.7,  // Low priority
+            s if s >= 0.2 => 0.5,  // Very low priority
+            _ => 0.3,              // Minimal priority
+        };
+
+        // Conditions complexity factor
+        let conditions_multiplier = {
+            let condition_count = allocation.conditions.len();
+            let condition_complexity = self.analyze_condition_complexity(&allocation.conditions);
+            
+            match (condition_count, condition_complexity) {
+                (0, _) => 1.0,                    // No conditions
+                (1..=2, low) if low < 0.3 => 1.1, // Simple conditions
+                (1..=2, _) => 1.2,                // Complex conditions
+                (3..=5, low) if low < 0.3 => 1.2, // Several simple conditions
+                (3..=5, _) => 1.3,                // Several complex conditions
+                (_, _) => 1.4,                    // Many conditions
+            }
+        };
+
+        // Historical performance factor
+        let performance_factor = self.calculate_recipient_performance_factor(recipient);
+
+        // Network load factor
+        let network_factor = {
+            let health_metrics = self.health_metrics.read().unwrap();
+            match health_metrics.resource_efficiency {
+                e if e > 0.8 => 1.1, // Network has spare capacity
+                e if e > 0.6 => 1.0, // Normal load
+                e if e > 0.4 => 0.9, // High load
+                e if e > 0.2 => 0.8, // Very high load
+                _ => 0.7,            // Overloaded
+            }
+        };
+
+        // Calculate final allocation amount
+        let final_amount = (base_amount as f64
+            * reputation_multiplier
+            * balance_factor
+            * priority_multiplier
+            * conditions_multiplier
+            * performance_factor
+            * network_factor) as u64;
+
+        // Dynamic bounds based on current system state
+        let health_metrics = self.health_metrics.read().unwrap();
+        let min_allocation = match health_metrics.overall_health {
+            h if h > 0.8 => base_amount / 20,  // Generous minimum in healthy system
+            h if h > 0.6 => base_amount / 15,  // 
+            h if h > 0.4 => base_amount / 10,  // Standard minimum
+            h if h > 0.2 => base_amount / 8,   // 
+            _ => base_amount / 5,              // Higher minimum in unhealthy system
+        };
+        
+        let max_allocation = match health_metrics.overall_health {
+            h if h > 0.8 => base_amount * 5,   // Allow large allocations in healthy system
+            h if h > 0.6 => base_amount * 4,   // 
+            h if h > 0.4 => base_amount * 3,   // Standard maximum
+            h if h > 0.2 => base_amount * 2,   // 
+            _ => base_amount,                  // Conservative in unhealthy system
+        };
+
+        let bounded_amount = final_amount.max(min_allocation).min(max_allocation);
+
+        // Execute with validation
+        let validation_context = crate::transaction_validation::ValidationContext {
+            operation_type: "allocation".to_string(),
+            amount: bounded_amount,
+            account: recipient.clone(),
+            resource_type: Some("mana".to_string()),
+            cross_cooperative: false,
+            reputation_required: true,
+        };
+
+        let validation_result = crate::transaction_validation::validate_mana_spend(
+            self.mana_ledger.as_ref(),
+            recipient,
+            bounded_amount,
+            &validation_context,
+        );
+
+        if !validation_result.is_valid {
+            return Err(CommonError::PolicyDenied(
+                validation_result.error_message.unwrap_or_else(|| "Validation failed".to_string())
+            ));
+        }
+
+        // Execute the actual allocation
+        match self.mana_ledger.credit(recipient, bounded_amount) {
+            Ok(()) => {
+                log::info!(
+                    "Enhanced allocation: {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2}, performance={:.2}, network={:.2})",
+                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor, 
+                    priority_multiplier, conditions_multiplier, performance_factor, network_factor
+                );
+                
+                // Update allocation efficiency metrics
+                let efficiency = bounded_amount as f64 / base_amount as f64;
+                crate::metrics::ALLOCATION_EFFICIENCY.observe(efficiency);
+                
+                Ok(bounded_amount)
+            }
+            Err(e) => {
+                log::error!("Failed to allocate {bounded_amount} mana to {recipient}: {e}");
+                Err(e)
+            }
+        }
+    }
+
+    /// Calculate usage efficiency for an account
+    fn calculate_usage_efficiency(&self, account: &ManaAccountState) -> f64 {
+        if account.usage_history.is_empty() {
+            return 1.0;
+        }
+
+        // Analyze recent usage patterns
+        let recent_usage: Vec<_> = account.usage_history
+            .iter()
+            .rev()
+            .take(10)
+            .collect();
+
+        if recent_usage.is_empty() {
+            return 1.0;
+        }
+
+        // Calculate efficiency based on usage consistency and purposefulness
+        let total_used: u64 = recent_usage.iter().map(|(_, amount, _)| *amount).sum();
+        let avg_usage = total_used as f64 / recent_usage.len() as f64;
+        
+        // Higher efficiency for consistent, moderate usage
+        let consistency_score = if recent_usage.len() >= 5 {
+            let variance = recent_usage.iter()
+                .map(|(_, amount, _)| (*amount as f64 - avg_usage).powi(2))
+                .sum::<f64>() / recent_usage.len() as f64;
+            let std_dev = variance.sqrt();
+            (1.0 - (std_dev / avg_usage.max(1.0))).clamp(0.0, 1.0)
+        } else {
+            0.5 // Neutral score for insufficient data
+        };
+
+        // Purpose diversity score (variety in usage purposes)
+        let unique_purposes: std::collections::HashSet<_> = recent_usage
+            .iter()
+            .map(|(_, _, purpose)| purpose)
+            .collect();
+        let diversity_score = (unique_purposes.len() as f64 / recent_usage.len() as f64).min(1.0);
+
+        // Combine scores
+        (consistency_score * 0.7 + diversity_score * 0.3).clamp(0.3, 1.5)
+    }
+
+    /// Analyze complexity of allocation conditions
+    fn analyze_condition_complexity(&self, conditions: &[String]) -> f64 {
+        if conditions.is_empty() {
+            return 0.0;
+        }
+
+        let mut complexity_score = 0.0;
+        
+        for condition in conditions {
+            // Simple heuristic based on condition keywords
+            complexity_score += match condition.to_lowercase() {
+                c if c.contains("time") => 0.2,
+                c if c.contains("reputation") => 0.3,
+                c if c.contains("balance") => 0.2,
+                c if c.contains("cross") => 0.4,
+                c if c.contains("verify") => 0.3,
+                c if c.contains("network") => 0.3,
+                c if c.contains("compute") => 0.4,
+                _ => 0.1,
+            };
+        }
+
+        (complexity_score / conditions.len() as f64).min(1.0)
+    }
+
+    /// Calculate performance factor for a recipient based on history
+    fn calculate_recipient_performance_factor(&self, recipient: &Did) -> f64 {
+        // In a full implementation, this would query historical performance
+        // For now, use reputation as a proxy
+        let reputation = self.reputation_store.get_reputation(recipient);
+        
+        match reputation {
+            r if r >= 90 => 1.2,  // Excellent track record
+            r if r >= 75 => 1.1,  // Good track record
+            r if r >= 60 => 1.0,  // Average track record
+            r if r >= 40 => 0.95, // Below average
+            r if r >= 25 => 0.9,  // Poor track record
+            _ => 0.8,             // Very poor track record
+        }
+    }
+
+    /// Internal demand multiplier calculation (optimized)
+    fn calculate_demand_multiplier_internal(&self, resource_type: &str) -> Result<f64, CommonError> {
         // Get current pricing model
         let job_type = job
             .job_type
@@ -1584,85 +2157,7 @@ impl EconomicAutomationEngine {
 
     // Helper methods
     async fn calculate_demand_multiplier(&self, resource_type: &str) -> Result<f64, CommonError> {
-        // Implement demand calculation based on usage patterns and market activity
-        let base_multiplier = 1.0;
-
-        // Check current resource allocation plans for demand signals
-        let allocation_plans = self.allocation_plans.read().unwrap();
-        let demand_signal = if let Some(plan) = allocation_plans.get(resource_type) {
-            // Calculate demand based on allocation utilization
-            let total_allocated: u64 = plan.allocations.values().map(|entry| entry.amount).sum();
-            let utilization = if plan.total_available > 0 {
-                total_allocated as f64 / plan.total_available as f64
-            } else {
-                0.0
-            };
-
-            match utilization {
-                u if u > 0.9 => 2.5, // Very high demand
-                u if u > 0.8 => 2.0, // High demand
-                u if u > 0.6 => 1.5, // Medium demand
-                u if u > 0.4 => 1.2, // Low demand
-                _ => 1.0,            // Normal demand
-            }
-        } else {
-            base_multiplier
-        };
-
-        // Factor in market-making activity
-        let market_state = self.market_making_state.read().unwrap();
-        let market_multiplier = if let Some(inventory) = market_state.inventory.get(resource_type) {
-            // Low inventory = higher demand multiplier
-            if *inventory < 1000 {
-                1.3
-            } else if *inventory < 5000 {
-                1.1
-            } else {
-                1.0
-            }
-        } else {
-            1.0
-        };
-
-        // Factor in recent pricing trends
-        let pricing_models = self.pricing_models.read().unwrap();
-        let trend_multiplier = if let Some(model) = pricing_models.get(resource_type) {
-            // Calculate price trend over recent history
-            let recent_prices: Vec<f64> = model
-                .price_history
-                .iter()
-                .rev()
-                .take(10)
-                .map(|(_, price)| *price)
-                .collect();
-
-            if recent_prices.len() >= 2 {
-                let recent_avg = recent_prices.iter().sum::<f64>() / recent_prices.len() as f64;
-                let old_avg = model
-                    .price_history
-                    .iter()
-                    .take(model.price_history.len().saturating_sub(10))
-                    .map(|(_, price)| *price)
-                    .sum::<f64>()
-                    / (model.price_history.len().saturating_sub(10).max(1)) as f64;
-
-                if recent_avg > old_avg * 1.1 {
-                    1.2 // Increasing prices suggest growing demand
-                } else if recent_avg < old_avg * 0.9 {
-                    0.9 // Decreasing prices suggest falling demand
-                } else {
-                    1.0
-                }
-            } else {
-                1.0
-            }
-        } else {
-            1.0
-        };
-
-        let final_multiplier: f64 =
-            base_multiplier * demand_signal * market_multiplier * trend_multiplier;
-        Ok(final_multiplier.clamp(0.1, 5.0)) // Cap between 0.1x and 5.0x
+        self.calculate_demand_multiplier_internal(resource_type)
     }
 
     async fn calculate_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {

@@ -41,52 +41,95 @@ impl ManaLedger for InMemoryManaLedger {
 #[derive(Default)]
 struct InMemoryResourceLedger {
     balances: Mutex<HashMap<(String, Did), u64>>,
+    classes: Mutex<HashMap<String, icn_economics::TokenClass>>,
 }
 
 impl ResourceLedger for InMemoryResourceLedger {
     fn create_class(
         &self,
-        _class_id: &String,
-        _class: icn_economics::TokenClass,
+        class_id: &String,
+        class: icn_economics::TokenClass,
     ) -> Result<(), icn_common::CommonError> {
+        let mut classes = self.classes.lock().unwrap();
+        if classes.contains_key(class_id) {
+            return Err(icn_common::CommonError::InvalidInputError(format!(
+                "Token class {class_id} already exists"
+            )));
+        }
+        classes.insert(class_id.clone(), class);
         Ok(())
     }
-    fn get_class(&self, _class_id: &String) -> Option<icn_economics::TokenClass> {
-        None
+    fn get_class(&self, class_id: &String) -> Option<icn_economics::TokenClass> {
+        self.classes.lock().unwrap().get(class_id).cloned()
     }
     fn update_class(
         &self,
-        _class_id: &String,
-        _class: icn_economics::TokenClass,
+        class_id: &String,
+        class: icn_economics::TokenClass,
     ) -> Result<(), icn_common::CommonError> {
+        let mut classes = self.classes.lock().unwrap();
+        if !classes.contains_key(class_id) {
+            return Err(icn_common::CommonError::InvalidInputError(format!(
+                "Token class {class_id} not found"
+            )));
+        }
+        classes.insert(class_id.clone(), class);
         Ok(())
     }
     fn list_classes(&self) -> Vec<(String, icn_economics::TokenClass)> {
-        Vec::new()
+        self.classes
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect()
     }
     fn mint(
         &self,
-        _class_id: &String,
-        _owner: &Did,
-        _amount: u64,
+        class_id: &String,
+        owner: &Did,
+        amount: u64,
     ) -> Result<(), icn_common::CommonError> {
+        let mut balances = self.balances.lock().unwrap();
+        let key = (class_id.clone(), owner.clone());
+        let entry = balances.entry(key).or_insert(0);
+        *entry += amount;
         Ok(())
     }
     fn burn(
         &self,
-        _class_id: &String,
-        _owner: &Did,
-        _amount: u64,
+        class_id: &String,
+        owner: &Did,
+        amount: u64,
     ) -> Result<(), icn_common::CommonError> {
+        let mut balances = self.balances.lock().unwrap();
+        let key = (class_id.clone(), owner.clone());
+        let entry = balances.entry(key).or_insert(0);
+        if *entry < amount {
+            return Err(icn_common::CommonError::PolicyDenied("Insufficient balance".into()));
+        }
+        *entry -= amount;
         Ok(())
     }
     fn transfer(
         &self,
-        _class_id: &String,
-        _from: &Did,
-        _to: &Did,
-        _amount: u64,
+        class_id: &String,
+        from: &Did,
+        to: &Did,
+        amount: u64,
     ) -> Result<(), icn_common::CommonError> {
+        let mut balances = self.balances.lock().unwrap();
+        let from_key = (class_id.clone(), from.clone());
+        let to_key = (class_id.clone(), to.clone());
+        
+        let from_balance = balances.entry(from_key.clone()).or_insert(0);
+        if *from_balance < amount {
+            return Err(icn_common::CommonError::PolicyDenied("Insufficient balance".into()));
+        }
+        *from_balance -= amount;
+        
+        let to_balance = balances.entry(to_key).or_insert(0);
+        *to_balance += amount;
         Ok(())
     }
     fn get_balance(&self, class_id: &String, owner: &Did) -> u64 {
