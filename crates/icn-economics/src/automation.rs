@@ -724,19 +724,19 @@ impl EconomicAutomationEngine {
 
     /// Enhanced mana price calculation with cross-cooperative awareness
     pub async fn calculate_optimal_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
-        let (price, duration_ms) = crate::metrics::helpers::time_operation(|| {
-            self.calculate_optimal_mana_price_internal(job)
-        });
+        let start = std::time::Instant::now();
+        let price = self.calculate_optimal_mana_price_internal(job).await?;
+        let duration_ms = start.elapsed().as_millis() as u64;
         
         // Record performance metrics
         if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
-            registry.record_mana_operation(duration_ms);
+            registry.record_mana_operation(duration_ms as f64);
         }
         
-        price
+        Ok(price)
     }
 
-    fn calculate_optimal_mana_price_internal(&self, job: &MeshJob) -> Result<u64, CommonError> {
+    async fn calculate_optimal_mana_price_internal(&self, job: &MeshJob) -> Result<u64, CommonError> {
         // Get current pricing model
         let job_type = job
             .job_type
@@ -774,13 +774,13 @@ impl EconomicAutomationEngine {
                 
             Ok(optimal_price as u64)
         } else {
-            // Fallback to enhanced basic calculation
-            self.calculate_enhanced_basic_mana_price(job)
+            // Fallback to basic calculation
+            self.calculate_basic_mana_price(job).await
         }
     }
 
     /// Calculate cross-cooperative pricing multiplier
-    fn calculate_cross_cooperative_multiplier(&self, job_type: &str) -> Result<f64, CommonError> {
+    fn calculate_cross_cooperative_multiplier(&self, _job_type: &str) -> Result<f64, CommonError> {
         // Factor in cross-cooperative resource sharing and demand
         let cross_coop_metrics = {
             if let Ok(registry) = crate::metrics::METRICS_REGISTRY.read() {
@@ -857,76 +857,6 @@ impl EconomicAutomationEngine {
         Ok(multiplier)
     }
 
-    /// Enhanced basic mana price calculation
-    fn calculate_enhanced_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
-        let base_cost = job.estimated_cost;
-
-        // Enhanced job type complexity multipliers
-        let complexity_multiplier = match job.job_type.as_deref() {
-            Some("compute_intensive") => 1.5,
-            Some("memory_intensive") => 1.3,
-            Some("network_intensive") => 1.2,
-            Some("storage_intensive") => 1.1,
-            Some("gpu_compute") => 2.0,
-            Some("machine_learning") => 1.8,
-            Some("blockchain_validation") => 1.6,
-            Some("cryptographic") => 1.7,
-            Some("real_time") => 1.4,
-            Some("batch_processing") => 0.9,
-            _ => 1.0,
-        };
-
-        // System load multiplier
-        let health_metrics = self.health_metrics.read().unwrap();
-        let load_multiplier = match health_metrics.resource_efficiency {
-            e if e < 0.2 => 2.5, // System severely overloaded
-            e if e < 0.3 => 2.0, // System overloaded
-            e if e < 0.5 => 1.5, // System under stress
-            e if e < 0.7 => 1.2, // System moderately loaded
-            _ => 1.0,            // System operating normally
-        };
-
-        // Market liquidity multiplier
-        let liquidity_multiplier = match health_metrics.market_liquidity {
-            l if l < 0.2 => 1.8, // Very low liquidity
-            l if l < 0.3 => 1.5, // Low liquidity
-            l if l < 0.6 => 1.2, // Medium liquidity
-            _ => 1.0,            // Good liquidity
-        };
-
-        // Price volatility multiplier
-        let volatility_multiplier = match health_metrics.price_stability {
-            s if s < 0.3 => 1.5, // High volatility
-            s if s < 0.5 => 1.3, // Medium volatility
-            s if s < 0.7 => 1.1, // Low volatility
-            _ => 1.0,            // Stable pricing
-        };
-
-        // Economic health multiplier
-        let health_multiplier = match health_metrics.overall_health {
-            h if h < 0.3 => 1.4, // Poor economic health
-            h if h < 0.5 => 1.2, // Below average health
-            h if h < 0.7 => 1.1, // Average health
-            _ => 1.0,            // Good economic health
-        };
-
-        // Calculate final price with all factors
-        let calculated_price = (base_cost as f64
-            * complexity_multiplier
-            * load_multiplier
-            * liquidity_multiplier
-            * volatility_multiplier
-            * health_multiplier) as u64;
-
-        // Apply reasonable bounds with dynamic limits
-        let dynamic_min = base_cost.saturating_mul(3) / 10; // 30% of base cost
-        let dynamic_max = base_cost.saturating_mul(8); // 800% of base cost
-        let min_price = dynamic_min.max(1); // Never less than 1 mana
-        let max_price = dynamic_max;
-
-        Ok(calculated_price.max(min_price).min(max_price))
-    }
-
     /// Optimized execute allocation plan with better error handling and metrics
     pub async fn execute_allocation_plan(
         &self,
@@ -972,7 +902,7 @@ impl EconomicAutomationEngine {
         sorted_allocations.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap_or(std::cmp::Ordering::Equal));
 
         for (did, allocation) in sorted_allocations {
-            match self.execute_individual_allocation_enhanced(did, allocation).await {
+            match self.execute_individual_allocation(did, allocation).await {
                 Ok(amount) => {
                     successful_allocations += 1;
                     total_allocated += amount;
@@ -2073,10 +2003,10 @@ impl EconomicAutomationEngine {
     }
 
     async fn calculate_basic_mana_price(&self, job: &MeshJob) -> Result<u64, CommonError> {
-        // Implement basic price calculation based on job characteristics
+        // Enhanced basic price calculation with comprehensive factors
         let base_cost = job.estimated_cost;
 
-        // Factor in job type complexity
+        // Enhanced job type complexity multipliers
         let complexity_multiplier = match job.job_type.as_deref() {
             Some("compute_intensive") => 1.5,
             Some("memory_intensive") => 1.3,
@@ -2084,42 +2014,64 @@ impl EconomicAutomationEngine {
             Some("storage_intensive") => 1.1,
             Some("gpu_compute") => 2.0,
             Some("machine_learning") => 1.8,
+            Some("blockchain_validation") => 1.6,
+            Some("cryptographic") => 1.7,
+            Some("real_time") => 1.4,
+            Some("batch_processing") => 0.9,
             _ => 1.0, // Default/unknown job types
         };
 
-        // Factor in current system load
+        // System load multiplier with improved granularity
         let health_metrics = self.health_metrics.read().unwrap();
         let load_multiplier = match health_metrics.resource_efficiency {
+            e if e < 0.2 => 2.5, // System severely overloaded
             e if e < 0.3 => 2.0, // System overloaded
             e if e < 0.5 => 1.5, // System under stress
             e if e < 0.7 => 1.2, // System moderately loaded
             _ => 1.0,            // System operating normally
         };
 
-        // Factor in market liquidity
+        // Market liquidity multiplier
         let liquidity_multiplier = match health_metrics.market_liquidity {
-            l if l < 0.3 => 1.5, // Low liquidity - higher prices
+            l if l < 0.2 => 1.8, // Very low liquidity
+            l if l < 0.3 => 1.5, // Low liquidity
             l if l < 0.6 => 1.2, // Medium liquidity
             _ => 1.0,            // Good liquidity
         };
 
-        // Factor in recent price volatility
-        let volatility_multiplier = if health_metrics.price_stability < 0.5 {
-            1.3 // High volatility - add premium for uncertainty
-        } else {
-            1.0
+        // Price volatility multiplier
+        let volatility_multiplier = match health_metrics.price_stability {
+            s if s < 0.3 => 1.5, // High volatility
+            s if s < 0.5 => 1.3, // Medium volatility
+            s if s < 0.7 => 1.1, // Low volatility
+            _ => 1.0,            // Stable pricing
         };
 
-        // Calculate final price
+        // Economic health multiplier
+        let health_multiplier = match health_metrics.overall_health {
+            h if h < 0.3 => 1.4, // Poor economic health
+            h if h < 0.5 => 1.2, // Below average health
+            h if h < 0.7 => 1.1, // Average health
+            _ => 1.0,            // Good economic health
+        };
+
+        // Calculate demand multiplier for this job type
+        let demand_multiplier = self.calculate_demand_multiplier(&job.job_type.clone().unwrap_or_else(|| "default".to_string())).await?;
+
+        // Calculate final price with all factors
         let calculated_price = (base_cost as f64
             * complexity_multiplier
             * load_multiplier
             * liquidity_multiplier
-            * volatility_multiplier) as u64;
+            * volatility_multiplier
+            * health_multiplier
+            * demand_multiplier) as u64;
 
-        // Apply reasonable bounds
-        let min_price = base_cost / 2; // Never less than 50% of estimated cost
-        let max_price = base_cost * 5; // Never more than 500% of estimated cost
+        // Apply reasonable bounds with dynamic limits
+        let dynamic_min = base_cost.saturating_mul(3) / 10; // 30% of base cost
+        let dynamic_max = base_cost.saturating_mul(8); // 800% of base cost
+        let min_price = dynamic_min.max(1); // Never less than 1 mana
+        let max_price = dynamic_max;
 
         Ok(calculated_price.max(min_price).min(max_price))
     }
@@ -2129,53 +2081,86 @@ impl EconomicAutomationEngine {
         recipient: &Did,
         allocation: &AllocationEntry,
     ) -> Result<u64, CommonError> {
-        // Implement individual allocation logic based on recipient characteristics
         let base_amount = allocation.amount;
 
-        // Factor in recipient's reputation
+        // Enhanced reputation factor with more granular scaling
         let reputation_multiplier = {
             let rep = self.reputation_store.get_reputation(recipient);
             match rep {
-                r if r >= 90 => 1.5, // Excellent reputation
-                r if r >= 75 => 1.2, // Good reputation
-                r if r >= 50 => 1.0, // Average reputation
-                r if r >= 25 => 0.8, // Below average
-                _ => 0.5,            // Poor reputation
+                r if r >= 95 => 1.8,  // Exceptional reputation
+                r if r >= 90 => 1.5,  // Excellent reputation
+                r if r >= 80 => 1.3,  // Very good reputation
+                r if r >= 70 => 1.2,  // Good reputation
+                r if r >= 60 => 1.1,  // Above average reputation
+                r if r >= 50 => 1.0,  // Average reputation
+                r if r >= 40 => 0.9,  // Below average
+                r if r >= 30 => 0.7,  // Poor reputation
+                r if r >= 20 => 0.5,  // Very poor reputation
+                _ => 0.3,             // Extremely poor reputation
             }
         };
 
-        // Factor in recipient's current mana balance to prevent over-allocation
+        // Enhanced balance factor with capacity awareness
         let current_balance = self.mana_ledger.get_balance(recipient);
         let balance_factor = {
             let mana_accounts = self.mana_accounts.read().unwrap();
             if let Some(account) = mana_accounts.get(recipient) {
                 let capacity_ratio = current_balance as f64 / account.capacity as f64;
                 match capacity_ratio {
-                    r if r > 0.9 => 0.1, // Near capacity - minimal allocation
-                    r if r > 0.7 => 0.5, // High balance - reduced allocation
-                    r if r > 0.3 => 1.0, // Normal allocation
-                    _ => 1.2,            // Low balance - increased allocation
+                    r if r > 0.95 => 0.1, // Near full capacity - minimal allocation
+                    r if r > 0.85 => 0.3, // High balance - much reduced allocation
+                    r if r > 0.70 => 0.6, // Above average - reduced allocation
+                    r if r > 0.50 => 1.0, // Normal allocation
+                    r if r > 0.25 => 1.2, // Below average - increased allocation
+                    _ => 1.5,             // Very low balance - generous allocation
                 }
             } else {
                 1.0 // Default if no account state tracked
             }
         };
 
-        // Factor in allocation priority based on score
+        // Enhanced priority multiplier with fine-grained control
         let priority_multiplier = match allocation.score {
-            s if s >= 0.9 => 1.5, // High priority (score 90%+)
-            s if s >= 0.7 => 1.3, // Medium-high priority
-            s if s >= 0.5 => 1.0, // Normal priority
-            s if s >= 0.3 => 0.8, // Low priority
-            _ => 0.5,             // Very low priority
+            s if s >= 0.95 => 1.8, // Critical priority
+            s if s >= 0.90 => 1.5, // High priority
+            s if s >= 0.75 => 1.3, // Medium-high priority
+            s if s >= 0.60 => 1.1, // Above normal priority
+            s if s >= 0.50 => 1.0, // Normal priority
+            s if s >= 0.35 => 0.8, // Low priority
+            s if s >= 0.20 => 0.6, // Very low priority
+            _ => 0.4,              // Minimal priority
         };
 
-        // Factor in allocation conditions - more conditions may indicate special handling
+        // Enhanced conditions multiplier
         let conditions_multiplier = match allocation.conditions.len() {
-            0 => 1.0,     // No special conditions
-            1..=2 => 1.1, // Few conditions - slight boost
-            3..=5 => 1.2, // Several conditions - moderate boost
-            _ => 1.3,     // Many conditions - higher boost for complexity
+            0 => 1.0,         // No special conditions
+            1 => 1.05,        // Single condition - minor boost
+            2 => 1.1,         // Two conditions - slight boost
+            3..=4 => 1.2,     // Several conditions - moderate boost
+            5..=7 => 1.3,     // Many conditions - higher boost
+            _ => 1.4,         // Complex conditions - significant boost
+        };
+
+        // Performance factor based on historical efficiency
+        let performance_factor = {
+            let mana_accounts = self.mana_accounts.read().unwrap();
+            if let Some(account) = mana_accounts.get(recipient) {
+                self.calculate_usage_efficiency(account)
+            } else {
+                1.0 // Default for new accounts
+            }
+        };
+
+        // Network load factor
+        let network_factor = {
+            let health_metrics = self.health_metrics.read().unwrap();
+            match health_metrics.resource_efficiency {
+                e if e > 0.8 => 1.1, // Network has spare capacity
+                e if e > 0.6 => 1.0, // Normal load
+                e if e > 0.4 => 0.9, // High load
+                e if e > 0.2 => 0.8, // Very high load
+                _ => 0.7,            // Overloaded
+            }
         };
 
         // Calculate final allocation amount
@@ -2183,20 +2168,70 @@ impl EconomicAutomationEngine {
             * reputation_multiplier
             * balance_factor
             * priority_multiplier
-            * conditions_multiplier) as u64;
+            * conditions_multiplier
+            * performance_factor
+            * network_factor) as u64;
 
-        // Ensure allocation stays within reasonable bounds
-        let min_allocation = base_amount / 10; // At least 10% of requested
-        let max_allocation = base_amount * 3; // At most 300% of requested
+        // Dynamic bounds based on current system state
+        let health_metrics = self.health_metrics.read().unwrap();
+        let min_allocation = match health_metrics.overall_health {
+            h if h > 0.8 => base_amount / 20,  // Generous minimum in healthy system
+            h if h > 0.6 => base_amount / 15,  
+            h if h > 0.4 => base_amount / 10,  // Standard minimum
+            h if h > 0.2 => base_amount / 8,   
+            _ => base_amount / 5,              // Higher minimum in unhealthy system
+        };
+        
+        let max_allocation = match health_metrics.overall_health {
+            h if h > 0.8 => base_amount * 5,   // Allow large allocations in healthy system
+            h if h > 0.6 => base_amount * 4,   
+            h if h > 0.4 => base_amount * 3,   // Standard maximum
+            h if h > 0.2 => base_amount * 2,   
+            _ => base_amount,                  // Conservative in unhealthy system
+        };
 
         let bounded_amount = final_amount.max(min_allocation).min(max_allocation);
+
+        // Execute with validation
+        let validation_context = crate::transaction_validation::ValidationContext {
+            operation_type: "allocation".to_string(),
+            amount: bounded_amount,
+            account: recipient.clone(),
+            resource_type: Some("mana".to_string()),
+            cross_cooperative: false,
+            reputation_required: true,
+        };
+
+        let validation_result = crate::transaction_validation::validate_mana_spend(
+            self.mana_ledger.as_ref(),
+            recipient,
+            bounded_amount,
+            &validation_context,
+        );
+
+        if !validation_result.is_valid {
+            return Err(CommonError::PolicyDenied(
+                validation_result.error_message.unwrap_or_else(|| "Validation failed".to_string())
+            ));
+        }
 
         // Execute the actual allocation
         match self.mana_ledger.credit(recipient, bounded_amount) {
             Ok(()) => {
                 log::info!(
-                    "Allocated {bounded_amount} mana to {recipient} (requested: {base_amount}, factors: rep={reputation_multiplier:.2}, balance={balance_factor:.2}, priority={priority_multiplier:.2}, conditions={conditions_multiplier:.2})"
+                    "Allocated {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2}, performance={:.2}, network={:.2})",
+                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor, 
+                    priority_multiplier, conditions_multiplier, performance_factor, network_factor
                 );
+                
+                // Update allocation efficiency metrics
+                let efficiency = bounded_amount as f64 / base_amount as f64;
+                if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
+                    registry.allocation_performance.total_allocations += 1;
+                    registry.allocation_performance.successful_allocations += 1;
+                    registry.allocation_performance.allocation_accuracy = efficiency;
+                }
+                
                 Ok(bounded_amount)
             }
             Err(e) => {

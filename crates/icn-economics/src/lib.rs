@@ -10,7 +10,7 @@
 //! aiming for security, accuracy, and interoperability.
 
 use icn_common::{
-    compute_merkle_cid, CommonError, DagBlock, Did, NodeInfo, NodeScope, SystemTimeProvider,
+    compute_merkle_cid, CommonError, DagBlock, Did, NodeScope, SystemTimeProvider,
     TimeProvider,
 };
 use icn_dag::StorageService;
@@ -804,7 +804,7 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
     let start_time = std::time::Instant::now();
     
     // Validate token burn operation
-    let burn_context = transaction_validation::ValidationContext {
+    let _burn_context = transaction_validation::ValidationContext {
         operation_type: "burn_tokens".to_string(),
         amount,
         account: owner.clone(),
@@ -1029,7 +1029,7 @@ pub enum ResourcePriority {
 /// Enhanced transaction validation for economic operations
 pub mod transaction_validation {
     use super::*;
-    use crate::metrics::{METRICS_REGISTRY, POLICY_VIOLATIONS};
+    use crate::metrics::METRICS_REGISTRY;
     use std::time::Instant;
 
     /// Comprehensive validation result
@@ -1534,9 +1534,6 @@ pub mod transaction_validation {
         }
     }
 }
-
-// Import the validation module traits
-use crate::transaction_validation::*;
 
 // Add these to the crate-level exports
 pub use transaction_validation::{ValidationContext, ValidationResult, validate_mana_spend, validate_token_transfer, validate_marketplace_transaction, validate_cross_cooperative_allocation};
