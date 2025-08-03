@@ -40,13 +40,13 @@ pub static MANA_REGENERATION_RATE: Lazy<Gauge> = Lazy::new(Gauge::default);
 pub static ECONOMIC_HEALTH_SCORE: Lazy<Gauge> = Lazy::new(Gauge::default);
 
 /// Tracks resource utilization efficiency.
-pub static RESOURCE_UTILIZATION: Lazy<Gauge<f64>> = Lazy::new(Gauge::default);
+pub static RESOURCE_UTILIZATION: Lazy<Gauge> = Lazy::new(Gauge::default);
 
 /// Tracks market liquidity level.
-pub static MARKET_LIQUIDITY: Lazy<Gauge<f64>> = Lazy::new(Gauge::default);
+pub static MARKET_LIQUIDITY: Lazy<Gauge> = Lazy::new(Gauge::default);
 
 /// Tracks price stability index.
-pub static PRICE_STABILITY: Lazy<Gauge<f64>> = Lazy::new(Gauge::default);
+pub static PRICE_STABILITY: Lazy<Gauge> = Lazy::new(Gauge::default);
 
 /// Histogram of transaction processing times.
 pub static TRANSACTION_DURATION: Lazy<Histogram> = Lazy::new(|| {
@@ -225,7 +225,7 @@ impl EconomicsMetricsRegistry {
     pub fn record_mana_regeneration(&mut self, amount: u64) {
         self.mana_ledger.regeneration_events += 1;
         self.mana_ledger.total_mana_regenerated += amount;
-        MANA_REGENERATION_RATE.set(self.mana_ledger.total_mana_regenerated as f64 / self.mana_ledger.regeneration_events as f64);
+        MANA_REGENERATION_RATE.set((self.mana_ledger.total_mana_regenerated as f64 / self.mana_ledger.regeneration_events as f64) as i64);
     }
 
     /// Record insufficient mana event.
@@ -235,9 +235,9 @@ impl EconomicsMetricsRegistry {
 
     /// Update system-wide metrics.
     pub fn update_system_metrics(&mut self, total_mana: u64, active_accounts: u64, health_score: f64) {
-        TOTAL_MANA_CIRCULATION.set(total_mana as f64);
-        ACTIVE_ACCOUNTS.set(active_accounts as f64);
-        ECONOMIC_HEALTH_SCORE.set(health_score);
+        TOTAL_MANA_CIRCULATION.set(total_mana as i64);
+        ACTIVE_ACCOUNTS.set(active_accounts as i64);
+        ECONOMIC_HEALTH_SCORE.set(health_score as i64);
         
         if active_accounts > 0 {
             self.mana_ledger.avg_account_balance = total_mana as f64 / active_accounts as f64;
@@ -304,9 +304,9 @@ pub mod helpers {
     /// Record a token operation.
     pub fn record_token_operation(operation_type: &str, amount: u64) {
         match operation_type {
-            "mint" => TOKEN_MINT_CALLS.inc(),
-            "burn" => TOKEN_BURN_CALLS.inc(),
-            "transfer" => TOKEN_TRANSFER_CALLS.inc(),
+            "mint" => { TOKEN_MINT_CALLS.inc(); },
+            "burn" => { TOKEN_BURN_CALLS.inc(); },
+            "transfer" => { TOKEN_TRANSFER_CALLS.inc(); },
             _ => {}
         }
         MANA_ALLOCATION_AMOUNTS.observe(amount as f64);
@@ -314,12 +314,12 @@ pub mod helpers {
 
     /// Update resource utilization metrics.
     pub fn update_resource_utilization(utilization: f64) {
-        RESOURCE_UTILIZATION.set(utilization);
+        RESOURCE_UTILIZATION.set(utilization as i64);
     }
 
     /// Update market metrics.
     pub fn update_market_metrics(liquidity: f64, stability: f64) {
-        MARKET_LIQUIDITY.set(liquidity);
-        PRICE_STABILITY.set(stability);
+        MARKET_LIQUIDITY.set(liquidity as i64);
+        PRICE_STABILITY.set(stability as i64);
     }
 }

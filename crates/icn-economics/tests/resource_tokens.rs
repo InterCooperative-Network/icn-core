@@ -170,6 +170,18 @@ fn mint_transfer_burn_flow() {
     repo.add_issuer(scope.clone(), issuer.clone());
     let recipient = Did::from_str("did:example:bob").unwrap();
 
+    // Create the token class first
+    repo.ledger().create_class(
+        &"token".to_string(),
+        icn_economics::TokenClass::new_fungible(
+            "Test Token".to_string(),
+            "A test token for the resource allocation system".to_string(),
+            "TEST".to_string(),
+            0,
+            issuer.clone(),
+        ),
+    ).unwrap();
+
     mint_tokens(
         &repo,
         &mana,
@@ -218,6 +230,18 @@ fn mutual_aid_flow() {
     let issuer = Did::from_str("did:example:issuer").unwrap();
     repo.add_issuer(scope.clone(), issuer.clone());
     let recipient = Did::from_str("did:example:bob").unwrap();
+
+    // Create the mutual aid token class first
+    repo.ledger().create_class(
+        &MUTUAL_AID_CLASS.to_string(),
+        icn_economics::TokenClass::new_fungible(
+            "Mutual Aid".to_string(),
+            "Non-transferable community support tokens".to_string(),
+            "AID".to_string(),
+            0,
+            issuer.clone(),
+        ),
+    ).unwrap();
 
     grant_mutual_aid(&repo, &mana, &issuer, &recipient, 4, Some(scope.clone())).unwrap();
     assert_eq!(

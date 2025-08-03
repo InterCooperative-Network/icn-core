@@ -1297,112 +1297,24 @@ impl EconomicAutomationEngine {
 
     /// Internal demand multiplier calculation (optimized)
     fn calculate_demand_multiplier_internal(&self, resource_type: &str) -> Result<f64, CommonError> {
-        // Get current pricing model
-        let job_type = job
-            .job_type
-            .clone()
-            .unwrap_or_else(|| "default".to_string());
-
-        let model_opt = {
-            let pricing_models = self.pricing_models.read().unwrap();
-            pricing_models.get(&job_type).cloned()
+        // Simple demand calculation based on resource type
+        let base_demand = match resource_type {
+            "compute_intensive" => 1.5,
+            "memory_intensive" => 1.3,
+            "network_intensive" => 1.2,
+            "storage_intensive" => 1.1,
+            "gpu_compute" => 2.0,
+            _ => 1.0,
         };
 
-        if let Some(model) = model_opt {
-            // Calculate price based on demand, quality, and market conditions
-            let base_price = model.base_price;
-            let demand_multiplier = self.calculate_demand_multiplier(&job_type).await?;
-            let quality_multiplier = model.quality_factor;
-            let competition_multiplier = model.competition_factor;
-
-            let optimal_price =
-                base_price * demand_multiplier * quality_multiplier * competition_multiplier;
-            Ok(optimal_price as u64)
-        } else {
-            // Fallback to basic calculation
-            self.calculate_basic_mana_price(job).await
-        }
+        // For now, use the base demand without usage metrics
+        // In a full implementation, this would query actual usage data
+        let demand_multiplier = base_demand;
+        
+        Ok(demand_multiplier)
     }
 
     /// Execute resource allocation plan
-    pub async fn execute_allocation_plan(
-        &self,
-        plan_id: &str,
-    ) -> Result<AllocationExecutionResult, CommonError> {
-        // Get and update plan status to Executing
-        let (allocations, allocation_id, resource_type, strategy, created_at) = {
-            let mut allocation_plans = self.allocation_plans.write().unwrap();
-            if let Some(plan) = allocation_plans.get_mut(plan_id) {
-                plan.status = AllocationStatus::Executing;
-                (
-                    plan.allocations.clone(),
-                    plan.allocation_id.clone(),
-                    plan.resource_type.clone(),
-                    plan.strategy.clone(),
-                    plan.created_at,
-                )
-            } else {
-                return Err(CommonError::InternalError(format!(
-                    "Allocation plan {plan_id} not found"
-                )));
-            }
-        };
-
-        // Execute allocations without holding the lock
-        let mut successful_allocations = 0;
-        let mut failed_allocations = 0;
-        let mut total_allocated = 0;
-
-        for (did, allocation) in &allocations {
-            match self.execute_individual_allocation(did, allocation).await {
-                Ok(amount) => {
-                    successful_allocations += 1;
-                    total_allocated += amount;
-
-                    // Emit allocation event
-                    let _ = self.event_tx.send(EconomicEvent::ResourceAllocated {
-                        allocation_id: allocation_id.clone(),
-                        resource_type: resource_type.clone(),
-                        amount,
-                        recipient: did.clone(),
-                        allocation_strategy: strategy.clone(),
-                        timestamp: self.time_provider.unix_seconds(),
-                    });
-                }
-                Err(e) => {
-                    log::error!("Failed to allocate to {did}: {e}");
-                    failed_allocations += 1;
-                }
-            }
-        }
-
-        // Update plan status after all allocations are done
-        {
-            let mut allocation_plans = self.allocation_plans.write().unwrap();
-            if let Some(plan) = allocation_plans.get_mut(plan_id) {
-                plan.status = if failed_allocations == 0 {
-                    AllocationStatus::Completed
-                } else if successful_allocations > 0 {
-                    AllocationStatus::PartiallyCompleted {
-                        successful: successful_allocations,
-                        failed: failed_allocations,
-                    }
-                } else {
-                    AllocationStatus::Failed {
-                        reason: "All allocations failed".to_string(),
-                    }
-                };
-            }
-        }
-
-        Ok(AllocationExecutionResult {
-            plan_id: plan_id.to_string(),
-            successful_allocations,
-            failed_allocations,
-            total_allocated,
-            execution_time: Instant::now().duration_since(created_at),
-        })
-    }
 
     /// Apply economic penalty for policy violation
     pub async fn apply_economic_penalty(
