@@ -22,6 +22,10 @@ pub struct MarketplaceOffer {
     pub payment_token_class: TokenClassId,
     /// Geographic or community scope for this offer.
     pub scope: Option<String>,
+    /// Cross-cooperative federation scope (None = local only).
+    pub federation_scope: Option<String>,
+    /// Cross-cooperative trust level required for buyers.
+    pub trust_level_required: u32,
     /// Unix timestamp when offer was created.
     pub created_at: u64,
     /// Unix timestamp when offer expires (None = no expiration).
@@ -47,6 +51,10 @@ pub struct MarketplaceBid {
     pub price_per_unit: u64,
     /// Token class for payment.
     pub payment_token_class: TokenClassId,
+    /// Cross-cooperative federation the buyer belongs to.
+    pub buyer_federation: Option<String>,
+    /// Trust attestations from the buyer's federation.
+    pub trust_attestations: Vec<String>,
     /// Unix timestamp when bid was created.
     pub created_at: u64,
     /// Unix timestamp when bid expires.
@@ -230,6 +238,10 @@ pub trait MarketplaceStore: Send + Sync {
     fn record_transaction(&self, transaction: MarketplaceTransaction) -> Result<(), CommonError>;
     /// Get transaction history for a user.
     fn get_transaction_history(&self, did: &Did) -> Vec<MarketplaceTransaction>;
+    /// Validate cross-cooperative bid based on trust requirements.
+    fn validate_cross_cooperative_bid(&self, bid: &MarketplaceBid, offer: &MarketplaceOffer) -> Result<bool, CommonError>;
+    /// Get offers from other federations.
+    fn get_federated_offers(&self, federation: &str) -> Vec<MarketplaceOffer>;
 }
 
 /// Filter criteria for searching marketplace offers.
@@ -245,6 +257,10 @@ pub struct OfferFilter {
     pub seller: Option<Did>,
     /// Filter by scope.
     pub scope: Option<String>,
+    /// Filter by federation scope.
+    pub federation_scope: Option<String>,
+    /// Filter by required trust level.
+    pub trust_level: Option<u32>,
     /// Filter by status.
     pub status: Option<OfferStatus>,
     /// Maximum number of results.
@@ -318,6 +334,16 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
                 }
                 if let Some(ref scope) = filter.scope {
                     if offer.scope.as_ref() != Some(scope) {
+                        return false;
+                    }
+                }
+                if let Some(ref federation_scope) = filter.federation_scope {
+                    if offer.federation_scope.as_ref() != Some(federation_scope) {
+                        return false;
+                    }
+                }
+                if let Some(trust_level) = filter.trust_level {
+                    if offer.trust_level_required > trust_level {
                         return false;
                     }
                 }
@@ -402,6 +428,59 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
         results.sort_by(|a, b| b.completed_at.cmp(&a.completed_at));
         results
     }
+
+    fn validate_cross_cooperative_bid(&self, bid: &MarketplaceBid, offer: &MarketplaceOffer) -> Result<bool, CommonError> {
+        // Check if offer allows cross-cooperative bids
+        if offer.federation_scope.is_none() {
+            // Local-only offer
+            return Ok(bid.buyer_federation.is_none());
+        }
+
+        // Check trust level requirements
+        if let Some(buyer_federation) = &bid.buyer_federation {
+            // Cross-cooperative bid - validate trust attestations
+            if bid.trust_attestations.len() < offer.trust_level_required as usize {
+                return Ok(false);
+            }
+
+            // Validate federation scope compatibility
+            if let Some(required_federation) = &offer.federation_scope {
+                // Special federation scopes
+                if required_federation == "*" || required_federation == "global" {
+                    // Global offer - any federation can participate
+                } else if required_federation.ends_with("-network") {
+                    // Network scope - any federation in the network can participate
+                    // For now, we'll be permissive and allow any federation
+                } else if buyer_federation != required_federation {
+                    // Specific federation required and buyer doesn't match
+                    return Ok(false);
+                }
+            }
+
+            // Additional validation could include:
+            // - Verifying trust attestation signatures
+            // - Checking federation reputation
+            // - Validating cross-cooperative exchange rates
+            
+            return Ok(true);
+        }
+
+        // Local bid on cross-cooperative offer is always allowed
+        Ok(true)
+    }
+
+    fn get_federated_offers(&self, federation: &str) -> Vec<MarketplaceOffer> {
+        let offers = self.offers.lock().unwrap();
+        offers
+            .values()
+            .filter(|offer| {
+                offer.federation_scope.as_ref().map_or(false, |scope| {
+                    scope == federation || scope == "*"
+                }) && offer.status == OfferStatus::Active
+            })
+            .cloned()
+            .collect()
+    }
 }
 
 /// Configuration for creating a physical good marketplace offer
@@ -459,6 +538,8 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
+            federation_scope: None, // Default to local only
+            trust_level_required: 0, // No trust requirements for basic goods
             created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
@@ -480,6 +561,8 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
+            federation_scope: None, // Default to local only
+            trust_level_required: 1, // Services require basic trust
             created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
@@ -501,6 +584,38 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
+            federation_scope: None, // Default to local only
+            trust_level_required: 2, // Labor requires higher trust
+            created_at: 0, // Will be set by the marketplace
+            expires_at: None,
+            status: OfferStatus::Active,
+            metadata: HashMap::new(),
+        }
+    }
+
+    /// Create a new cross-cooperative marketplace offer.
+    pub fn new_cross_cooperative(
+        offer_id: String,
+        seller: Did,
+        item_type: ItemType,
+        description: String,
+        quantity: u64,
+        price_per_unit: u64,
+        payment_token_class: TokenClassId,
+        federation_scope: String,
+        trust_level_required: u32,
+    ) -> Self {
+        Self {
+            offer_id,
+            seller,
+            item_type,
+            description,
+            quantity,
+            price_per_unit,
+            payment_token_class,
+            scope: None,
+            federation_scope: Some(federation_scope),
+            trust_level_required,
             created_at: 0, // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
@@ -510,7 +625,7 @@ impl MarketplaceOffer {
 }
 
 impl MarketplaceBid {
-    /// Create a new bid on a marketplace offer.
+    /// Create a new local bid on a marketplace offer.
     pub fn new_bid(
         bid_id: String,
         buyer: Did,
@@ -528,6 +643,37 @@ impl MarketplaceBid {
             quantity,
             price_per_unit,
             payment_token_class,
+            buyer_federation: None,
+            trust_attestations: Vec::new(),
+            created_at: now,
+            expires_at: now + (expires_in_hours * 3600),
+            status: BidStatus::Active,
+            metadata: HashMap::new(),
+        }
+    }
+
+    /// Create a new cross-cooperative bid on a marketplace offer.
+    pub fn new_cross_cooperative_bid(
+        bid_id: String,
+        buyer: Did,
+        offer_id: String,
+        quantity: u64,
+        price_per_unit: u64,
+        payment_token_class: TokenClassId,
+        buyer_federation: String,
+        trust_attestations: Vec<String>,
+        expires_in_hours: u64,
+    ) -> Self {
+        let now = SystemTimeProvider.unix_seconds();
+        Self {
+            bid_id,
+            buyer,
+            offer_id,
+            quantity,
+            price_per_unit,
+            payment_token_class,
+            buyer_federation: Some(buyer_federation),
+            trust_attestations,
             created_at: now,
             expires_at: now + (expires_in_hours * 3600),
             status: BidStatus::Active,
