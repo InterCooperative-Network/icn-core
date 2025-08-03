@@ -23,6 +23,7 @@ pub mod explorer;
 pub mod ledger;
 pub mod marketplace;
 pub mod metrics;
+pub mod monitoring;
 pub mod mutual_aid;
 pub mod mutual_credit;
 pub mod reputation_tokens;
@@ -33,6 +34,11 @@ pub mod automation;
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
+};
+pub use monitoring::{
+    EconomicMonitoringService, SystemHealthMetrics, HealthAlert, AlertSeverity, AlertCategory,
+    MonitoringConfig, ManaHealthMetrics, TokenHealthMetrics, EconomicActivityMetrics,
+    NetworkPerformanceMetrics, CrossCooperativeMetrics,
 };
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use economic_dispute_resolver::{
@@ -1605,6 +1611,7 @@ mod tests {
     #[test]
     #[ignore] // TODO: Implement process_economic_event function
     fn test_process_economic_event() {
+        use icn_common::NodeInfo;
         let node_info = NodeInfo {
             name: "EcoNode".to_string(),
             version: ICN_CORE_VERSION.to_string(),
