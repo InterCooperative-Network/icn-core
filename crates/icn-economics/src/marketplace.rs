@@ -239,7 +239,11 @@ pub trait MarketplaceStore: Send + Sync {
     /// Get transaction history for a user.
     fn get_transaction_history(&self, did: &Did) -> Vec<MarketplaceTransaction>;
     /// Validate cross-cooperative bid based on trust requirements.
-    fn validate_cross_cooperative_bid(&self, bid: &MarketplaceBid, offer: &MarketplaceOffer) -> Result<bool, CommonError>;
+    fn validate_cross_cooperative_bid(
+        &self,
+        bid: &MarketplaceBid,
+        offer: &MarketplaceOffer,
+    ) -> Result<bool, CommonError>;
     /// Get offers from other federations.
     fn get_federated_offers(&self, federation: &str) -> Vec<MarketplaceOffer>;
 }
@@ -429,7 +433,11 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
         results
     }
 
-    fn validate_cross_cooperative_bid(&self, bid: &MarketplaceBid, offer: &MarketplaceOffer) -> Result<bool, CommonError> {
+    fn validate_cross_cooperative_bid(
+        &self,
+        bid: &MarketplaceBid,
+        offer: &MarketplaceOffer,
+    ) -> Result<bool, CommonError> {
         // Check if offer allows cross-cooperative bids
         if offer.federation_scope.is_none() {
             // Local-only offer
@@ -461,7 +469,7 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
             // - Verifying trust attestation signatures
             // - Checking federation reputation
             // - Validating cross-cooperative exchange rates
-            
+
             return Ok(true);
         }
 
@@ -474,9 +482,11 @@ impl MarketplaceStore for InMemoryMarketplaceStore {
         offers
             .values()
             .filter(|offer| {
-                offer.federation_scope.as_ref().map_or(false, |scope| {
-                    scope == federation || scope == "*"
-                }) && offer.status == OfferStatus::Active
+                offer
+                    .federation_scope
+                    .as_ref()
+                    .is_some_and(|scope| scope == federation || scope == "*")
+                    && offer.status == OfferStatus::Active
             })
             .cloned()
             .collect()
@@ -538,9 +548,9 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
-            federation_scope: None, // Default to local only
+            federation_scope: None,  // Default to local only
             trust_level_required: 0, // No trust requirements for basic goods
-            created_at: 0, // Will be set by the marketplace
+            created_at: 0,           // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),
@@ -561,9 +571,9 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
-            federation_scope: None, // Default to local only
+            federation_scope: None,  // Default to local only
             trust_level_required: 1, // Services require basic trust
-            created_at: 0, // Will be set by the marketplace
+            created_at: 0,           // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),
@@ -584,9 +594,9 @@ impl MarketplaceOffer {
             price_per_unit: config.price_per_unit,
             payment_token_class: config.payment_token_class,
             scope: None,
-            federation_scope: None, // Default to local only
+            federation_scope: None,  // Default to local only
             trust_level_required: 2, // Labor requires higher trust
-            created_at: 0, // Will be set by the marketplace
+            created_at: 0,           // Will be set by the marketplace
             expires_at: None,
             status: OfferStatus::Active,
             metadata: HashMap::new(),
@@ -594,6 +604,7 @@ impl MarketplaceOffer {
     }
 
     /// Create a new cross-cooperative marketplace offer.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_cross_cooperative(
         offer_id: String,
         seller: Did,
@@ -653,6 +664,7 @@ impl MarketplaceBid {
     }
 
     /// Create a new cross-cooperative bid on a marketplace offer.
+    #[allow(clippy::too_many_arguments)]
     pub fn new_cross_cooperative_bid(
         bid_id: String,
         buyer: Did,

@@ -157,10 +157,10 @@ impl EconomicsMetricsRegistry {
     pub fn record_cross_cooperative_share(&mut self, volume: u64, efficiency: f64) {
         self.cross_cooperative.successful_shares += 1;
         self.cross_cooperative.total_shared_volume += volume;
-        
+
         // Update average efficiency using exponential moving average
         let alpha = 0.1;
-        self.cross_cooperative.avg_allocation_efficiency = 
+        self.cross_cooperative.avg_allocation_efficiency =
             alpha * efficiency + (1.0 - alpha) * self.cross_cooperative.avg_allocation_efficiency;
     }
 
@@ -180,12 +180,12 @@ impl EconomicsMetricsRegistry {
 
         // Update average allocation time
         let n = self.allocation_performance.total_allocations as f64;
-        self.allocation_performance.avg_allocation_time_ms = 
+        self.allocation_performance.avg_allocation_time_ms =
             (self.allocation_performance.avg_allocation_time_ms * (n - 1.0) + time_ms) / n;
 
         // Update allocation accuracy
         let alpha = 0.1;
-        self.allocation_performance.allocation_accuracy = 
+        self.allocation_performance.allocation_accuracy =
             alpha * efficiency + (1.0 - alpha) * self.allocation_performance.allocation_accuracy;
 
         // Update prometheus metrics
@@ -204,17 +204,17 @@ impl EconomicsMetricsRegistry {
 
         // Update average validation time
         let n = self.validation.total_validations as f64;
-        self.validation.avg_validation_time_ms = 
+        self.validation.avg_validation_time_ms =
             (self.validation.avg_validation_time_ms * (n - 1.0) + time_ms) / n;
     }
 
     /// Record mana ledger operation.
     pub fn record_mana_operation(&mut self, operation_time_ms: f64) {
         self.mana_ledger.total_operations += 1;
-        
+
         // Update average operation latency
         let n = self.mana_ledger.total_operations as f64;
-        self.mana_ledger.avg_operation_latency_ms = 
+        self.mana_ledger.avg_operation_latency_ms =
             (self.mana_ledger.avg_operation_latency_ms * (n - 1.0) + operation_time_ms) / n;
 
         // Update prometheus metrics
@@ -225,7 +225,10 @@ impl EconomicsMetricsRegistry {
     pub fn record_mana_regeneration(&mut self, amount: u64) {
         self.mana_ledger.regeneration_events += 1;
         self.mana_ledger.total_mana_regenerated += amount;
-        MANA_REGENERATION_RATE.set((self.mana_ledger.total_mana_regenerated as f64 / self.mana_ledger.regeneration_events as f64) as i64);
+        MANA_REGENERATION_RATE.set(
+            (self.mana_ledger.total_mana_regenerated as f64
+                / self.mana_ledger.regeneration_events as f64) as i64,
+        );
     }
 
     /// Record insufficient mana event.
@@ -234,11 +237,16 @@ impl EconomicsMetricsRegistry {
     }
 
     /// Update system-wide metrics.
-    pub fn update_system_metrics(&mut self, total_mana: u64, active_accounts: u64, health_score: f64) {
+    pub fn update_system_metrics(
+        &mut self,
+        total_mana: u64,
+        active_accounts: u64,
+        health_score: f64,
+    ) {
         TOTAL_MANA_CIRCULATION.set(total_mana as i64);
         ACTIVE_ACCOUNTS.set(active_accounts as i64);
         ECONOMIC_HEALTH_SCORE.set(health_score as i64);
-        
+
         if active_accounts > 0 {
             self.mana_ledger.avg_account_balance = total_mana as f64 / active_accounts as f64;
         }
@@ -247,18 +255,27 @@ impl EconomicsMetricsRegistry {
     /// Get comprehensive metrics summary.
     pub fn get_summary(&self) -> MetricsSummary {
         MetricsSummary {
-            cross_cooperative_success_rate: if self.cross_cooperative.successful_shares + self.cross_cooperative.failed_shares > 0 {
-                self.cross_cooperative.successful_shares as f64 / 
-                (self.cross_cooperative.successful_shares + self.cross_cooperative.failed_shares) as f64
-            } else { 1.0 },
+            cross_cooperative_success_rate: if self.cross_cooperative.successful_shares
+                + self.cross_cooperative.failed_shares
+                > 0
+            {
+                self.cross_cooperative.successful_shares as f64
+                    / (self.cross_cooperative.successful_shares
+                        + self.cross_cooperative.failed_shares) as f64
+            } else {
+                1.0
+            },
             allocation_success_rate: if self.allocation_performance.total_allocations > 0 {
-                self.allocation_performance.successful_allocations as f64 / 
-                self.allocation_performance.total_allocations as f64
-            } else { 1.0 },
+                self.allocation_performance.successful_allocations as f64
+                    / self.allocation_performance.total_allocations as f64
+            } else {
+                1.0
+            },
             validation_success_rate: if self.validation.total_validations > 0 {
-                self.validation.passed_validations as f64 / 
-                self.validation.total_validations as f64
-            } else { 1.0 },
+                self.validation.passed_validations as f64 / self.validation.total_validations as f64
+            } else {
+                1.0
+            },
             avg_operation_latency_ms: self.mana_ledger.avg_operation_latency_ms,
             total_shared_volume: self.cross_cooperative.total_shared_volume,
             avg_allocation_efficiency: self.allocation_performance.allocation_accuracy,
@@ -304,9 +321,15 @@ pub mod helpers {
     /// Record a token operation.
     pub fn record_token_operation(operation_type: &str, amount: u64) {
         match operation_type {
-            "mint" => { TOKEN_MINT_CALLS.inc(); },
-            "burn" => { TOKEN_BURN_CALLS.inc(); },
-            "transfer" => { TOKEN_TRANSFER_CALLS.inc(); },
+            "mint" => {
+                TOKEN_MINT_CALLS.inc();
+            }
+            "burn" => {
+                TOKEN_BURN_CALLS.inc();
+            }
+            "transfer" => {
+                TOKEN_TRANSFER_CALLS.inc();
+            }
             _ => {}
         }
         MANA_ALLOCATION_AMOUNTS.observe(amount as f64);

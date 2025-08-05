@@ -520,13 +520,19 @@ pub struct CrossCooperativePolicy {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CrossCooperativePricingStrategy {
     /// Market-based pricing with trust discounts
-    MarketWithTrustDiscount { base_markup: f64, trust_discount: f64 },
+    MarketWithTrustDiscount {
+        base_markup: f64,
+        trust_discount: f64,
+    },
     /// Cost-plus pricing model
     CostPlus { markup_percentage: f64 },
     /// Mutual aid pricing (minimal cost recovery)
     MutualAid { cost_recovery_rate: f64 },
     /// Dynamic pricing based on supply/demand
-    Dynamic { base_price: f64, demand_multiplier: f64 },
+    Dynamic {
+        base_price: f64,
+        demand_multiplier: f64,
+    },
 }
 
 /// Advanced economic optimization algorithms
@@ -599,6 +605,7 @@ pub struct EconomicAutomationEngine {
 
     // Cross-cooperative coordination state
     federation_states: Arc<RwLock<HashMap<String, FederationEconomicState>>>,
+    #[allow(dead_code)]
     cross_cooperative_policies: Arc<RwLock<HashMap<String, CrossCooperativePolicy>>>,
     pending_requests: Arc<RwLock<HashMap<String, CrossCooperativeRequest>>>,
     economic_optimizer: Arc<RwLock<EconomicOptimizer>>,
@@ -892,16 +899,19 @@ impl EconomicAutomationEngine {
         let start = std::time::Instant::now();
         let price = self.calculate_optimal_mana_price_internal(job).await?;
         let duration_ms = start.elapsed().as_millis() as u64;
-        
+
         // Record performance metrics
         if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
             registry.record_mana_operation(duration_ms as f64);
         }
-        
+
         Ok(price)
     }
 
-    async fn calculate_optimal_mana_price_internal(&self, job: &MeshJob) -> Result<u64, CommonError> {
+    async fn calculate_optimal_mana_price_internal(
+        &self,
+        job: &MeshJob,
+    ) -> Result<u64, CommonError> {
         // Get current pricing model
         let job_type = job
             .job_type
@@ -919,24 +929,24 @@ impl EconomicAutomationEngine {
             let demand_multiplier = self.calculate_demand_multiplier_internal(&job_type)?;
             let quality_multiplier = model.quality_factor;
             let competition_multiplier = model.competition_factor;
-            
+
             // New: Cross-cooperative pricing factor
             let cross_coop_multiplier = self.calculate_cross_cooperative_multiplier(&job_type)?;
-            
+
             // New: Network congestion factor
             let congestion_multiplier = self.calculate_network_congestion_multiplier()?;
-            
+
             // New: Time-of-day pricing (if applicable)
             let time_multiplier = self.calculate_time_based_multiplier()?;
 
-            let optimal_price = base_price 
-                * demand_multiplier 
-                * quality_multiplier 
+            let optimal_price = base_price
+                * demand_multiplier
+                * quality_multiplier
                 * competition_multiplier
                 * cross_coop_multiplier
                 * congestion_multiplier
                 * time_multiplier;
-                
+
             Ok(optimal_price as u64)
         } else {
             // Fallback to basic calculation
@@ -955,12 +965,14 @@ impl EconomicAutomationEngine {
             }
         };
 
-        let success_rate = if cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares > 0 {
-            cross_coop_metrics.successful_shares as f64 / 
-            (cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares) as f64
-        } else {
-            1.0
-        };
+        let success_rate =
+            if cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares > 0 {
+                cross_coop_metrics.successful_shares as f64
+                    / (cross_coop_metrics.successful_shares + cross_coop_metrics.failed_shares)
+                        as f64
+            } else {
+                1.0
+            };
 
         // Higher success rate in cross-cooperative sharing = slight price reduction
         // Lower success rate = price increase to account for risk
@@ -969,16 +981,17 @@ impl EconomicAutomationEngine {
             rate if rate > 0.8 => 0.98, // Good success
             rate if rate > 0.6 => 1.0,  // Average success
             rate if rate > 0.4 => 1.05, // Below average
-            _ => 1.1, // Poor cross-coop performance
+            _ => 1.1,                   // Poor cross-coop performance
         };
 
         // Factor in cross-cooperative demand
         let demand_factor = if cross_coop_metrics.active_cooperatives > 0 {
-            let avg_shared_volume = cross_coop_metrics.total_shared_volume / cross_coop_metrics.active_cooperatives;
+            let avg_shared_volume =
+                cross_coop_metrics.total_shared_volume / cross_coop_metrics.active_cooperatives;
             match avg_shared_volume {
                 vol if vol > 10000 => 1.1, // High cross-coop activity
                 vol if vol > 5000 => 1.05, // Medium activity
-                _ => 1.0, // Low activity
+                _ => 1.0,                  // Low activity
             }
         } else {
             1.0
@@ -990,16 +1003,16 @@ impl EconomicAutomationEngine {
     /// Calculate network congestion multiplier
     fn calculate_network_congestion_multiplier(&self) -> Result<f64, CommonError> {
         let health_metrics = self.health_metrics.read().unwrap();
-        
+
         // Use resource efficiency as a proxy for network congestion
         let congestion_level = 1.0 - health_metrics.resource_efficiency;
-        
+
         let multiplier = match congestion_level {
             level if level > 0.8 => 1.5, // Severe congestion
             level if level > 0.6 => 1.3, // High congestion
             level if level > 0.4 => 1.1, // Moderate congestion
             level if level > 0.2 => 1.0, // Light congestion
-            _ => 0.95, // Low congestion - slight discount
+            _ => 0.95,                   // Low congestion - slight discount
         };
 
         Ok(multiplier)
@@ -1008,12 +1021,12 @@ impl EconomicAutomationEngine {
     /// Calculate time-based pricing multiplier (peak vs off-peak)
     fn calculate_time_based_multiplier(&self) -> Result<f64, CommonError> {
         let current_time = self.time_provider.unix_seconds();
-        
+
         // Simple time-based pricing: higher during peak hours (UTC 12-18)
         let hour_of_day = (current_time % 86400) / 3600;
-        
+
         let multiplier = match hour_of_day {
-            12..=17 => 1.1, // Peak hours
+            12..=17 => 1.1,  // Peak hours
             18..=22 => 1.05, // Evening
             6..=11 => 1.0,   // Morning
             _ => 0.95,       // Off-peak (night)
@@ -1028,19 +1041,22 @@ impl EconomicAutomationEngine {
         plan_id: &str,
     ) -> Result<AllocationExecutionResult, CommonError> {
         let start_time = Instant::now();
-        
+
         // Get and validate plan
         let (allocations, allocation_id, resource_type, strategy, created_at) = {
             let mut allocation_plans = self.allocation_plans.write().unwrap();
             if let Some(plan) = allocation_plans.get_mut(plan_id) {
                 // Check if plan is ready for execution
-                if !matches!(plan.status, AllocationStatus::Ready | AllocationStatus::Planning) {
+                if !matches!(
+                    plan.status,
+                    AllocationStatus::Ready | AllocationStatus::Planning
+                ) {
                     return Err(CommonError::InvalidInputError(format!(
                         "Allocation plan {} is not ready for execution (status: {:?})",
                         plan_id, plan.status
                     )));
                 }
-                
+
                 plan.status = AllocationStatus::Executing;
                 (
                     plan.allocations.clone(),
@@ -1064,7 +1080,11 @@ impl EconomicAutomationEngine {
 
         // Sort allocations by priority for better execution order
         let mut sorted_allocations: Vec<_> = allocations.iter().collect();
-        sorted_allocations.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap_or(std::cmp::Ordering::Equal));
+        sorted_allocations.sort_by(|a, b| {
+            b.1.score
+                .partial_cmp(&a.1.score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for (did, allocation) in sorted_allocations {
             match self.execute_individual_allocation(did, allocation).await {
@@ -1074,7 +1094,11 @@ impl EconomicAutomationEngine {
 
                     // Record success metrics
                     if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
-                        registry.record_allocation_performance(true, start_time.elapsed().as_millis() as f64, allocation.score);
+                        registry.record_allocation_performance(
+                            true,
+                            start_time.elapsed().as_millis() as f64,
+                            allocation.score,
+                        );
                     }
 
                     // Emit allocation event
@@ -1091,10 +1115,14 @@ impl EconomicAutomationEngine {
                     log::error!("Failed to allocate to {did}: {e}");
                     failed_allocations += 1;
                     allocation_errors.push((did.clone(), e.to_string()));
-                    
+
                     // Record failure metrics
                     if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
-                        registry.record_allocation_performance(false, start_time.elapsed().as_millis() as f64, 0.0);
+                        registry.record_allocation_performance(
+                            false,
+                            start_time.elapsed().as_millis() as f64,
+                            0.0,
+                        );
                     }
                 }
             }
@@ -1120,7 +1148,7 @@ impl EconomicAutomationEngine {
         }
 
         let execution_time = Instant::now().duration_since(created_at);
-        
+
         // Log execution summary
         log::info!(
             "Allocation plan {} execution completed: {}/{} successful, {} total allocated, took {:?}",
@@ -1150,16 +1178,16 @@ impl EconomicAutomationEngine {
         let reputation_multiplier = {
             let rep = self.reputation_store.get_reputation(recipient);
             match rep {
-                r if r >= 95 => 1.8,  // Exceptional reputation
-                r if r >= 90 => 1.5,  // Excellent reputation
-                r if r >= 80 => 1.3,  // Very good reputation
-                r if r >= 70 => 1.2,  // Good reputation
-                r if r >= 60 => 1.1,  // Above average reputation
-                r if r >= 50 => 1.0,  // Average reputation
-                r if r >= 40 => 0.9,  // Below average
-                r if r >= 30 => 0.7,  // Poor reputation
-                r if r >= 20 => 0.5,  // Very poor reputation
-                _ => 0.3,             // Extremely poor reputation
+                r if r >= 95 => 1.8, // Exceptional reputation
+                r if r >= 90 => 1.5, // Excellent reputation
+                r if r >= 80 => 1.3, // Very good reputation
+                r if r >= 70 => 1.2, // Good reputation
+                r if r >= 60 => 1.1, // Above average reputation
+                r if r >= 50 => 1.0, // Average reputation
+                r if r >= 40 => 0.9, // Below average
+                r if r >= 30 => 0.7, // Poor reputation
+                r if r >= 20 => 0.5, // Very poor reputation
+                _ => 0.3,            // Extremely poor reputation
             }
         };
 
@@ -1167,11 +1195,11 @@ impl EconomicAutomationEngine {
         let balance_factor = {
             let current_balance = self.mana_ledger.get_balance(recipient);
             let mana_accounts = self.mana_accounts.read().unwrap();
-            
+
             if let Some(account) = mana_accounts.get(recipient) {
                 let capacity_ratio = current_balance as f64 / account.capacity as f64;
                 let usage_efficiency = self.calculate_usage_efficiency(account);
-                
+
                 let base_factor = match capacity_ratio {
                     r if r > 0.95 => 0.05, // Almost full - minimal allocation
                     r if r > 0.9 => 0.1,   // Very high balance
@@ -1181,7 +1209,7 @@ impl EconomicAutomationEngine {
                     r if r > 0.1 => 1.3,   // Low balance
                     _ => 1.5,              // Very low balance
                 };
-                
+
                 // Adjust based on usage efficiency
                 base_factor * usage_efficiency
             } else {
@@ -1207,7 +1235,7 @@ impl EconomicAutomationEngine {
         let conditions_multiplier = {
             let condition_count = allocation.conditions.len();
             let condition_complexity = self.analyze_condition_complexity(&allocation.conditions);
-            
+
             match (condition_count, condition_complexity) {
                 (0, _) => 1.0,                    // No conditions
                 (1..=2, low) if low < 0.3 => 1.1, // Simple conditions
@@ -1245,19 +1273,19 @@ impl EconomicAutomationEngine {
         // Dynamic bounds based on current system state
         let health_metrics = self.health_metrics.read().unwrap();
         let min_allocation = match health_metrics.overall_health {
-            h if h > 0.8 => base_amount / 20,  // Generous minimum in healthy system
-            h if h > 0.6 => base_amount / 15,  // 
-            h if h > 0.4 => base_amount / 10,  // Standard minimum
-            h if h > 0.2 => base_amount / 8,   // 
-            _ => base_amount / 5,              // Higher minimum in unhealthy system
+            h if h > 0.8 => base_amount / 20, // Generous minimum in healthy system
+            h if h > 0.6 => base_amount / 15, //
+            h if h > 0.4 => base_amount / 10, // Standard minimum
+            h if h > 0.2 => base_amount / 8,  //
+            _ => base_amount / 5,             // Higher minimum in unhealthy system
         };
-        
+
         let max_allocation = match health_metrics.overall_health {
-            h if h > 0.8 => base_amount * 5,   // Allow large allocations in healthy system
-            h if h > 0.6 => base_amount * 4,   // 
-            h if h > 0.4 => base_amount * 3,   // Standard maximum
-            h if h > 0.2 => base_amount * 2,   // 
-            _ => base_amount,                  // Conservative in unhealthy system
+            h if h > 0.8 => base_amount * 5, // Allow large allocations in healthy system
+            h if h > 0.6 => base_amount * 4, //
+            h if h > 0.4 => base_amount * 3, // Standard maximum
+            h if h > 0.2 => base_amount * 2, //
+            _ => base_amount,                // Conservative in unhealthy system
         };
 
         let bounded_amount = final_amount.max(min_allocation).min(max_allocation);
@@ -1281,7 +1309,9 @@ impl EconomicAutomationEngine {
 
         if !validation_result.is_valid {
             return Err(CommonError::PolicyDenied(
-                validation_result.error_message.unwrap_or_else(|| "Validation failed".to_string())
+                validation_result
+                    .error_message
+                    .unwrap_or_else(|| "Validation failed".to_string()),
             ));
         }
 
@@ -1290,14 +1320,14 @@ impl EconomicAutomationEngine {
             Ok(()) => {
                 log::info!(
                     "Enhanced allocation: {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2}, performance={:.2}, network={:.2})",
-                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor, 
+                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor,
                     priority_multiplier, conditions_multiplier, performance_factor, network_factor
                 );
-                
+
                 // Update allocation efficiency metrics
                 let efficiency = bounded_amount as f64 / base_amount as f64;
                 crate::metrics::ALLOCATION_EFFICIENCY.observe(efficiency);
-                
+
                 Ok(bounded_amount)
             }
             Err(e) => {
@@ -1314,11 +1344,7 @@ impl EconomicAutomationEngine {
         }
 
         // Analyze recent usage patterns
-        let recent_usage: Vec<_> = account.usage_history
-            .iter()
-            .rev()
-            .take(10)
-            .collect();
+        let recent_usage: Vec<_> = account.usage_history.iter().rev().take(10).collect();
 
         if recent_usage.is_empty() {
             return 1.0;
@@ -1327,12 +1353,14 @@ impl EconomicAutomationEngine {
         // Calculate efficiency based on usage consistency and purposefulness
         let total_used: u64 = recent_usage.iter().map(|(_, amount, _)| *amount).sum();
         let avg_usage = total_used as f64 / recent_usage.len() as f64;
-        
+
         // Higher efficiency for consistent, moderate usage
         let consistency_score = if recent_usage.len() >= 5 {
-            let variance = recent_usage.iter()
+            let variance = recent_usage
+                .iter()
                 .map(|(_, amount, _)| (*amount as f64 - avg_usage).powi(2))
-                .sum::<f64>() / recent_usage.len() as f64;
+                .sum::<f64>()
+                / recent_usage.len() as f64;
             let std_dev = variance.sqrt();
             (1.0 - (std_dev / avg_usage.max(1.0))).clamp(0.0, 1.0)
         } else {
@@ -1340,10 +1368,8 @@ impl EconomicAutomationEngine {
         };
 
         // Purpose diversity score (variety in usage purposes)
-        let unique_purposes: std::collections::HashSet<_> = recent_usage
-            .iter()
-            .map(|(_, _, purpose)| purpose)
-            .collect();
+        let unique_purposes: std::collections::HashSet<_> =
+            recent_usage.iter().map(|(_, _, purpose)| purpose).collect();
         let diversity_score = (unique_purposes.len() as f64 / recent_usage.len() as f64).min(1.0);
 
         // Combine scores
@@ -1357,7 +1383,7 @@ impl EconomicAutomationEngine {
         }
 
         let mut complexity_score = 0.0;
-        
+
         for condition in conditions {
             // Simple heuristic based on condition keywords
             complexity_score += match condition.to_lowercase() {
@@ -1380,7 +1406,7 @@ impl EconomicAutomationEngine {
         // In a full implementation, this would query historical performance
         // For now, use reputation as a proxy
         let reputation = self.reputation_store.get_reputation(recipient);
-        
+
         match reputation {
             r if r >= 90 => 1.2,  // Excellent track record
             r if r >= 75 => 1.1,  // Good track record
@@ -1392,7 +1418,10 @@ impl EconomicAutomationEngine {
     }
 
     /// Internal demand multiplier calculation (optimized)
-    fn calculate_demand_multiplier_internal(&self, resource_type: &str) -> Result<f64, CommonError> {
+    fn calculate_demand_multiplier_internal(
+        &self,
+        resource_type: &str,
+    ) -> Result<f64, CommonError> {
         // Simple demand calculation based on resource type
         let base_demand = match resource_type {
             "compute_intensive" => 1.5,
@@ -1406,12 +1435,11 @@ impl EconomicAutomationEngine {
         // For now, use the base demand without usage metrics
         // In a full implementation, this would query actual usage data
         let demand_multiplier = base_demand;
-        
+
         Ok(demand_multiplier)
     }
 
     /// Execute resource allocation plan
-
     /// Apply economic penalty for policy violation
     pub async fn apply_economic_penalty(
         &self,
@@ -2147,9 +2175,9 @@ impl EconomicAutomationEngine {
             let metrics = health_metrics.read().unwrap();
             (metrics.overall_health, metrics.price_stability)
         };
-        
+
         let mut models = pricing_models.write().unwrap();
-        
+
         for model in models.values_mut() {
             if model.price_history.len() >= 3 {
                 // Calculate moving average of last 3 prices
@@ -2160,35 +2188,36 @@ impl EconomicAutomationEngine {
                     .take(3)
                     .map(|(_, p)| *p)
                     .collect();
-                    
+
                 let avg = recent_prices.iter().sum::<f64>() / recent_prices.len() as f64;
-                
+
                 // Calculate trend (slope of recent prices)
                 let trend = if recent_prices.len() >= 2 {
                     recent_prices[0] - recent_prices[recent_prices.len() - 1]
                 } else {
                     0.0
                 };
-                
+
                 // Apply predictive adjustments based on economic health and trend
                 let health_factor = 1.0 + (overall_health - 0.5) * 0.1; // ±5% based on health
                 let trend_factor = 1.0 + trend * 0.05; // 5% per unit of trend
                 let volatility_factor = 1.0 + (1.0 - price_stability) * 0.03; // Up to 3% for volatility
-                
+
                 // Combine factors for new price prediction
                 let predicted_base = (model.current_price + avg) / 2.0;
-                model.current_price = predicted_base * health_factor * trend_factor * volatility_factor;
-                
+                model.current_price =
+                    predicted_base * health_factor * trend_factor * volatility_factor;
+
                 // Ensure price doesn't go negative and has some minimum change
                 model.current_price = model.current_price.max(0.01);
-                
+
                 // Add small random variation to ensure tests can detect changes
                 if (model.current_price - avg).abs() < 0.01 {
                     model.current_price *= 1.001; // 0.1% minimum change
                 }
             }
         }
-        
+
         // Drop the models lock before acquiring metrics lock
         drop(models);
 
@@ -2223,41 +2252,56 @@ impl EconomicAutomationEngine {
         };
 
         // System load multiplier with improved granularity
-        let health_metrics = self.health_metrics.read().unwrap();
-        let load_multiplier = match health_metrics.resource_efficiency {
-            e if e < 0.2 => 2.5, // System severely overloaded
-            e if e < 0.3 => 2.0, // System overloaded
-            e if e < 0.5 => 1.5, // System under stress
-            e if e < 0.7 => 1.2, // System moderately loaded
-            _ => 1.0,            // System operating normally
-        };
+        let (load_multiplier, liquidity_multiplier, volatility_multiplier, health_multiplier) = {
+            let health_metrics = self.health_metrics.read().unwrap();
+            let load_multiplier = match health_metrics.resource_efficiency {
+                e if e < 0.2 => 2.5, // System severely overloaded
+                e if e < 0.3 => 2.0, // System overloaded
+                e if e < 0.5 => 1.5, // System under stress
+                e if e < 0.7 => 1.2, // System moderately loaded
+                _ => 1.0,            // System operating normally
+            };
 
-        // Market liquidity multiplier
-        let liquidity_multiplier = match health_metrics.market_liquidity {
-            l if l < 0.2 => 1.8, // Very low liquidity
-            l if l < 0.3 => 1.5, // Low liquidity
-            l if l < 0.6 => 1.2, // Medium liquidity
-            _ => 1.0,            // Good liquidity
-        };
+            // Market liquidity multiplier
+            let liquidity_multiplier = match health_metrics.market_liquidity {
+                l if l < 0.2 => 1.8, // Very low liquidity
+                l if l < 0.3 => 1.5, // Low liquidity
+                l if l < 0.6 => 1.2, // Medium liquidity
+                _ => 1.0,            // Good liquidity
+            };
 
-        // Price volatility multiplier
-        let volatility_multiplier = match health_metrics.price_stability {
-            s if s < 0.3 => 1.5, // High volatility
-            s if s < 0.5 => 1.3, // Medium volatility
-            s if s < 0.7 => 1.1, // Low volatility
-            _ => 1.0,            // Stable pricing
-        };
+            // Price volatility multiplier
+            let volatility_multiplier = match health_metrics.price_stability {
+                s if s < 0.3 => 1.5, // High volatility
+                s if s < 0.5 => 1.3, // Medium volatility
+                s if s < 0.7 => 1.1, // Low volatility
+                _ => 1.0,            // Stable pricing
+            };
 
-        // Economic health multiplier
-        let health_multiplier = match health_metrics.overall_health {
-            h if h < 0.3 => 1.4, // Poor economic health
-            h if h < 0.5 => 1.2, // Below average health
-            h if h < 0.7 => 1.1, // Average health
-            _ => 1.0,            // Good economic health
+            // Economic health multiplier
+            let health_multiplier = match health_metrics.overall_health {
+                h if h < 0.3 => 1.4, // Poor economic health
+                h if h < 0.5 => 1.2, // Below average health
+                h if h < 0.7 => 1.1, // Average health
+                _ => 1.0,            // Good economic health
+            };
+
+            (
+                load_multiplier,
+                liquidity_multiplier,
+                volatility_multiplier,
+                health_multiplier,
+            )
         };
 
         // Calculate demand multiplier for this job type
-        let demand_multiplier = self.calculate_demand_multiplier(&job.job_type.clone().unwrap_or_else(|| "default".to_string())).await?;
+        let demand_multiplier = self
+            .calculate_demand_multiplier(
+                &job.job_type
+                    .clone()
+                    .unwrap_or_else(|| "default".to_string()),
+            )
+            .await?;
 
         // Calculate final price with all factors
         let calculated_price = (base_cost as f64
@@ -2288,16 +2332,16 @@ impl EconomicAutomationEngine {
         let reputation_multiplier = {
             let rep = self.reputation_store.get_reputation(recipient);
             match rep {
-                r if r >= 95 => 1.8,  // Exceptional reputation
-                r if r >= 90 => 1.5,  // Excellent reputation
-                r if r >= 80 => 1.3,  // Very good reputation
-                r if r >= 70 => 1.2,  // Good reputation
-                r if r >= 60 => 1.1,  // Above average reputation
-                r if r >= 50 => 1.0,  // Average reputation
-                r if r >= 40 => 0.9,  // Below average
-                r if r >= 30 => 0.7,  // Poor reputation
-                r if r >= 20 => 0.5,  // Very poor reputation
-                _ => 0.3,             // Extremely poor reputation
+                r if r >= 95 => 1.8, // Exceptional reputation
+                r if r >= 90 => 1.5, // Excellent reputation
+                r if r >= 80 => 1.3, // Very good reputation
+                r if r >= 70 => 1.2, // Good reputation
+                r if r >= 60 => 1.1, // Above average reputation
+                r if r >= 50 => 1.0, // Average reputation
+                r if r >= 40 => 0.9, // Below average
+                r if r >= 30 => 0.7, // Poor reputation
+                r if r >= 20 => 0.5, // Very poor reputation
+                _ => 0.3,            // Extremely poor reputation
             }
         };
 
@@ -2334,12 +2378,12 @@ impl EconomicAutomationEngine {
 
         // Enhanced conditions multiplier
         let conditions_multiplier = match allocation.conditions.len() {
-            0 => 1.0,         // No special conditions
-            1 => 1.05,        // Single condition - minor boost
-            2 => 1.1,         // Two conditions - slight boost
-            3..=4 => 1.2,     // Several conditions - moderate boost
-            5..=7 => 1.3,     // Many conditions - higher boost
-            _ => 1.4,         // Complex conditions - significant boost
+            0 => 1.0,     // No special conditions
+            1 => 1.05,    // Single condition - minor boost
+            2 => 1.1,     // Two conditions - slight boost
+            3..=4 => 1.2, // Several conditions - moderate boost
+            5..=7 => 1.3, // Many conditions - higher boost
+            _ => 1.4,     // Complex conditions - significant boost
         };
 
         // Performance factor based on historical efficiency
@@ -2376,19 +2420,19 @@ impl EconomicAutomationEngine {
         // Dynamic bounds based on current system state
         let health_metrics = self.health_metrics.read().unwrap();
         let min_allocation = match health_metrics.overall_health {
-            h if h > 0.8 => base_amount / 20,  // Generous minimum in healthy system
-            h if h > 0.6 => base_amount / 15,  
-            h if h > 0.4 => base_amount / 10,  // Standard minimum
-            h if h > 0.2 => base_amount / 8,   
-            _ => base_amount / 5,              // Higher minimum in unhealthy system
+            h if h > 0.8 => base_amount / 20, // Generous minimum in healthy system
+            h if h > 0.6 => base_amount / 15,
+            h if h > 0.4 => base_amount / 10, // Standard minimum
+            h if h > 0.2 => base_amount / 8,
+            _ => base_amount / 5, // Higher minimum in unhealthy system
         };
-        
+
         let max_allocation = match health_metrics.overall_health {
-            h if h > 0.8 => base_amount * 5,   // Allow large allocations in healthy system
-            h if h > 0.6 => base_amount * 4,   
-            h if h > 0.4 => base_amount * 3,   // Standard maximum
-            h if h > 0.2 => base_amount * 2,   
-            _ => base_amount,                  // Conservative in unhealthy system
+            h if h > 0.8 => base_amount * 5, // Allow large allocations in healthy system
+            h if h > 0.6 => base_amount * 4,
+            h if h > 0.4 => base_amount * 3, // Standard maximum
+            h if h > 0.2 => base_amount * 2,
+            _ => base_amount, // Conservative in unhealthy system
         };
 
         let bounded_amount = final_amount.max(min_allocation).min(max_allocation);
@@ -2412,7 +2456,9 @@ impl EconomicAutomationEngine {
 
         if !validation_result.is_valid {
             return Err(CommonError::PolicyDenied(
-                validation_result.error_message.unwrap_or_else(|| "Validation failed".to_string())
+                validation_result
+                    .error_message
+                    .unwrap_or_else(|| "Validation failed".to_string()),
             ));
         }
 
@@ -2421,10 +2467,10 @@ impl EconomicAutomationEngine {
             Ok(()) => {
                 log::info!(
                     "Allocated {} mana to {} (requested: {}, factors: rep={:.2}, balance={:.2}, priority={:.2}, conditions={:.2}, performance={:.2}, network={:.2})",
-                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor, 
+                    bounded_amount, recipient, base_amount, reputation_multiplier, balance_factor,
                     priority_multiplier, conditions_multiplier, performance_factor, network_factor
                 );
-                
+
                 // Update allocation efficiency metrics
                 let efficiency = bounded_amount as f64 / base_amount as f64;
                 if let Ok(mut registry) = crate::metrics::METRICS_REGISTRY.write() {
@@ -2432,7 +2478,7 @@ impl EconomicAutomationEngine {
                     registry.allocation_performance.successful_allocations += 1;
                     registry.allocation_performance.allocation_accuracy = efficiency;
                 }
-                
+
                 Ok(bounded_amount)
             }
             Err(e) => {
@@ -2563,7 +2609,7 @@ impl EconomicAutomationEngine {
         initial_resources: HashMap<String, u64>,
     ) -> Result<(), CommonError> {
         let mut federation_states = self.federation_states.write().unwrap();
-        
+
         federation_states.insert(
             federation_id.clone(),
             FederationEconomicState {
@@ -2584,7 +2630,10 @@ impl EconomicAutomationEngine {
             },
         );
 
-        log::info!("Registered federation {} for cross-cooperative coordination", federation_id);
+        log::info!(
+            "Registered federation {} for cross-cooperative coordination",
+            federation_id
+        );
         Ok(())
     }
 
@@ -2598,11 +2647,12 @@ impl EconomicAutomationEngine {
         min_trust_level: f64,
         duration_hours: u64,
     ) -> Result<String, CommonError> {
-        let request_id = format!("req_{}_{}", 
-            self.time_provider.unix_seconds(), 
+        let request_id = format!(
+            "req_{}_{}",
+            self.time_provider.unix_seconds(),
             resource_type
         );
-        
+
         let request = CrossCooperativeRequest {
             request_id: request_id.clone(),
             requesting_federation: "local".to_string(), // This would be configurable
@@ -2616,7 +2666,10 @@ impl EconomicAutomationEngine {
         };
 
         // Add to pending requests
-        self.pending_requests.write().unwrap().insert(request_id.clone(), request.clone());
+        self.pending_requests
+            .write()
+            .unwrap()
+            .insert(request_id.clone(), request.clone());
 
         log::info!("Created cross-cooperative request: {}", request_id);
         Ok(request_id)
@@ -2625,14 +2678,21 @@ impl EconomicAutomationEngine {
     /// Run economic optimization algorithms
     pub async fn run_economic_optimization(&self) -> Result<OptimizationResult, CommonError> {
         let start_time = std::time::Instant::now();
-        let mut optimizer = self.economic_optimizer.write().unwrap();
-        let health_metrics = self.health_metrics.read().unwrap();
-        
+        let health_metrics = {
+            let guard = self.health_metrics.read().unwrap();
+            guard.clone()
+        };
+
         // Calculate current objective function value
         let mut objective_value = 0.0;
         let mut metric_scores = HashMap::new();
-        
-        for (target, weight) in &optimizer.optimization_targets {
+
+        let optimization_targets = {
+            let optimizer = self.economic_optimizer.read().unwrap();
+            optimizer.optimization_targets.clone()
+        };
+
+        for (target, weight) in &optimization_targets {
             let score = match target.as_str() {
                 "economic_health" => health_metrics.overall_health,
                 "resource_efficiency" => health_metrics.resource_efficiency,
@@ -2640,14 +2700,14 @@ impl EconomicAutomationEngine {
                 "cross_cooperative_benefit" => self.calculate_cross_cooperative_benefit().await?,
                 _ => 0.5, // Default neutral score
             };
-            
+
             metric_scores.insert(target.clone(), score);
             objective_value += score * weight;
         }
-        
+
         // Check constraint violations
         let constraint_violations = Vec::new(); // Simplified - would check actual constraints
-        
+
         let result = OptimizationResult {
             timestamp: self.time_provider.unix_seconds(),
             objective_value,
@@ -2655,14 +2715,20 @@ impl EconomicAutomationEngine {
             constraint_violations,
             duration_ms: start_time.elapsed().as_millis() as u64,
         };
-        
+
         // Update performance history
-        optimizer.performance_history.push_back(result.clone());
-        if optimizer.performance_history.len() > 100 {
-            optimizer.performance_history.pop_front();
+        {
+            let mut optimizer = self.economic_optimizer.write().unwrap();
+            optimizer.performance_history.push_back(result.clone());
+            if optimizer.performance_history.len() > 100 {
+                optimizer.performance_history.pop_front();
+            }
         }
-        
-        log::info!("Economic optimization completed with objective value: {:.3}", objective_value);
+
+        log::info!(
+            "Economic optimization completed with objective value: {:.3}",
+            objective_value
+        );
         Ok(result)
     }
 
@@ -2670,19 +2736,19 @@ impl EconomicAutomationEngine {
     async fn calculate_cross_cooperative_benefit(&self) -> Result<f64, CommonError> {
         let federation_states = self.federation_states.read().unwrap();
         let pending_requests = self.pending_requests.read().unwrap();
-        
+
         if federation_states.is_empty() {
             return Ok(0.0);
         }
-        
+
         // Measure successful cross-cooperative interactions
         let fulfilled_requests = pending_requests
             .values()
             .filter(|req| matches!(req.status, RequestStatus::Fulfilled))
             .count();
-        
+
         let total_requests = pending_requests.len();
-        
+
         if total_requests == 0 {
             Ok(0.5) // Neutral score when no requests
         } else {
@@ -2693,28 +2759,36 @@ impl EconomicAutomationEngine {
     /// Get cross-cooperative statistics
     pub fn get_cross_cooperative_stats(&self) -> HashMap<String, serde_json::Value> {
         let mut stats = HashMap::new();
-        
+
         let federation_states = self.federation_states.read().unwrap();
         let pending_requests = self.pending_requests.read().unwrap();
         let optimizer = self.economic_optimizer.read().unwrap();
-        
-        stats.insert("federation_count".to_string(), 
-            serde_json::Value::Number(federation_states.len().into()));
-        
-        stats.insert("pending_requests".to_string(), 
-            serde_json::Value::Number(pending_requests.len().into()));
-        
-        stats.insert("optimization_history_length".to_string(), 
-            serde_json::Value::Number(optimizer.performance_history.len().into()));
-        
+
+        stats.insert(
+            "federation_count".to_string(),
+            serde_json::Value::Number(federation_states.len().into()),
+        );
+
+        stats.insert(
+            "pending_requests".to_string(),
+            serde_json::Value::Number(pending_requests.len().into()),
+        );
+
+        stats.insert(
+            "optimization_history_length".to_string(),
+            serde_json::Value::Number(optimizer.performance_history.len().into()),
+        );
+
         if let Some(last_optimization) = optimizer.performance_history.back() {
-            stats.insert("last_objective_value".to_string(), 
+            stats.insert(
+                "last_objective_value".to_string(),
                 serde_json::Value::Number(
                     serde_json::Number::from_f64(last_optimization.objective_value)
-                        .unwrap_or_else(|| serde_json::Number::from(0))
-                ));
+                        .unwrap_or_else(|| serde_json::Number::from(0)),
+                ),
+            );
         }
-        
+
         stats
     }
 }

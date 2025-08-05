@@ -1,8 +1,7 @@
 use icn_economics::automation::{
-    EconomicOptimizer, OptimizationConstraint, OptimizationResult,
-    CrossCooperativeRequest, RequestStatus, FederationEconomicState,
-    CrossCooperativePolicy, CrossCooperativePricingStrategy,
-    EconomicHealthMetrics,
+    CrossCooperativePolicy, CrossCooperativePricingStrategy, CrossCooperativeRequest,
+    EconomicHealthMetrics, EconomicOptimizer, FederationEconomicState, OptimizationConstraint,
+    OptimizationResult, RequestStatus,
 };
 use std::collections::HashMap;
 
@@ -15,7 +14,7 @@ fn test_economic_optimizer_default() {
     assert!(optimizer.performance_history.is_empty());
 }
 
-#[test]  
+#[test]
 fn test_cross_cooperative_request_creation() {
     let request = CrossCooperativeRequest {
         request_id: "test_req_001".to_string(),
@@ -63,7 +62,10 @@ fn test_federation_economic_state() {
     assert_eq!(federation_state.federation_id, "test-federation");
     assert_eq!(federation_state.health_metrics.overall_health, 0.8);
     assert_eq!(federation_state.available_resources.get("cpu"), Some(&1000));
-    assert_eq!(federation_state.available_resources.get("memory"), Some(&2000));
+    assert_eq!(
+        federation_state.available_resources.get("memory"),
+        Some(&2000)
+    );
 }
 
 #[test]
@@ -89,32 +91,38 @@ fn test_cross_cooperative_pricing_strategies() {
 
     // Just verify they can be created and matched
     match market_strategy {
-        CrossCooperativePricingStrategy::MarketWithTrustDiscount { base_markup, trust_discount } => {
+        CrossCooperativePricingStrategy::MarketWithTrustDiscount {
+            base_markup,
+            trust_discount,
+        } => {
             assert_eq!(base_markup, 1.2);
             assert_eq!(trust_discount, 0.1);
-        },
+        }
         _ => panic!("Unexpected strategy type"),
     }
 
     match cost_plus_strategy {
         CrossCooperativePricingStrategy::CostPlus { markup_percentage } => {
             assert_eq!(markup_percentage, 0.15);
-        },
+        }
         _ => panic!("Unexpected strategy type"),
     }
 
     match mutual_aid_strategy {
         CrossCooperativePricingStrategy::MutualAid { cost_recovery_rate } => {
             assert_eq!(cost_recovery_rate, 1.05);
-        },
+        }
         _ => panic!("Unexpected strategy type"),
     }
 
     match dynamic_strategy {
-        CrossCooperativePricingStrategy::Dynamic { base_price, demand_multiplier } => {
+        CrossCooperativePricingStrategy::Dynamic {
+            base_price,
+            demand_multiplier,
+        } => {
             assert_eq!(base_price, 10.0);
             assert_eq!(demand_multiplier, 0.2);
-        },
+        }
         _ => panic!("Unexpected strategy type"),
     }
 }
@@ -144,17 +152,19 @@ fn test_cross_cooperative_policy() {
 fn test_request_status_transitions() {
     // Test various request statuses
     let open_status = RequestStatus::Open;
-    let partial_status = RequestStatus::PartiallyFulfilled { fulfilled_amount: 50 };
+    let partial_status = RequestStatus::PartiallyFulfilled {
+        fulfilled_amount: 50,
+    };
     let fulfilled_status = RequestStatus::Fulfilled;
     let expired_status = RequestStatus::Expired;
     let cancelled_status = RequestStatus::Cancelled;
 
     assert!(matches!(open_status, RequestStatus::Open));
-    
+
     match partial_status {
         RequestStatus::PartiallyFulfilled { fulfilled_amount } => {
             assert_eq!(fulfilled_amount, 50);
-        },
+        }
         _ => panic!("Unexpected status"),
     }
 

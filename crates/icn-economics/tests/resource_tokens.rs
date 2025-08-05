@@ -106,7 +106,9 @@ impl ResourceLedger for InMemoryResourceLedger {
         let key = (class_id.clone(), owner.clone());
         let entry = balances.entry(key).or_insert(0);
         if *entry < amount {
-            return Err(icn_common::CommonError::PolicyDenied("Insufficient balance".into()));
+            return Err(icn_common::CommonError::PolicyDenied(
+                "Insufficient balance".into(),
+            ));
         }
         *entry -= amount;
         Ok(())
@@ -121,13 +123,15 @@ impl ResourceLedger for InMemoryResourceLedger {
         let mut balances = self.balances.lock().unwrap();
         let from_key = (class_id.clone(), from.clone());
         let to_key = (class_id.clone(), to.clone());
-        
+
         let from_balance = balances.entry(from_key.clone()).or_insert(0);
         if *from_balance < amount {
-            return Err(icn_common::CommonError::PolicyDenied("Insufficient balance".into()));
+            return Err(icn_common::CommonError::PolicyDenied(
+                "Insufficient balance".into(),
+            ));
         }
         *from_balance -= amount;
-        
+
         let to_balance = balances.entry(to_key).or_insert(0);
         *to_balance += amount;
         Ok(())
@@ -171,16 +175,18 @@ fn mint_transfer_burn_flow() {
     let recipient = Did::from_str("did:example:bob").unwrap();
 
     // Create the token class first
-    repo.ledger().create_class(
-        &"token".to_string(),
-        icn_economics::TokenClass::new_fungible(
-            "Test Token".to_string(),
-            "A test token for the resource allocation system".to_string(),
-            "TEST".to_string(),
-            0,
-            issuer.clone(),
-        ),
-    ).unwrap();
+    repo.ledger()
+        .create_class(
+            &"token".to_string(),
+            icn_economics::TokenClass::new_fungible(
+                "Test Token".to_string(),
+                "A test token for the resource allocation system".to_string(),
+                "TEST".to_string(),
+                0,
+                issuer.clone(),
+            ),
+        )
+        .unwrap();
 
     mint_tokens(
         &repo,
@@ -232,16 +238,18 @@ fn mutual_aid_flow() {
     let recipient = Did::from_str("did:example:bob").unwrap();
 
     // Create the mutual aid token class first
-    repo.ledger().create_class(
-        &MUTUAL_AID_CLASS.to_string(),
-        icn_economics::TokenClass::new_fungible(
-            "Mutual Aid".to_string(),
-            "Non-transferable community support tokens".to_string(),
-            "AID".to_string(),
-            0,
-            issuer.clone(),
-        ),
-    ).unwrap();
+    repo.ledger()
+        .create_class(
+            &MUTUAL_AID_CLASS.to_string(),
+            icn_economics::TokenClass::new_fungible(
+                "Mutual Aid".to_string(),
+                "Non-transferable community support tokens".to_string(),
+                "AID".to_string(),
+                0,
+                issuer.clone(),
+            ),
+        )
+        .unwrap();
 
     grant_mutual_aid(&repo, &mana, &issuer, &recipient, 4, Some(scope.clone())).unwrap();
     assert_eq!(

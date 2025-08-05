@@ -10,8 +10,7 @@
 //! aiming for security, accuracy, and interoperability.
 
 use icn_common::{
-    compute_merkle_cid, CommonError, DagBlock, Did, NodeScope, SystemTimeProvider,
-    TimeProvider,
+    compute_merkle_cid, CommonError, DagBlock, Did, NodeScope, SystemTimeProvider, TimeProvider,
 };
 use icn_dag::StorageService;
 use log::{debug, info};
@@ -34,11 +33,6 @@ pub mod automation;
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
-};
-pub use monitoring::{
-    EconomicMonitoringService, SystemHealthMetrics, HealthAlert, AlertSeverity, AlertCategory,
-    MonitoringConfig, ManaHealthMetrics, TokenHealthMetrics, EconomicActivityMetrics,
-    NetworkPerformanceMetrics, CrossCooperativeMetrics,
 };
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use economic_dispute_resolver::{
@@ -63,6 +57,11 @@ pub use marketplace::{
     BidStatus, FulfillmentDetails, FulfillmentMethod, InMemoryMarketplaceStore, ItemType,
     MarketplaceBid, MarketplaceOffer, MarketplaceStore, MarketplaceTransaction, OfferFilter,
     OfferStatus, TransactionStatus,
+};
+pub use monitoring::{
+    AlertCategory, AlertSeverity, CrossCooperativeMetrics, EconomicActivityMetrics,
+    EconomicMonitoringService, HealthAlert, ManaHealthMetrics, MonitoringConfig,
+    NetworkPerformanceMetrics, SystemHealthMetrics, TokenHealthMetrics,
 };
 pub use mutual_aid::{grant_mutual_aid, use_mutual_aid, MUTUAL_AID_CLASS};
 pub use mutual_credit::{
@@ -283,7 +282,7 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
 /// Exposes a public function to charge mana, wrapping ResourcePolicyEnforcer with enhanced validation.
 pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(), CommonError> {
     let start_time = std::time::Instant::now();
-    
+
     // Enhanced validation before charging
     let validation_context = transaction_validation::ValidationContext {
         operation_type: "charge_mana".to_string(),
@@ -294,12 +293,8 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
         reputation_required: false,
     };
 
-    let validation_result = transaction_validation::validate_mana_spend(
-        &ledger,
-        did,
-        amount,
-        &validation_context,
-    );
+    let validation_result =
+        transaction_validation::validate_mana_spend(&ledger, did, amount, &validation_context);
 
     if !validation_result.is_valid {
         // Record failed validation
@@ -307,7 +302,9 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
             registry.record_validation(false, validation_result.validation_time_ms);
         }
         return Err(CommonError::PolicyDenied(
-            validation_result.error_message.unwrap_or_else(|| "Mana charge validation failed".to_string())
+            validation_result
+                .error_message
+                .unwrap_or_else(|| "Mana charge validation failed".to_string()),
         ));
     }
 
@@ -321,13 +318,13 @@ pub fn charge_mana<L: ManaLedger>(ledger: L, did: &Did, amount: u64) -> Result<(
 
     info!("[icn-economics] charge_mana called for DID {did:?}, amount {amount}");
     let result = policy_enforcer.spend_mana(did, amount);
-    
+
     // Record performance metrics
     let execution_time = start_time.elapsed().as_millis() as f64;
     if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
         registry.record_mana_operation(execution_time);
         registry.record_validation(result.is_ok(), validation_result.validation_time_ms);
-        
+
         if result.is_err() {
             registry.record_insufficient_mana();
         }
@@ -530,7 +527,7 @@ pub fn execute_marketplace_transaction<
     executor: &Did, // Could be seller, buyer, or marketplace operator
 ) -> Result<marketplace::MarketplaceTransaction, CommonError> {
     let start_time = std::time::Instant::now();
-    
+
     // Get the offer and bid
     let offer = marketplace_store
         .get_offer(offer_id)
@@ -551,7 +548,9 @@ pub fn execute_marketplace_transaction<
     if !validation_result.is_valid {
         metrics::POLICY_VIOLATIONS.inc();
         return Err(CommonError::PolicyDenied(
-            validation_result.error_message.unwrap_or_else(|| "Marketplace transaction validation failed".to_string())
+            validation_result
+                .error_message
+                .unwrap_or_else(|| "Marketplace transaction validation failed".to_string()),
         ));
     }
 
@@ -584,7 +583,9 @@ pub fn execute_marketplace_transaction<
 
     if !transfer_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            transfer_validation.error_message.unwrap_or_else(|| "Token transfer validation failed".to_string())
+            transfer_validation
+                .error_message
+                .unwrap_or_else(|| "Token transfer validation failed".to_string()),
         ));
     }
 
@@ -616,7 +617,9 @@ pub fn execute_marketplace_transaction<
 
     if !mana_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            mana_validation.error_message.unwrap_or_else(|| "Mana fee validation failed".to_string())
+            mana_validation
+                .error_message
+                .unwrap_or_else(|| "Mana fee validation failed".to_string()),
         ));
     }
 
@@ -666,7 +669,7 @@ pub fn execute_marketplace_transaction<
         registry.record_cross_cooperative_share(total_price, 1.0);
         registry.record_validation(true, validation_result.validation_time_ms);
     }
-    
+
     // Update marketplace metrics
     metrics::helpers::record_marketplace_transaction(total_price);
     metrics::TRANSACTION_DURATION.observe(execution_time / 1000.0);
@@ -751,7 +754,7 @@ pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
     scope: Option<NodeScope>,
 ) -> Result<(), CommonError> {
     let start_time = std::time::Instant::now();
-    
+
     // Validate mana charge first
     let mana_context = transaction_validation::ValidationContext {
         operation_type: "mint_tokens_fee".to_string(),
@@ -762,25 +765,23 @@ pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
         reputation_required: true,
     };
 
-    let mana_validation = transaction_validation::validate_mana_spend(
-        mana_ledger,
-        issuer,
-        TOKEN_FEE,
-        &mana_context,
-    );
+    let mana_validation =
+        transaction_validation::validate_mana_spend(mana_ledger, issuer, TOKEN_FEE, &mana_context);
 
     if !mana_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            mana_validation.error_message.unwrap_or_else(|| "Mana validation failed for token minting".to_string())
+            mana_validation
+                .error_message
+                .unwrap_or_else(|| "Mana validation failed for token minting".to_string()),
         ));
     }
 
     // Charge mana fee
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
-    
+
     // Execute the mint operation
     let result = repo.mint(issuer, class_id, amount, recipient, scope);
-    
+
     // Record metrics
     let execution_time = start_time.elapsed().as_millis() as f64;
     if result.is_ok() {
@@ -788,12 +789,10 @@ pub fn mint_tokens<L: ResourceLedger, M: ManaLedger>(
         if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
             registry.record_allocation_performance(true, execution_time, 1.0);
         }
-    } else {
-        if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
-            registry.record_allocation_performance(false, execution_time, 0.0);
-        }
+    } else if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
+        registry.record_allocation_performance(false, execution_time, 0.0);
     }
-    
+
     result
 }
 
@@ -808,7 +807,7 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
     scope: Option<NodeScope>,
 ) -> Result<(), CommonError> {
     let start_time = std::time::Instant::now();
-    
+
     // Validate token burn operation
     let _burn_context = transaction_validation::ValidationContext {
         operation_type: "burn_tokens".to_string(),
@@ -838,25 +837,23 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
         reputation_required: true,
     };
 
-    let mana_validation = transaction_validation::validate_mana_spend(
-        mana_ledger,
-        issuer,
-        TOKEN_FEE,
-        &mana_context,
-    );
+    let mana_validation =
+        transaction_validation::validate_mana_spend(mana_ledger, issuer, TOKEN_FEE, &mana_context);
 
     if !mana_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            mana_validation.error_message.unwrap_or_else(|| "Mana validation failed for token burning".to_string())
+            mana_validation
+                .error_message
+                .unwrap_or_else(|| "Mana validation failed for token burning".to_string()),
         ));
     }
 
     // Charge mana fee
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
-    
+
     // Execute the burn operation
     let result = repo.burn(issuer, class_id, amount, owner, scope);
-    
+
     // Record metrics
     let execution_time = start_time.elapsed().as_millis() as f64;
     if result.is_ok() {
@@ -864,15 +861,14 @@ pub fn burn_tokens<L: ResourceLedger, M: ManaLedger>(
         if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
             registry.record_allocation_performance(true, execution_time, 1.0);
         }
-    } else {
-        if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
-            registry.record_allocation_performance(false, execution_time, 0.0);
-        }
+    } else if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
+        registry.record_allocation_performance(false, execution_time, 0.0);
     }
-    
+
     result
 }
 /// Mint tokens with reputation considerations (currently just wraps mint_tokens)
+#[allow(clippy::too_many_arguments)]
 pub fn mint_tokens_with_reputation<L: ResourceLedger, M: ManaLedger>(
     repo: &ResourceRepositoryAdapter<L>,
     mana_ledger: &M,
@@ -885,7 +881,15 @@ pub fn mint_tokens_with_reputation<L: ResourceLedger, M: ManaLedger>(
 ) -> Result<(), CommonError> {
     // For now, this is just a wrapper around mint_tokens
     // In a full implementation, this would check reputation requirements
-    mint_tokens(repo, mana_ledger, issuer, class_id, amount, recipient, scope)
+    mint_tokens(
+        repo,
+        mana_ledger,
+        issuer,
+        class_id,
+        amount,
+        recipient,
+        scope,
+    )
 }
 
 /// Enhanced token transfer with comprehensive validation and metrics
@@ -901,7 +905,7 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
     scope: Option<NodeScope>,
 ) -> Result<(), CommonError> {
     let start_time = std::time::Instant::now();
-    
+
     // Validate token transfer
     let transfer_context = transaction_validation::ValidationContext {
         operation_type: "transfer_tokens".to_string(),
@@ -923,7 +927,9 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
 
     if !transfer_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            transfer_validation.error_message.unwrap_or_else(|| "Token transfer validation failed".to_string())
+            transfer_validation
+                .error_message
+                .unwrap_or_else(|| "Token transfer validation failed".to_string()),
         ));
     }
 
@@ -942,45 +948,45 @@ pub fn transfer_tokens<L: ResourceLedger, M: ManaLedger>(
         reputation_required: false,
     };
 
-    let mana_validation = transaction_validation::validate_mana_spend(
-        mana_ledger,
-        issuer,
-        TOKEN_FEE,
-        &mana_context,
-    );
+    let mana_validation =
+        transaction_validation::validate_mana_spend(mana_ledger, issuer, TOKEN_FEE, &mana_context);
 
     if !mana_validation.is_valid {
         return Err(CommonError::PolicyDenied(
-            mana_validation.error_message.unwrap_or_else(|| "Mana validation failed for token transfer".to_string())
+            mana_validation
+                .error_message
+                .unwrap_or_else(|| "Mana validation failed for token transfer".to_string()),
         ));
     }
 
     // Charge mana fee
     charge_mana(mana_ledger, issuer, TOKEN_FEE)?;
-    
+
     // Execute the transfer operation
     let result = repo.transfer(issuer, class_id, amount, from, to, scope);
-    
+
     // Record metrics
     let execution_time = start_time.elapsed().as_millis() as f64;
     if result.is_ok() {
         metrics::helpers::record_token_operation("transfer", amount);
-        let efficiency = if transfer_context.cross_cooperative { 0.9 } else { 1.0 };
+        let efficiency = if transfer_context.cross_cooperative {
+            0.9
+        } else {
+            1.0
+        };
         if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
             registry.record_allocation_performance(true, execution_time, efficiency);
             if transfer_context.cross_cooperative {
                 registry.record_cross_cooperative_share(amount, efficiency);
             }
         }
-    } else {
-        if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
-            registry.record_allocation_performance(false, execution_time, 0.0);
-            if transfer_context.cross_cooperative {
-                registry.record_cross_cooperative_failure();
-            }
+    } else if let Ok(mut registry) = metrics::METRICS_REGISTRY.write() {
+        registry.record_allocation_performance(false, execution_time, 0.0);
+        if transfer_context.cross_cooperative {
+            registry.record_cross_cooperative_failure();
         }
     }
-    
+
     result
 }
 
@@ -1143,7 +1149,8 @@ pub mod transaction_validation {
                 is_valid: false,
                 error_message: Some(format!(
                     "Amount {} exceeds maximum spend limit {}",
-                    amount, ResourcePolicyEnforcer::<InMemoryLedger>::MAX_SPEND_LIMIT
+                    amount,
+                    ResourcePolicyEnforcer::<InMemoryLedger>::MAX_SPEND_LIMIT
                 )),
                 warnings,
                 validation_time_ms: start.elapsed().as_millis() as f64,
@@ -1154,7 +1161,8 @@ pub mod transaction_validation {
         // Check 4: Low balance warning
         checks.push("balance_warning".to_string());
         let remaining_after = current_balance - required_amount;
-        if remaining_after < 100 { // Low balance threshold
+        if remaining_after < 100 {
+            // Low balance threshold
             warnings.push(format!(
                 "Low balance warning: {} mana remaining after operation",
                 remaining_after
@@ -1236,7 +1244,7 @@ pub mod transaction_validation {
         // Check 3: Transfer allowed by token rules
         checks.push("transferability_rules".to_string());
         match ledger.can_transfer(&class_id.to_string(), from, to, amount) {
-            Ok(true) => {},
+            Ok(true) => {}
             Ok(false) => {
                 return ValidationResult {
                     is_valid: false,
@@ -1245,7 +1253,7 @@ pub mod transaction_validation {
                     validation_time_ms: start.elapsed().as_millis() as f64,
                     checks_performed: checks,
                 };
-            },
+            }
             Err(e) => {
                 return ValidationResult {
                     is_valid: false,
@@ -1421,7 +1429,8 @@ pub mod transaction_validation {
             0.0
         };
 
-        if price_difference > 0.2 { // 20% above asking price
+        if price_difference > 0.2 {
+            // 20% above asking price
             warnings.push(format!(
                 "Bid price is {:.1}% above asking price",
                 price_difference * 100.0
@@ -1430,7 +1439,8 @@ pub mod transaction_validation {
 
         // Check 7: Large transaction warning
         checks.push("large_transaction_warning".to_string());
-        if total_cost > 10000 { // Large transaction threshold
+        if total_cost > 10000 {
+            // Large transaction threshold
             warnings.push(format!("Large transaction detected: {} tokens", total_cost));
         }
 
@@ -1463,7 +1473,9 @@ pub mod transaction_validation {
 
         // Check 1: Resource availability
         checks.push("resource_availability".to_string());
-        let available = available_resources.get(&resource_spec.resource_type).unwrap_or(&0);
+        let available = available_resources
+            .get(&resource_spec.resource_type)
+            .unwrap_or(&0);
         if *available < resource_spec.amount {
             return ValidationResult {
                 is_valid: false,
@@ -1494,7 +1506,7 @@ pub mod transaction_validation {
                         checks_performed: checks,
                     };
                 }
-            },
+            }
             ResourcePriority::High => {
                 if reputation < 60 {
                     warnings.push(format!(
@@ -1502,14 +1514,15 @@ pub mod transaction_validation {
                         reputation
                     ));
                 }
-            },
+            }
             _ => {}
         }
 
         // Check 3: Duration limits
         checks.push("duration_limits".to_string());
         if let Some(duration) = resource_spec.duration {
-            if duration > 86400 { // 24 hours
+            if duration > 86400 {
+                // 24 hours
                 warnings.push("Long duration allocation requested (>24 hours)".to_string());
             }
         }
@@ -1542,7 +1555,10 @@ pub mod transaction_validation {
 }
 
 // Add these to the crate-level exports
-pub use transaction_validation::{ValidationContext, ValidationResult, validate_mana_spend, validate_token_transfer, validate_marketplace_transaction, validate_cross_cooperative_allocation};
+pub use transaction_validation::{
+    validate_cross_cooperative_allocation, validate_mana_spend, validate_marketplace_transaction,
+    validate_token_transfer, ValidationContext, ValidationResult,
+};
 
 #[cfg(test)]
 mod tests {

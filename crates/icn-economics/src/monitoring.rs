@@ -292,11 +292,8 @@ impl EconomicMonitoringService {
         let start_time = Instant::now();
 
         // Collect comprehensive metrics
-        let metrics = Self::collect_system_metrics(
-            mana_ledger,
-            resource_ledger,
-            time_provider,
-        ).await?;
+        let metrics =
+            Self::collect_system_metrics(mana_ledger, resource_ledger, time_provider).await?;
 
         // Generate alerts based on thresholds
         let alerts = Self::generate_alerts(&metrics, alert_thresholds);
@@ -309,7 +306,10 @@ impl EconomicMonitoringService {
 
         // Store historical snapshot
         if config.enable_trend_analysis {
-            let snapshot = HealthSnapshot { metrics: metrics.clone(), alerts };
+            let snapshot = HealthSnapshot {
+                metrics: metrics.clone(),
+                alerts,
+            };
             Self::store_historical_snapshot(snapshot, history, config);
         }
 
@@ -371,7 +371,9 @@ impl EconomicMonitoringService {
                 ("federation-a".to_string(), 0.9),
                 ("federation-b".to_string(), 0.8),
                 ("federation-c".to_string(), 0.85),
-            ].into_iter().collect(),
+            ]
+            .into_iter()
+            .collect(),
         };
 
         // Calculate overall health score
@@ -403,24 +405,31 @@ impl EconomicMonitoringService {
         cross_cooperative: &CrossCooperativeMetrics,
     ) -> f64 {
         // Weighted health score calculation
-        let mana_score = (1.0 - mana_health.balance_inequality) * 0.7 + mana_health.regeneration_rate * 0.3;
-        let token_score = (1.0 - token_health.failed_transaction_rate) * 0.6 + 
-                         (token_health.transaction_volume as f64 / 1000.0).min(1.0) * 0.4;
-        let economic_score = (economic_activity.marketplace_activity + 
-                             economic_activity.allocation_efficiency + 
-                             economic_activity.price_stability + 
-                             economic_activity.market_liquidity) / 4.0;
-        let network_score = (1.0 - network_performance.error_rate) * 0.5 + 
-                           (1.0 - (network_performance.transaction_latency / 5000.0).min(1.0)) * 0.5;
+        let mana_score =
+            (1.0 - mana_health.balance_inequality) * 0.7 + mana_health.regeneration_rate * 0.3;
+        let token_score = (1.0 - token_health.failed_transaction_rate) * 0.6
+            + (token_health.transaction_volume as f64 / 1000.0).min(1.0) * 0.4;
+        let economic_score = (economic_activity.marketplace_activity
+            + economic_activity.allocation_efficiency
+            + economic_activity.price_stability
+            + economic_activity.market_liquidity)
+            / 4.0;
+        let network_score = (1.0 - network_performance.error_rate) * 0.5
+            + (1.0 - (network_performance.transaction_latency / 5000.0).min(1.0)) * 0.5;
         let federation_score = if cross_cooperative.active_federations > 0 {
-            cross_cooperative.federation_health.values().sum::<f64>() / cross_cooperative.federation_health.len() as f64
+            cross_cooperative.federation_health.values().sum::<f64>()
+                / cross_cooperative.federation_health.len() as f64
         } else {
             1.0
         };
 
         // Weighted average
-        (mana_score * 0.25 + token_score * 0.25 + economic_score * 0.25 + network_score * 0.15 + federation_score * 0.1)
-            .max(0.0).min(1.0)
+        (mana_score * 0.25
+            + token_score * 0.25
+            + economic_score * 0.25
+            + network_score * 0.15
+            + federation_score * 0.1)
+            .clamp(0.0, 1.0)
     }
 
     /// Generate alerts based on current metrics and thresholds
@@ -433,9 +442,16 @@ impl EconomicMonitoringService {
         // Overall health alert
         if metrics.overall_health < thresholds.min_overall_health {
             alerts.push(HealthAlert {
-                severity: if metrics.overall_health < 0.2 { AlertSeverity::Emergency } else { AlertSeverity::Critical },
+                severity: if metrics.overall_health < 0.2 {
+                    AlertSeverity::Emergency
+                } else {
+                    AlertSeverity::Critical
+                },
                 category: AlertCategory::EconomicHealth,
-                message: format!("System health critically low: {:.2}", metrics.overall_health),
+                message: format!(
+                    "System health critically low: {:.2}",
+                    metrics.overall_health
+                ),
                 metric_value: metrics.overall_health,
                 threshold: thresholds.min_overall_health,
                 suggested_actions: vec![
@@ -451,7 +467,10 @@ impl EconomicMonitoringService {
             alerts.push(HealthAlert {
                 severity: AlertSeverity::Warning,
                 category: AlertCategory::ManaSystem,
-                message: format!("High mana balance inequality: {:.2}", metrics.mana_health.balance_inequality),
+                message: format!(
+                    "High mana balance inequality: {:.2}",
+                    metrics.mana_health.balance_inequality
+                ),
                 metric_value: metrics.mana_health.balance_inequality,
                 threshold: thresholds.max_balance_inequality,
                 suggested_actions: vec![
@@ -466,7 +485,10 @@ impl EconomicMonitoringService {
             alerts.push(HealthAlert {
                 severity: AlertSeverity::Critical,
                 category: AlertCategory::TokenSystem,
-                message: format!("High failed transaction rate: {:.2}%", metrics.token_health.failed_transaction_rate * 100.0),
+                message: format!(
+                    "High failed transaction rate: {:.2}%",
+                    metrics.token_health.failed_transaction_rate * 100.0
+                ),
                 metric_value: metrics.token_health.failed_transaction_rate,
                 threshold: thresholds.max_failed_transaction_rate,
                 suggested_actions: vec![
@@ -482,7 +504,10 @@ impl EconomicMonitoringService {
             alerts.push(HealthAlert {
                 severity: AlertSeverity::Warning,
                 category: AlertCategory::EconomicHealth,
-                message: format!("Low market liquidity: {:.2}", metrics.economic_activity.market_liquidity),
+                message: format!(
+                    "Low market liquidity: {:.2}",
+                    metrics.economic_activity.market_liquidity
+                ),
                 metric_value: metrics.economic_activity.market_liquidity,
                 threshold: thresholds.min_market_liquidity,
                 suggested_actions: vec![
@@ -498,7 +523,10 @@ impl EconomicMonitoringService {
             alerts.push(HealthAlert {
                 severity: AlertSeverity::Warning,
                 category: AlertCategory::NetworkPerformance,
-                message: format!("High transaction latency: {:.1}ms", metrics.network_performance.transaction_latency),
+                message: format!(
+                    "High transaction latency: {:.1}ms",
+                    metrics.network_performance.transaction_latency
+                ),
                 metric_value: metrics.network_performance.transaction_latency,
                 threshold: thresholds.max_transaction_latency,
                 suggested_actions: vec![
@@ -534,9 +562,12 @@ impl EconomicMonitoringService {
         crate::metrics::ECONOMIC_HEALTH_SCORE.set((metrics.overall_health * 100.0) as i64);
         crate::metrics::TOTAL_MANA_CIRCULATION.set(metrics.mana_health.total_circulation as i64);
         crate::metrics::ACTIVE_ACCOUNTS.set(metrics.mana_health.active_accounts as i64);
-        crate::metrics::RESOURCE_UTILIZATION.set((metrics.network_performance.resource_utilization * 100.0) as i64);
-        crate::metrics::MARKET_LIQUIDITY.set((metrics.economic_activity.market_liquidity * 100.0) as i64);
-        crate::metrics::PRICE_STABILITY.set((metrics.economic_activity.price_stability * 100.0) as i64);
+        crate::metrics::RESOURCE_UTILIZATION
+            .set((metrics.network_performance.resource_utilization * 100.0) as i64);
+        crate::metrics::MARKET_LIQUIDITY
+            .set((metrics.economic_activity.market_liquidity * 100.0) as i64);
+        crate::metrics::PRICE_STABILITY
+            .set((metrics.economic_activity.price_stability * 100.0) as i64);
     }
 
     /// Get current health metrics
@@ -611,13 +642,13 @@ impl EconomicMonitoringService {
     pub fn get_system_health_report(&self) -> SystemHealthReport {
         let metrics = self.current_metrics.read().unwrap();
         let history = self.history.read().unwrap();
-        
+
         let trend_analysis = if self.config.enable_trend_analysis && history.len() >= 2 {
             Some(self.calculate_trends(&history))
         } else {
             None
         };
-        
+
         SystemHealthReport {
             current_metrics: metrics.clone(),
             trend_analysis,
@@ -626,74 +657,116 @@ impl EconomicMonitoringService {
             last_updated: self.time_provider.unix_seconds(),
         }
     }
-    
+
     /// Export metrics for external monitoring systems (Prometheus, etc.)
     pub fn export_prometheus_metrics(&self) -> String {
         let metrics = self.current_metrics.read().unwrap();
         let mut output = String::new();
-        
+
         // Mana metrics
-        output.push_str(&format!("# HELP icn_mana_total_supply Total mana supply in the system\n"));
-        output.push_str(&format!("# TYPE icn_mana_total_supply gauge\n"));
-        output.push_str(&format!("icn_mana_total_supply {}\n", metrics.mana_health.total_circulation));
-        
-        output.push_str(&format!("# HELP icn_mana_average_balance Average mana balance per account\n"));
-        output.push_str(&format!("# TYPE icn_mana_average_balance gauge\n"));
-        output.push_str(&format!("icn_mana_average_balance {}\n", metrics.mana_health.average_balance));
-        
+        output.push_str("# HELP icn_mana_total_supply Total mana supply in the system\n");
+        output.push_str("# TYPE icn_mana_total_supply gauge\n");
+        output.push_str(&format!(
+            "icn_mana_total_supply {}\n",
+            metrics.mana_health.total_circulation
+        ));
+
+        output.push_str("# HELP icn_mana_average_balance Average mana balance per account\n");
+        output.push_str("# TYPE icn_mana_average_balance gauge\n");
+        output.push_str(&format!(
+            "icn_mana_average_balance {}\n",
+            metrics.mana_health.average_balance
+        ));
+
         // Token metrics
-        output.push_str(&format!("# HELP icn_token_classes_active Number of active token classes\n"));
-        output.push_str(&format!("# TYPE icn_token_classes_active gauge\n"));
-        output.push_str(&format!("icn_token_classes_active {}\n", metrics.token_health.active_token_classes));
-        
+        output.push_str("# HELP icn_token_classes_active Number of active token classes\n");
+        output.push_str("# TYPE icn_token_classes_active gauge\n");
+        output.push_str(&format!(
+            "icn_token_classes_active {}\n",
+            metrics.token_health.active_token_classes
+        ));
+
         // Economic activity metrics
-        output.push_str(&format!("# HELP icn_marketplace_activity Marketplace activity level (0-1)\n"));
-        output.push_str(&format!("# TYPE icn_marketplace_activity gauge\n"));
-        output.push_str(&format!("icn_marketplace_activity {}\n", metrics.economic_activity.marketplace_activity));
-        
+        output.push_str("# HELP icn_marketplace_activity Marketplace activity level (0-1)\n");
+        output.push_str("# TYPE icn_marketplace_activity gauge\n");
+        output.push_str(&format!(
+            "icn_marketplace_activity {}\n",
+            metrics.economic_activity.marketplace_activity
+        ));
+
         // Cross-cooperative metrics
-        output.push_str(&format!("# HELP icn_active_federations Number of active federations\n"));
-        output.push_str(&format!("# TYPE icn_active_federations gauge\n"));
-        output.push_str(&format!("icn_active_federations {}\n", metrics.cross_cooperative.active_federations));
-        
+        output.push_str("# HELP icn_active_federations Number of active federations\n");
+        output.push_str("# TYPE icn_active_federations gauge\n");
+        output.push_str(&format!(
+            "icn_active_federations {}\n",
+            metrics.cross_cooperative.active_federations
+        ));
+
         output
     }
-    
+
     /// Get system status summary for dashboards
     pub fn get_system_status_summary(&self) -> SystemStatusSummary {
         let metrics = self.current_metrics.read().unwrap();
         let active_alerts = self.get_active_alerts();
-        
-        let overall_status = if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Emergency)) {
+
+        let overall_status = if active_alerts
+            .iter()
+            .any(|a| matches!(a.severity, AlertSeverity::Emergency))
+        {
             SystemStatus::Emergency
-        } else if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Critical)) {
+        } else if active_alerts
+            .iter()
+            .any(|a| matches!(a.severity, AlertSeverity::Critical))
+        {
             SystemStatus::Critical
-        } else if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Warning)) {
+        } else if active_alerts
+            .iter()
+            .any(|a| matches!(a.severity, AlertSeverity::Warning))
+        {
             SystemStatus::Warning
         } else {
             SystemStatus::Healthy
         };
-        
+
         SystemStatusSummary {
             overall_status,
-            mana_system_health: SubsystemHealth { score: 0.9, status: SystemStatus::Healthy },
-            token_system_health: SubsystemHealth { score: 0.8, status: SystemStatus::Healthy },
-            economic_activity_health: SubsystemHealth { score: 0.7, status: SystemStatus::Healthy },
-            network_performance_health: SubsystemHealth { score: 0.9, status: SystemStatus::Healthy },
-            cross_cooperative_health: SubsystemHealth { score: 0.8, status: SystemStatus::Healthy },
+            mana_system_health: SubsystemHealth {
+                score: 0.9,
+                status: SystemStatus::Healthy,
+            },
+            token_system_health: SubsystemHealth {
+                score: 0.8,
+                status: SystemStatus::Healthy,
+            },
+            economic_activity_health: SubsystemHealth {
+                score: 0.7,
+                status: SystemStatus::Healthy,
+            },
+            network_performance_health: SubsystemHealth {
+                score: 0.9,
+                status: SystemStatus::Healthy,
+            },
+            cross_cooperative_health: SubsystemHealth {
+                score: 0.8,
+                status: SystemStatus::Healthy,
+            },
             alert_count_by_severity: HashMap::new(),
             uptime_seconds: self.time_provider.unix_seconds() - metrics.timestamp,
             last_health_check: self.time_provider.unix_seconds(),
         }
     }
-    
+
     /// Calculate system trends from historical data
     fn calculate_trends(&self, _history: &[HealthSnapshot]) -> TrendAnalysis {
         TrendAnalysis::default()
     }
-    
+
     /// Generate system recommendations based on current metrics
-    fn generate_recommendations(&self, _metrics: &SystemHealthMetrics) -> Vec<SystemRecommendation> {
+    fn generate_recommendations(
+        &self,
+        _metrics: &SystemHealthMetrics,
+    ) -> Vec<SystemRecommendation> {
         Vec::new()
     }
 }
