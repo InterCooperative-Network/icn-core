@@ -41,27 +41,92 @@ Mana is ICN's primary coordination mechanism for compute resources and network p
 - **Reputation-Influenced**: Regeneration rate affected by contribution history
 
 #### **Mana Mechanics**
+
+The mana system now implements **capacity-aware regeneration** that rewards nodes based on their actual contribution to the network. The regeneration formula combines base rates with capacity and reputation factors:
+
+**Regeneration Formula**: `regeneration = base_rate × capacity_factor × reputation_factor × time_elapsed`
+
 ```rust
 pub struct ManaAccount {
     pub did: Did,
     pub current_balance: u64,
     pub max_capacity: u64,
-    pub regeneration_rate: f64,
+    pub base_regeneration_rate: f64,
     pub last_regeneration: DateTime<Utc>,
     pub reputation_multiplier: f64,
+    pub capacity_score: f64,  // New: from CapacityLedger
+}
+
+pub struct CapacityMetrics {
+    pub compute_contribution: f64,    // CPU/GPU resources provided
+    pub storage_contribution: f64,    // Storage space provided
+    pub bandwidth_contribution: f64,  // Network bandwidth provided
+    pub uptime_score: f64,           // Reliability and availability
+    pub quality_score: f64,          // Performance and reliability metrics
 }
 
 impl ManaAccount {
-    pub fn regenerate(&mut self, now: DateTime<Utc>) {
+    /// Enhanced regeneration with capacity-aware formula
+    pub fn regenerate(&mut self, now: DateTime<Utc>, capacity_metrics: &CapacityMetrics) {
         let time_elapsed = now.signed_duration_since(self.last_regeneration);
         let hours_elapsed = time_elapsed.num_hours() as f64;
         
-        let regeneration = (self.regeneration_rate * hours_elapsed * self.reputation_multiplier) as u64;
+        // Calculate capacity factor from multiple contribution metrics
+        let capacity_factor = self.calculate_capacity_factor(capacity_metrics);
+        
+        // Apply enhanced regeneration formula
+        let regeneration = (
+            self.base_regeneration_rate 
+            * capacity_factor 
+            * self.reputation_multiplier 
+            * hours_elapsed
+        ) as u64;
+        
         self.current_balance = std::cmp::min(
             self.current_balance + regeneration,
             self.max_capacity
         );
         self.last_regeneration = now;
+    }
+    
+    /// Calculate capacity factor from contribution metrics
+    fn calculate_capacity_factor(&self, metrics: &CapacityMetrics) -> f64 {
+        // Weighted average of different contribution types
+        let compute_weight = 0.3;
+        let storage_weight = 0.25;
+        let bandwidth_weight = 0.25;
+        let uptime_weight = 0.15;
+        let quality_weight = 0.05;
+        
+        (metrics.compute_contribution * compute_weight +
+         metrics.storage_contribution * storage_weight +
+         metrics.bandwidth_contribution * bandwidth_weight +
+         metrics.uptime_score * uptime_weight +
+         metrics.quality_score * quality_weight)
+        .max(0.1) // Minimum factor to ensure basic regeneration
+        .min(3.0) // Maximum factor to prevent exploitation
+    }
+}
+```
+
+#### **Capacity-Based Spending Limits**
+
+To prevent abuse, mana spending is also influenced by capacity scores:
+
+```rust
+impl ManaAccount {
+    /// Check if spending is allowed based on capacity and balance
+    pub fn can_spend(&self, amount: u64, capacity_metrics: &CapacityMetrics) -> bool {
+        if self.current_balance < amount {
+            return false;
+        }
+        
+        // Higher capacity nodes can spend more freely
+        let capacity_factor = self.calculate_capacity_factor(capacity_metrics);
+        let max_spend_ratio = (0.5 + capacity_factor * 0.3).min(0.9);
+        let max_spendable = (self.max_capacity as f64 * max_spend_ratio) as u64;
+        
+        amount <= max_spendable
     }
 }
 ```
@@ -105,7 +170,160 @@ pub struct ScopedToken {
 - **`icn:service/translation`**: Language translation services
 - **`icn:resource/meeting-room`**: Physical space booking
 
-### **3. Contribution Recognition System**
+### **3. Mutual Credit System**
+
+ICN implements a complete mutual credit system that enables communities to create their own credit networks without relying on external capital or debt-based money.
+
+#### **Core Mutual Credit Principles**
+- **Community Issuance**: Credit is created by the community for the community
+- **Zero Interest**: No interest charges on credit balances
+- **Mutual Obligation**: Every credit is balanced by an equivalent debit
+- **Democratic Control**: Community governs credit policies and limits
+- **Anti-Speculation**: Credit cannot be used for speculative purposes
+
+#### **Mutual Credit Implementation**
+```rust
+/// Mutual credit account with positive and negative balances
+pub struct MutualCreditAccount {
+    pub did: Did,
+    pub community_id: String,
+    pub balance: i64,              // Can be negative (debt)
+    pub credit_limit: u64,         // Maximum debt allowed
+    pub trust_score: f64,          // Community trust rating
+    pub created_at: DateTime<Utc>,
+    pub last_activity: DateTime<Utc>,
+    pub account_status: AccountStatus,
+}
+
+/// Credit line between community members
+pub struct CreditLine {
+    pub creditor: Did,
+    pub debtor: Did,
+    pub amount: u64,
+    pub purpose: String,
+    pub terms: CreditTerms,
+    pub status: CreditLineStatus,
+    pub created_at: DateTime<Utc>,
+    pub repayment_schedule: Vec<RepaymentRecord>,
+}
+
+pub enum CreditLineStatus {
+    Proposed,        // Credit line proposed but not accepted
+    Active,          // Credit line in use
+    Repaying,        // Being repaid according to schedule
+    Completed,       // Fully repaid
+    Disputed,        // Under dispute resolution
+    Suspended,       // Temporarily suspended
+}
+
+/// Community-specific credit terms
+pub struct CreditTerms {
+    pub repayment_period: Duration,
+    pub required_guarantors: u32,
+    pub collateral_required: bool,
+    pub purpose_restrictions: Vec<String>,
+    pub community_approval_required: bool,
+}
+```
+
+#### **Mutual Credit Operations**
+```rust
+impl MutualCreditSystem {
+    /// Issue credit between community members
+    pub fn issue_credit(
+        &self,
+        creditor: &Did,
+        debtor: &Did,
+        amount: u64,
+        purpose: String
+    ) -> Result<CreditTransaction, CommonError> {
+        // Validate community membership
+        self.validate_community_membership(creditor, debtor)?;
+        
+        // Check credit limits
+        self.check_credit_limits(debtor, amount)?;
+        
+        // Create balanced transaction (credit + debit)
+        let transaction = CreditTransaction {
+            id: generate_transaction_id(),
+            creditor: creditor.clone(),
+            debtor: debtor.clone(),
+            amount,
+            purpose,
+            timestamp: Utc::now(),
+            status: CreditTransactionStatus::Active,
+        };
+        
+        // Update balances
+        self.adjust_balance(creditor, amount as i64)?;    // Positive balance
+        self.adjust_balance(debtor, -(amount as i64))?;   // Negative balance
+        
+        // Record transaction
+        self.store.record_transaction(&transaction)?;
+        
+        Ok(transaction)
+    }
+    
+    /// Community governance of credit policies
+    pub fn update_community_credit_policy(
+        &self,
+        community_id: &str,
+        policy: CreditPolicy,
+        governance_proof: GovernanceProof
+    ) -> Result<(), CommonError> {
+        // Validate governance authorization
+        self.validate_governance_proof(community_id, &governance_proof)?;
+        
+        // Apply policy update
+        self.store.update_credit_policy(community_id, policy)?;
+        
+        // Notify community members
+        self.notify_policy_update(community_id, &policy)?;
+        
+        Ok(())
+    }
+}
+```
+
+#### **Anti-Speculation Safeguards**
+```rust
+/// Enforce anti-speculation rules in mutual credit
+pub struct AntiSpeculationEnforcer {
+    max_credit_velocity: f64,      // Limit rapid trading
+    purpose_validation: bool,       // Validate stated purpose
+    community_oversight: bool,      // Require community approval
+    transfer_restrictions: Vec<TransferRestriction>,
+}
+
+impl AntiSpeculationEnforcer {
+    /// Validate credit transaction for speculation resistance
+    pub fn validate_transaction(
+        &self,
+        transaction: &CreditTransaction
+    ) -> Result<(), CommonError> {
+        // Check velocity limits
+        if self.exceeds_velocity_limit(&transaction)? {
+            return Err(CommonError::PolicyDenied(
+                "Transaction exceeds velocity limits"
+            ));
+        }
+        
+        // Validate stated purpose
+        if self.purpose_validation {
+            self.validate_purpose(&transaction)?;
+        }
+        
+        // Check transfer restrictions
+        for restriction in &self.transfer_restrictions {
+            restriction.validate(transaction)?;
+        }
+        
+        Ok(())
+    }
+}
+```
+
+### **4. Contribution Recognition System**
 
 ICN recognizes multiple forms of contribution beyond just financial investment, ensuring that all types of valuable work are acknowledged and rewarded.
 
@@ -477,6 +695,318 @@ Real-time visibility into economic health and equity.
 4. **Pilot Exchanges**: Test economic relationships gradually
 5. **Monitoring Systems**: Track economic relationship health
 6. **Dispute Resolution**: Establish conflict resolution mechanisms
+
+---
+
+## 🔧 **CCL Economic Templates and Examples**
+
+### **Default Regeneration Policy Template**
+
+```ccl
+economic_policy capacity_aware_regeneration {
+    parameters {
+        base_rate: 10.0,              // Base mana per hour
+        capacity_weight: 0.6,         // Weight for capacity factor
+        reputation_weight: 0.4,       // Weight for reputation factor
+        max_capacity_factor: 3.0,     // Maximum capacity multiplier
+        min_capacity_factor: 0.1,     // Minimum capacity multiplier
+        max_reputation_factor: 2.0,   // Maximum reputation multiplier
+        min_reputation_factor: 0.5    // Minimum reputation multiplier
+    }
+    
+    function calculate_regeneration(
+        did: DID,
+        base_rate: f64,
+        capacity_score: f64,
+        reputation_score: f64
+    ) -> f64 {
+        let capacity_factor = clamp(
+            capacity_score,
+            min_capacity_factor,
+            max_capacity_factor
+        );
+        
+        let reputation_factor = clamp(
+            reputation_score,
+            min_reputation_factor,
+            max_reputation_factor
+        );
+        
+        return base_rate * (
+            capacity_factor * capacity_weight +
+            reputation_factor * reputation_weight
+        );
+    }
+}
+```
+
+### **Mutual Credit Economic Model Template**
+
+```ccl
+economic_model community_mutual_credit {
+    community_id: "ecovillage_001",
+    
+    token_class "community_credit" {
+        type: MutualCredit,
+        symbol: "ECO$",
+        decimals: 2,
+        transferability: RestrictedTransfer {
+            authorized_recipients: community_members,
+        },
+        scoping_rules: {
+            community_scope: community_id,
+            geographic_scope: "bioregion_pacific_northwest",
+            max_supply: none, // Unlimited mutual credit
+            validity_period: none, // No expiration
+        }
+    }
+    
+    credit_policies {
+        default_credit_limit: 500,     // Default credit limit
+        max_credit_limit: 2000,        // Maximum credit limit
+        trust_threshold: 0.7,          // Minimum trust score
+        guarantor_requirement: 2,       // Required guarantors for large credits
+        community_approval_threshold: 1000, // Amount requiring community approval
+    }
+    
+    function calculate_credit_limit(did: DID) -> u64 {
+        let base_limit = default_credit_limit;
+        let trust_score = get_trust_score(did, community_id);
+        let participation_score = get_participation_score(did, community_id);
+        
+        let multiplier = trust_score * 0.7 + participation_score * 0.3;
+        
+        return min(
+            (base_limit as f64 * multiplier) as u64,
+            max_credit_limit
+        );
+    }
+    
+    workflow issue_credit {
+        trigger: credit_request_submitted
+        
+        step validate_request {
+            require(is_community_member(request.debtor));
+            require(is_community_member(request.creditor));
+            require(request.amount <= calculate_credit_limit(request.debtor));
+            
+            if request.amount > community_approval_threshold {
+                goto community_approval;
+            } else {
+                goto issue_credit;
+            }
+        }
+        
+        step community_approval {
+            create_proposal(
+                "Credit Line Approval",
+                format!("{} requests {} credit from {}", 
+                    request.debtor, request.amount, request.creditor)
+            );
+            
+            if proposal_passes() {
+                goto issue_credit;
+            } else {
+                reject_request("Community approval denied");
+            }
+        }
+        
+        step issue_credit {
+            create_credit_line(request);
+            adjust_balances(request.creditor, request.debtor, request.amount);
+            record_transaction(request);
+            notify_parties(request);
+        }
+    }
+}
+```
+
+### **Time Banking Template**
+
+```ccl
+economic_model time_banking {
+    community_id: "makerspace_collective",
+    
+    token_class "time_credit" {
+        type: TimeBanking,
+        symbol: "HOUR",
+        decimals: 2, // Allow fractional hours
+        transferability: RestrictedTransfer {
+            authorized_recipients: community_members,
+        },
+        scoping_rules: {
+            community_scope: community_id,
+            validity_period: (now(), now() + 365_days), // Annual expiration
+        }
+    }
+    
+    skill_categories {
+        "technical": {
+            subcategories: ["programming", "electronics", "mechanical"],
+            requires_certification: true,
+        },
+        "creative": {
+            subcategories: ["design", "music", "writing"],
+            requires_certification: false,
+        },
+        "care": {
+            subcategories: ["childcare", "eldercare", "emotional_support"],
+            requires_certification: true,
+        },
+        "maintenance": {
+            subcategories: ["cleaning", "repairs", "organization"],
+            requires_certification: false,
+        }
+    }
+    
+    function record_time_exchange(
+        provider: DID,
+        recipient: DID,
+        hours: f64,
+        skill_category: String,
+        description: String
+    ) -> TimeRecord {
+        let record = TimeRecord {
+            id: generate_uuid(),
+            provider,
+            recipient,
+            hours,
+            skill_category,
+            description,
+            timestamp: now(),
+            status: TimeRecordStatus::Recorded,
+        };
+        
+        // Equal value exchange: 1 hour = 1 hour regardless of skill
+        mint("time_credit", provider, hours);
+        burn("time_credit", recipient, hours);
+        
+        return record;
+    }
+    
+    workflow verify_time_record {
+        trigger: time_record_created
+        
+        step recipient_verification {
+            send_verification_request(record.recipient, record);
+            set_deadline(7_days);
+            
+            if verification_approved() {
+                record.status = TimeRecordStatus::Verified;
+                goto finalize_exchange;
+            } else if verification_disputed() {
+                goto dispute_resolution;
+            } else {
+                // Auto-approve after deadline
+                record.status = TimeRecordStatus::Verified;
+                goto finalize_exchange;
+            }
+        }
+        
+        step dispute_resolution {
+            assign_mediator(record.provider, record.recipient);
+            
+            if mediation_successful() {
+                apply_mediation_result(mediation_result);
+                goto finalize_exchange;
+            } else {
+                goto community_arbitration;
+            }
+        }
+        
+        step community_arbitration {
+            create_arbitration_panel(3_members);
+            present_evidence(record, dispute_details);
+            
+            apply_arbitration_decision(arbitration_result);
+            goto finalize_exchange;
+        }
+        
+        step finalize_exchange {
+            record.status = TimeRecordStatus::Finalized;
+            update_reputation_scores(record.provider, record.recipient);
+            archive_record(record);
+        }
+    }
+}
+```
+
+### **Integration Tests Documentation**
+
+#### **Capacity-Aware Regeneration Tests**
+
+```rust
+#[cfg(test)]
+mod capacity_regeneration_tests {
+    use super::*;
+    
+    #[test]
+    fn test_capacity_aware_regeneration() {
+        let mut mana_ledger = TestManaLedger::new();
+        let mut capacity_ledger = TestCapacityLedger::new();
+        
+        // Setup test accounts with different capacity scores
+        let high_capacity_did = Did::from_str("did:icn:high_capacity").unwrap();
+        let low_capacity_did = Did::from_str("did:icn:low_capacity").unwrap();
+        
+        // Set initial balances
+        mana_ledger.set_balance(&high_capacity_did, 100).unwrap();
+        mana_ledger.set_balance(&low_capacity_did, 100).unwrap();
+        
+        // Set capacity scores
+        capacity_ledger.set_capacity_score(&high_capacity_did, 2.0); // High contributor
+        capacity_ledger.set_capacity_score(&low_capacity_did, 0.5);  // Low contributor
+        
+        // Regenerate mana with capacity awareness
+        let engine = CCLEconomicEngine::new(mana_ledger, capacity_ledger);
+        engine.regenerate_all_with_capacity().unwrap();
+        
+        // Verify high capacity node gets more mana
+        let high_balance = engine.get_mana_balance(&high_capacity_did);
+        let low_balance = engine.get_mana_balance(&low_capacity_did);
+        
+        assert!(high_balance > low_balance);
+        assert!(high_balance >= 120); // Should get significant regeneration
+        assert!(low_balance <= 110);  // Should get minimal regeneration
+    }
+}
+```
+
+#### **CCL Policy Override Tests**
+
+```rust
+#[test]
+fn test_ccl_economic_policy_override() {
+    let mut engine = create_test_economic_engine();
+    
+    // Deploy custom regeneration policy
+    let policy_code = r#"
+        economic_policy custom_regeneration {
+            function calculate_regeneration(
+                did: DID,
+                base_rate: f64,
+                capacity: f64,
+                reputation: f64
+            ) -> f64 {
+                // Custom formula favoring reputation over capacity
+                base_rate * (capacity * 0.2 + reputation * 0.8)
+            }
+        }
+    "#;
+    
+    engine.deploy_ccl_policy("custom_regeneration", policy_code).unwrap();
+    
+    // Test that custom policy is applied
+    let test_did = Did::from_str("did:icn:test").unwrap();
+    engine.set_capacity_score(&test_did, 2.0);
+    engine.set_reputation_score(&test_did, 1.5);
+    
+    let regenerated = engine.calculate_regeneration(&test_did, 10.0);
+    
+    // Should use custom formula: 10 * (2.0 * 0.2 + 1.5 * 0.8) = 16.0
+    assert_eq!(regenerated, 16.0);
+}
+```
 
 ---
 

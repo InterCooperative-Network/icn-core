@@ -40,6 +40,46 @@ The current system lacks clear principles for token design, exchange mechanisms,
 - **Velocity Incentives**: Rewards for active use rather than accumulation
 - **Community Oversight**: Democratic control over token listing and trading
 
+### Mana System Enhancements
+
+#### Capacity-Aware Regeneration
+
+The mana system now incorporates capacity-based regeneration to reward nodes that contribute more resources to the network:
+
+**Regeneration Formula**: `base_rate × capacity_factor × reputation_factor × time_elapsed`
+
+Where:
+- **base_rate**: Minimum regeneration for all nodes (e.g., 10 mana/hour)
+- **capacity_factor**: 0.1 to 3.0 based on resource contribution metrics
+- **reputation_factor**: 0.5 to 2.0 based on community standing
+- **time_elapsed**: Hours since last regeneration
+
+#### Capacity Metrics
+
+```rust
+pub struct CapacityMetrics {
+    pub compute_contribution: f64,    // CPU/GPU resources provided
+    pub storage_contribution: f64,    // Storage space provided
+    pub bandwidth_contribution: f64,  // Network bandwidth provided
+    pub uptime_score: f64,           // Reliability and availability
+    pub quality_score: f64,          // Performance and reliability
+}
+```
+
+The capacity factor is calculated as a weighted average:
+- Compute: 30%
+- Storage: 25% 
+- Bandwidth: 25%
+- Uptime: 15%
+- Quality: 5%
+
+#### Capacity-Based Spending Limits
+
+Higher capacity nodes can spend more freely, with spending limits calculated as:
+`max_spendable = max_capacity × (0.5 + capacity_factor × 0.3)`
+
+This prevents low-capacity nodes from draining the system while allowing productive nodes greater flexibility.
+
 ### Token Types
 
 #### Resource Tokens
@@ -65,6 +105,85 @@ The current system lacks clear principles for token design, exchange mechanisms,
 - **Inter-Federation Exchange**: Trade between different federations
 - **Infrastructure**: Global communication and coordination systems
 - **Knowledge Sharing**: Research, education, and information exchange
+
+### Architecture: Core Protocol vs CCL Governance
+
+#### Core Protocol Primitives (Built-in)
+
+These economic components are embedded in the ICN protocol and provide the foundation for all economic activity:
+
+**Identity & Authentication**
+- DID management and credential verification
+- Cryptographic signing and verification
+- Identity reputation tracking
+
+**Core Ledgers**
+- ManaLedger: Regenerating resource credits
+- ResourceLedger: Multi-asset token management  
+- CapacityLedger: Node contribution tracking
+- Transaction history and audit trails
+
+**Voting Engine**
+- Ranked choice voting implementation
+- Proposal creation and management
+- Vote tallying and result calculation
+
+**Resource Registry**
+- Physical and digital resource cataloging
+- Availability and capacity tracking
+- Resource allocation and scheduling
+
+#### CCL-Governed Policies (Programmable)
+
+These economic behaviors can be customized by communities through CCL contracts:
+
+**Governance Models**
+- Voting rules and quorum requirements
+- Decision-making processes
+- Leadership selection mechanisms
+
+**Tokenomics Policies**
+- Custom regeneration formulas
+- Demurrage and velocity incentives
+- Transfer restrictions and permissions
+- Token issuance policies
+
+**Economic Primitives**
+- Mutual credit systems
+- Time banking mechanisms
+- Local currencies
+- Bulk purchasing cooperatives
+
+**Dispute Resolution**
+- Mediation workflows
+- Arbitration processes  
+- Penalty and compensation mechanisms
+
+#### Integration Boundaries
+
+```rust
+/// Core protocol provides stable interfaces
+pub trait CoreEconomicInterface {
+    // Core primitives that CCL can use but not override
+    fn get_mana_balance(&self, did: &Did) -> u64;
+    fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError>;
+    fn transfer_tokens(&self, class_id: &str, from: &Did, to: &Did, amount: u64) -> Result<(), CommonError>;
+}
+
+/// CCL policies can customize economic behavior
+pub trait CCLEconomicPolicy {
+    // Policies that communities can customize
+    fn calculate_regeneration_rate(&self, did: &Did, base_rate: f64) -> f64;
+    fn validate_transfer(&self, class_id: &str, from: &Did, to: &Did, amount: u64) -> Result<bool, String>;
+    fn apply_economic_penalties(&self, violation: EconomicViolation) -> Vec<EconomicAction>;
+}
+```
+
+This separation ensures:
+- **Stability**: Core economic functions remain reliable and interoperable
+- **Flexibility**: Communities can customize economic policies to their needs
+- **Security**: Critical economic infrastructure cannot be compromised by policy changes
+- **Upgradability**: Policies can evolve without breaking the core protocol
 
 ### Seamless Exchange System
 
