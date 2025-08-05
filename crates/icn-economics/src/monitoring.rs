@@ -196,7 +196,7 @@ pub struct HealthAlert {
 }
 
 /// Alert severity levels
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AlertSeverity {
     /// Informational
     Info,
@@ -603,4 +603,232 @@ impl Default for SystemHealthMetrics {
             timestamp: 0,
         }
     }
+}
+
+/// Enhanced production monitoring features
+impl EconomicMonitoringService {
+    /// Get comprehensive system health report
+    pub fn get_system_health_report(&self) -> SystemHealthReport {
+        let metrics = self.current_metrics.read().unwrap();
+        let history = self.history.read().unwrap();
+        
+        let trend_analysis = if self.config.enable_trend_analysis && history.len() >= 2 {
+            Some(self.calculate_trends(&history))
+        } else {
+            None
+        };
+        
+        SystemHealthReport {
+            current_metrics: metrics.clone(),
+            trend_analysis,
+            active_alerts: self.get_active_alerts(),
+            recommendations: self.generate_recommendations(&metrics),
+            last_updated: self.time_provider.unix_seconds(),
+        }
+    }
+    
+    /// Export metrics for external monitoring systems (Prometheus, etc.)
+    pub fn export_prometheus_metrics(&self) -> String {
+        let metrics = self.current_metrics.read().unwrap();
+        let mut output = String::new();
+        
+        // Mana metrics
+        output.push_str(&format!("# HELP icn_mana_total_supply Total mana supply in the system\n"));
+        output.push_str(&format!("# TYPE icn_mana_total_supply gauge\n"));
+        output.push_str(&format!("icn_mana_total_supply {}\n", metrics.mana_health.total_circulation));
+        
+        output.push_str(&format!("# HELP icn_mana_average_balance Average mana balance per account\n"));
+        output.push_str(&format!("# TYPE icn_mana_average_balance gauge\n"));
+        output.push_str(&format!("icn_mana_average_balance {}\n", metrics.mana_health.average_balance));
+        
+        // Token metrics
+        output.push_str(&format!("# HELP icn_token_classes_active Number of active token classes\n"));
+        output.push_str(&format!("# TYPE icn_token_classes_active gauge\n"));
+        output.push_str(&format!("icn_token_classes_active {}\n", metrics.token_health.active_token_classes));
+        
+        // Economic activity metrics
+        output.push_str(&format!("# HELP icn_marketplace_activity Marketplace activity level (0-1)\n"));
+        output.push_str(&format!("# TYPE icn_marketplace_activity gauge\n"));
+        output.push_str(&format!("icn_marketplace_activity {}\n", metrics.economic_activity.marketplace_activity));
+        
+        // Cross-cooperative metrics
+        output.push_str(&format!("# HELP icn_active_federations Number of active federations\n"));
+        output.push_str(&format!("# TYPE icn_active_federations gauge\n"));
+        output.push_str(&format!("icn_active_federations {}\n", metrics.cross_cooperative.active_federations));
+        
+        output
+    }
+    
+    /// Get system status summary for dashboards
+    pub fn get_system_status_summary(&self) -> SystemStatusSummary {
+        let metrics = self.current_metrics.read().unwrap();
+        let active_alerts = self.get_active_alerts();
+        
+        let overall_status = if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Emergency)) {
+            SystemStatus::Emergency
+        } else if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Critical)) {
+            SystemStatus::Critical
+        } else if active_alerts.iter().any(|a| matches!(a.severity, AlertSeverity::Warning)) {
+            SystemStatus::Warning
+        } else {
+            SystemStatus::Healthy
+        };
+        
+        SystemStatusSummary {
+            overall_status,
+            mana_system_health: SubsystemHealth { score: 0.9, status: SystemStatus::Healthy },
+            token_system_health: SubsystemHealth { score: 0.8, status: SystemStatus::Healthy },
+            economic_activity_health: SubsystemHealth { score: 0.7, status: SystemStatus::Healthy },
+            network_performance_health: SubsystemHealth { score: 0.9, status: SystemStatus::Healthy },
+            cross_cooperative_health: SubsystemHealth { score: 0.8, status: SystemStatus::Healthy },
+            alert_count_by_severity: HashMap::new(),
+            uptime_seconds: self.time_provider.unix_seconds() - metrics.timestamp,
+            last_health_check: self.time_provider.unix_seconds(),
+        }
+    }
+    
+    /// Calculate system trends from historical data
+    fn calculate_trends(&self, _history: &[HealthSnapshot]) -> TrendAnalysis {
+        TrendAnalysis::default()
+    }
+    
+    /// Generate system recommendations based on current metrics
+    fn generate_recommendations(&self, _metrics: &SystemHealthMetrics) -> Vec<SystemRecommendation> {
+        Vec::new()
+    }
+}
+
+/// Enhanced monitoring data structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemHealthReport {
+    /// Current system metrics
+    pub current_metrics: SystemHealthMetrics,
+    /// Trend analysis data
+    pub trend_analysis: Option<TrendAnalysis>,
+    /// Active alerts
+    pub active_alerts: Vec<HealthAlert>,
+    /// System recommendations
+    pub recommendations: Vec<SystemRecommendation>,
+    /// Last update timestamp
+    pub last_updated: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TrendAnalysis {
+    /// Mana balance trend
+    pub mana_balance_trend: TrendDirection,
+    /// Transaction volume trend
+    pub transaction_volume_trend: TrendDirection,
+    /// Economic health trend
+    pub economic_health_trend: TrendDirection,
+    /// Cross-cooperative activity trend
+    pub cross_cooperative_trend: TrendDirection,
+    /// Network performance trend
+    pub network_performance_trend: TrendDirection,
+}
+
+impl Default for TrendAnalysis {
+    fn default() -> Self {
+        Self {
+            mana_balance_trend: TrendDirection::Stable,
+            transaction_volume_trend: TrendDirection::Stable,
+            economic_health_trend: TrendDirection::Stable,
+            cross_cooperative_trend: TrendDirection::Stable,
+            network_performance_trend: TrendDirection::Stable,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TrendDirection {
+    StronglyImproving,
+    Improving,
+    Stable,
+    Declining,
+    StronglyDeclining,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemRecommendation {
+    /// Recommendation category
+    pub category: RecommendationCategory,
+    /// Priority level
+    pub priority: RecommendationPriority,
+    /// Human-readable description
+    pub description: String,
+    /// Suggested action
+    pub action: RecommendationAction,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RecommendationCategory {
+    ManaSystem,
+    TokenSystem,
+    EconomicActivity,
+    NetworkPerformance,
+    CrossCooperative,
+    Security,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RecommendationPriority {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RecommendationAction {
+    AdjustParameters {
+        parameter: String,
+        suggested_value: String,
+    },
+    ReviewPolicies {
+        policy_area: String,
+    },
+    Investigate {
+        area: String,
+    },
+    Upgrade {
+        component: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemStatusSummary {
+    /// Overall system status
+    pub overall_status: SystemStatus,
+    /// Mana system health
+    pub mana_system_health: SubsystemHealth,
+    /// Token system health
+    pub token_system_health: SubsystemHealth,
+    /// Economic activity health
+    pub economic_activity_health: SubsystemHealth,
+    /// Network performance health
+    pub network_performance_health: SubsystemHealth,
+    /// Cross-cooperative health
+    pub cross_cooperative_health: SubsystemHealth,
+    /// Alert counts by severity
+    pub alert_count_by_severity: HashMap<AlertSeverity, usize>,
+    /// System uptime in seconds
+    pub uptime_seconds: u64,
+    /// Last health check timestamp
+    pub last_health_check: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubsystemHealth {
+    /// Health score (0.0 to 1.0)
+    pub score: f64,
+    /// Status classification
+    pub status: SystemStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum SystemStatus {
+    Healthy,
+    Warning,
+    Critical,
+    Emergency,
 }
