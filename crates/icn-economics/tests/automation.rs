@@ -37,6 +37,10 @@ impl ManaLedger for InMemoryManaLedger {
         *entry += amount;
         Ok(())
     }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        self.balances.lock().unwrap().keys().cloned().collect()
+    }
 }
 
 #[derive(Default)]

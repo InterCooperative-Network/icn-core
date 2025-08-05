@@ -2,9 +2,8 @@ use icn_common::Did;
 use icn_economics::{
     marketplace::{
         InMemoryMarketplaceStore, ItemType, MarketplaceBid, MarketplaceOffer, MarketplaceStore,
-        OfferFilter, OfferStatus,
+        OfferFilter,
     },
-    TokenClassId,
 };
 use std::str::FromStr;
 

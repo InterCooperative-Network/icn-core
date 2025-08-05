@@ -165,6 +165,10 @@ mod scoped_token_tests {
             *entry = entry.saturating_add(amount);
             Ok(())
         }
+
+        fn all_accounts(&self) -> Vec<Did> {
+            self.balances.lock().unwrap().keys().cloned().collect()
+        }
     }
 
     #[tokio::test]

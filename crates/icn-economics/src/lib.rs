@@ -1612,7 +1612,7 @@ mod tests {
     #[ignore] // TODO: Implement process_economic_event function
     fn test_process_economic_event() {
         use icn_common::NodeInfo;
-        let node_info = NodeInfo {
+        let _node_info = NodeInfo {
             name: "EcoNode".to_string(),
             version: ICN_CORE_VERSION.to_string(),
             status_message: "Economics active".to_string(),
