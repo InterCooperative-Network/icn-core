@@ -16,6 +16,7 @@ use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+pub mod computational_mana;
 pub mod crdt_ledger;
 pub mod economic_dispute_resolver;
 pub mod explorer;
@@ -33,6 +34,10 @@ pub mod automation;
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
+};
+pub use computational_mana::{
+    ComputationalCapacity, ComputationalManaConfig, ComputationalManaService,
+    FederationResourcePool, ResourceContribution,
 };
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use economic_dispute_resolver::{

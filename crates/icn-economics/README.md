@@ -26,6 +26,7 @@ This crate provides the economic foundation for sustainable operation and value 
 - **Resource Token Operations**: Complete mint/transfer/burn lifecycle with proper balance tracking
 - **Token Class Management**: Creation and management of fungible and non-fungible token classes
 - **Mana System Integration**: Balance tracking, spending validation, and regeneration across multiple backends
+- **Computational Mana System**: Mana regeneration directly tied to computational resource contribution
 - **Cross-Cooperative Marketplace**: Full marketplace functionality with trust-based inter-federation trading
 - **Multiple Storage Backends**: File, Sled, SQLite, RocksDB implementations with production features
 - **Mutual Aid Tokens**: Helper functions for community support credits
@@ -51,6 +52,51 @@ The API style emphasizes:
 *   **Cross-Cooperative:** Native support for multi-federation economic coordination and resource sharing.
 
 ### Advanced Economic Features
+
+#### Computational Mana System - Resource-Based Regeneration
+The computational mana system implements the core ICN vision where mana regeneration is directly tied to computational resources contributed by nodes:
+
+```rust
+// Configure mana service tied to computational resources
+let mana_service = ComputationalManaService::new(
+    ComputationalManaConfig {
+        base_regeneration_per_hour: 10,
+        max_capacity_multiplier: 5.0,
+        minimum_contribution_threshold: 100.0,
+        federation_pool_factor: 1.0,
+        ..Default::default()
+    },
+    system_info_provider,
+    time_provider,
+);
+
+// Register node's computational contribution
+mana_service.update_node_contribution(
+    node_did,
+    ComputationalCapacity {
+        cpu_cores: 16,
+        memory_mb: 32 * 1024, // 32GB
+        storage_mb: 2 * 1024 * 1024, // 2TB
+        network_mbps: 1000, // 1Gbps
+        gpu_compute_units: Some(4),
+    },
+    0.95, // 95% uptime
+    150,  // Jobs completed
+    10,   // Jobs failed
+    750.0, // Compute hours contributed
+).await?;
+
+// Mana regeneration automatically scales with contribution
+let regeneration_rate = mana_service.calculate_mana_regeneration_rate(&node_did).await?;
+let max_capacity = mana_service.calculate_max_mana_capacity(&node_did).await?;
+```
+
+Key features:
+- **Resource-Based Scoring**: CPU, memory, storage, network, and GPU contribute to mana generation
+- **Reliability Factors**: Uptime and job success rates affect mana allocation
+- **Federation Awareness**: Supply/demand across the federation influences individual rates
+- **Merit-Based Allocation**: Higher contributors get more mana regeneration and capacity
+- **Automatic Capacity Detection**: Real system resources are detected and factored in
 
 #### Cross-Cooperative Resource Sharing
 ```rust
@@ -99,10 +145,35 @@ let pricing_policy = CrossCooperativePolicy {
 
 ### Mana Regeneration
 
+The ICN mana system now directly correlates mana regeneration with computational resource contribution:
+
+#### Resource-Based Regeneration
 All persistent ledger backends expose a bulk credit operation via
 `ManaLedger::credit_all`. This method adds a specified amount to every stored
-account and is used by the runtime to periodically regenerate balances. In-memory
-test ledgers implement the same interface for parity with the on-disk backends.
+account and is used by the runtime to periodically regenerate balances. The regeneration 
+amounts are now calculated by the `ComputationalManaService` based on:
+
+- **Computational Capacity**: CPU cores, memory, storage, network bandwidth, and GPU units
+- **Reliability Metrics**: Uptime percentage and job success/failure rates  
+- **Historical Contribution**: Total compute hours contributed to the federation
+- **Federation Health**: Supply/demand ratio across the federated network
+
+#### Mana Allocation Formula
+```
+mana_regeneration_rate = base_rate × contribution_factor × federation_factor
+
+Where:
+- contribution_factor = (computational_score × reliability_factor × contribution_bonus) / minimum_threshold
+- federation_factor = federation_health_factor (higher when supply exceeds demand)
+- computational_score = weighted sum of CPU, memory, storage, network, GPU resources
+- reliability_factor = uptime_percentage × success_rate
+```
+
+Nodes with insufficient computational contribution (below `minimum_contribution_threshold`) 
+receive no mana regeneration, ensuring only active resource contributors participate 
+in the economic system.
+
+In-memory test ledgers implement the same interface for parity with the on-disk backends.
 
 ## Feature Flags
 
