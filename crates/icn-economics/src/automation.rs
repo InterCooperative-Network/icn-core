@@ -197,6 +197,25 @@ pub enum EconomicEvent {
         price: f64,
         timestamp: u64,
     },
+    /// Cross-cooperative resource request created
+    CrossCooperativeRequest {
+        request_id: String,
+        resource_type: String,
+        amount: u64,
+        urgency: f64,
+        federation: String,
+        timestamp: u64,
+    },
+    /// Cross-cooperative resource transfer executed
+    CrossCooperativeTransfer {
+        transfer_id: String,
+        resource_type: String,
+        amount: u64,
+        price: f64,
+        from_federation: String,
+        to_federation: String,
+        timestamp: u64,
+    },
 }
 
 /// Reasons for price adjustments
@@ -425,6 +444,132 @@ pub struct RiskParameters {
     pub position_limits: HashMap<String, u64>,
 }
 
+/// Cross-cooperative economic coordination structures
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FederationEconomicState {
+    /// Federation identifier
+    pub federation_id: String,
+    /// Economic health metrics for this federation
+    pub health_metrics: EconomicHealthMetrics,
+    /// Available resources for cross-cooperative sharing
+    pub available_resources: HashMap<String, u64>,
+    /// Trust level with other federations (0.0 to 1.0)
+    pub trust_levels: HashMap<String, f64>,
+    /// Current resource needs/requests
+    pub resource_requests: Vec<CrossCooperativeRequest>,
+    /// Last synchronization timestamp
+    pub last_sync: u64,
+}
+
+/// Cross-cooperative resource request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossCooperativeRequest {
+    /// Request identifier
+    pub request_id: String,
+    /// Requesting federation
+    pub requesting_federation: String,
+    /// Resource type needed
+    pub resource_type: String,
+    /// Amount requested
+    pub amount: u64,
+    /// Maximum price willing to pay
+    pub max_price: f64,
+    /// Urgency level (0.0 to 1.0)
+    pub urgency: f64,
+    /// Trust requirements
+    pub min_trust_level: f64,
+    /// Expiration timestamp
+    pub expires_at: u64,
+    /// Current status
+    pub status: RequestStatus,
+}
+
+/// Status of cross-cooperative request
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum RequestStatus {
+    /// Request is open and seeking fulfillment
+    Open,
+    /// Partial fulfillment received
+    PartiallyFulfilled { fulfilled_amount: u64 },
+    /// Request fully fulfilled
+    Fulfilled,
+    /// Request expired without fulfillment
+    Expired,
+    /// Request cancelled by requester
+    Cancelled,
+}
+
+/// Economic coordination policy for cross-cooperative interactions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CrossCooperativePolicy {
+    /// Policy identifier
+    pub policy_id: String,
+    /// Minimum trust level required for transactions
+    pub min_trust_level: f64,
+    /// Maximum resource share percentage (0.0 to 1.0)
+    pub max_resource_share: f64,
+    /// Pricing strategy for cross-cooperative trades
+    pub pricing_strategy: CrossCooperativePricingStrategy,
+    /// Automatic approval thresholds
+    pub auto_approval_threshold: u64,
+    /// Priority weighting for local vs. external requests
+    pub local_priority_weight: f64,
+}
+
+/// Pricing strategies for cross-cooperative resource sharing
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CrossCooperativePricingStrategy {
+    /// Market-based pricing with trust discounts
+    MarketWithTrustDiscount { base_markup: f64, trust_discount: f64 },
+    /// Cost-plus pricing model
+    CostPlus { markup_percentage: f64 },
+    /// Mutual aid pricing (minimal cost recovery)
+    MutualAid { cost_recovery_rate: f64 },
+    /// Dynamic pricing based on supply/demand
+    Dynamic { base_price: f64, demand_multiplier: f64 },
+}
+
+/// Advanced economic optimization algorithms
+#[derive(Debug, Clone)]
+pub struct EconomicOptimizer {
+    /// Optimization targets and weights
+    pub optimization_targets: HashMap<String, f64>,
+    /// Constraint parameters
+    pub constraints: Vec<OptimizationConstraint>,
+    /// Historical performance data
+    pub performance_history: VecDeque<OptimizationResult>,
+    /// Learning rate for adaptive algorithms
+    pub learning_rate: f64,
+}
+
+/// Optimization constraint
+#[derive(Debug, Clone)]
+pub struct OptimizationConstraint {
+    /// Constraint type identifier
+    pub constraint_type: String,
+    /// Minimum value
+    pub min_value: Option<f64>,
+    /// Maximum value  
+    pub max_value: Option<f64>,
+    /// Weight in optimization function
+    pub weight: f64,
+}
+
+/// Optimization result tracking
+#[derive(Debug, Clone)]
+pub struct OptimizationResult {
+    /// Timestamp of optimization
+    pub timestamp: u64,
+    /// Objective function value achieved
+    pub objective_value: f64,
+    /// Individual metric scores
+    pub metric_scores: HashMap<String, f64>,
+    /// Constraint violations (if any)
+    pub constraint_violations: Vec<String>,
+    /// Optimization duration
+    pub duration_ms: u64,
+}
+
 /// Comprehensive economic automation engine
 pub struct EconomicAutomationEngine {
     config: EconomicAutomationConfig,
@@ -451,6 +596,12 @@ pub struct EconomicAutomationEngine {
 
     // Resource restrictions tracking
     resource_restrictions: Arc<RwLock<HashMap<(Did, String), ResourceRestriction>>>,
+
+    // Cross-cooperative coordination state
+    federation_states: Arc<RwLock<HashMap<String, FederationEconomicState>>>,
+    cross_cooperative_policies: Arc<RwLock<HashMap<String, CrossCooperativePolicy>>>,
+    pending_requests: Arc<RwLock<HashMap<String, CrossCooperativeRequest>>>,
+    economic_optimizer: Arc<RwLock<EconomicOptimizer>>,
 
     // Background tasks
     automation_handles: Arc<RwLock<Vec<tokio::task::JoinHandle<()>>>>,
@@ -625,6 +776,20 @@ impl EconomicAutomationEngine {
             event_tx,
             event_rx: Some(event_rx),
             resource_restrictions: Arc::new(RwLock::new(HashMap::new())),
+            federation_states: Arc::new(RwLock::new(HashMap::new())),
+            cross_cooperative_policies: Arc::new(RwLock::new(HashMap::new())),
+            pending_requests: Arc::new(RwLock::new(HashMap::new())),
+            economic_optimizer: Arc::new(RwLock::new(EconomicOptimizer {
+                optimization_targets: HashMap::from([
+                    ("economic_health".to_string(), 1.0),
+                    ("resource_efficiency".to_string(), 0.8),
+                    ("inequality_reduction".to_string(), 0.6),
+                    ("cross_cooperative_benefit".to_string(), 0.4),
+                ]),
+                constraints: Vec::new(),
+                performance_history: VecDeque::new(),
+                learning_rate: 0.01,
+            })),
             automation_handles: Arc::new(RwLock::new(Vec::new())),
         }
     }
@@ -2387,6 +2552,182 @@ pub struct EconomicAutomationStats {
     pub economic_health_score: f64,
     /// Total mana under management
     pub total_mana_managed: u64,
+}
+
+// Cross-Cooperative Economic Coordination Methods
+impl EconomicAutomationEngine {
+    /// Register a new federation for cross-cooperative coordination
+    pub fn register_federation(
+        &self,
+        federation_id: String,
+        initial_resources: HashMap<String, u64>,
+    ) -> Result<(), CommonError> {
+        let mut federation_states = self.federation_states.write().unwrap();
+        
+        federation_states.insert(
+            federation_id.clone(),
+            FederationEconomicState {
+                federation_id: federation_id.clone(),
+                health_metrics: EconomicHealthMetrics {
+                    overall_health: 0.5,
+                    mana_inequality: 0.3,
+                    resource_efficiency: 0.7,
+                    market_liquidity: 0.6,
+                    price_stability: 0.8,
+                    activity_level: 0.4,
+                    last_updated: self.time_provider.unix_seconds(),
+                },
+                available_resources: initial_resources,
+                trust_levels: HashMap::new(),
+                resource_requests: Vec::new(),
+                last_sync: self.time_provider.unix_seconds(),
+            },
+        );
+
+        log::info!("Registered federation {} for cross-cooperative coordination", federation_id);
+        Ok(())
+    }
+
+    /// Create a cross-cooperative resource request
+    pub async fn create_cross_cooperative_request(
+        &self,
+        resource_type: String,
+        amount: u64,
+        max_price: f64,
+        urgency: f64,
+        min_trust_level: f64,
+        duration_hours: u64,
+    ) -> Result<String, CommonError> {
+        let request_id = format!("req_{}_{}", 
+            self.time_provider.unix_seconds(), 
+            resource_type
+        );
+        
+        let request = CrossCooperativeRequest {
+            request_id: request_id.clone(),
+            requesting_federation: "local".to_string(), // This would be configurable
+            resource_type: resource_type.clone(),
+            amount,
+            max_price,
+            urgency,
+            min_trust_level,
+            expires_at: self.time_provider.unix_seconds() + (duration_hours * 3600),
+            status: RequestStatus::Open,
+        };
+
+        // Add to pending requests
+        self.pending_requests.write().unwrap().insert(request_id.clone(), request.clone());
+
+        log::info!("Created cross-cooperative request: {}", request_id);
+        Ok(request_id)
+    }
+
+    /// Run economic optimization algorithms
+    pub async fn run_economic_optimization(&self) -> Result<OptimizationResult, CommonError> {
+        let start_time = std::time::Instant::now();
+        let mut optimizer = self.economic_optimizer.write().unwrap();
+        let health_metrics = self.health_metrics.read().unwrap();
+        
+        // Calculate current objective function value
+        let mut objective_value = 0.0;
+        let mut metric_scores = HashMap::new();
+        
+        for (target, weight) in &optimizer.optimization_targets {
+            let score = match target.as_str() {
+                "economic_health" => health_metrics.overall_health,
+                "resource_efficiency" => health_metrics.resource_efficiency,
+                "inequality_reduction" => 1.0 - health_metrics.mana_inequality,
+                "cross_cooperative_benefit" => self.calculate_cross_cooperative_benefit().await?,
+                _ => 0.5, // Default neutral score
+            };
+            
+            metric_scores.insert(target.clone(), score);
+            objective_value += score * weight;
+        }
+        
+        // Check constraint violations
+        let constraint_violations = Vec::new(); // Simplified - would check actual constraints
+        
+        let result = OptimizationResult {
+            timestamp: self.time_provider.unix_seconds(),
+            objective_value,
+            metric_scores,
+            constraint_violations,
+            duration_ms: start_time.elapsed().as_millis() as u64,
+        };
+        
+        // Update performance history
+        optimizer.performance_history.push_back(result.clone());
+        if optimizer.performance_history.len() > 100 {
+            optimizer.performance_history.pop_front();
+        }
+        
+        log::info!("Economic optimization completed with objective value: {:.3}", objective_value);
+        Ok(result)
+    }
+
+    /// Calculate cross-cooperative benefit metric
+    async fn calculate_cross_cooperative_benefit(&self) -> Result<f64, CommonError> {
+        let federation_states = self.federation_states.read().unwrap();
+        let pending_requests = self.pending_requests.read().unwrap();
+        
+        if federation_states.is_empty() {
+            return Ok(0.0);
+        }
+        
+        // Measure successful cross-cooperative interactions
+        let fulfilled_requests = pending_requests
+            .values()
+            .filter(|req| matches!(req.status, RequestStatus::Fulfilled))
+            .count();
+        
+        let total_requests = pending_requests.len();
+        
+        if total_requests == 0 {
+            Ok(0.5) // Neutral score when no requests
+        } else {
+            Ok(fulfilled_requests as f64 / total_requests as f64)
+        }
+    }
+
+    /// Get cross-cooperative statistics
+    pub fn get_cross_cooperative_stats(&self) -> HashMap<String, serde_json::Value> {
+        let mut stats = HashMap::new();
+        
+        let federation_states = self.federation_states.read().unwrap();
+        let pending_requests = self.pending_requests.read().unwrap();
+        let optimizer = self.economic_optimizer.read().unwrap();
+        
+        stats.insert("federation_count".to_string(), 
+            serde_json::Value::Number(federation_states.len().into()));
+        
+        stats.insert("pending_requests".to_string(), 
+            serde_json::Value::Number(pending_requests.len().into()));
+        
+        stats.insert("optimization_history_length".to_string(), 
+            serde_json::Value::Number(optimizer.performance_history.len().into()));
+        
+        if let Some(last_optimization) = optimizer.performance_history.back() {
+            stats.insert("last_objective_value".to_string(), 
+                serde_json::Value::Number(
+                    serde_json::Number::from_f64(last_optimization.objective_value)
+                        .unwrap_or_else(|| serde_json::Number::from(0))
+                ));
+        }
+        
+        stats
+    }
+}
+
+impl Default for EconomicOptimizer {
+    fn default() -> Self {
+        Self {
+            optimization_targets: HashMap::new(),
+            constraints: Vec::new(),
+            performance_history: VecDeque::new(),
+            learning_rate: 0.01,
+        }
+    }
 }
 
 #[cfg(test)]
