@@ -128,8 +128,6 @@ impl Default for CommunityBonuses {
     }
 }
 
-
-
 impl NodeCapacityMetrics {
     /// Calculate overall capacity factor using weighted formula from documentation
     pub fn calculate_capacity_factor(&self, weights: &CapacityWeights) -> f64 {
