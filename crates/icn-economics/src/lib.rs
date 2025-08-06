@@ -22,6 +22,7 @@ pub mod crdt_ledger;
 pub mod economic_dispute_resolver;
 pub mod enhanced_mana_system;
 pub mod explorer;
+pub mod integration_examples;
 pub mod ledger;
 pub mod marketplace;
 pub mod metrics;

@@ -207,9 +207,9 @@ pub struct CollectiveAction {
 /// Collective resource pool for mutual aid
 #[derive(Debug, Clone)]
 pub struct CollectiveResourcePool {
-    total_pool: u64,
-    contributions: HashMap<Did, u64>,
-    distributions: HashMap<Did, u64>,
+    pub total_pool: u64,
+    pub contributions: HashMap<Did, u64>,
+    pub distributions: HashMap<Did, u64>,
     emergency_reserves: u64,
 }
 
