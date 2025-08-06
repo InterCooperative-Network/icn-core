@@ -263,7 +263,7 @@ fn create_capacity_based_credit_line(
     let debtor_factor = calculate_capacity_factor(
         debtor_metrics.compute_score,
         debtor_metrics.storage_score,
-        debtor_metrics.bandwidth_share,
+        debtor_metrics.bandwidth_score,
         debtor_metrics.uptime_score,
         debtor_metrics.quality_score
     );
