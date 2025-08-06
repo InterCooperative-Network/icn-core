@@ -309,10 +309,7 @@ impl WasmDebugger {
         // to determine if the current instruction is a function call
 
         // For demonstration, assume 20% of instructions are function calls
-        #[allow(clippy::manual_is_multiple_of)]
-        {
-            _location.instruction_offset % 5 == 0
-        }
+        _location.instruction_offset % 5 == 0
     }
 
     /// Get the index of the function being called at a location
