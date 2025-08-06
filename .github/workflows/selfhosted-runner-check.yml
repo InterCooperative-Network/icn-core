@@ -1,0 +1,33 @@
+name: 🧪 ICN Self-Hosted Runner Check
+
+on:
+  workflow_dispatch: # allows manual triggering
+
+jobs:
+  check-self-hosted-runner:
+    name: Runner Info Dump
+    runs-on: [self-hosted, linux, x64, icn] # must match labels on your runner
+
+    steps:
+      - name: 🖥️ Hostname Check
+        run: echo "✅ Running on $(hostname)"
+
+      - name: 🔧 Environment Info
+        run: |
+          echo "🧱 Kernel:"
+          uname -a
+          echo "📂 Directory:"
+          pwd
+          echo "👤 User:"
+          whoami
+          echo "📦 Disk Usage:"
+          df -h
+
+      - name: 📦 Check Rust Version
+        run: rustc --version || echo "Rust not found"
+
+      - name: 📦 Check Node Version
+        run: node -v || echo "Node.js not found"
+
+      - name: 🧪 Success!
+        run: echo "✅ Self-hosted runner is working as expected."
