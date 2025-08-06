@@ -36,7 +36,7 @@ pub struct NodeCapacityMetrics {
 }
 
 /// CCL-customizable mana policy
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct ManaPolicy {
     /// Custom capacity weights for different communities
     pub capacity_weights: CapacityWeights,
@@ -128,16 +128,7 @@ impl Default for CommunityBonuses {
     }
 }
 
-impl Default for ManaPolicy {
-    fn default() -> Self {
-        Self {
-            capacity_weights: CapacityWeights::default(),
-            reputation_thresholds: ReputationThresholds::default(),
-            spending_limits: SpendingLimits::default(),
-            community_bonuses: CommunityBonuses::default(),
-        }
-    }
-}
+
 
 impl NodeCapacityMetrics {
     /// Calculate overall capacity factor using weighted formula from documentation
@@ -320,9 +311,8 @@ impl CapacityAwareManaExample {
         &mut self,
         ctx: &RuntimeContext,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        let current_time = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_secs();
+        // Use a deterministic timestamp for the example
+        let current_time = 1234567890;
 
         println!("=== Capacity-Aware Mana Regeneration Demo ===\n");
 
