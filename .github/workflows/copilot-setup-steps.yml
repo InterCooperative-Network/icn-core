@@ -1,0 +1,59 @@
+name: "Copilot Setup Steps"
+
+# This workflow runs only when the setup file is changed or manually triggered.
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+
+jobs:
+  # Job name MUST be `copilot-setup-steps` or Copilot will ignore it:contentReference[oaicite:4]{index=4}.
+  copilot-setup-steps:
+    # Use your organisation’s larger runner label here.
+    # For example: ubuntu-4-core, ubuntu-8-core, ubuntu-16-core, etc.:contentReference[oaicite:5]{index=5}
+    runs-on: ubuntu-8-core
+
+    # Grant only minimal permissions; Copilot will use its own token for writes.
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain (stable)
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      # Cache Rust build artifacts to speed up subsequent compilations.
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+
+      # Install system packages required by some crates (OpenSSL, clang, etc.)
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libssl-dev \
+            clang \
+            llvm \
+            libc6-dev
+
+      # Warm the Cargo cache by compiling the workspace.  Optional but speeds up the first Copilot run.
+      - name: Pre-build the project
+        run: cargo build --all-features --workspace --release
+
+      # (Optional) run a basic test pass to ensure the environment is sound.
+      # Uncomment the following lines if you want tests to run during setup.
+      # - name: Run unit tests
+      #   run: cargo test --all-features --workspace -- --test-threads=1
