@@ -2,24 +2,22 @@ name: ICN CI
 
 on:
   push:
-    branches:
-      - main
-      - develop
+    branches: ["*"]
   pull_request:
-    branches:
-      - develop
 
 jobs:
   test_and_lint:
     name: Test and Lint
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64, icn]
     strategy:
       matrix:
         rust:
           - stable
           - nightly
+
     steps:
       - uses: actions/checkout@v4
+
       - name: Install Rust toolchain (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
         with:
@@ -65,11 +63,13 @@ jobs:
         if: matrix.rust == 'nightly'
         run: |
           ./scripts/run_10node_devnet.sh --start-only
+
       - name: Run integration tests (nightly only)
         if: matrix.rust == 'nightly'
         env:
           ICN_DEVNET_RUNNING: "true"
         run: cargo test --all-features -p icn-integration-tests -- --nocapture
+
       - name: Stop 10-node devnet (nightly only)
         if: matrix.rust == 'nightly'
         run: |
@@ -78,4 +78,3 @@ jobs:
       - name: Build release (nightly only, for early detection of issues)
         if: matrix.rust == 'nightly'
         run: cargo build --release --all-features --workspace
-
