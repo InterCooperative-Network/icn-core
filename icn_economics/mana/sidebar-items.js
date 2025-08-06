@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["BASE_MANA_CAP","EMERGENCY_MODULATION_FACTOR","MIN_MANA_BALANCE","REGEN_EPOCH_SECONDS"],"enum":["OrganizationType"],"struct":["HardwareMetrics","ManaAccount","RegenerativeManaLedger"],"trait":["EmergencyDetector","HardwareMetricsProvider","NetworkHealthProvider","OrganizationProvider","TrustProvider"]};

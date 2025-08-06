@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":["ComprehensiveManaProvider","DefaultHardwareMetricsProvider","InMemoryOrganizationProvider","InMemoryTrustProvider","ManaSystemConfig","SimpleEmergencyDetector","SimpleNetworkHealthProvider"]};
