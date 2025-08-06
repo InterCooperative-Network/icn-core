@@ -1,0 +1,314 @@
+// CCL Template: Capacity-Aware Mana Regeneration
+// Demonstrates programmable economic policies for capacity-based resource allocation
+// Based on documentation in docs/economics-models.md
+
+contract capacity_aware_mana_policy {
+    metadata {
+        version: "1.0.0",
+        author: "ICN Core Development Team",
+        description: "Implements capacity-aware mana regeneration with customizable parameters",
+    }
+    
+    // Configuration parameters for capacity-aware regeneration
+    state {
+        base_regeneration_rate: Integer = 10,
+        
+        // Capacity metric weights (must sum to 1.0)
+        compute_weight: Float = 0.25,
+        storage_weight: Float = 0.20,
+        bandwidth_weight: Float = 0.20,
+        uptime_weight: Float = 0.20,
+        quality_weight: Float = 0.15,
+        
+        // Reputation thresholds and multipliers
+        high_reputation_threshold: Integer = 80,
+        medium_reputation_threshold: Integer = 50,
+        high_reputation_multiplier: Float = 1.5,
+        medium_reputation_multiplier: Float = 1.2,
+        low_reputation_multiplier: Float = 1.0,
+        
+        // Spending limit parameters
+        base_spending_limit: Integer = 50,
+        max_spending_multiplier: Float = 3.0,
+    }
+    
+    init {
+        // Initialize capacity tracking for this community
+        initialize_capacity_tracking();
+        
+        // Set up regeneration schedule (hourly)
+        schedule_regeneration(3600); // 1 hour in seconds
+    }
+}
+
+// Calculate capacity factor based on node metrics
+fn calculate_capacity_factor(
+    compute_score: Float,
+    storage_score: Float,
+    bandwidth_score: Float,
+    uptime_score: Float,
+    quality_score: Float
+) -> Float {
+    let total_weights = @compute_weight + @storage_weight + @bandwidth_weight + 
+                       @uptime_weight + @quality_weight;
+    
+    let weighted_score = (@compute_weight * compute_score) +
+                        (@storage_weight * storage_score) +
+                        (@bandwidth_weight * bandwidth_score) +
+                        (@uptime_weight * uptime_score) +
+                        (@quality_weight * quality_score);
+    
+    return weighted_score / total_weights;
+}
+
+// Get reputation multiplier based on reputation score
+fn get_reputation_multiplier(reputation: Integer) -> Float {
+    if reputation >= @high_reputation_threshold {
+        return @high_reputation_multiplier;
+    } else if reputation >= @medium_reputation_threshold {
+        return @medium_reputation_multiplier;
+    } else {
+        return @low_reputation_multiplier;
+    }
+}
+
+// Main regeneration function - called hourly
+fn regenerate_mana(node_did: Did) -> Integer {
+    // Get node's current reputation
+    let reputation = get_reputation(node_did);
+    let reputation_multiplier = get_reputation_multiplier(reputation);
+    
+    // Get node's capacity metrics from monitoring system
+    let capacity_metrics = get_node_capacity_metrics(node_did);
+    
+    if !capacity_metrics.is_valid() {
+        // Fall back to default capacity factor for new nodes
+        let default_capacity_factor = 0.5;
+        let regeneration = @base_regeneration_rate * default_capacity_factor * reputation_multiplier * 1.0;
+        return regeneration as Integer;
+    }
+    
+    // Calculate capacity factor
+    let capacity_factor = calculate_capacity_factor(
+        capacity_metrics.compute_score,
+        capacity_metrics.storage_score,
+        capacity_metrics.bandwidth_score,
+        capacity_metrics.uptime_score,
+        capacity_metrics.quality_score
+    );
+    
+    // Apply the capacity-aware regeneration formula:
+    // regeneration = base_rate × capacity_factor × reputation_factor × time_elapsed
+    let time_elapsed = 1.0; // 1 hour
+    let regeneration = (@base_regeneration_rate as Float) * capacity_factor * 
+                      reputation_multiplier * time_elapsed;
+    
+    // Credit the calculated mana to the node
+    let regen_amount = regeneration as Integer;
+    credit_mana(node_did, regen_amount);
+    
+    // Update capacity-based spending limits
+    update_spending_limits(node_did, capacity_factor, reputation_multiplier);
+    
+    return regen_amount;
+}
+
+// Update spending limits based on capacity
+fn update_spending_limits(
+    node_did: Did, 
+    capacity_factor: Float, 
+    reputation_multiplier: Float
+) -> Bool {
+    // Calculate capacity-based spending limit
+    let spending_limit = (@base_spending_limit as Float) * capacity_factor * reputation_multiplier;
+    
+    // Cap at maximum to prevent abuse
+    let max_limit = (@base_spending_limit as Float) * @max_spending_multiplier;
+    let final_limit = min(spending_limit, max_limit) as Integer;
+    
+    // Set the spending limit for this node
+    set_spending_limit(node_did, final_limit);
+    
+    return true;
+}
+
+// Community governance: Adjust regeneration parameters
+fn adjust_regeneration_parameters(
+    new_base_rate: Integer,
+    new_compute_weight: Float,
+    new_storage_weight: Float,
+    new_bandwidth_weight: Float,
+    new_uptime_weight: Float,
+    new_quality_weight: Float
+) -> Bool {
+    // Verify weights sum to 1.0
+    let total_weight = new_compute_weight + new_storage_weight + new_bandwidth_weight + 
+                      new_uptime_weight + new_quality_weight;
+    
+    if abs(total_weight - 1.0) > 0.001 {
+        return false; // Weights must sum to 1.0
+    }
+    
+    // Update state variables
+    @base_regeneration_rate = new_base_rate;
+    @compute_weight = new_compute_weight;
+    @storage_weight = new_storage_weight;
+    @bandwidth_weight = new_bandwidth_weight;
+    @uptime_weight = new_uptime_weight;
+    @quality_weight = new_quality_weight;
+    
+    return true;
+}
+
+// Anti-speculation enforcement
+fn enforce_mana_usage_policy(spender: Did, amount: Integer, purpose: String) -> Bool {
+    // Verify the spender has sufficient mana
+    let current_balance = get_mana_balance(spender);
+    if current_balance < amount {
+        return false;
+    }
+    
+    // Check spending limits
+    let spending_limit = get_spending_limit(spender);
+    if amount > spending_limit {
+        return false;
+    }
+    
+    // Verify purpose is productive (anti-speculation)
+    if !is_productive_purpose(purpose) {
+        return false;
+    }
+    
+    // Record the spending with purpose
+    record_mana_spending(spender, amount, purpose);
+    
+    return true;
+}
+
+// Helper function to validate productive purposes
+fn is_productive_purpose(purpose: String) -> Bool {
+    let productive_keywords = [
+        "compute", "storage", "bandwidth", "processing", 
+        "hosting", "collaboration", "governance", "mutual_aid"
+    ];
+    
+    for keyword in productive_keywords {
+        if purpose.contains(keyword) {
+            return true;
+        }
+    }
+    
+    return false;
+}
+
+// Capacity metrics data structure
+struct CapacityMetrics {
+    compute_score: Float,     // 0.0 - 1.0
+    storage_score: Float,     // 0.0 - 1.0  
+    bandwidth_score: Float,   // 0.0 - 1.0
+    uptime_score: Float,      // 0.0 - 1.0
+    quality_score: Float,     // 0.0 - 1.0
+    last_updated: Integer,    // timestamp
+}
+
+impl CapacityMetrics {
+    fn is_valid() -> Bool {
+        // Check if metrics are recent (within last 2 hours)
+        let current_time = get_current_timestamp();
+        let age = current_time - self.last_updated;
+        
+        return age < 7200; // 2 hours in seconds
+    }
+}
+
+// Integration with node monitoring
+fn get_node_capacity_metrics(node_did: Did) -> CapacityMetrics {
+    // This would integrate with the node monitoring system
+    // For demo purposes, we'll use placeholder values
+    
+    let compute_utilization = get_compute_utilization(node_did);
+    let storage_contribution = get_storage_contribution(node_did);
+    let bandwidth_availability = get_bandwidth_availability(node_did);
+    let uptime_percentage = get_uptime_percentage(node_did);
+    let service_quality = get_service_quality_score(node_did);
+    
+    return CapacityMetrics {
+        compute_score: compute_utilization,
+        storage_score: storage_contribution,
+        bandwidth_score: bandwidth_availability,
+        uptime_score: uptime_percentage,
+        quality_score: service_quality,
+        last_updated: get_current_timestamp(),
+    };
+}
+
+// Mutual credit integration with capacity awareness
+fn create_capacity_based_credit_line(
+    creditor: Did,
+    debtor: Did,
+    base_limit: Integer
+) -> String {
+    // Get capacity factors for both parties
+    let creditor_metrics = get_node_capacity_metrics(creditor);
+    let debtor_metrics = get_node_capacity_metrics(debtor);
+    
+    let creditor_factor = calculate_capacity_factor(
+        creditor_metrics.compute_score,
+        creditor_metrics.storage_score,
+        creditor_metrics.bandwidth_score,
+        creditor_metrics.uptime_score,
+        creditor_metrics.quality_score
+    );
+    
+    let debtor_factor = calculate_capacity_factor(
+        debtor_metrics.compute_score,
+        debtor_metrics.storage_score,
+        debtor_metrics.bandwidth_score,
+        debtor_metrics.uptime_score,
+        debtor_metrics.quality_score
+    );
+    
+    // Adjust credit limit based on capacity
+    let avg_capacity_factor = (creditor_factor + debtor_factor) / 2.0;
+    let adjusted_limit = (base_limit as Float) * avg_capacity_factor;
+    
+    // Create the credit line
+    let credit_line_id = create_credit_line(
+        creditor,
+        debtor,
+        adjusted_limit as Integer,
+        0 // Zero interest for mutual credit
+    );
+    
+    return credit_line_id;
+}
+
+// Community dashboard: Get capacity statistics
+fn get_community_capacity_stats() -> String {
+    let all_nodes = get_all_community_members();
+    let mut total_capacity = 0.0;
+    let mut node_count = 0;
+    
+    for node in all_nodes {
+        let metrics = get_node_capacity_metrics(node);
+        if metrics.is_valid() {
+            let capacity_factor = calculate_capacity_factor(
+                metrics.compute_score,
+                metrics.storage_score,
+                metrics.bandwidth_score,
+                metrics.uptime_score,
+                metrics.quality_score
+            );
+            total_capacity = total_capacity + capacity_factor;
+            node_count = node_count + 1;
+        }
+    }
+    
+    let avg_capacity = if node_count > 0 { total_capacity / (node_count as Float) } else { 0.0 };
+    
+    return format!(
+        "Community Capacity Stats: {} nodes, avg capacity factor: {:.3}",
+        node_count,
+        avg_capacity
+    );
+}

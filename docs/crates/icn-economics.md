@@ -53,15 +53,69 @@ let mana_ledger = SqliteManaLedger::new(PathBuf::from("./mana.db"))?;
 let mana_ledger = RocksdbManaLedger::new(PathBuf::from("./mana_rocksdb"))?;
 ```
 
-#### Policy Enforcement
+#### Capacity-Aware Mana Regeneration
+
+ICN now implements capacity-aware mana regeneration that rewards nodes based on their actual contributions to the network infrastructure:
+
 ```rust
-/// Resource policy enforcer with spending limits
-pub struct ResourcePolicyEnforcer<L: ManaLedger> {
-    pub const MAX_SPEND_LIMIT: u64 = 1000; // Maximum single transaction
+/// Node capacity tracking for fair mana distribution
+pub trait CapacityLedger: Send + Sync {
+    /// Get current capacity score for a node
+    fn get_capacity_score(&self, did: &Did) -> f64;
+    
+    /// Update capacity metrics based on resource contribution
+    fn update_capacity(&self, did: &Did, metrics: CapacityMetrics) -> Result<(), CommonError>;
+    
+    /// Get detailed capacity breakdown
+    fn get_capacity_metrics(&self, did: &Did) -> Option<CapacityMetrics>;
 }
 
-impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
-    /// Spend mana with policy validation
+/// Comprehensive capacity metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CapacityMetrics {
+    pub compute_contribution: f64,    // CPU/GPU resources provided
+    pub storage_contribution: f64,    // Storage space provided  
+    pub bandwidth_contribution: f64,  // Network bandwidth provided
+    pub uptime_score: f64,           // Reliability and availability
+    pub quality_score: f64,          // Performance metrics
+    pub last_updated: DateTime<Utc>, // Timestamp of last update
+}
+
+/// Enhanced mana regeneration with capacity awareness
+pub trait EnhancedManaLedger: ManaLedger {
+    /// Regenerate mana for all accounts using capacity-aware formula
+    fn regenerate_all(&self, capacity_ledger: &dyn CapacityLedger) -> Result<(), CommonError>;
+    
+    /// Regenerate mana for specific account with capacity consideration
+    fn regenerate_account(&self, did: &Did, capacity_ledger: &dyn CapacityLedger) -> Result<(), CommonError>;
+}
+```
+
+#### Enhanced Regeneration Formula
+
+The new regeneration system uses a multi-factor formula that rewards actual network contribution:
+
+```
+final_regeneration = base_rate × capacity_factor × reputation_factor × time_elapsed
+
+where:
+- base_rate: Minimum regeneration rate for all nodes
+- capacity_factor: 0.1 to 3.0 based on resource contribution
+- reputation_factor: 0.5 to 2.0 based on community standing
+- time_elapsed: Hours since last regeneration
+```
+
+#### Policy Enforcement
+```rust
+/// Resource policy enforcer with capacity-aware spending limits
+pub struct ResourcePolicyEnforcer<L: ManaLedger, C: CapacityLedger> {
+    pub const MAX_SPEND_LIMIT: u64 = 1000; // Maximum single transaction
+    ledger: L,
+    capacity_ledger: C,
+}
+
+impl<L: ManaLedger, C: CapacityLedger> ResourcePolicyEnforcer<L, C> {
+    /// Spend mana with capacity-aware policy validation
     pub fn spend_mana(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         // Validate non-zero amount
         if amount == 0 {
@@ -69,17 +123,22 @@ impl<L: ManaLedger> ResourcePolicyEnforcer<L> {
         }
         
         // Check available balance
-        let available = self.adapter.get_balance(did);
+        let available = self.ledger.get_balance(did);
         if available < amount {
             return Err(CommonError::PolicyDenied(format!("Insufficient mana for DID {did}")));
         }
         
-        // Enforce spending limits
-        if amount > Self::MAX_SPEND_LIMIT {
-            return Err(CommonError::PolicyDenied(format!("Spend amount exceeds limit")));
+        // Apply capacity-based spending limits
+        let capacity_score = self.capacity_ledger.get_capacity_score(did);
+        let dynamic_limit = (Self::MAX_SPEND_LIMIT as f64 * (0.5 + capacity_score * 0.5)) as u64;
+        
+        if amount > dynamic_limit {
+            return Err(CommonError::PolicyDenied(
+                format!("Spend amount exceeds capacity-based limit: {}", dynamic_limit)
+            ));
         }
         
-        self.adapter.spend_mana(did, amount)
+        self.ledger.spend(did, amount)
     }
 }
 ```
@@ -947,6 +1006,186 @@ assert_eq!(resource_repo.ledger().get_balance("CREDIT", &bob), 50000);
 - **Democratic Resource Allocation**: Community-controlled economic policies
 - **Budget Management**: Governance-approved spending and allocation
 - **Economic Parameter Governance**: Community control over economic rules
+
+## CCL Integration - Programmable Economic Policies
+
+### 🔧 CCL Economic APIs
+
+ICN economics integrates deeply with the Cooperative Contract Language (CCL) to enable programmable economic policies and community-customized behaviors:
+
+```rust
+/// CCL economic policy hooks
+pub trait CCLEconomicHooks: Send + Sync {
+    /// Override default mana regeneration formula
+    fn custom_regeneration_rate(&self, did: &Did, base_rate: f64, capacity_factor: f64, reputation_factor: f64) -> f64;
+    
+    /// Adjust mana costs for specific operations
+    fn operation_mana_cost(&self, operation: EconomicOperation, base_cost: u64) -> u64;
+    
+    /// Define token issuance restrictions
+    fn can_issue_token(&self, issuer: &Did, token_class: &TokenClass) -> Result<bool, CommonError>;
+    
+    /// Implement demurrage and velocity incentives
+    fn apply_demurrage(&self, token_class_id: &TokenClassId, holder: &Did, amount: u64) -> u64;
+    
+    /// Register new economic primitives
+    fn register_economic_primitive(&self, primitive: EconomicPrimitive) -> Result<(), CommonError>;
+    
+    /// Provide dispute resolution workflows
+    fn resolve_economic_dispute(&self, dispute: EconomicDispute) -> Result<EconomicResolution, CommonError>;
+}
+
+/// Economic operations that can be customized via CCL
+#[derive(Debug, Clone)]
+pub enum EconomicOperation {
+    MeshComputation { job_size: u64, duration: u64 },
+    NetworkParticipation { messages: u64 },
+    StorageAccess { bytes: u64, duration: u64 },
+    GovernanceVoting { proposal_complexity: u64 },
+    IdentityOperation { operation_type: String },
+    TokenTransfer { token_class: TokenClassId, amount: u64 },
+}
+
+/// Custom economic primitives defined in CCL
+#[derive(Debug, Clone)]
+pub struct EconomicPrimitive {
+    pub name: String,
+    pub description: String,
+    pub token_mechanics: TokenMechanics,
+    pub transfer_rules: TransferabilityRule,
+    pub governance_requirements: GovernanceRequirements,
+}
+```
+
+### 📄 CCL Economic Templates
+
+#### Default Capacity-Aware Regeneration Policy
+```ccl
+// Default regeneration with adjustable weights
+economic_policy regeneration_policy {
+    parameters {
+        capacity_weight: 0.6,
+        reputation_weight: 0.4,
+        base_rate: 10.0,
+        max_factor: 3.0,
+        min_factor: 0.1
+    }
+    
+    function calculate_regeneration(did: DID, base_rate: f64, capacity: f64, reputation: f64) -> f64 {
+        let capacity_factor = max(min_factor, min(max_factor, capacity));
+        let reputation_factor = max(0.5, min(2.0, reputation));
+        
+        base_rate * 
+            (capacity_factor * capacity_weight + reputation_factor * reputation_weight)
+    }
+}
+```
+
+#### Mutual Credit Economic Model
+```ccl
+economic_model mutual_credit {
+    token_class "community_credit" {
+        type: MutualCredit,
+        transferability: RestrictedTransfer {
+            authorized_recipients: community_members
+        },
+        scoping_rules: {
+            community_scope: community_id,
+            max_supply: none, // Unlimited issuance
+            min_balance: -1000 // Allow negative balances (debt)
+        }
+    }
+    
+    function issue_credit(borrower: DID, amount: u64) -> Result<(), Error> {
+        require(is_community_member(borrower));
+        require(amount <= credit_limit(borrower));
+        
+        mint("community_credit", borrower, amount);
+        record_debt(borrower, amount);
+        
+        Ok(())
+    }
+}
+```
+
+#### Dispute Resolution Workflow
+```ccl
+workflow economic_dispute_resolution {
+    trigger: economic_dispute_filed
+    
+    step mediation {
+        assign_mediator(dispute.community);
+        set_deadline(7_days);
+        
+        if mediation_successful() {
+            apply_resolution(mediation_result);
+            close_dispute();
+        } else {
+            goto community_vote;
+        }
+    }
+    
+    step community_vote {
+        create_proposal("Economic Dispute Resolution", dispute.details);
+        set_voting_period(3_days);
+        
+        if proposal_passes() {
+            apply_resolution(vote_result);
+            close_dispute();
+        } else {
+            goto arbitration;
+        }
+    }
+    
+    step arbitration {
+        select_arbitrators(3, dispute.community);
+        apply_resolution(arbitration_decision);
+        close_dispute();
+    }
+}
+```
+
+### 🔌 Integration Points
+
+```rust
+/// Economic engine with CCL integration
+pub struct CCLEconomicEngine<L: ManaLedger, R: ResourceLedger, C: CapacityLedger> {
+    mana_ledger: L,
+    resource_ledger: R,
+    capacity_ledger: C,
+    ccl_hooks: Box<dyn CCLEconomicHooks>,
+}
+
+impl<L: ManaLedger, R: ResourceLedger, C: CapacityLedger> CCLEconomicEngine<L, R, C> {
+    /// Execute mana regeneration with CCL policy overrides
+    pub fn regenerate_all_with_policy(&self) -> Result<(), CommonError> {
+        for did in self.mana_ledger.all_accounts() {
+            let base_rate = 10.0; // Default base rate
+            let capacity_factor = self.capacity_ledger.get_capacity_score(&did);
+            let reputation_factor = 1.0; // From reputation system
+            
+            // Apply CCL policy override
+            let final_rate = self.ccl_hooks.custom_regeneration_rate(
+                &did, base_rate, capacity_factor, reputation_factor
+            );
+            
+            let regeneration_amount = (final_rate * 1.0) as u64; // 1 hour elapsed
+            self.mana_ledger.credit(&did, regeneration_amount)?;
+        }
+        
+        Ok(())
+    }
+    
+    /// Process economic operation with CCL cost adjustment
+    pub fn process_operation(&self, did: &Did, operation: EconomicOperation) -> Result<(), CommonError> {
+        let base_cost = self.calculate_base_cost(&operation);
+        let adjusted_cost = self.ccl_hooks.operation_mana_cost(operation, base_cost);
+        
+        self.mana_ledger.spend(did, adjusted_cost)
+    }
+}
+```
+
 
 ## Security and Policy Enforcement
 

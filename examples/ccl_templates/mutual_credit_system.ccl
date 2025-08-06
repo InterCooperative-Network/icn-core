@@ -1,0 +1,454 @@
+// CCL Template: Community Mutual Credit System
+// Demonstrates anti-speculation mutual credit with democratic control
+// Based on documentation in docs/economics-models.md
+
+contract community_mutual_credit {
+    metadata {
+        version: "1.0.0",
+        author: "ICN Core Development Team",
+        description: "Community-controlled mutual credit system with anti-speculation safeguards",
+    }
+    
+    // Community-controlled parameters
+    state {
+        // Credit policy parameters
+        default_credit_limit: Integer = 1000,
+        max_credit_limit: Integer = 5000,
+        velocity_limit_period: Integer = 86400, // 24 hours in seconds
+        max_velocity_transactions: Integer = 10,
+        
+        // Interest rates (basis points, 0 = no interest)
+        base_interest_rate: Integer = 0, // Zero interest for mutual aid
+        speculation_penalty_rate: Integer = 1000, // 10% penalty for speculation
+        
+        // Community validation requirements
+        min_validators_required: Integer = 3,
+        validation_threshold: Float = 0.67, // 67% approval required
+        
+        // Purpose validation settings
+        require_purpose_validation: Bool = true,
+        allow_emergency_credit: Bool = true,
+        emergency_credit_limit: Integer = 200,
+    }
+    
+    init {
+        // Initialize community governance for credit policies
+        initialize_credit_governance();
+        
+        // Set up velocity monitoring
+        initialize_velocity_monitoring();
+        
+        // Create community credit pool
+        create_community_credit_pool();
+    }
+}
+
+// Core mutual credit functions
+fn create_community_credit_line(
+    creditor: Did,
+    debtor: Did,
+    amount: Integer,
+    purpose: String
+) -> String {
+    // Validate both parties are community members
+    if !is_community_member(creditor) || !is_community_member(debtor) {
+        return "ERROR: Both parties must be community members";
+    }
+    
+    // Check credit limits
+    if amount > @max_credit_limit {
+        return "ERROR: Amount exceeds maximum credit limit";
+    }
+    
+    // Validate purpose for anti-speculation
+    if @require_purpose_validation && !is_valid_mutual_aid_purpose(purpose) {
+        return "ERROR: Purpose does not qualify for mutual credit";
+    }
+    
+    // Check velocity limits to prevent rapid speculation
+    if !check_velocity_limits(debtor) {
+        return "ERROR: Velocity limits exceeded - too many recent transactions";
+    }
+    
+    // Create the credit line with zero interest
+    let credit_line_id = create_credit_line(
+        creditor,
+        debtor,
+        amount,
+        @base_interest_rate
+    );
+    
+    // Record the purpose and community validation
+    record_credit_purpose(credit_line_id, purpose);
+    
+    // Initialize community validation if required
+    if amount > @default_credit_limit {
+        initiate_community_validation(credit_line_id, amount, purpose);
+    } else {
+        // Auto-approve smaller amounts
+        approve_credit_line(credit_line_id);
+    }
+    
+    return credit_line_id;
+}
+
+// Anti-speculation purpose validation
+fn is_valid_mutual_aid_purpose(purpose: String) -> Bool {
+    let mutual_aid_keywords = [
+        "housing", "food", "healthcare", "education", "tools", "equipment",
+        "emergency_aid", "community_project", "cooperative_venture",
+        "infrastructure", "local_production", "skill_sharing", "mutual_support"
+    ];
+    
+    let speculation_keywords = [
+        "investment", "trading", "profit", "speculation", "arbitrage",
+        "financial_gain", "market_making", "currency_exchange"
+    ];
+    
+    // Check for speculation indicators (disallowed)
+    for speculative_term in speculation_keywords {
+        if purpose.to_lower().contains(speculative_term) {
+            return false;
+        }
+    }
+    
+    // Check for mutual aid indicators (allowed)
+    for mutual_aid_term in mutual_aid_keywords {
+        if purpose.to_lower().contains(mutual_aid_term) {
+            return true;
+        }
+    }
+    
+    // If no clear indicators, default to community validation
+    return false;
+}
+
+// Velocity limits to prevent speculation
+fn check_velocity_limits(member: Did) -> Bool {
+    let current_time = get_current_timestamp();
+    let period_start = current_time - @velocity_limit_period;
+    
+    let recent_transactions = count_credit_transactions(member, period_start, current_time);
+    
+    return recent_transactions < @max_velocity_transactions;
+}
+
+// Community validation for larger credit amounts
+fn initiate_community_validation(
+    credit_line_id: String,
+    amount: Integer,
+    purpose: String
+) -> Bool {
+    // Create validation proposal
+    let proposal_id = create_validation_proposal(
+        credit_line_id,
+        amount,
+        purpose,
+        @min_validators_required
+    );
+    
+    // Notify community validators
+    notify_community_validators(proposal_id);
+    
+    return true;
+}
+
+// Community validator function
+fn validate_credit_proposal(
+    validator: Did,
+    proposal_id: String,
+    approve: Bool,
+    comments: String
+) -> Bool {
+    // Verify validator is authorized community member
+    if !is_authorized_validator(validator) {
+        return false;
+    }
+    
+    // Record validation vote
+    record_validation_vote(proposal_id, validator, approve, comments);
+    
+    // Check if we have enough votes to decide
+    let validation_result = check_validation_completion(proposal_id);
+    
+    if validation_result.is_complete {
+        if validation_result.approved {
+            approve_credit_line(validation_result.credit_line_id);
+        } else {
+            reject_credit_line(validation_result.credit_line_id, validation_result.reason);
+        }
+    }
+    
+    return true;
+}
+
+// Emergency credit for urgent mutual aid
+fn create_emergency_credit(
+    recipient: Did,
+    amount: Integer,
+    emergency_type: String,
+    urgency_level: Integer
+) -> String {
+    if !@allow_emergency_credit {
+        return "ERROR: Emergency credit is disabled";
+    }
+    
+    if amount > @emergency_credit_limit {
+        return "ERROR: Amount exceeds emergency credit limit";
+    }
+    
+    // Validate emergency type
+    let valid_emergencies = [
+        "medical_emergency", "housing_crisis", "food_insecurity",
+        "disaster_relief", "safety_threat", "critical_repair"
+    ];
+    
+    let is_valid_emergency = false;
+    for emergency in valid_emergencies {
+        if emergency_type.contains(emergency) {
+            is_valid_emergency = true;
+            break;
+        }
+    }
+    
+    if !is_valid_emergency {
+        return "ERROR: Invalid emergency type";
+    }
+    
+    // Create emergency credit line from community pool
+    let emergency_credit_id = create_emergency_credit_from_pool(
+        recipient,
+        amount,
+        emergency_type,
+        urgency_level
+    );
+    
+    // Record for community review (post-approval)
+    schedule_emergency_credit_review(emergency_credit_id);
+    
+    return emergency_credit_id;
+}
+
+// Democratic governance of credit policies
+fn propose_credit_policy_change(
+    proposer: Did,
+    policy_change: String,
+    new_value: String,
+    rationale: String
+) -> String {
+    // Verify proposer is community member
+    if !is_community_member(proposer) {
+        return "ERROR: Only community members can propose policy changes";
+    }
+    
+    let valid_policies = [
+        "default_credit_limit", "max_credit_limit", "velocity_limit_period",
+        "max_velocity_transactions", "base_interest_rate", "min_validators_required",
+        "validation_threshold", "emergency_credit_limit"
+    ];
+    
+    let is_valid_policy = false;
+    for policy in valid_policies {
+        if policy == policy_change {
+            is_valid_policy = true;
+            break;
+        }
+    }
+    
+    if !is_valid_policy {
+        return "ERROR: Invalid policy parameter";
+    }
+    
+    // Create governance proposal
+    let proposal_id = create_governance_proposal(
+        proposer,
+        "credit_policy_change",
+        policy_change,
+        new_value,
+        rationale
+    );
+    
+    // Schedule community vote
+    schedule_community_vote(proposal_id, 604800); // 7 days voting period
+    
+    return proposal_id;
+}
+
+// Apply approved policy changes
+fn apply_policy_change(policy_name: String, new_value: String) -> Bool {
+    match policy_name {
+        "default_credit_limit" => {
+            @default_credit_limit = new_value.parse_int();
+        },
+        "max_credit_limit" => {
+            @max_credit_limit = new_value.parse_int();
+        },
+        "velocity_limit_period" => {
+            @velocity_limit_period = new_value.parse_int();
+        },
+        "max_velocity_transactions" => {
+            @max_velocity_transactions = new_value.parse_int();
+        },
+        "base_interest_rate" => {
+            @base_interest_rate = new_value.parse_int();
+        },
+        "min_validators_required" => {
+            @min_validators_required = new_value.parse_int();
+        },
+        "validation_threshold" => {
+            @validation_threshold = new_value.parse_float();
+        },
+        "emergency_credit_limit" => {
+            @emergency_credit_limit = new_value.parse_int();
+        },
+        _ => {
+            return false;
+        }
+    }
+    
+    // Log policy change for transparency
+    log_policy_change(policy_name, new_value, get_current_timestamp());
+    
+    return true;
+}
+
+// Credit circle management for local economies
+fn create_credit_circle(
+    organizer: Did,
+    circle_name: String,
+    max_members: Integer,
+    circle_credit_limit: Integer
+) -> String {
+    // Verify organizer credentials
+    if !is_community_member(organizer) {
+        return "ERROR: Organizer must be community member";
+    }
+    
+    // Create credit circle with shared credit pool
+    let circle_id = create_shared_credit_pool(
+        organizer,
+        circle_name,
+        max_members,
+        circle_credit_limit
+    );
+    
+    // Set up circle governance
+    initialize_circle_governance(circle_id, organizer);
+    
+    // Enable mutual credit within circle
+    enable_circle_mutual_credit(circle_id);
+    
+    return circle_id;
+}
+
+// Credit circle member management
+fn join_credit_circle(
+    applicant: Did,
+    circle_id: String,
+    endorser: Did,
+    introduction: String
+) -> Bool {
+    // Verify endorser is circle member
+    if !is_circle_member(endorser, circle_id) {
+        return false;
+    }
+    
+    // Check circle capacity
+    if is_circle_full(circle_id) {
+        return false;
+    }
+    
+    // Create membership application
+    let application_id = create_circle_application(
+        applicant,
+        circle_id,
+        endorser,
+        introduction
+    );
+    
+    // Notify circle members for consensus
+    notify_circle_members(circle_id, application_id);
+    
+    return true;
+}
+
+// Community reporting and transparency
+fn generate_credit_community_report() -> String {
+    let total_credit_lines = count_active_credit_lines();
+    let total_credit_volume = sum_active_credit_amounts();
+    let avg_credit_amount = if total_credit_lines > 0 { 
+        total_credit_volume / total_credit_lines 
+    } else { 
+        0 
+    };
+    
+    let emergency_credits_this_month = count_emergency_credits_by_period(2592000); // 30 days
+    let policy_changes_this_year = count_policy_changes_by_period(31536000); // 365 days
+    
+    let velocity_violations = count_velocity_violations();
+    let speculation_attempts = count_speculation_attempts();
+    
+    let report = format!(
+        "Community Mutual Credit Report:\n" +
+        "Active Credit Lines: {}\n" +
+        "Total Credit Volume: {} credits\n" +
+        "Average Credit Amount: {} credits\n" +
+        "Emergency Credits (30 days): {}\n" +
+        "Policy Changes (1 year): {}\n" +
+        "Velocity Violations: {}\n" +
+        "Speculation Attempts Blocked: {}",
+        total_credit_lines,
+        total_credit_volume,
+        avg_credit_amount,
+        emergency_credits_this_month,
+        policy_changes_this_year,
+        velocity_violations,
+        speculation_attempts
+    );
+    
+    return report;
+}
+
+// Integration with capacity-aware mana for hybrid economies
+fn integrate_with_mana_system(
+    credit_line_id: String,
+    mana_contribution: Integer
+) -> Bool {
+    // Allow communities to supplement mutual credit with mana
+    let credit_info = get_credit_line_info(credit_line_id);
+    
+    if credit_info.status != "active" {
+        return false;
+    }
+    
+    // Add mana as additional backing for credit line
+    add_mana_backing(credit_line_id, mana_contribution);
+    
+    // This enables hybrid economies where both mutual credit
+    // and capacity-based mana work together
+    
+    return true;
+}
+
+// Time banking integration
+fn create_time_bank_credit(
+    service_provider: Did,
+    service_recipient: Did,
+    hours_contributed: Float,
+    service_description: String
+) -> String {
+    // Time banking is a form of mutual credit based on time
+    let time_credit_amount = (hours_contributed * 1.0) as Integer; // 1 hour = 1 credit
+    
+    let credit_line_id = create_community_credit_line(
+        service_provider,
+        service_recipient,
+        time_credit_amount,
+        "time_banking: " + service_description
+    );
+    
+    // Record time contribution for reputation
+    record_time_contribution(service_provider, hours_contributed, service_description);
+    
+    return credit_line_id;
+}

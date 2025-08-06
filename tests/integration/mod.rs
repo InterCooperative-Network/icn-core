@@ -4,6 +4,7 @@
 //! the complete production service implementations.
 
 pub mod production_services;
+pub mod capacity_aware_mana;
 
 // Re-export test functions for easy access
 pub use production_services::*;
