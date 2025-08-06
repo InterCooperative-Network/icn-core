@@ -18,7 +18,7 @@
     &amp;mut self,
     mana_ledger: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;M</a>,
     _resource_ledger: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;R</a>,
-    recent_transactions: &amp;[<a class="struct" href="../../icn_core_traits/economics/struct.ManaTransaction.html" title="struct icn_core_traits::economics::ManaTransaction">ManaTransaction</a>],
+    recent_transactions: &amp;[ManaTransaction],
 ) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="struct" href="struct.EconomicDispute.html" title="struct icn_economics::economic_dispute_resolver::EconomicDispute">EconomicDispute</a>&gt;, CommonError&gt;</h4></section></summary><div class="docblock"><p>Detect economic disputes from transaction patterns</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.resolve_dispute" class="method"><a class="src rightside" href="../../src/icn_economics/economic_dispute_resolver.rs.html#728-771">Source</a><h4 class="code-header">pub fn <a href="#method.resolve_dispute" class="fn">resolve_dispute</a>(
     &amp;mut self,
