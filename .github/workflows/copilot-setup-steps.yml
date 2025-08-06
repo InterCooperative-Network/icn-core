@@ -15,7 +15,7 @@ jobs:
   copilot-setup-steps:
     # Use your organisation’s larger runner label here.
     # For example: ubuntu-4-core, ubuntu-8-core, ubuntu-16-core, etc.:contentReference[oaicite:5]{index=5}
-    runs-on: ubuntu-8-core
+    runs-on: ubuntu-4-core
 
     # Grant only minimal permissions; Copilot will use its own token for writes.
     permissions:
