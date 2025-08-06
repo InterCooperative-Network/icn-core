@@ -16,22 +16,36 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+pub mod adversarial_resilience;
+pub mod cooperation_enhancement;
 pub mod crdt_ledger;
 pub mod economic_dispute_resolver;
+pub mod enhanced_mana_system;
 pub mod explorer;
+pub mod integration_examples;
 pub mod ledger;
 pub mod marketplace;
 pub mod metrics;
 pub mod mutual_aid;
 pub mod mutual_credit;
+pub mod organizational_structures;
 pub mod reputation_tokens;
 pub mod time_banking;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
+pub use adversarial_resilience::{
+    AdversarialResilientEconomics, AntiGamingDetector, AttackDetection, AttackType,
+    ByzantineValidator, EmergencyCoordinator, EmergencyProtocol,
+};
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
+};
+pub use cooperation_enhancement::{
+    AidMatch, AidNetwork, AidOffer, AidRequest, AidTransaction, AidType, BonusProgram,
+    CollectiveBonusSystem, GeographicalScope, MutualAidCoordinator, TrustRelationship,
+    TrustWeightedAllocator, UrgencyLevel,
 };
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use economic_dispute_resolver::{
@@ -39,6 +53,12 @@ pub use economic_dispute_resolver::{
     EconomicDispute, EconomicDisputeConfig, EconomicDisputeResolver, EconomicDisputeType,
     EconomicEvidence, EconomicPenalty, EconomicResolution, EconomicResolutionStatus, PenaltyType,
     ReputationProvider as DisputeReputationProvider, ResourceRedistribution,
+};
+pub use enhanced_mana_system::{
+    AntiAccumulationConfig, AntiAccumulationState, CapacityMetrics, CollectiveAction,
+    CollectiveResourcePool, ContributionMetrics, ContributionWeightedManaLedger,
+    CooperationBonuses, EmergencyAdjustments, EnhancedManaAccount, MutualAidRecord,
+    OrganizationalBonuses, QualityMetrics, RegenerationPolicy, TrustNetwork,
 };
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileResourceLedger;
@@ -62,6 +82,15 @@ pub use mutual_credit::{
     CommunityStats, CreditLine, CreditLineStatus, CreditScore, CreditTransactionStatus,
     InMemoryMutualCreditStore, MutualCreditStore, MutualCreditTransaction, RepaymentMethod,
     RepaymentRecord,
+};
+pub use organizational_structures::{
+    Agreement, AgreementStatus, AgreementType, ConflictResolutionModel, ContributionRecognitionPolicy,
+    CulturalValues, DecisionMakingCulture, EconomicFocus, EconomicPolicies, GovernanceModel,
+    InclusionPractices, InteractionHistory, InteropProtocol, ManaRegenerationPolicy, Organization,
+    OrganizationType, OrganizationalEconomics, OrganizationalRelationship, OrganizationRegistry,
+    PerformanceMetric, ProductionCapacity, ReciprocityRequirements, RecognitionType,
+    RelationshipType, ReputationMetrics, ResourceAllocationPolicy, ResourceSharingRules,
+    RewardMechanism, SurplusDistributionPolicy,
 };
 pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPUTATION_CLASS};
 pub use time_banking::{
