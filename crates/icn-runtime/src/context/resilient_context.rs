@@ -98,6 +98,19 @@ impl ErrorClassifier<CommonError> for ICNErrorClassifier {
 
             // Default to recoverable for unknown error types
             CommonError::UnknownError(_) => true,
+
+            // New adversarial error types
+            CommonError::InsufficientConsensus => true,  // May recover with more validators
+            CommonError::GamingDetected(_) => false,     // Permanent - requires intervention
+            CommonError::AccountFrozen(_) => true,       // May recover when unfrozen
+            CommonError::AccountNotFound => false,       // Permanent - account doesn't exist
+            CommonError::AccountNotActive => true,       // May recover when reactivated
+            CommonError::InsufficientBalance => true,    // May recover with more mana
+            CommonError::InsufficientVerification => true, // May recover with better proof
+            CommonError::InvalidProof => false,          // Permanent - proof is invalid
+            CommonError::InvalidValidator => false,      // Permanent - validator not recognized
+            CommonError::SuspiciousActivity => false,    // Permanent - requires manual review
+            CommonError::ConcurrencyError => true,       // Transient - retry may work
         }
     }
 }

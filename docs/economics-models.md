@@ -1,8 +1,36 @@
-# ICN Economic Models
+# ICN Adversarial-Resilient Economic Models
 
-> **Beyond Capitalism: Designing Economies for Human Flourishing**
+> **Beyond Capitalism: Designing Cooperative Economies with Byzantine Fault Tolerance**
 
-The InterCooperative Network (ICN) implements anti-capitalist economic models that prioritize collective benefit, resource sharing, and human dignity over profit maximization and capital accumulation. This document outlines the comprehensive economic system and its mechanisms.
+The InterCooperative Network (ICN) implements anti-capitalist economic models that prioritize collective benefit, resource sharing, and human dignity over profit maximization and capital accumulation. This comprehensive economic system incorporates adversarial hardening, Byzantine fault tolerance, and game-theoretic security to maintain cooperative values even under attack.
+
+## 🏢 **Organizational Framework**
+
+ICN recognizes three fundamental organizational types that serve different cooperative functions:
+
+### **Cooperatives (Co-ops)**
+Economic production hubs focused on:
+- Resource allocation and production
+- Worker-owned enterprises
+- Economic value creation
+- Supply chain coordination
+- Inter-cooperative trade
+
+### **Communities** 
+Civil and cultural centers managing:
+- Democratic governance and decision-making
+- Social coordination and mutual aid
+- Cultural activities and knowledge sharing
+- Conflict resolution and mediation
+- Community values and norms
+
+### **Federations**
+Bridging organizations enabling:
+- Inter-organizational coordination
+- Cross-network resource sharing
+- Protocol standardization
+- Dispute resolution between organizations
+- Collective action and solidarity networks
 
 ---
 
@@ -25,6 +53,14 @@ The InterCooperative Network (ICN) implements anti-capitalist economic models th
 - **Worker Ownership**: Those who create value control economic decisions
 - **Transparent Operations**: All economic activity is visible and accountable
 - **Equitable Distribution**: Benefits flow to all contributors, not just capital owners
+
+### **Adversarial Hardening**
+- **Byzantine Fault Tolerance**: All economic operations maintain correctness even with up to 1/3 malicious participants
+- **Cryptographic Verification**: All transactions and state changes are cryptographically signed and verifiable
+- **Anti-Gaming Protection**: Game-theoretic mechanisms prevent exploitation of incentive systems
+- **Sybil Attack Resistance**: Identity verification and reputation systems prevent fake identity attacks
+- **Eclipse Resistance**: Decentralized consensus prevents network partition attacks
+- **Emergency Protocols**: Automatic detection and response to coordinated economic attacks
 
 ---
 
@@ -137,6 +173,245 @@ impl ManaAccount {
 - **Storage Access**: Use decentralized storage services
 - **Governance Participation**: Vote on proposals and decisions
 - **Identity Operations**: Manage DIDs and credentials
+
+#### **Adversarial-Resilient Mana System**
+
+The mana system incorporates Byzantine fault tolerance and game-theoretic security to resist adversarial conditions:
+
+##### **Byzantine Consensus for Mana Operations**
+```rust
+pub struct ByzantineManaConsensus {
+    pub validator_set: Vec<Did>,           // BFT validator nodes
+    pub consensus_threshold: f64,          // 2/3 + 1 threshold
+    pub cryptographic_proofs: ProofSystem, // Zero-knowledge proofs
+    pub anti_collusion: AntiCollusionMechanism,
+}
+
+impl ByzantineManaConsensus {
+    /// Verify mana regeneration with Byzantine fault tolerance
+    pub fn verify_regeneration(
+        &self,
+        account: &ManaAccount,
+        capacity_proof: CapacityProof,
+        reputation_proof: ReputationProof
+    ) -> Result<RegenerationCertificate, ByzantineError> {
+        // Require 2/3 + 1 validator consensus
+        let validators_required = ((self.validator_set.len() * 2) / 3) + 1;
+        
+        // Cryptographically verify capacity contributions
+        let capacity_verified = self.verify_capacity_proof(&capacity_proof)?;
+        
+        // Verify reputation through trust network
+        let reputation_verified = self.verify_reputation_proof(&reputation_proof)?;
+        
+        // Collect validator signatures
+        let validator_approvals = self.collect_validator_consensus(
+            account, &capacity_proof, &reputation_proof
+        )?;
+        
+        if validator_approvals.len() >= validators_required {
+            Ok(RegenerationCertificate {
+                account_did: account.did.clone(),
+                regeneration_amount: self.calculate_byzantine_safe_regeneration(
+                    account, &capacity_proof, &reputation_proof
+                ),
+                validator_signatures: validator_approvals,
+                timestamp: self.get_byzantine_time(),
+                proof_hash: self.generate_proof_hash(&capacity_proof, &reputation_proof),
+            })
+        } else {
+            Err(ByzantineError::InsufficientConsensus)
+        }
+    }
+}
+```
+
+##### **Sybil Attack Protection**
+```rust
+pub struct SybilProtection {
+    pub identity_verification: IdentityVerificationSystem,
+    pub social_graph_analysis: SocialGraphAnalyzer,
+    pub resource_proof_requirements: ResourceProofRequirements,
+    pub trust_network_validation: TrustNetworkValidator,
+}
+
+impl SybilProtection {
+    /// Detect potential Sybil attacks in mana allocation
+    pub fn detect_sybil_attack(
+        &self,
+        accounts: &[ManaAccount],
+        transaction_patterns: &TransactionPatterns,
+        network_metrics: &NetworkMetrics
+    ) -> SybilDetectionResult {
+        // Analyze account creation patterns
+        let creation_anomalies = self.analyze_creation_patterns(accounts);
+        
+        // Check for unusual transaction clustering
+        let transaction_anomalies = self.analyze_transaction_clustering(transaction_patterns);
+        
+        // Verify social graph connectivity
+        let social_graph_anomalies = self.analyze_social_connectivity(accounts);
+        
+        // Check resource proof authenticity
+        let resource_anomalies = self.verify_resource_proofs(accounts);
+        
+        SybilDetectionResult {
+            risk_score: self.calculate_combined_risk_score(&[
+                creation_anomalies, transaction_anomalies, 
+                social_graph_anomalies, resource_anomalies
+            ]),
+            detected_clusters: self.identify_suspicious_clusters(accounts),
+            recommended_actions: self.generate_mitigation_recommendations(),
+        }
+    }
+}
+```
+
+##### **Anti-Gaming Mechanisms**
+```rust
+pub struct AntiGamingEngine {
+    pub behavior_analysis: BehaviorAnalyzer,
+    pub incentive_alignment: IncentiveAlignmentChecker,
+    pub exploitation_detection: ExploitationDetector,
+    pub dynamic_adjustment: DynamicParameterAdjustment,
+}
+
+impl AntiGamingEngine {
+    /// Prevent exploitation of mana regeneration system
+    pub fn prevent_mana_gaming(
+        &self,
+        account: &ManaAccount,
+        historical_behavior: &BehaviorHistory,
+        network_state: &NetworkState
+    ) -> GameResistanceResult {
+        // Detect artificial capacity inflation
+        let capacity_gaming = self.detect_capacity_manipulation(
+            account, historical_behavior
+        )?;
+        
+        // Check for reputation farming
+        let reputation_gaming = self.detect_reputation_farming(
+            account, historical_behavior
+        )?;
+        
+        // Analyze for collusion patterns
+        let collusion_detected = self.detect_collusion_patterns(
+            account, network_state
+        )?;
+        
+        // Apply dynamic adjustments if gaming detected
+        if capacity_gaming.is_detected() || reputation_gaming.is_detected() || collusion_detected {
+            self.apply_anti_gaming_adjustments(account, &[
+                capacity_gaming, reputation_gaming, collusion_detected
+            ])
+        } else {
+            GameResistanceResult::Clean
+        }
+    }
+}
+```
+
+##### **Emergency Economic Protocols**
+
+ICN includes automated emergency protocols to respond to coordinated economic attacks:
+
+```rust
+pub struct EmergencyProtocols {
+    pub attack_detection: AttackDetectionSystem,
+    pub emergency_governance: EmergencyGovernance,
+    pub resource_protection: ResourceProtectionMechanisms,
+    pub network_isolation: NetworkIsolationControls,
+}
+
+impl EmergencyProtocols {
+    /// Detect and respond to coordinated economic attacks
+    pub fn handle_economic_attack(
+        &self,
+        attack_indicators: &AttackIndicators,
+        network_state: &NetworkState
+    ) -> EmergencyResponse {
+        match attack_indicators.attack_type {
+            AttackType::MassResourceDrain => {
+                // Implement emergency rate limiting
+                self.activate_emergency_rate_limits()?;
+                self.notify_emergency_governance(&attack_indicators)?;
+                EmergencyResponse::RateLimitingActivated
+            },
+            AttackType::SybilSwarm => {
+                // Increase identity verification requirements
+                self.increase_verification_requirements()?;
+                self.freeze_new_account_creation()?;
+                EmergencyResponse::SybilProtectionActivated
+            },
+            AttackType::EconomicManipulation => {
+                // Freeze suspicious accounts and transactions
+                self.freeze_suspicious_accounts(&attack_indicators.suspected_accounts)?;
+                self.activate_emergency_auditing()?;
+                EmergencyResponse::EconomicFreeze
+            },
+            AttackType::NetworkPartition => {
+                // Activate partition recovery protocols
+                self.activate_partition_recovery()?;
+                self.establish_emergency_consensus()?;
+                EmergencyResponse::PartitionRecovery
+            }
+        }
+    }
+}
+
+pub enum AttackType {
+    MassResourceDrain,        // Coordinated resource exhaustion
+    SybilSwarm,              // Large-scale fake identity creation
+    EconomicManipulation,     // Price manipulation or market abuse
+    NetworkPartition,        // Eclipse or partition attacks
+}
+```
+
+##### **Dynamic Pricing Under Stress**
+
+The system implements dynamic pricing mechanisms that activate during network stress:
+
+```rust
+pub struct DynamicPricingEngine {
+    pub stress_indicators: StressIndicatorSystem,
+    pub price_adjustment: PriceAdjustmentAlgorithm,
+    pub resource_prioritization: ResourcePrioritization,
+    pub load_balancing: LoadBalancingSystem,
+}
+
+impl DynamicPricingEngine {
+    /// Adjust mana costs based on network stress conditions
+    pub fn calculate_stress_adjusted_cost(
+        &self,
+        base_cost: u64,
+        resource_type: ResourceType,
+        network_stress: &NetworkStressMetrics
+    ) -> StressAdjustedCost {
+        let stress_multiplier = match network_stress.overall_stress_level {
+            StressLevel::Normal => 1.0,
+            StressLevel::Moderate => 1.2,
+            StressLevel::High => 1.5,
+            StressLevel::Critical => 2.0,
+            StressLevel::Emergency => 3.0,
+        };
+        
+        let resource_scarcity_multiplier = self.calculate_resource_scarcity_multiplier(
+            resource_type, network_stress
+        );
+        
+        let priority_adjustment = self.calculate_priority_adjustment(
+            resource_type, network_stress
+        );
+        
+        StressAdjustedCost {
+            base_cost,
+            adjusted_cost: (base_cost as f64 * stress_multiplier * resource_scarcity_multiplier * priority_adjustment) as u64,
+            stress_level: network_stress.overall_stress_level,
+            expires_at: self.calculate_adjustment_expiry(),
+        }
+    }
+}
+```
 
 ### **2. Scoped Token Framework**
 
@@ -435,6 +710,154 @@ fn allocate_federation_resources(
     );
     
     return AllocationResult::Approved(final_allocation);
+}
+```
+
+### **Enhanced Organizational Framework**
+
+The updated ICN economic system differentiates between three organizational types, each with specialized economic functions:
+
+#### **Cooperative Economic Functions**
+```rust
+pub struct CooperativeEconomics {
+    pub production_capacity: ProductionCapacityLedger,
+    pub resource_allocation: ResourceAllocationEngine,
+    pub inter_coop_trade: InterCooperativeTradeSystem,
+    pub worker_ownership: WorkerOwnershipFramework,
+    pub value_distribution: ValueDistributionMechanisms,
+}
+
+impl CooperativeEconomics {
+    /// Specialized economic functions for production cooperatives
+    pub fn manage_production_economics(
+        &self,
+        coop_id: Did,
+        production_data: ProductionMetrics,
+        resource_needs: ResourceRequirements
+    ) -> CooperativeEconomicPlan {
+        // Calculate production capacity and resource needs
+        let capacity_analysis = self.production_capacity.analyze_capacity(
+            &coop_id, &production_data
+        )?;
+        
+        // Optimize resource allocation for production efficiency
+        let resource_plan = self.resource_allocation.optimize_for_production(
+            &resource_needs, &capacity_analysis
+        )?;
+        
+        // Plan inter-cooperative trade for resource acquisition
+        let trade_opportunities = self.inter_coop_trade.identify_trade_opportunities(
+            &coop_id, &resource_needs
+        )?;
+        
+        // Ensure worker ownership benefits from economic success
+        let ownership_distribution = self.worker_ownership.calculate_ownership_benefits(
+            &coop_id, &production_data, &capacity_analysis
+        )?;
+        
+        CooperativeEconomicPlan {
+            capacity_analysis,
+            resource_plan,
+            trade_opportunities,
+            ownership_distribution,
+        }
+    }
+}
+```
+
+#### **Community Economic Functions**
+```rust
+pub struct CommunityEconomics {
+    pub mutual_aid: MutualAidCoordination,
+    pub democratic_budgeting: DemocraticBudgetingSystem,
+    pub care_economy: CareEconomyFramework,
+    pub local_exchange: LocalExchangeSystem,
+    pub commons_management: CommonsManagementSystem,
+}
+
+impl CommunityEconomics {
+    /// Specialized economic functions for communities
+    pub fn manage_community_economics(
+        &self,
+        community_id: Did,
+        community_needs: CommunityNeedsAssessment,
+        available_resources: AvailableResources
+    ) -> CommunityEconomicPlan {
+        // Coordinate mutual aid based on community needs
+        let mutual_aid_plan = self.mutual_aid.create_mutual_aid_plan(
+            &community_id, &community_needs
+        )?;
+        
+        // Enable democratic resource allocation
+        let budget_allocation = self.democratic_budgeting.facilitate_democratic_budgeting(
+            &community_id, &available_resources, &community_needs
+        )?;
+        
+        // Support care work and social reproduction
+        let care_support = self.care_economy.support_care_economy(
+            &community_id, &community_needs
+        )?;
+        
+        // Enable local exchange and sharing
+        let exchange_facilitation = self.local_exchange.facilitate_local_exchange(
+            &community_id, &available_resources
+        )?;
+        
+        CommunityEconomicPlan {
+            mutual_aid_plan,
+            budget_allocation,
+            care_support,
+            exchange_facilitation,
+        }
+    }
+}
+```
+
+#### **Federation Economic Functions**
+```rust
+pub struct FederationEconomics {
+    pub cross_network_coordination: CrossNetworkCoordination,
+    pub resource_sharing: FederationResourceSharing,
+    pub dispute_resolution: EconomicDisputeResolution,
+    pub protocol_standardization: EconomicProtocolStandardization,
+    pub collective_action: CollectiveActionCoordination,
+}
+
+impl FederationEconomics {
+    /// Specialized economic functions for federations
+    pub fn manage_federation_economics(
+        &self,
+        federation_id: Did,
+        member_organizations: &[Did],
+        collective_goals: CollectiveGoals
+    ) -> FederationEconomicPlan {
+        // Coordinate resource sharing across member organizations
+        let resource_coordination = self.resource_sharing.coordinate_federation_resources(
+            &federation_id, member_organizations
+        )?;
+        
+        // Standardize economic protocols across the federation
+        let protocol_harmonization = self.protocol_standardization.harmonize_protocols(
+            &federation_id, member_organizations
+        )?;
+        
+        // Enable collective action for shared economic goals
+        let collective_action_plan = self.collective_action.plan_collective_action(
+            &federation_id, &collective_goals
+        )?;
+        
+        // Provide economic dispute resolution services
+        let dispute_resolution_framework = self.dispute_resolution.establish_dispute_resolution(
+            &federation_id, member_organizations
+        )?;
+        
+        FederationEconomicPlan {
+            resource_coordination,
+            protocol_harmonization,
+            collective_action_plan,
+            dispute_resolution_framework,
+        }
+    }
 }
 ```
 
