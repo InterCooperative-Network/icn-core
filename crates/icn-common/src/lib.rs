@@ -262,6 +262,40 @@ pub enum CommonError {
     /// Validation error
     #[error("Validation error: {0}")]
     ValidationError(String),
+
+    /// Adversarial errors for Byzantine fault tolerance
+    #[error("Insufficient consensus for operation")]
+    InsufficientConsensus,
+
+    #[error("Gaming detected: {0}")]
+    GamingDetected(String),
+
+    #[error("Account frozen: {0}")]
+    AccountFrozen(String),
+
+    #[error("Account not found")]
+    AccountNotFound,
+
+    #[error("Account not active")]
+    AccountNotActive,
+
+    #[error("Insufficient balance")]
+    InsufficientBalance,
+
+    #[error("Insufficient verification")]
+    InsufficientVerification,
+
+    #[error("Invalid proof")]
+    InvalidProof,
+
+    #[error("Invalid validator")]
+    InvalidValidator,
+
+    #[error("Suspicious activity detected")]
+    SuspiciousActivity,
+
+    #[error("Concurrency error")]
+    ConcurrencyError,
 }
 
 /// Trait for types that can produce a canonical byte representation for

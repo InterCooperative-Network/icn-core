@@ -34,9 +34,34 @@ pub mod mana_providers;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
+
+/// Adversarial-resilient economic components
+pub mod adversarial;
+
+/// Organizational types and economics
+pub mod organizational;
+
+/// Byzantine-resistant mana ledger
+pub mod byzantine_mana;
+
+/// Basic anti-gaming implementation
+pub mod basic_anti_gaming;
+
+pub use adversarial::{
+    AntiGamingAction, AntiGamingResult, AttackDetectionResult, AttackIndicators, AttackSeverity,
+    AttackType, BehaviorHistory, ByzantineEconomics, EconomicOperation, EconomicOperationType,
+    EmergencyProtocols, EmergencyResponse, GameTheoreticSecurity, GamingDetectionResult,
+    GamingIndicators, NetworkAnalysis, SybilDetectionResult, ThreatLevel, ValidatorSignature,
+};
 pub use automation::{
     EconomicAutomationConfig, EconomicAutomationEngine, EconomicAutomationStats, EconomicEvent,
     EconomicHealthMetrics,
+};
+pub use basic_anti_gaming::{BasicAntiGamingEngine, GamingThresholds};
+pub use byzantine_mana::{ByzantineManaLedger, ManaAccount, ManaSystemHealthMetrics, SpendingContext, VerifiedCapacityMetrics};
+pub use organizational::{
+    CooperativeProfile, CommunityProfile, FederationProfile, OrganizationalEconomics,
+    OrganizationalEconomicMetrics, OrganizationType,
 };
 pub use crdt_ledger::{CRDTManaLedger, CRDTManaLedgerConfig, CRDTManaLedgerStats};
 pub use economic_dispute_resolver::{
@@ -142,6 +167,9 @@ impl ManaLedger for InMemoryLedger {
 
 #[cfg(test)]
 mod token_tests;
+
+#[cfg(test)]
+mod adversarial_tests;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum LedgerEvent {
