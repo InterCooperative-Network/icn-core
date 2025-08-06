@@ -16,6 +16,7 @@ use icn_common::{
 use icn_dag::StorageService;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 pub mod crdt_ledger;
 pub mod economic_dispute_resolver;
 pub mod explorer;
@@ -26,6 +27,10 @@ pub mod mutual_aid;
 pub mod mutual_credit;
 pub mod reputation_tokens;
 pub mod time_banking;
+
+/// Mana system implementation
+pub mod mana;
+pub mod mana_providers;
 
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
@@ -67,6 +72,73 @@ pub use reputation_tokens::{grant_reputation_tokens, use_reputation_tokens, REPU
 pub use time_banking::{
     InMemoryTimeBankingStore, TimeBankingStore, TimeRecord, TimeRecordStatus, WorkStatistics,
 };
+
+// Export mana system types and traits
+pub use mana::{
+    EmergencyDetector, HardwareMetrics, HardwareMetricsProvider, ManaAccount, NetworkHealthProvider,
+    OrganizationProvider, OrganizationType, RegenerativeManaLedger, TrustProvider, BASE_MANA_CAP,
+    EMERGENCY_MODULATION_FACTOR, MIN_MANA_BALANCE, REGEN_EPOCH_SECONDS,
+};
+pub use mana_providers::{
+    ComprehensiveManaProvider, DefaultHardwareMetricsProvider, InMemoryOrganizationProvider,
+    InMemoryTrustProvider, ManaSystemConfig, SimpleEmergencyDetector, SimpleNetworkHealthProvider,
+};
+
+/// Simple in-memory implementation for testing
+#[derive(Default)]
+pub struct InMemoryLedger {
+    balances: std::sync::Mutex<HashMap<Did, u64>>,
+}
+
+impl InMemoryLedger {
+    pub fn new() -> Self {
+        Self {
+            balances: std::sync::Mutex::new(HashMap::new()),
+        }
+    }
+}
+
+impl ManaLedger for InMemoryLedger {
+    fn get_balance(&self, did: &Did) -> u64 {
+        *self.balances.lock().unwrap().get(did).unwrap_or(&0)
+    }
+
+    fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        self.balances.lock().unwrap().insert(did.clone(), amount);
+        Ok(())
+    }
+
+    fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        let mut map = self.balances.lock().unwrap();
+        let bal = map
+            .get_mut(did)
+            .ok_or_else(|| CommonError::DatabaseError("account".into()))?;
+        if *bal < amount {
+            return Err(CommonError::InsufficientFunds(format!("Insufficient balance: {} < {}", *bal, amount)));
+        }
+        *bal -= amount;
+        Ok(())
+    }
+
+    fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
+        let mut map = self.balances.lock().unwrap();
+        let entry = map.entry(did.clone()).or_insert(0);
+        *entry = entry.saturating_add(amount);
+        Ok(())
+    }
+
+    fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
+        let mut map = self.balances.lock().unwrap();
+        for bal in map.values_mut() {
+            *bal = bal.saturating_add(amount);
+        }
+        Ok(())
+    }
+
+    fn all_accounts(&self) -> Vec<Did> {
+        self.balances.lock().unwrap().keys().cloned().collect()
+    }
+}
 
 #[cfg(test)]
 mod token_tests;
@@ -727,65 +799,8 @@ pub fn process_economic_event(info: &NodeInfo, event_details: &str) -> Result<St
 mod tests {
     use super::*;
     use icn_common::ICN_CORE_VERSION;
-    use std::collections::HashMap;
     use std::str::FromStr;
-    use std::sync::Mutex;
     use tempfile::tempdir;
-
-    #[derive(Default)]
-    struct InMemoryLedger {
-        balances: Mutex<HashMap<Did, u64>>,
-    }
-
-    impl InMemoryLedger {
-        fn new() -> Self {
-            Self {
-                balances: Mutex::new(HashMap::new()),
-            }
-        }
-    }
-
-    impl ManaLedger for InMemoryLedger {
-        fn get_balance(&self, did: &Did) -> u64 {
-            *self.balances.lock().unwrap().get(did).unwrap_or(&0)
-        }
-
-        fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-            self.balances.lock().unwrap().insert(did.clone(), amount);
-            Ok(())
-        }
-
-        fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-            let mut map = self.balances.lock().unwrap();
-            let bal = map
-                .get_mut(did)
-                .ok_or_else(|| CommonError::DatabaseError("account".into()))?;
-            if *bal < amount {
-                return Err(CommonError::PolicyDenied("insufficient".into()));
-            }
-            *bal -= amount;
-            Ok(())
-        }
-
-        fn credit(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
-            let mut map = self.balances.lock().unwrap();
-            let entry = map.entry(did.clone()).or_insert(0);
-            *entry = entry.saturating_add(amount);
-            Ok(())
-        }
-
-        fn credit_all(&self, amount: u64) -> Result<(), CommonError> {
-            let mut map = self.balances.lock().unwrap();
-            for bal in map.values_mut() {
-                *bal = bal.saturating_add(amount);
-            }
-            Ok(())
-        }
-
-        fn all_accounts(&self) -> Vec<Did> {
-            self.balances.lock().unwrap().keys().cloned().collect()
-        }
-    }
 
     #[test]
     fn test_process_economic_event() {
