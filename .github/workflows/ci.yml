@@ -32,11 +32,14 @@ jobs:
         with:
           workspaces: ". -> target"
 
-      - name: Install pre-commit
-        run: pip install pre-commit
+      - name: Set up Python virtual environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install pre-commit
 
       - name: Run pre-commit
-        run: pre-commit run --all-files
+        run: .venv/bin/pre-commit run --all-files
 
       - name: Check formatting
         run: cargo fmt --all -- --check
@@ -61,8 +64,7 @@ jobs:
 
       - name: Start 10-node devnet (nightly only)
         if: matrix.rust == 'nightly'
-        run: |
-          ./scripts/run_10node_devnet.sh --start-only
+        run: ./scripts/run_10node_devnet.sh --start-only
 
       - name: Run integration tests (nightly only)
         if: matrix.rust == 'nightly'
@@ -72,8 +74,7 @@ jobs:
 
       - name: Stop 10-node devnet (nightly only)
         if: matrix.rust == 'nightly'
-        run: |
-          ./scripts/run_10node_devnet.sh --stop-only
+        run: ./scripts/run_10node_devnet.sh --stop-only
 
       - name: Build release (nightly only, for early detection of issues)
         if: matrix.rust == 'nightly'
