@@ -225,7 +225,7 @@ impl SecurityConfig {
         self.analyze_wasm_sections(code)?;
         self.check_dangerous_imports(code)?;
         self.validate_memory_usage(code)?;
-        
+
         Ok(())
     }
 
@@ -235,7 +235,7 @@ impl SecurityConfig {
         // 1. Excessive memory allocation
         // 2. Dangerous system calls
         // 3. Non-deterministic operations
-        
+
         // For production: implement proper WASM parser
         // For now: basic length check to prevent DoS
         if code.len() > self.default_resource_limits.max_memory as usize {
@@ -243,7 +243,7 @@ impl SecurityConfig {
                 "WASM code exceeds maximum size limit".to_string(),
             ));
         }
-        
+
         Ok(())
     }
 
@@ -254,7 +254,7 @@ impl SecurityConfig {
         // 2. Make network calls
         // 3. Access system time (non-deterministic)
         // 4. Use random number generators
-        
+
         // TODO: Implement proper WASM import analysis
         Ok(())
     }
@@ -263,7 +263,7 @@ impl SecurityConfig {
     fn validate_memory_usage(&self, _code: &WasmCode) -> Result<(), CclRuntimeError> {
         // Ensure memory usage is bounded and predictable
         // Check for potential memory bombs or unbounded allocation
-        
+
         // TODO: Implement memory usage analysis
         Ok(())
     }
@@ -274,9 +274,9 @@ impl SecurityConfig {
         // Check for:
         // - Non-deterministic float operations
         // - System calls
-        // - External randomness sources  
+        // - External randomness sources
         // - Time-dependent operations
-        
+
         // TODO: Implement static analysis for determinism
         // For production, this is CRITICAL for democratic consensus
         Ok(())

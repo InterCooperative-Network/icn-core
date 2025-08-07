@@ -4,18 +4,18 @@
 mod tests {
     use super::super::*;
     use icn_common::{Did, FixedTimeProvider};
-    use std::collections::HashSet;
+
     use std::str::FromStr;
 
     fn create_test_governance() -> GovernanceModule {
-        let mut config = GovernanceConfig::default();
-        config.min_sponsors = 2;
-        config.timelock_delay_secs = 86400; // 1 day
-        config.veto_grace_period_secs = 172800; // 2 days
+        let mut config = GovernanceConfig {
+            min_sponsors: 2,
+            timelock_delay_secs: 86400,     // 1 day
+            veto_grace_period_secs: 172800, // 2 days
+            ..Default::default()
+        };
 
-        let mut veto_members = HashSet::new();
-        veto_members.insert(Did::default());
-        config.veto_members = veto_members;
+        config.veto_members.insert(Did::default());
 
         GovernanceModule::with_config(config)
     }
@@ -77,10 +77,12 @@ mod tests {
         assert!(gov.config().veto_members.is_empty());
 
         // Update config
-        let mut new_config = GovernanceConfig::default();
-        new_config.min_sponsors = 3;
-        new_config.timelock_delay_secs = 86400;
-        new_config.veto_grace_period_secs = 172800;
+        let mut new_config = GovernanceConfig {
+            min_sponsors: 3,
+            timelock_delay_secs: 86400,
+            veto_grace_period_secs: 172800,
+            ..Default::default()
+        };
         new_config.veto_members.insert(Did::default());
 
         gov.set_config(new_config.clone());

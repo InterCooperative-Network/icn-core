@@ -1229,6 +1229,7 @@ pub use federated_learning::{
 
 #[cfg(test)]
 mod tests {
+    use super::*; // Import everything from the parent module
     use icn_common::{Cid, Did, NodeInfo, ICN_CORE_VERSION}; // Kept ICN_CORE_VERSION as it's often for tests
     use icn_economics::ManaLedger;
     use std::collections::HashMap;

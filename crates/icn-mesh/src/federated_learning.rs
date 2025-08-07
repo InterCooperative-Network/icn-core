@@ -532,7 +532,7 @@ struct FederatedSession {
 
 /// Status of a federated learning session.
 #[derive(Debug, Clone)]
-enum SessionStatus {
+pub enum SessionStatus {
     Initializing,
     RecruitingParticipants,
     Training,
@@ -745,7 +745,7 @@ impl FederatedLearningCoordinator {
 
         // Validate gradient norms are within reasonable bounds
         for &norm in &update.training_metadata.gradient_norms {
-            if norm < 0.0 || norm > 1000.0 {
+            if !(0.0..=1000.0).contains(&norm) {
                 return Err(CommonError::InvalidParameters(format!(
                     "Gradient norm out of bounds: {}",
                     norm

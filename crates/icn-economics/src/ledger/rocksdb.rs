@@ -1,4 +1,4 @@
-use super::{ResourceLedger, TokenClass, TokenClassId, TransferRecord};
+use super::{ResourceLedger, TokenClass, TokenClassId, TransferRecord, TransferTracker};
 use icn_common::{CommonError, Did};
 use rocksdb::{WriteBatch, DB};
 use std::path::PathBuf;
@@ -307,5 +307,59 @@ impl ResourceLedger for RocksdbResourceLedger {
         // TODO: Implement proper transfer history tracking
         // For now, return empty history as this is a stub implementation
         Vec::new()
+    }
+
+    fn apply_demurrage(
+        &self,
+        _class_id: &TokenClassId,
+        _current_time: u64,
+    ) -> Result<u64, CommonError> {
+        // TODO: Implement demurrage calculation for anti-speculation
+        // For now, return 0 as no demurrage is applied
+        Ok(0)
+    }
+
+    fn check_velocity_limits(
+        &self,
+        _class_id: &TokenClassId,
+        _from: &Did,
+        _amount: u64,
+        _current_time: u64,
+    ) -> Result<bool, CommonError> {
+        // TODO: Implement velocity limit checking
+        // For now, allow all transfers (no velocity limits enforced)
+        Ok(true)
+    }
+
+    fn check_purpose_lock(
+        &self,
+        _class_id: &TokenClassId,
+        _purpose: &str,
+    ) -> Result<bool, CommonError> {
+        // TODO: Implement purpose lock verification
+        // For now, allow all purposes
+        Ok(true)
+    }
+
+    fn get_transfer_tracker(
+        &self,
+        _class_id: &TokenClassId,
+        _did: &Did,
+    ) -> Option<TransferTracker> {
+        // TODO: Implement transfer tracker retrieval from RocksDB
+        // For now, return None (no tracking data available)
+        None
+    }
+
+    fn update_transfer_tracker(
+        &self,
+        _class_id: &TokenClassId,
+        _did: &Did,
+        _amount: u64,
+        _current_time: u64,
+    ) -> Result<(), CommonError> {
+        // TODO: Implement transfer tracker update in RocksDB
+        // For now, do nothing as tracking is not implemented
+        Ok(())
     }
 }

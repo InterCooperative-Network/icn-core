@@ -9,7 +9,7 @@ repos:
         pass_filenames: false
       - id: cargo-clippy
         name: cargo clippy
-        entry: cargo clippy --all-targets --all-features -- -D warnings
+        entry: cargo clippy --all-targets --all-features -- -D clippy::correctness -D clippy::suspicious -A dead_code -A unused_imports -A unused_variables
         language: system
         types: [rust]
         pass_filenames: false

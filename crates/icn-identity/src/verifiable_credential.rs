@@ -3,6 +3,7 @@
 //! This module implements W3C Verifiable Credentials with ICN-specific extensions
 //! for membership credentials, resource tokens, and privacy-preserving verification.
 
+use base64::Engine;
 use icn_common::{CommonError, Did, Signable};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -450,15 +451,17 @@ impl VerifiableCredential {
                     ));
                 }
             }
-            CredentialCategory::TokenCredential { token_type, .. } => {
-                if let TokenType::Membership = token_type {
-                    if self.icn_metadata.transferable {
-                        return Err(CommonError::ValidationError(
-                            "Membership tokens cannot be transferable".to_string(),
-                        ));
-                    }
+            CredentialCategory::TokenCredential {
+                token_type: TokenType::Membership,
+                ..
+            } => {
+                if self.icn_metadata.transferable {
+                    return Err(CommonError::ValidationError(
+                        "Membership tokens cannot be transferable".to_string(),
+                    ));
                 }
             }
+            CredentialCategory::TokenCredential { .. } => {}
             _ => {}
         }
 
@@ -580,7 +583,7 @@ fn generate_salt() -> String {
     use rand::Rng;
     let salt: [u8; 32] = rand::thread_rng().gen();
     // Use base64 encoding
-    base64::encode(salt)
+    base64::engine::general_purpose::STANDARD.encode(salt)
 }
 
 #[cfg(test)]

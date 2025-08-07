@@ -6,7 +6,7 @@
 use crate::{ActualMeshJob, JobId, JobKind, JobSpec, MeshJobBid, Resources};
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes, SigningKey};
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -470,7 +470,7 @@ impl ShardingStrategy for DataProcessingShardingStrategy {
             } else {
                 i as u64 * shard_size - overlap_size
             };
-            let end = ((i + 1) as u64 * shard_size).min(u64::MAX);
+            let end = (i + 1) as u64 * shard_size;
 
             let data_range = DataRange {
                 start,
@@ -908,7 +908,7 @@ mod tests {
 
     #[test]
     fn test_job_sharding_engine() {
-        let mut engine = JobShardingEngine::new(16, 1024 * 1024); // Max 16 shards, min 1MB
+        let engine = JobShardingEngine::new(16, 1024 * 1024); // Max 16 shards, min 1MB
 
         let job = ActualMeshJob {
             id: JobId(Cid::new_v1_sha256(0x55, b"engine_test")),

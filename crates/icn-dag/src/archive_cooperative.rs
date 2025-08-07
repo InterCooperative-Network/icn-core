@@ -540,7 +540,7 @@ mod tests {
 
     #[test]
     fn test_cooperative_registration() {
-        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
+        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService<DagBlock>>;
         let mut manager = ArchiveCooperativeManager::new(storage);
 
         let cooperative = ArchiveCooperative {
@@ -578,11 +578,11 @@ mod tests {
 
     #[test]
     fn test_erasure_coding() {
-        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
+        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService<DagBlock>>;
         let manager = ArchiveCooperativeManager::new(storage);
 
         let test_data = b"Hello, World! This is test data for erasure coding.".to_vec();
-        let original_cid = Cid::default();
+        let original_cid = Cid::new_v1_sha256(0x55, b"test_data");
 
         let result = manager.encode_data(test_data, original_cid);
         assert!(result.is_ok());

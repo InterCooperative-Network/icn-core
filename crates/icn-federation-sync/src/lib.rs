@@ -686,7 +686,7 @@ mod tests {
         let storage = Arc::new(InMemoryDagStore::new());
         let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
             federation_id.clone(),
-            storage as Arc<dyn icn_dag::StorageService>,
+            storage as Arc<dyn icn_dag::StorageService<icn_common::DagBlock>>,
             vec![],
         )));
         let bootstrap_nodes = vec![NodeAddress::new("localhost".to_string(), 8080)];
@@ -705,7 +705,7 @@ mod tests {
         let storage = Arc::new(InMemoryDagStore::new());
         let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
             federation_id.clone(),
-            storage as Arc<dyn icn_dag::StorageService>,
+            storage as Arc<dyn icn_dag::StorageService<icn_common::DagBlock>>,
             vec![],
         )));
         let bootstrap_nodes = vec![];
@@ -733,7 +733,7 @@ mod tests {
         let storage = Arc::new(InMemoryDagStore::new());
         let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
             federation_id.clone(),
-            storage as Arc<dyn icn_dag::StorageService>,
+            storage as Arc<dyn icn_dag::StorageService<icn_common::DagBlock>>,
             vec![],
         )));
         let bootstrap_nodes = vec![];

@@ -143,7 +143,7 @@ pub struct DockerResourceUsage {
 
 impl DockerSandbox {
     /// Create a new Docker sandbox from job specifications.
-    pub fn from_job_spec(job_spec: &JobSpec, executor_did: &Did) -> Result<Self, CommonError> {
+    pub fn from_job_spec(job_spec: &JobSpec, _executor_did: &Did) -> Result<Self, CommonError> {
         let docker_spec = match &job_spec.kind {
             JobKind::GenericPlaceholder => {
                 return Err(CommonError::InvalidParameters(
@@ -179,7 +179,7 @@ impl DockerSandbox {
     pub async fn execute_job(
         &self,
         job_id: &JobId,
-        input_data: &[u8],
+        _input_data: &[u8],
     ) -> Result<DockerExecutionResult, CommonError> {
         info!("[DockerSandbox] Starting job execution for {}", job_id);
 
@@ -191,7 +191,7 @@ impl DockerSandbox {
         docker_cmd.arg("run");
 
         // Add basic options
-        docker_cmd.args(&["--rm", "--name", &container_name]);
+        docker_cmd.args(["--rm", "--name", &container_name]);
 
         // Add resource limits
         self.add_resource_limits(&mut docker_cmd);
@@ -285,21 +285,21 @@ impl DockerSandbox {
     /// Add resource limit arguments to Docker command.
     fn add_resource_limits(&self, cmd: &mut Command) {
         // Memory limit
-        cmd.args(&["--memory", &self.resource_limits.memory_limit.to_string()]);
+        cmd.args(["--memory", &self.resource_limits.memory_limit.to_string()]);
 
         // CPU limits
-        cmd.args(&["--cpu-shares", &self.resource_limits.cpu_shares.to_string()]);
-        cmd.args(&["--cpus", &self.resource_limits.cpu_limit.to_string()]);
+        cmd.args(["--cpu-shares", &self.resource_limits.cpu_shares.to_string()]);
+        cmd.args(["--cpus", &self.resource_limits.cpu_limit.to_string()]);
 
         // PIDs limit
-        cmd.args(&["--pids-limit", &self.resource_limits.pids_limit.to_string()]);
+        cmd.args(["--pids-limit", &self.resource_limits.pids_limit.to_string()]);
 
         // Disk I/O limits (if specified)
         if let Some(read_bps) = self.resource_limits.disk_read_bps {
-            cmd.args(&["--device-read-bps", &format!("/dev/sda:{}", read_bps)]);
+            cmd.args(["--device-read-bps", &format!("/dev/sda:{}", read_bps)]);
         }
         if let Some(write_bps) = self.resource_limits.disk_write_bps {
-            cmd.args(&["--device-write-bps", &format!("/dev/sda:{}", write_bps)]);
+            cmd.args(["--device-write-bps", &format!("/dev/sda:{}", write_bps)]);
         }
     }
 
@@ -310,27 +310,27 @@ impl DockerSandbox {
         }
 
         if self.security_config.no_new_privileges {
-            cmd.args(&["--security-opt", "no-new-privileges:true"]);
+            cmd.args(["--security-opt", "no-new-privileges:true"]);
         }
 
         // Drop capabilities
         for cap in &self.security_config.drop_capabilities {
-            cmd.args(&["--cap-drop", cap]);
+            cmd.args(["--cap-drop", cap]);
         }
 
         // Add capabilities
         for cap in &self.security_config.add_capabilities {
-            cmd.args(&["--cap-add", cap]);
+            cmd.args(["--cap-add", cap]);
         }
 
         // User
         if !self.security_config.user.is_empty() {
-            cmd.args(&["--user", &self.security_config.user]);
+            cmd.args(["--user", &self.security_config.user]);
         }
 
         // Additional security options
         for opt in &self.security_config.security_opts {
-            cmd.args(&["--security-opt", opt]);
+            cmd.args(["--security-opt", opt]);
         }
     }
 
@@ -338,27 +338,27 @@ impl DockerSandbox {
     fn add_network_config(&self, cmd: &mut Command) {
         match &self.network_config.mode {
             NetworkMode::None => {
-                cmd.args(&["--network", "none"]);
+                cmd.args(["--network", "none"]);
             }
             NetworkMode::Bridge => {
-                cmd.args(&["--network", "bridge"]);
+                cmd.args(["--network", "bridge"]);
             }
             NetworkMode::Host => {
-                cmd.args(&["--network", "host"]);
+                cmd.args(["--network", "host"]);
             }
             NetworkMode::Custom(network) => {
-                cmd.args(&["--network", network]);
+                cmd.args(["--network", network]);
             }
         }
 
         // DNS servers
         for dns in &self.network_config.dns_servers {
-            cmd.args(&["--dns", dns]);
+            cmd.args(["--dns", dns]);
         }
 
         // Port mappings
         for (internal, external) in &self.network_config.port_mappings {
-            cmd.args(&["-p", &format!("{}:{}", external, internal)]);
+            cmd.args(["-p", &format!("{}:{}", external, internal)]);
         }
     }
 
@@ -366,17 +366,17 @@ impl DockerSandbox {
     fn add_execution_config(&self, cmd: &mut Command) {
         // Environment variables
         for (key, value) in &self.execution_config.environment {
-            cmd.args(&["--env", &format!("{}={}", key, value)]);
+            cmd.args(["--env", &format!("{}={}", key, value)]);
         }
 
         // Working directory
         if let Some(workdir) = &self.execution_config.workdir {
-            cmd.args(&["--workdir", workdir]);
+            cmd.args(["--workdir", workdir]);
         }
 
         // Volume mounts
         for (host_path, container_path) in &self.execution_config.volumes {
-            cmd.args(&["-v", &format!("{}:{}", host_path, container_path)]);
+            cmd.args(["-v", &format!("{}:{}", host_path, container_path)]);
         }
     }
 
@@ -385,7 +385,7 @@ impl DockerSandbox {
     /// **Placeholder implementation:** This method is not yet implemented and always returns default values.
     /// In a real implementation, this would use `docker stats` or the Docker API to collect
     /// actual resource usage statistics (CPU, memory, I/O, etc.) for the specified container.
-    async fn collect_resource_usage(&self, container_name: &str) -> DockerResourceUsage {
+    async fn collect_resource_usage(&self, _container_name: &str) -> DockerResourceUsage {
         // In a real implementation, we would use `docker stats` or the Docker API
         // to collect actual resource usage. For now, return defaults.
         warn!("[DockerSandbox] Resource usage collection not yet implemented");
@@ -397,7 +397,7 @@ impl DockerSandbox {
         debug!("[DockerSandbox] Cleaning up container {}", container_name);
 
         let mut kill_cmd = Command::new("docker");
-        kill_cmd.args(&["kill", container_name]);
+        kill_cmd.args(["kill", container_name]);
 
         if let Err(e) = kill_cmd.output() {
             warn!(
@@ -431,7 +431,7 @@ impl DockerResourceLimits {
             cpu_limit: 0.5,                        // Half a CPU core
             disk_read_bps: Some(10 * 1024 * 1024), // 10 MB/s
             disk_write_bps: Some(5 * 1024 * 1024), // 5 MB/s
-            network_bps: Some(1 * 1024 * 1024),    // 1 MB/s
+            network_bps: Some(1024 * 1024),        // 1 MB/s
             pids_limit: 64,                        // Very limited processes
             timeout: Duration::from_secs(60),      // 1 minute timeout
         }
@@ -517,7 +517,7 @@ impl DockerSandboxManager {
 
     /// Check if Docker is available on the system.
     pub async fn check_docker_availability() -> bool {
-        let output = Command::new("docker").args(&["--version"]).output();
+        let output = Command::new("docker").args(["--version"]).output();
 
         match output {
             Ok(output) => output.status.success(),
@@ -530,7 +530,7 @@ impl DockerSandboxManager {
         &self,
         job_id: &JobId,
         job_spec: &JobSpec,
-        executor_did: &Did,
+        _executor_did: &Did,
         input_data: &[u8],
     ) -> Result<DockerExecutionResult, CommonError> {
         // Check capacity
@@ -544,7 +544,7 @@ impl DockerSandboxManager {
         }
 
         // Create sandbox for this job
-        let sandbox = DockerSandbox::from_job_spec(job_spec, executor_did)?;
+        let sandbox = DockerSandbox::from_job_spec(job_spec, _executor_did)?;
 
         // Track execution
         let container_name = format!("icn-job-{}", job_id.to_string().replace(':', "-"));
@@ -580,7 +580,7 @@ impl DockerSandboxManager {
 
         for container_name in container_names {
             let mut kill_cmd = Command::new("docker");
-            kill_cmd.args(&["kill", &container_name]);
+            kill_cmd.args(["kill", &container_name]);
 
             if let Err(e) = kill_cmd.output() {
                 error!(

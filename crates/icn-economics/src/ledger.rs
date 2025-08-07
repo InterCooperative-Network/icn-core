@@ -179,7 +179,7 @@ pub trait ResourceLedger: Send + Sync {
     fn get_transfer_history(&self, class_id: &TokenClassId, did: &Did) -> Vec<TransferRecord>;
 
     /// Anti-speculation mechanism methods
-
+    ///
     /// Apply demurrage to all accounts in a token class with demurrage rules
     fn apply_demurrage(
         &self,
@@ -726,10 +726,7 @@ impl ResourceLedger for FileResourceLedger {
 
         let epochs_passed = time_elapsed / DEMURRAGE_EPOCH;
         let total_demurrage_applied = if epochs_passed > 0 {
-            let balances_map = data
-                .balances
-                .entry(class_id.clone())
-                .or_insert_with(HashMap::new);
+            let balances_map = data.balances.entry(class_id.clone()).or_default();
             let mut total_burned = 0u64;
 
             // Apply demurrage to each account
@@ -891,10 +888,7 @@ impl ResourceLedger for FileResourceLedger {
         let current_epoch = current_time / velocity_limits.epoch_duration;
 
         // Get or create tracker
-        let class_trackers = data
-            .transfer_trackers
-            .entry(class_id.clone())
-            .or_insert_with(HashMap::new);
+        let class_trackers = data.transfer_trackers.entry(class_id.clone()).or_default();
         let tracker = class_trackers
             .entry(did.to_string())
             .or_insert_with(|| TransferTracker {

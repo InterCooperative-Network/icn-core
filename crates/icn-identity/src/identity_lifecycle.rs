@@ -6,9 +6,7 @@
 //! - Key rotation and recovery mechanisms
 //! - Sybil resistance and proof-of-personhood
 
-use crate::did_document::{
-    DidDocument, PublicKeyMaterial, VerificationMethod, VerificationMethodType,
-};
+use crate::did_document::{DidDocument, VerificationMethod, VerificationMethodType, PublicKeyMaterial};
 use crate::verifiable_credential::VerifiableCredential;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
@@ -697,7 +695,7 @@ impl IdentityLifecycleManager {
                 let capacity = additional_claims
                     .get("capacity")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
-                    .unwrap_or_else(HashMap::new);
+                    .unwrap_or_default();
 
                 VerifiableCredential::new_resource_credential(
                     issuer.clone(),

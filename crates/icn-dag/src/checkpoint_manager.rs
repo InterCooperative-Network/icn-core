@@ -92,8 +92,6 @@ pub struct GovernanceSummary {
     pub proposals_executed_since_last: u64,
 }
 
-
-
 /// External reference to other federation or cross-chain data
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExternalReference {
@@ -404,7 +402,9 @@ impl CheckpointManager {
         Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
-    fn calculate_federation_balances(&self) -> Result<(FederationDebts, FederationCredits), CommonError> {
+    fn calculate_federation_balances(
+        &self,
+    ) -> Result<(FederationDebts, FederationCredits), CommonError> {
         // TODO: Calculate debts and credits with other federations
         Ok((HashMap::new(), HashMap::new()))
     }
@@ -480,7 +480,7 @@ mod tests {
     #[test]
     fn test_checkpoint_creation() {
         let federation_id = FederationId::new("test_federation".to_string());
-        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
+        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService<DagBlock>>;
         let validators = vec![ValidatorId("validator1".to_string())];
 
         let mut manager = CheckpointManager::new(federation_id, storage, validators);
@@ -496,7 +496,7 @@ mod tests {
     #[test]
     fn test_checkpoint_validation() {
         let federation_id = FederationId::new("test_federation".to_string());
-        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
+        let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService<DagBlock>>;
         let validators = vec![ValidatorId("validator1".to_string())];
 
         let manager = CheckpointManager::new(federation_id.clone(), storage, validators);
@@ -506,12 +506,12 @@ mod tests {
             checkpoint_id: CheckpointId::new(&federation_id.id, 1),
             federation_id: federation_id.clone(),
             epoch: 1,
-            state_root: Cid::default(),
+            state_root: Cid::new_v1_sha256(0x55, b"test_state"),
             prev_checkpoint: CheckpointId::genesis(),
-            dag_root: Cid::default(),
+            dag_root: Cid::new_v1_sha256(0x55, b"test_dag"),
             economic_summary: EconomicSummary::default(),
             governance_summary: GovernanceSummary::default(),
-            membership_root: Cid::default(),
+            membership_root: Cid::new_v1_sha256(0x55, b"test_membership"),
             external_references: Vec::new(),
             federation_debts: HashMap::new(),
             federation_credits: HashMap::new(),
@@ -524,13 +524,13 @@ mod tests {
                 proof_type: ProofType::ByzantineFaultTolerant,
                 validator_signatures: Vec::new(),
                 state_proof: MerkleProof {
-                    root: Cid::default(),
+                    root: Cid::new_v1_sha256(0x55, b"test_state_proof"),
                     proof_hashes: Vec::new(),
                     leaf_index: 0,
                     total_leaves: 1,
                 },
                 dag_proof: MerkleProof {
-                    root: Cid::default(),
+                    root: Cid::new_v1_sha256(0x55, b"test_dag_proof"),
                     proof_hashes: Vec::new(),
                     leaf_index: 0,
                     total_leaves: 0,
