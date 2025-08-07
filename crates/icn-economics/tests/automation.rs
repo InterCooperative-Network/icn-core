@@ -112,7 +112,11 @@ impl ResourceLedger for InMemoryResourceLedger {
     }
 
     /// Apply demurrage to all accounts in a token class with demurrage rules
-    fn apply_demurrage(&self, _class_id: &icn_economics::TokenClassId, _current_time: u64) -> Result<u64, icn_common::CommonError> {
+    fn apply_demurrage(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _current_time: u64,
+    ) -> Result<u64, icn_common::CommonError> {
         Ok(0)
     }
 
@@ -137,7 +141,11 @@ impl ResourceLedger for InMemoryResourceLedger {
     }
 
     /// Get transfer tracker for velocity limit enforcement
-    fn get_transfer_tracker(&self, _class_id: &icn_economics::TokenClassId, _did: &Did) -> Option<icn_economics::TransferTracker> {
+    fn get_transfer_tracker(
+        &self,
+        _class_id: &icn_economics::TokenClassId,
+        _did: &Did,
+    ) -> Option<icn_economics::TransferTracker> {
         None
     }
 

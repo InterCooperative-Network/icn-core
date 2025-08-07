@@ -24,30 +24,31 @@ pub use security::{
     secure_verify_signature, SecureBytes, SecurityAuditResult, SecurityConfig, SecurityIssue,
     SecurityIssueSeverity,
 };
-pub mod zk;
 pub mod did_document;
+pub mod zk;
 pub use did_document::{
-    DidDocument, VerificationMethod, VerificationMethodType, PublicKeyMaterial,
-    IcnMetadata, IdentityType, FederationMembership, OrganizationMembership,
-    SybildResistanceData, ProofOfPersonhood, RecoveryConfig,
+    DidDocument, FederationMembership, IcnMetadata, IdentityType, OrganizationMembership,
+    ProofOfPersonhood, PublicKeyMaterial, RecoveryConfig, SybildResistanceData, VerificationMethod,
+    VerificationMethodType,
 };
 pub mod verifiable_credential;
 pub use verifiable_credential::{
-    VerifiableCredential, CredentialCategory, CredentialMetadata, PrivacyLevel,
-    CredentialSubject, CredentialProof, VerifiablePresentation,
-    TokenType, EconomicValue,
+    CredentialCategory, CredentialMetadata, CredentialProof, CredentialSubject, EconomicValue,
+    PrivacyLevel, TokenType, VerifiableCredential, VerifiablePresentation,
 };
 pub mod identity_lifecycle;
 pub use identity_lifecycle::{
-    IdentityLifecycleManager, IdentityConfig, DidCreationRequest, CredentialIssuanceRequest,
-    KeyRotationRequest, RecoveryRequest, CredentialTemplate, ManaLedger,
+    CredentialIssuanceRequest, CredentialTemplate, DidCreationRequest, IdentityConfig,
+    IdentityLifecycleManager, KeyRotationRequest, ManaLedger, RecoveryRequest,
 };
 pub use zk::{
     BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16KeyManager,
     Groth16Prover, Groth16Verifier, ZkError, ZkProver, ZkVerifier,
 };
 pub mod credential;
-pub use credential::{Credential, CredentialIssuer as OriginalCredentialIssuer, DisclosedCredential};
+pub use credential::{
+    Credential, CredentialIssuer as OriginalCredentialIssuer, DisclosedCredential,
+};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
 pub mod revocation_registry;

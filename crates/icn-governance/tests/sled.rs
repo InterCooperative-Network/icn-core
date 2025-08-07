@@ -2,7 +2,8 @@
 mod tests {
     use icn_common::{Did, FixedTimeProvider};
     use icn_governance::{
-        GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption, Proposal, ProposalSponsorship,
+        GovernanceModule, Proposal, ProposalSponsorship, ProposalStatus, ProposalSubmission,
+        ProposalType, VoteOption,
     };
     use std::str::FromStr;
     use tempfile::tempdir;
@@ -25,7 +26,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
-            timelock_delay: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )
@@ -72,7 +73,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
-            timelock_delay: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )
@@ -153,7 +154,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
-            timelock_delay: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )

@@ -1,12 +1,12 @@
 //! Federation Sync Protocol - Cross-Federation Communication
 //!
-//! Implements peer discovery, checkpoint exchange, state reconciliation, and 
+//! Implements peer discovery, checkpoint exchange, state reconciliation, and
 //! partition recovery for the InterCooperative Network federation system.
 
 use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
-use icn_dag::{CheckpointManager, Checkpoint, CheckpointId, FederationId};
+use icn_dag::{Checkpoint, CheckpointId, CheckpointManager, FederationId};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet, BTreeMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -47,17 +47,17 @@ pub struct CheckpointHeader {
 /// Sync strategy based on comparison
 #[derive(Debug, Clone)]
 pub enum SyncStrategy {
-    FastForward,         // We're behind, catch up
-    ShareOurUpdates,     // They're behind, share our checkpoints
-    Diverged,            // We've diverged, need resolution
-    InSync,              // Already synchronized
+    FastForward,     // We're behind, catch up
+    ShareOurUpdates, // They're behind, share our checkpoints
+    Diverged,        // We've diverged, need resolution
+    InSync,          // Already synchronized
 }
 
 /// Sync result after attempting synchronization
 #[derive(Debug, Clone)]
 pub enum SyncResult {
-    FastForwarded(usize),      // Number of checkpoints applied
-    SharedUpdates(usize),      // Number of checkpoints shared
+    FastForwarded(usize),        // Number of checkpoints applied
+    SharedUpdates(usize),        // Number of checkpoints shared
     Diverged(Vec<CheckpointId>), // Conflicting checkpoints
     AlreadySynchronized,
     Failed(String),
@@ -134,19 +134,19 @@ pub enum Interaction {
 /// Configuration for federation sync
 #[derive(Debug, Clone)]
 pub struct FederationSyncConfig {
-    pub peer_timeout: u64,           // 5 minutes default
-    pub max_peers: usize,            // 100 default
-    pub sync_batch_size: usize,      // 1000 blocks default
-    pub parallel_syncs: usize,       // 5 default
-    pub trust_decay_rate: f64,       // 0.01 per day
-    pub min_trust_threshold: f64,    // 0.1 minimum to interact
-    pub checkpoint_interval: u64,    // 3600 seconds default
+    pub peer_timeout: u64,        // 5 minutes default
+    pub max_peers: usize,         // 100 default
+    pub sync_batch_size: usize,   // 1000 blocks default
+    pub parallel_syncs: usize,    // 5 default
+    pub trust_decay_rate: f64,    // 0.01 per day
+    pub min_trust_threshold: f64, // 0.1 minimum to interact
+    pub checkpoint_interval: u64, // 3600 seconds default
 }
 
 impl Default for FederationSyncConfig {
     fn default() -> Self {
         Self {
-            peer_timeout: 300,        // 5 minutes
+            peer_timeout: 300, // 5 minutes
             max_peers: 100,
             sync_batch_size: 1000,
             parallel_syncs: 5,
@@ -215,7 +215,7 @@ impl FederationSyncManager {
                 let mut known_peers = self.known_peers.write().await;
                 known_peers.insert(peer_id.clone(), peer_info);
                 verified.push(peer_id.clone());
-                
+
                 // Announce ourselves to new peers
                 if let Err(e) = self.announce_to_peer(&peer_id).await {
                     eprintln!("Failed to announce to peer {}: {:?}", peer_id.id, e);
@@ -236,21 +236,26 @@ impl FederationSyncManager {
         let common_ancestor = self.find_common_checkpoint(&our_checkpoints, &their_checkpoints)?;
 
         // 3. Determine sync strategy
-        let strategy = self.determine_sync_strategy(
-            &common_ancestor,
-            &our_checkpoints,
-            &their_checkpoints,
-        )?;
+        let strategy =
+            self.determine_sync_strategy(&common_ancestor, &our_checkpoints, &their_checkpoints)?;
 
         match strategy {
             SyncStrategy::FastForward => {
-                self.fast_forward_sync(peer_id, &common_ancestor, &their_checkpoints).await
+                self.fast_forward_sync(peer_id, &common_ancestor, &their_checkpoints)
+                    .await
             }
             SyncStrategy::ShareOurUpdates => {
-                self.share_checkpoints(peer_id, &common_ancestor, &our_checkpoints).await
+                self.share_checkpoints(peer_id, &common_ancestor, &our_checkpoints)
+                    .await
             }
             SyncStrategy::Diverged => {
-                self.resolve_divergence(peer_id, &common_ancestor, &our_checkpoints, &their_checkpoints).await
+                self.resolve_divergence(
+                    peer_id,
+                    &common_ancestor,
+                    &our_checkpoints,
+                    &their_checkpoints,
+                )
+                .await
             }
             SyncStrategy::InSync => Ok(SyncResult::AlreadySynchronized),
         }
@@ -259,7 +264,7 @@ impl FederationSyncManager {
     /// Calculate trust score between federations
     pub async fn calculate_trust_score(&self, target: &FederationId) -> Result<f64, CommonError> {
         let trust_matrix = self.trust_matrix.read().await;
-        
+
         // Direct trust
         let direct_trust = trust_matrix
             .get(&(self.our_federation.clone(), target.clone()))
@@ -269,7 +274,7 @@ impl FederationSyncManager {
         // Transitive trust (simplified)
         let mut transitive_trust = 0.0;
         let mut trust_paths = 0;
-        
+
         for ((from, to), score) in trust_matrix.iter() {
             if from == &self.our_federation && to != target {
                 if let Some(their_trust) = trust_matrix.get(&(to.clone(), target.clone())) {
@@ -278,7 +283,7 @@ impl FederationSyncManager {
                 }
             }
         }
-        
+
         if trust_paths > 0 {
             transitive_trust /= trust_paths as f64;
         }
@@ -292,12 +297,14 @@ impl FederationSyncManager {
     }
 
     /// Update trust score based on interaction outcome
-    pub async fn update_trust_score(&self, target: &FederationId, interaction: Interaction) -> Result<(), CommonError> {
+    pub async fn update_trust_score(
+        &self,
+        target: &FederationId,
+        interaction: Interaction,
+    ) -> Result<(), CommonError> {
         let mut trust_matrix = self.trust_matrix.write().await;
         let key = (self.our_federation.clone(), target.clone());
-        let mut current = trust_matrix
-            .entry(key)
-            .or_insert_with(TrustScore::default);
+        let current = trust_matrix.entry(key).or_insert_with(TrustScore::default);
 
         // Update based on interaction outcome
         match interaction {
@@ -334,7 +341,8 @@ impl FederationSyncManager {
         if reachable_peers.len() < total_peers / 2 {
             // Potential partition detected
             let our_partition = self.analyze_our_partition(&reachable_peers).await?;
-            let missing_peers: Vec<_> = known_peers.keys()
+            let missing_peers: Vec<_> = known_peers
+                .keys()
                 .filter(|id| !reachable_peers.contains(id))
                 .cloned()
                 .collect();
@@ -352,7 +360,10 @@ impl FederationSyncManager {
     }
 
     /// Resolve network partition
-    pub async fn resolve_partition(&self, partition: &NetworkPartition) -> Result<SyncResult, CommonError> {
+    pub async fn resolve_partition(
+        &self,
+        partition: &NetworkPartition,
+    ) -> Result<SyncResult, CommonError> {
         // 1. Enter partition mode
         self.enter_partition_mode().await?;
 
@@ -365,7 +376,8 @@ impl FederationSyncManager {
             let their_checkpoint = self.exchange_partition_checkpoints(&bridge_peer).await?;
 
             // 5. Determine winning partition
-            let winner = self.determine_partition_winner(&partition_checkpoint, &their_checkpoint)?;
+            let winner =
+                self.determine_partition_winner(&partition_checkpoint, &their_checkpoint)?;
 
             // 6. Apply resolution
             match winner {
@@ -374,11 +386,13 @@ impl FederationSyncManager {
                     Ok(SyncResult::SharedUpdates(1))
                 }
                 PartitionWinner::Them => {
-                    self.reorganize_to_their_history(&bridge_peer, &their_checkpoint).await?;
+                    self.reorganize_to_their_history(&bridge_peer, &their_checkpoint)
+                        .await?;
                     Ok(SyncResult::FastForwarded(1))
                 }
                 PartitionWinner::Merge => {
-                    self.merge_partition_histories(&partition_checkpoint, &their_checkpoint).await?;
+                    self.merge_partition_histories(&partition_checkpoint, &their_checkpoint)
+                        .await?;
                     Ok(SyncResult::Diverged(vec![]))
                 }
             }
@@ -391,17 +405,26 @@ impl FederationSyncManager {
 
     // Helper methods implementation
 
-    async fn query_bootstrap_peers(&self, _bootstrap: &NodeAddress) -> Result<Vec<FederationId>, CommonError> {
+    async fn query_bootstrap_peers(
+        &self,
+        _bootstrap: &NodeAddress,
+    ) -> Result<Vec<FederationId>, CommonError> {
         // TODO: Implement actual network query
         Ok(Vec::new())
     }
 
-    async fn query_peer_list(&self, _peer_info: &PeerInfo) -> Result<Vec<FederationId>, CommonError> {
+    async fn query_peer_list(
+        &self,
+        _peer_info: &PeerInfo,
+    ) -> Result<Vec<FederationId>, CommonError> {
         // TODO: Implement peer list query
         Ok(Vec::new())
     }
 
-    async fn verify_federation_identity(&self, _peer_id: &FederationId) -> Result<PeerInfo, CommonError> {
+    async fn verify_federation_identity(
+        &self,
+        _peer_id: &FederationId,
+    ) -> Result<PeerInfo, CommonError> {
         // TODO: Implement identity verification
         Ok(PeerInfo {
             peer_id: _peer_id.clone(),
@@ -456,7 +479,7 @@ impl FederationSyncManager {
         their_checkpoints: &[CheckpointHeader],
     ) -> Result<SyncStrategy, CommonError> {
         match common_ancestor {
-            Some(ancestor) => {
+            Some(_ancestor) => {
                 let our_latest = our_checkpoints.last();
                 let their_latest = their_checkpoints.last();
 
@@ -516,7 +539,10 @@ impl FederationSyncManager {
         Ok(known_peers.keys().cloned().collect())
     }
 
-    async fn analyze_our_partition(&self, _reachable_peers: &[FederationId]) -> Result<PartitionInfo, CommonError> {
+    async fn analyze_our_partition(
+        &self,
+        _reachable_peers: &[FederationId],
+    ) -> Result<PartitionInfo, CommonError> {
         // TODO: Analyze our partition
         Ok(PartitionInfo {
             federations: vec![self.our_federation.clone()],
@@ -525,7 +551,10 @@ impl FederationSyncManager {
         })
     }
 
-    async fn estimate_other_partitions(&self, _missing_peers: &[FederationId]) -> Result<Vec<PartitionInfo>, CommonError> {
+    async fn estimate_other_partitions(
+        &self,
+        _missing_peers: &[FederationId],
+    ) -> Result<Vec<PartitionInfo>, CommonError> {
         // TODO: Estimate other partitions
         Ok(Vec::new())
     }
@@ -535,7 +564,10 @@ impl FederationSyncManager {
         Ok(())
     }
 
-    async fn create_partition_checkpoint(&self, _partition: &NetworkPartition) -> Result<PartitionCheckpoint, CommonError> {
+    async fn create_partition_checkpoint(
+        &self,
+        _partition: &NetworkPartition,
+    ) -> Result<PartitionCheckpoint, CommonError> {
         Ok(PartitionCheckpoint {
             partition_id: "partition_1".to_string(),
             chain_length: 100,
@@ -546,12 +578,18 @@ impl FederationSyncManager {
         })
     }
 
-    async fn attempt_partition_bridge(&self, _partition: &NetworkPartition) -> Result<FederationId, CommonError> {
+    async fn attempt_partition_bridge(
+        &self,
+        _partition: &NetworkPartition,
+    ) -> Result<FederationId, CommonError> {
         // TODO: Attempt to establish bridge
         Err(CommonError::NetworkError("No bridge available".to_string()))
     }
 
-    async fn exchange_partition_checkpoints(&self, _bridge_peer: &FederationId) -> Result<PartitionCheckpoint, CommonError> {
+    async fn exchange_partition_checkpoints(
+        &self,
+        _bridge_peer: &FederationId,
+    ) -> Result<PartitionCheckpoint, CommonError> {
         // TODO: Exchange checkpoints
         Ok(PartitionCheckpoint {
             partition_id: "partition_2".to_string(),
@@ -570,8 +608,14 @@ impl FederationSyncManager {
     ) -> Result<PartitionWinner, CommonError> {
         let criteria = vec![
             (our_checkpoint.chain_length, their_checkpoint.chain_length),
-            (our_checkpoint.validator_count as u64, their_checkpoint.validator_count as u64),
-            (our_checkpoint.transaction_count, their_checkpoint.transaction_count),
+            (
+                our_checkpoint.validator_count as u64,
+                their_checkpoint.validator_count as u64,
+            ),
+            (
+                our_checkpoint.transaction_count,
+                their_checkpoint.transaction_count,
+            ),
             (our_checkpoint.timestamp, their_checkpoint.timestamp),
         ];
 
@@ -600,17 +644,28 @@ impl FederationSyncManager {
         Ok(())
     }
 
-    async fn reorganize_to_their_history(&self, _bridge_peer: &FederationId, _their_checkpoint: &PartitionCheckpoint) -> Result<(), CommonError> {
+    async fn reorganize_to_their_history(
+        &self,
+        _bridge_peer: &FederationId,
+        _their_checkpoint: &PartitionCheckpoint,
+    ) -> Result<(), CommonError> {
         // TODO: Reorganize to their history
         Ok(())
     }
 
-    async fn merge_partition_histories(&self, _our_checkpoint: &PartitionCheckpoint, _their_checkpoint: &PartitionCheckpoint) -> Result<(), CommonError> {
+    async fn merge_partition_histories(
+        &self,
+        _our_checkpoint: &PartitionCheckpoint,
+        _their_checkpoint: &PartitionCheckpoint,
+    ) -> Result<(), CommonError> {
         // TODO: Merge histories
         Ok(())
     }
 
-    async fn continue_partition_operation(&self, _partition: &NetworkPartition) -> Result<(), CommonError> {
+    async fn continue_partition_operation(
+        &self,
+        _partition: &NetworkPartition,
+    ) -> Result<(), CommonError> {
         // TODO: Continue in partition mode
         Ok(())
     }
@@ -629,13 +684,16 @@ mod tests {
     async fn test_federation_sync_manager_creation() {
         let federation_id = FederationId::new("test_federation".to_string());
         let storage = Arc::new(InMemoryDagStore::new());
-        let checkpoint_manager = Arc::new(RwLock::new(
-            icn_dag::CheckpointManager::new(federation_id.clone(), storage as Arc<dyn icn_dag::StorageService>, vec![])
-        ));
+        let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
+            federation_id.clone(),
+            storage as Arc<dyn icn_dag::StorageService>,
+            vec![],
+        )));
         let bootstrap_nodes = vec![NodeAddress::new("localhost".to_string(), 8080)];
 
-        let sync_manager = FederationSyncManager::new(federation_id, checkpoint_manager, bootstrap_nodes);
-        
+        let sync_manager =
+            FederationSyncManager::new(federation_id, checkpoint_manager, bootstrap_nodes);
+
         // Test basic functionality
         let discovered = sync_manager.discover_peers().await;
         assert!(discovered.is_ok());
@@ -645,12 +703,15 @@ mod tests {
     async fn test_trust_score_calculation() {
         let federation_id = FederationId::new("test_federation".to_string());
         let storage = Arc::new(InMemoryDagStore::new());
-        let checkpoint_manager = Arc::new(RwLock::new(
-            icn_dag::CheckpointManager::new(federation_id.clone(), storage as Arc<dyn icn_dag::StorageService>, vec![])
-        ));
+        let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
+            federation_id.clone(),
+            storage as Arc<dyn icn_dag::StorageService>,
+            vec![],
+        )));
         let bootstrap_nodes = vec![];
 
-        let sync_manager = FederationSyncManager::new(federation_id.clone(), checkpoint_manager, bootstrap_nodes);
+        let sync_manager =
+            FederationSyncManager::new(federation_id.clone(), checkpoint_manager, bootstrap_nodes);
         let target = FederationId::new("target_federation".to_string());
 
         // Test initial trust score
@@ -658,7 +719,10 @@ mod tests {
         assert_eq!(initial_trust, 0.5); // Default neutral trust
 
         // Test trust score update
-        sync_manager.update_trust_score(&target, Interaction::SuccessfulSync).await.unwrap();
+        sync_manager
+            .update_trust_score(&target, Interaction::SuccessfulSync)
+            .await
+            .unwrap();
         let updated_trust = sync_manager.calculate_trust_score(&target).await.unwrap();
         assert!(updated_trust > 0.5);
     }
@@ -667,12 +731,15 @@ mod tests {
     async fn test_partition_detection() {
         let federation_id = FederationId::new("test_federation".to_string());
         let storage = Arc::new(InMemoryDagStore::new());
-        let checkpoint_manager = Arc::new(RwLock::new(
-            icn_dag::CheckpointManager::new(federation_id.clone(), storage as Arc<dyn icn_dag::StorageService>, vec![])
-        ));
+        let checkpoint_manager = Arc::new(RwLock::new(icn_dag::CheckpointManager::new(
+            federation_id.clone(),
+            storage as Arc<dyn icn_dag::StorageService>,
+            vec![],
+        )));
         let bootstrap_nodes = vec![];
 
-        let sync_manager = FederationSyncManager::new(federation_id, checkpoint_manager, bootstrap_nodes);
+        let sync_manager =
+            FederationSyncManager::new(federation_id, checkpoint_manager, bootstrap_nodes);
 
         // Test partition detection (should return None with no peers)
         let partition = sync_manager.detect_partition().await.unwrap();

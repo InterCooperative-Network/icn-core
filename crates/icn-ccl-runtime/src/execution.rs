@@ -1,10 +1,11 @@
 //! Contract execution engine with WASM sandboxing and resource limits
 
-use crate::{CclRuntimeError, ContractAddress, ContractEvent, WasmCode, current_timestamp};
-use crate::security::{ResourceLimits, SecurityConfig};
 use crate::federation::ContractScope;
+use crate::security::{ResourceLimits, SecurityConfig};
+use crate::{current_timestamp, CclRuntimeError, ContractAddress, ContractEvent, WasmCode};
 use icn_common::Did;
 use serde::{Deserialize, Serialize};
+use sha2::Digest;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
@@ -37,16 +38,17 @@ impl ExecutionContext {
             start_time: Instant::now(),
         }
     }
-    
+
     /// Check if resource limit is exceeded
     pub fn check_resource_limits(&self) -> Result<(), CclRuntimeError> {
         // Check execution time
-        if self.start_time.elapsed() > Duration::from_secs(self.resource_limits.max_execution_time) {
+        if self.start_time.elapsed() > Duration::from_secs(self.resource_limits.max_execution_time)
+        {
             return Err(CclRuntimeError::ResourceLimitExceeded(
-                "Execution time limit exceeded".to_string()
+                "Execution time limit exceeded".to_string(),
             ));
         }
-        
+
         // Check mana consumption
         if self.mana_consumed > self.mana_limit {
             return Err(CclRuntimeError::InsufficientMana {
@@ -54,10 +56,10 @@ impl ExecutionContext {
                 available: self.mana_limit,
             });
         }
-        
+
         Ok(())
     }
-    
+
     /// Consume mana for operation
     pub fn consume_mana(&mut self, amount: u64) -> Result<(), CclRuntimeError> {
         self.mana_consumed += amount;
@@ -97,7 +99,7 @@ impl ContractExecutor {
             contracts: HashMap::new(),
         })
     }
-    
+
     /// Deploy a new contract (simplified)
     pub async fn deploy_contract(
         &mut self,
@@ -108,19 +110,19 @@ impl ContractExecutor {
     ) -> Result<(), CclRuntimeError> {
         // Validate WASM code
         self.security_config.validate_wasm_code(&code)?;
-        
+
         // Store contract metadata
         let metadata = ContractMetadata {
             code_hash: hex::encode(sha2::Sha256::digest(&code)),
             deployer: _context.caller,
             deployed_at: current_timestamp(),
         };
-        
+
         self.contracts.insert(address, metadata);
-        
+
         Ok(())
     }
-    
+
     /// Call a contract function (simplified)
     pub async fn call_function(
         &mut self,
@@ -133,10 +135,10 @@ impl ContractExecutor {
         if !self.contracts.contains_key(&address) {
             return Err(CclRuntimeError::ContractNotFound(address));
         }
-        
+
         // Simulate execution
         context.consume_mana(100)?; // Basic execution cost
-        
+
         // TODO: Integrate with actual WASM runtime
         // For now, return a successful placeholder result
         Ok(ExecutionResult {
@@ -153,21 +155,21 @@ impl ContractExecutor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::security::SecurityConfig;
     use crate::federation::ContractScope;
-    
+    use crate::security::SecurityConfig;
+
     #[tokio::test]
     async fn test_executor_creation() {
         let security_config = SecurityConfig::default();
         let executor = ContractExecutor::new(security_config);
         assert!(executor.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_contract_deployment() {
         let security_config = SecurityConfig::default();
         let mut executor = ContractExecutor::new(security_config).unwrap();
-        
+
         let deployer = Did::new("key", "test_deployer");
         let address = "test_contract".to_string();
         let code = vec![
@@ -180,8 +182,10 @@ mod tests {
             ResourceLimits::default(),
             ContractScope::Local("test_org".to_string()),
         );
-        
-        let result = executor.deploy_contract(address, code, context, vec![]).await;
+
+        let result = executor
+            .deploy_contract(address, code, context, vec![])
+            .await;
         assert!(result.is_ok());
     }
 }

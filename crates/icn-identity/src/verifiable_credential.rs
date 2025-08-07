@@ -13,29 +13,29 @@ pub struct VerifiableCredential {
     /// W3C context
     #[serde(rename = "@context")]
     pub context: Vec<String>,
-    
+
     /// Credential identifier
     pub id: String,
-    
+
     /// Credential types
     #[serde(rename = "type")]
     pub credential_type: Vec<String>,
-    
+
     /// Credential issuer
     pub issuer: CredentialIssuer,
-    
+
     /// Issuance date
     pub issuance_date: String,
-    
+
     /// Optional expiration date
     pub expiration_date: Option<String>,
-    
+
     /// Credential subject
     pub credential_subject: CredentialSubject,
-    
+
     /// ICN-specific metadata
     pub icn_metadata: CredentialMetadata,
-    
+
     /// Cryptographic proof
     pub proof: CredentialProof,
 }
@@ -45,10 +45,10 @@ pub struct VerifiableCredential {
 pub struct CredentialIssuer {
     /// Issuer DID
     pub id: Did,
-    
+
     /// Issuer name
     pub name: Option<String>,
-    
+
     /// Issuer type
     pub issuer_type: IssuerType,
 }
@@ -67,7 +67,7 @@ pub enum IssuerType {
 pub struct CredentialSubject {
     /// Subject DID
     pub id: Did,
-    
+
     /// Claims about the subject
     pub claims: HashMap<String, serde_json::Value>,
 }
@@ -77,22 +77,22 @@ pub struct CredentialSubject {
 pub struct CredentialMetadata {
     /// Credential category
     pub category: CredentialCategory,
-    
+
     /// Whether this credential is transferable
     pub transferable: bool,
-    
+
     /// Whether this credential grants voting rights
     pub grants_voting_rights: bool,
-    
+
     /// Revocation registry identifier
     pub revocation_registry: Option<String>,
-    
+
     /// Privacy level
     pub privacy_level: PrivacyLevel,
-    
+
     /// Economic value if applicable
     pub economic_value: Option<EconomicValue>,
-    
+
     /// Dependency requirements
     pub dependencies: Vec<CredentialDependency>,
 }
@@ -106,34 +106,34 @@ pub enum CredentialCategory {
         role: String,
         permissions: Vec<String>,
     },
-    
+
     /// Resource provision capability
     ResourceProvider {
         resource_types: Vec<String>,
         capacity: HashMap<String, u64>,
     },
-    
+
     /// Trust attestation
     TrustAttestation {
         trust_level: i32, // Changed from f64 to i32 for Eq
         attestation_type: String,
         valid_until: u64,
     },
-    
+
     /// Skill or capability certification
     Capability {
         skill_type: String,
         certification_level: String,
         certifying_body: Did,
     },
-    
+
     /// Identity verification
     IdentityVerification {
         verification_method: String,
         verification_level: String,
         verified_attributes: Vec<String>,
     },
-    
+
     /// Economic token representation
     TokenCredential {
         token_class: String,
@@ -157,13 +157,13 @@ pub enum TokenType {
 pub enum PrivacyLevel {
     /// Fully public credential
     Public,
-    
+
     /// Publicly verifiable but subject identity can be hidden
     Pseudonymous,
-    
+
     /// Requires zero-knowledge proof for verification
     ZeroKnowledge,
-    
+
     /// Completely private, only holder can present
     Private,
 }
@@ -173,13 +173,13 @@ pub enum PrivacyLevel {
 pub struct EconomicValue {
     /// Value in mana
     pub mana_value: u64,
-    
+
     /// Alternative token values
     pub token_values: HashMap<String, u64>,
-    
+
     /// Whether value decays over time (demurrage)
     pub has_demurrage: bool,
-    
+
     /// Demurrage rate if applicable (as basis points, e.g., 100 = 1%)
     pub demurrage_rate: Option<u32>, // Changed from f64 to u32 for Eq
 }
@@ -189,10 +189,10 @@ pub struct EconomicValue {
 pub struct CredentialDependency {
     /// Required credential type
     pub required_credential: String,
-    
+
     /// Required issuer
     pub required_issuer: Option<Did>,
-    
+
     /// Whether dependency must be current
     pub must_be_current: bool,
 }
@@ -203,19 +203,19 @@ pub struct CredentialProof {
     /// Proof type
     #[serde(rename = "type")]
     pub proof_type: String,
-    
+
     /// Proof purpose
     pub proof_purpose: String,
-    
+
     /// Verification method used for proof
     pub verification_method: String,
-    
+
     /// Proof creation timestamp
     pub created: String,
-    
+
     /// Signature or proof value
     pub proof_value: String,
-    
+
     /// Additional proof metadata
     pub proof_metadata: Option<HashMap<String, serde_json::Value>>,
 }
@@ -226,20 +226,20 @@ pub struct VerifiablePresentation {
     /// W3C context
     #[serde(rename = "@context")]
     pub context: Vec<String>,
-    
+
     /// Presentation ID
     pub id: String,
-    
+
     /// Presentation type
     #[serde(rename = "type")]
     pub presentation_type: Vec<String>,
-    
+
     /// Credentials included in presentation
     pub verifiable_credential: Vec<VerifiableCredential>,
-    
+
     /// Presenter DID
     pub holder: Did,
-    
+
     /// Presentation proof
     pub proof: CredentialProof,
 }
@@ -249,10 +249,10 @@ pub struct VerifiablePresentation {
 pub struct SelectiveDisclosureProof {
     /// Fields being disclosed
     pub disclosed_fields: Vec<String>,
-    
+
     /// Zero-knowledge proof of undisclosed fields
     pub zk_proof: String,
-    
+
     /// Salt values for disclosed fields
     pub salts: HashMap<String, String>,
 }
@@ -262,16 +262,16 @@ pub struct SelectiveDisclosureProof {
 pub struct CredentialRevocation {
     /// Credential ID being revoked
     pub credential_id: String,
-    
+
     /// Revocation reason
     pub reason: String,
-    
+
     /// Who revoked it
     pub revoked_by: Did,
-    
+
     /// When it was revoked
     pub revoked_at: u64,
-    
+
     /// Revocation proof
     pub revocation_proof: CredentialProof,
 }
@@ -288,16 +288,20 @@ impl VerifiableCredential {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         let credential_id = format!("urn:uuid:{}", uuid::Uuid::new_v4());
         let issuance_date = format_timestamp(now);
-        
+
         let mut claims = HashMap::new();
         claims.insert("role".to_string(), serde_json::Value::String(role.clone()));
-        claims.insert("organizationId".to_string(), 
-            serde_json::Value::String(organization_id.to_string()));
-        claims.insert("grantedAt".to_string(), 
-            serde_json::Value::Number(serde_json::Number::from(now)));
+        claims.insert(
+            "organizationId".to_string(),
+            serde_json::Value::String(organization_id.to_string()),
+        );
+        claims.insert(
+            "grantedAt".to_string(),
+            serde_json::Value::Number(serde_json::Number::from(now)),
+        );
 
         Ok(Self {
             context: vec![
@@ -355,20 +359,24 @@ impl VerifiableCredential {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        
+
         let credential_id = format!("urn:uuid:{}", uuid::Uuid::new_v4());
         let issuance_date = format_timestamp(now);
-        
+
         let mut claims = HashMap::new();
-        claims.insert("resourceTypes".to_string(), 
+        claims.insert(
+            "resourceTypes".to_string(),
             serde_json::Value::Array(
-                resource_types.iter()
+                resource_types
+                    .iter()
                     .map(|t| serde_json::Value::String(t.clone()))
-                    .collect()
-            ));
-        claims.insert("capacity".to_string(), 
-            serde_json::to_value(&capacity)
-                .map_err(|e| CommonError::SerError(e.to_string()))?);
+                    .collect(),
+            ),
+        );
+        claims.insert(
+            "capacity".to_string(),
+            serde_json::to_value(&capacity).map_err(|e| CommonError::SerError(e.to_string()))?,
+        );
 
         Ok(Self {
             context: vec![
@@ -419,14 +427,17 @@ impl VerifiableCredential {
         // Check required fields
         if self.id.is_empty() {
             return Err(CommonError::ValidationError(
-                "Credential ID cannot be empty".to_string()
+                "Credential ID cannot be empty".to_string(),
             ));
         }
 
         // Check credential types
-        if !self.credential_type.contains(&"VerifiableCredential".to_string()) {
+        if !self
+            .credential_type
+            .contains(&"VerifiableCredential".to_string())
+        {
             return Err(CommonError::ValidationError(
-                "Must include VerifiableCredential type".to_string()
+                "Must include VerifiableCredential type".to_string(),
             ));
         }
 
@@ -435,7 +446,7 @@ impl VerifiableCredential {
             CredentialCategory::Membership { .. } => {
                 if self.icn_metadata.transferable {
                     return Err(CommonError::ValidationError(
-                        "Membership credentials cannot be transferable".to_string()
+                        "Membership credentials cannot be transferable".to_string(),
                     ));
                 }
             }
@@ -443,7 +454,7 @@ impl VerifiableCredential {
                 if let TokenType::Membership = token_type {
                     if self.icn_metadata.transferable {
                         return Err(CommonError::ValidationError(
-                            "Membership tokens cannot be transferable".to_string()
+                            "Membership tokens cannot be transferable".to_string(),
                         ));
                     }
                 }
@@ -455,7 +466,7 @@ impl VerifiableCredential {
         for dependency in &self.icn_metadata.dependencies {
             if dependency.required_credential.is_empty() {
                 return Err(CommonError::ValidationError(
-                    "Dependency credential type cannot be empty".to_string()
+                    "Dependency credential type cannot be empty".to_string(),
                 ));
             }
         }
@@ -490,7 +501,7 @@ impl VerifiableCredential {
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs();
-            
+
             if let Ok(exp_time) = parse_timestamp(expiration) {
                 return now > exp_time;
             }
@@ -524,28 +535,28 @@ impl Signable for VerifiableCredential {
     fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
         // Create canonical representation for signing
         let mut bytes = Vec::new();
-        
+
         bytes.extend_from_slice(self.id.as_bytes());
         bytes.extend_from_slice(self.issuance_date.as_bytes());
-        
+
         if let Some(exp) = &self.expiration_date {
             bytes.extend_from_slice(exp.as_bytes());
         }
-        
+
         bytes.extend_from_slice(self.issuer.id.to_string().as_bytes());
         bytes.extend_from_slice(self.credential_subject.id.to_string().as_bytes());
-        
+
         // Add claims in sorted order for determinism
         let mut sorted_claims: Vec<_> = self.credential_subject.claims.iter().collect();
         sorted_claims.sort_by_key(|(k, _)| *k);
-        
+
         for (key, value) in sorted_claims {
             bytes.extend_from_slice(key.as_bytes());
-            let value_str = serde_json::to_string(value)
-                .map_err(|e| CommonError::SerError(e.to_string()))?;
+            let value_str =
+                serde_json::to_string(value).map_err(|e| CommonError::SerError(e.to_string()))?;
             bytes.extend_from_slice(value_str.as_bytes());
         }
-        
+
         Ok(bytes)
     }
 }
@@ -568,7 +579,7 @@ fn parse_timestamp(timestamp_str: &str) -> Result<u64, CommonError> {
 fn generate_salt() -> String {
     use rand::Rng;
     let salt: [u8; 32] = rand::thread_rng().gen();
-    // Use base64 encoding 
+    // Use base64 encoding
     base64::encode(salt)
 }
 
@@ -591,14 +602,15 @@ mod tests {
         let issuer = test_org_did("coop1");
         let subject = test_did("alice");
         let org_id = test_org_did("coop1");
-        
+
         let credential = VerifiableCredential::new_membership_credential(
             issuer.clone(),
             subject.clone(),
             org_id.clone(),
             "member".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert_eq!(credential.issuer.id, issuer);
         assert_eq!(credential.credential_subject.id, subject);
         assert!(!credential.icn_metadata.transferable);
@@ -613,21 +625,25 @@ mod tests {
         let mut capacity = HashMap::new();
         capacity.insert("cpu_cores".to_string(), 8);
         capacity.insert("memory_gb".to_string(), 32);
-        
+
         let credential = VerifiableCredential::new_resource_credential(
             issuer.clone(),
             subject.clone(),
             resource_types.clone(),
             capacity.clone(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert_eq!(credential.issuer.id, issuer);
         assert_eq!(credential.credential_subject.id, subject);
         assert!(!credential.icn_metadata.transferable);
         assert!(!credential.icn_metadata.grants_voting_rights);
-        
-        if let CredentialCategory::ResourceProvider { resource_types: rt, capacity: cap } = 
-            &credential.icn_metadata.category {
+
+        if let CredentialCategory::ResourceProvider {
+            resource_types: rt,
+            capacity: cap,
+        } = &credential.icn_metadata.category
+        {
             assert_eq!(*rt, resource_types);
             assert_eq!(*cap, capacity);
         } else {
@@ -640,14 +656,15 @@ mod tests {
         let issuer = test_org_did("coop1");
         let subject = test_did("alice");
         let org_id = test_org_did("coop1");
-        
+
         let credential = VerifiableCredential::new_membership_credential(
             issuer,
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert!(credential.validate().is_ok());
     }
 
@@ -656,14 +673,15 @@ mod tests {
         let issuer = test_org_did("coop1");
         let subject = test_did("alice");
         let org_id = test_org_did("coop1");
-        
+
         let credential = VerifiableCredential::new_membership_credential(
             issuer,
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         assert!(credential.grants_voting_rights());
         assert!(!credential.is_transferable());
     }
@@ -673,14 +691,15 @@ mod tests {
         let issuer = test_org_did("coop1");
         let subject = test_did("alice");
         let org_id = test_org_did("coop1");
-        
+
         let credential = VerifiableCredential::new_membership_credential(
             issuer,
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         // Should not be expired without expiration date
         assert!(!credential.is_expired());
     }
@@ -690,14 +709,15 @@ mod tests {
         let issuer = test_org_did("coop1");
         let subject = test_did("alice");
         let org_id = test_org_did("coop1");
-        
+
         let credential = VerifiableCredential::new_membership_credential(
             issuer,
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
-        
+        )
+        .unwrap();
+
         let bytes = credential.to_signable_bytes().unwrap();
         assert!(!bytes.is_empty());
     }

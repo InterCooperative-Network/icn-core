@@ -6,11 +6,11 @@
 use crate::Resources;
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{SignatureBytes, SigningKey};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use log::{debug, info};
 
 /// Specification for a federated learning model.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -542,7 +542,11 @@ enum SessionStatus {
 
 impl FederatedLearningCoordinator {
     /// Create a new federated learning coordinator.
-    pub fn new(coordinator_did: Did, signing_key: Arc<SigningKey>, config: FederatedConfig) -> Self {
+    pub fn new(
+        coordinator_did: Did,
+        signing_key: Arc<SigningKey>,
+        config: FederatedConfig,
+    ) -> Self {
         Self {
             coordinator_did,
             signing_key,
@@ -558,14 +562,18 @@ impl FederatedLearningCoordinator {
         model_spec: ModelSpec,
         participants: Vec<FederatedParticipant>,
     ) -> Result<(), CommonError> {
-        info!("[FederatedLearning] Starting session {} with {} participants", 
-              session_id, participants.len());
+        info!(
+            "[FederatedLearning] Starting session {} with {} participants",
+            session_id,
+            participants.len()
+        );
 
         if participants.len() < self.config.min_global_participants as usize {
-            return Err(CommonError::InvalidParameters(
-                format!("Insufficient participants: {} < {}", 
-                        participants.len(), self.config.min_global_participants)
-            ));
+            return Err(CommonError::InvalidParameters(format!(
+                "Insufficient participants: {} < {}",
+                participants.len(),
+                self.config.min_global_participants
+            )));
         }
 
         let session = FederatedSession {
@@ -582,7 +590,7 @@ impl FederatedLearningCoordinator {
             let mut sessions = self.active_sessions.write().unwrap();
             if sessions.len() >= self.config.max_concurrent_sessions as usize {
                 return Err(CommonError::InternalError(
-                    "Maximum concurrent sessions reached".to_string()
+                    "Maximum concurrent sessions reached".to_string(),
                 ));
             }
             sessions.insert(session_id.clone(), session);
@@ -596,11 +604,15 @@ impl FederatedLearningCoordinator {
 
     /// Start a specific training round.
     async fn start_round(&self, session_id: &str, round_number: u32) -> Result<(), CommonError> {
-        debug!("[FederatedLearning] Starting round {} for session {}", round_number, session_id);
+        debug!(
+            "[FederatedLearning] Starting round {} for session {}",
+            round_number, session_id
+        );
 
         let (model_cid, participants) = {
             let sessions = self.active_sessions.read().unwrap();
-            let session = sessions.get(session_id)
+            let session = sessions
+                .get(session_id)
                 .ok_or_else(|| CommonError::InvalidParameters("Session not found".to_string()))?;
 
             // Get model CID from previous round or initial model
@@ -609,13 +621,19 @@ impl FederatedLearningCoordinator {
                 Cid::new_v1_sha256(0x55, format!("initial_model_{}", session_id).as_bytes())
             } else {
                 // Get from previous round's result
-                session.round_history.last()
-                    .and_then(|r| if let RoundStatus::Completed = r.status { 
-                        Some(r.global_model_cid.clone()) 
-                    } else { 
-                        None 
+                session
+                    .round_history
+                    .last()
+                    .and_then(|r| {
+                        if let RoundStatus::Completed = r.status {
+                            Some(r.global_model_cid.clone())
+                        } else {
+                            None
+                        }
                     })
-                    .ok_or_else(|| CommonError::InternalError("No previous round result".to_string()))?
+                    .ok_or_else(|| {
+                        CommonError::InternalError("No previous round result".to_string())
+                    })?
             };
 
             (model_cid, session.registered_participants.clone())
@@ -644,14 +662,16 @@ impl FederatedLearningCoordinator {
         // Update session with new round
         {
             let mut sessions = self.active_sessions.write().unwrap();
-            let session = sessions.get_mut(session_id)
+            let session = sessions
+                .get_mut(session_id)
                 .ok_or_else(|| CommonError::InvalidParameters("Session not found".to_string()))?;
             session.current_round = Some(round);
             session.status = SessionStatus::Training;
         }
 
         // Distribute model to participants (simplified)
-        self.distribute_model_to_participants(session_id, &model_cid).await?;
+        self.distribute_model_to_participants(session_id, &model_cid)
+            .await?;
 
         Ok(())
     }
@@ -662,7 +682,10 @@ impl FederatedLearningCoordinator {
         session_id: &str,
         model_cid: &Cid,
     ) -> Result<(), CommonError> {
-        debug!("[FederatedLearning] Distributing model {} to participants", model_cid);
+        debug!(
+            "[FederatedLearning] Distributing model {} to participants",
+            model_cid
+        );
 
         // In a real implementation, this would:
         // 1. Retrieve model from DAG storage
@@ -673,7 +696,10 @@ impl FederatedLearningCoordinator {
         // For now, just simulate the distribution
         tokio::time::sleep(Duration::from_millis(100)).await;
 
-        info!("[FederatedLearning] Model distributed to participants for session {}", session_id);
+        info!(
+            "[FederatedLearning] Model distributed to participants for session {}",
+            session_id
+        );
         Ok(())
     }
 
@@ -683,8 +709,10 @@ impl FederatedLearningCoordinator {
         session_id: &str,
         update: ModelUpdate,
     ) -> Result<(), CommonError> {
-        debug!("[FederatedLearning] Processing update from {} for session {}", 
-               update.participant_did, session_id);
+        debug!(
+            "[FederatedLearning] Processing update from {} for session {}",
+            update.participant_did, session_id
+        );
 
         // Validate the update
         self.validate_model_update(&update)?;
@@ -704,19 +732,24 @@ impl FederatedLearningCoordinator {
     fn validate_model_update(&self, update: &ModelUpdate) -> Result<(), CommonError> {
         // Basic validation - in production this would be much more comprehensive
         if update.parameters.is_empty() {
-            return Err(CommonError::InvalidParameters("Empty model parameters".to_string()));
+            return Err(CommonError::InvalidParameters(
+                "Empty model parameters".to_string(),
+            ));
         }
 
         if update.training_metadata.local_samples == 0 {
-            return Err(CommonError::InvalidParameters("No training samples reported".to_string()));
+            return Err(CommonError::InvalidParameters(
+                "No training samples reported".to_string(),
+            ));
         }
 
         // Validate gradient norms are within reasonable bounds
         for &norm in &update.training_metadata.gradient_norms {
             if norm < 0.0 || norm > 1000.0 {
-                return Err(CommonError::InvalidParameters(
-                    format!("Gradient norm out of bounds: {}", norm)
-                ));
+                return Err(CommonError::InvalidParameters(format!(
+                    "Gradient norm out of bounds: {}",
+                    norm
+                )));
             }
         }
 
@@ -724,17 +757,24 @@ impl FederatedLearningCoordinator {
     }
 
     /// Store a model update.
-    async fn store_model_update(&self, session_id: &str, update: ModelUpdate) -> Result<(), CommonError> {
+    async fn store_model_update(
+        &self,
+        session_id: &str,
+        update: ModelUpdate,
+    ) -> Result<(), CommonError> {
         // In a real implementation, this would store the update in DAG storage
-        debug!("[FederatedLearning] Stored update from {} for session {}", 
-               update.participant_did, session_id);
+        debug!(
+            "[FederatedLearning] Stored update from {} for session {}",
+            update.participant_did, session_id
+        );
         Ok(())
     }
 
     /// Check if enough updates have been received for aggregation.
     async fn ready_for_aggregation(&self, session_id: &str) -> Result<bool, CommonError> {
         let sessions = self.active_sessions.read().unwrap();
-        let session = sessions.get(session_id)
+        let session = sessions
+            .get(session_id)
             .ok_or_else(|| CommonError::InvalidParameters("Session not found".to_string()))?;
 
         if let Some(round) = &session.current_round {
@@ -742,7 +782,7 @@ impl FederatedLearningCoordinator {
             // For now, simulate that we have enough updates
             let min_participants = round.round_config.min_participants;
             let received_updates = 3; // Simulated
-            
+
             Ok(received_updates >= min_participants)
         } else {
             Ok(false)
@@ -751,14 +791,18 @@ impl FederatedLearningCoordinator {
 
     /// Aggregate model updates for the current round.
     async fn aggregate_round(&self, session_id: &str) -> Result<(), CommonError> {
-        info!("[FederatedLearning] Aggregating round for session {}", session_id);
+        info!(
+            "[FederatedLearning] Aggregating round for session {}",
+            session_id
+        );
 
         let aggregation_result = self.perform_aggregation(session_id).await?;
 
         // Update session with aggregation result
         {
             let mut sessions = self.active_sessions.write().unwrap();
-            let session = sessions.get_mut(session_id)
+            let session = sessions
+                .get_mut(session_id)
                 .ok_or_else(|| CommonError::InvalidParameters("Session not found".to_string()))?;
 
             if let Some(mut round) = session.current_round.take() {
@@ -776,15 +820,17 @@ impl FederatedLearningCoordinator {
                     let session = sessions.get(session_id).unwrap();
                     session.round_history.len() as u32
                 };
-                
+
                 if next_round < self.config.max_rounds_per_session {
                     self.start_round(session_id, next_round).await?;
                 } else {
-                    self.complete_session(session_id, ConvergenceStatus::MaxRoundsReached).await?;
+                    self.complete_session(session_id, ConvergenceStatus::MaxRoundsReached)
+                        .await?;
                 }
             }
             _ => {
-                self.complete_session(session_id, aggregation_result.convergence_status).await?;
+                self.complete_session(session_id, aggregation_result.convergence_status)
+                    .await?;
             }
         }
 
@@ -792,8 +838,14 @@ impl FederatedLearningCoordinator {
     }
 
     /// Perform the actual model aggregation.
-    async fn perform_aggregation(&self, session_id: &str) -> Result<AggregationResult, CommonError> {
-        debug!("[FederatedLearning] Performing aggregation for session {}", session_id);
+    async fn perform_aggregation(
+        &self,
+        session_id: &str,
+    ) -> Result<AggregationResult, CommonError> {
+        debug!(
+            "[FederatedLearning] Performing aggregation for session {}",
+            session_id
+        );
 
         // In a real implementation, this would:
         // 1. Retrieve all model updates from DAG
@@ -806,12 +858,16 @@ impl FederatedLearningCoordinator {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         let aggregated_model_cid = Cid::new_v1_sha256(
-            0x55, 
-            format!("aggregated_model_{}_{}", session_id, SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_secs()
-            ).as_bytes()
+            0x55,
+            format!(
+                "aggregated_model_{}_{}",
+                session_id,
+                SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs()
+            )
+            .as_bytes(),
         );
 
         let result = AggregationResult {
@@ -819,11 +875,11 @@ impl FederatedLearningCoordinator {
             included_participants: vec![], // Would be populated from actual updates
             excluded_participants: vec![], // Would include any rejected updates
             quality_metrics: AggregationQualityMetrics {
-                global_accuracy: 0.85,     // Simulated
-                global_loss: 0.15,         // Simulated
+                global_accuracy: 0.85,       // Simulated
+                global_loss: 0.15,           // Simulated
                 contribution_variance: 0.05, // Simulated
                 anomalous_contributions: 0,
-                consensus_score: 0.95,     // Simulated
+                consensus_score: 0.95, // Simulated
             },
             convergence_status: if session_id.contains("converged") {
                 ConvergenceStatus::ConvergedAccuracy
@@ -832,8 +888,10 @@ impl FederatedLearningCoordinator {
             },
         };
 
-        info!("[FederatedLearning] Aggregation completed for session {} with {} accuracy", 
-              session_id, result.quality_metrics.global_accuracy);
+        info!(
+            "[FederatedLearning] Aggregation completed for session {} with {} accuracy",
+            session_id, result.quality_metrics.global_accuracy
+        );
 
         Ok(result)
     }
@@ -844,8 +902,10 @@ impl FederatedLearningCoordinator {
         session_id: &str,
         convergence_status: ConvergenceStatus,
     ) -> Result<(), CommonError> {
-        info!("[FederatedLearning] Completing session {} with status {:?}", 
-              session_id, convergence_status);
+        info!(
+            "[FederatedLearning] Completing session {} with status {:?}",
+            session_id, convergence_status
+        );
 
         {
             let mut sessions = self.active_sessions.write().unwrap();
@@ -939,7 +999,10 @@ impl ModelSpec {
                 learning_rate: 0.001,
                 batch_size: 32,
                 local_epochs: 1,
-                optimizer: OptimizerType::Adam { beta1: 0.9, beta2: 0.999 },
+                optimizer: OptimizerType::Adam {
+                    beta1: 0.9,
+                    beta2: 0.999,
+                },
                 max_rounds: 100,
                 convergence_criteria: ConvergenceCriteria {
                     min_improvement: 0.001,
@@ -973,7 +1036,7 @@ mod tests {
     #[test]
     fn test_model_spec_creation() {
         let model = ModelSpec::simple_neural_network(784, 10);
-        
+
         match &model.architecture {
             ModelArchitecture::NeuralNetwork { layers, .. } => {
                 assert_eq!(layers.len(), 3);
@@ -1055,7 +1118,9 @@ mod tests {
             },
         ];
 
-        let result = coordinator.start_session("test_session".to_string(), model, participants).await;
+        let result = coordinator
+            .start_session("test_session".to_string(), model, participants)
+            .await;
         assert!(result.is_ok());
 
         let (active, max) = coordinator.get_capacity();
@@ -1087,7 +1152,10 @@ mod tests {
 
         assert_eq!(round.round_number, 0);
         assert!(matches!(round.status, RoundStatus::Initializing));
-        assert!(matches!(round.round_config.aggregation_strategy, AggregationStrategy::FederatedAveraging));
+        assert!(matches!(
+            round.round_config.aggregation_strategy,
+            AggregationStrategy::FederatedAveraging
+        ));
     }
 
     #[test]
@@ -1124,7 +1192,7 @@ mod tests {
         let invalid_update = ModelUpdate {
             parameters: vec![], // Empty parameters
             training_metadata: TrainingMetadata {
-                local_samples: 0, // No samples
+                local_samples: 0,             // No samples
                 gradient_norms: vec![1001.0], // Out of bounds gradient
                 ..valid_update.training_metadata.clone()
             },
@@ -1152,6 +1220,9 @@ mod tests {
         assert!(config.differential_privacy.is_some());
         assert!(config.secure_aggregation);
         assert_eq!(config.min_participants, 5);
-        assert!(matches!(config.max_data_sharing, DataSharingLevel::ModelUpdatesOnly));
+        assert!(matches!(
+            config.max_data_sharing,
+            DataSharingLevel::ModelUpdatesOnly
+        ));
     }
 }

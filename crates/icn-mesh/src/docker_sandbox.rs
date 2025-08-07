@@ -3,13 +3,13 @@
 //! This module provides Docker container management with security policies,
 //! resource limits, and isolation for mesh job execution.
 
-use crate::{JobId, JobSpec, Resources, JobKind};
+use crate::{JobId, JobKind, JobSpec, Resources};
 use icn_common::{CommonError, Did};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
-use log::{debug, error, info, warn};
 
 /// Docker container execution environment with security policies.
 #[derive(Debug, Clone)]
@@ -162,7 +162,8 @@ impl DockerSandbox {
             },
         };
 
-        let resource_limits = DockerResourceLimits::from_mesh_resources(&job_spec.required_resources);
+        let resource_limits =
+            DockerResourceLimits::from_mesh_resources(&job_spec.required_resources);
         let security_config = DockerSecurityConfig::secure_defaults();
         let network_config = DockerNetworkConfig::restricted_defaults();
 
@@ -181,32 +182,35 @@ impl DockerSandbox {
         input_data: &[u8],
     ) -> Result<DockerExecutionResult, CommonError> {
         info!("[DockerSandbox] Starting job execution for {}", job_id);
-        
+
         let start_time = Instant::now();
         let container_name = format!("icn-job-{}", job_id.to_string().replace(':', "-"));
 
         // Build Docker run command
         let mut docker_cmd = Command::new("docker");
         docker_cmd.arg("run");
-        
+
         // Add basic options
         docker_cmd.args(&["--rm", "--name", &container_name]);
-        
+
         // Add resource limits
         self.add_resource_limits(&mut docker_cmd);
-        
+
         // Add security configuration
         self.add_security_config(&mut docker_cmd);
-        
+
         // Add network configuration
         self.add_network_config(&mut docker_cmd);
-        
+
         // Add execution configuration
         self.add_execution_config(&mut docker_cmd);
-        
+
         // Add the image
-        docker_cmd.arg(format!("{}:{}", self.execution_config.image, self.execution_config.tag));
-        
+        docker_cmd.arg(format!(
+            "{}:{}",
+            self.execution_config.image, self.execution_config.tag
+        ));
+
         // Add the command
         docker_cmd.args(&self.execution_config.command);
 
@@ -221,8 +225,9 @@ impl DockerSandbox {
                     .stdout(Stdio::piped())
                     .stderr(Stdio::piped())
                     .output()
-            })
-        ).await;
+            }),
+        )
+        .await;
 
         let execution_time = start_time.elapsed();
 
@@ -264,7 +269,10 @@ impl DockerSandbox {
                 )))
             }
             Err(_) => {
-                error!("[DockerSandbox] Docker execution timed out for job {}", job_id);
+                error!(
+                    "[DockerSandbox] Docker execution timed out for job {}",
+                    job_id
+                );
                 // Try to kill the container
                 self.cleanup_container(&container_name).await;
                 Err(CommonError::InternalError(
@@ -278,14 +286,14 @@ impl DockerSandbox {
     fn add_resource_limits(&self, cmd: &mut Command) {
         // Memory limit
         cmd.args(&["--memory", &self.resource_limits.memory_limit.to_string()]);
-        
+
         // CPU limits
         cmd.args(&["--cpu-shares", &self.resource_limits.cpu_shares.to_string()]);
         cmd.args(&["--cpus", &self.resource_limits.cpu_limit.to_string()]);
-        
+
         // PIDs limit
         cmd.args(&["--pids-limit", &self.resource_limits.pids_limit.to_string()]);
-        
+
         // Disk I/O limits (if specified)
         if let Some(read_bps) = self.resource_limits.disk_read_bps {
             cmd.args(&["--device-read-bps", &format!("/dev/sda:{}", read_bps)]);
@@ -300,26 +308,26 @@ impl DockerSandbox {
         if self.security_config.readonly_rootfs {
             cmd.arg("--read-only");
         }
-        
+
         if self.security_config.no_new_privileges {
             cmd.args(&["--security-opt", "no-new-privileges:true"]);
         }
-        
+
         // Drop capabilities
         for cap in &self.security_config.drop_capabilities {
             cmd.args(&["--cap-drop", cap]);
         }
-        
+
         // Add capabilities
         for cap in &self.security_config.add_capabilities {
             cmd.args(&["--cap-add", cap]);
         }
-        
+
         // User
         if !self.security_config.user.is_empty() {
             cmd.args(&["--user", &self.security_config.user]);
         }
-        
+
         // Additional security options
         for opt in &self.security_config.security_opts {
             cmd.args(&["--security-opt", opt]);
@@ -342,12 +350,12 @@ impl DockerSandbox {
                 cmd.args(&["--network", network]);
             }
         }
-        
+
         // DNS servers
         for dns in &self.network_config.dns_servers {
             cmd.args(&["--dns", dns]);
         }
-        
+
         // Port mappings
         for (internal, external) in &self.network_config.port_mappings {
             cmd.args(&["-p", &format!("{}:{}", external, internal)]);
@@ -360,12 +368,12 @@ impl DockerSandbox {
         for (key, value) in &self.execution_config.environment {
             cmd.args(&["--env", &format!("{}={}", key, value)]);
         }
-        
+
         // Working directory
         if let Some(workdir) = &self.execution_config.workdir {
             cmd.args(&["--workdir", workdir]);
         }
-        
+
         // Volume mounts
         for (host_path, container_path) in &self.execution_config.volumes {
             cmd.args(&["-v", &format!("{}:{}", host_path, container_path)]);
@@ -387,12 +395,15 @@ impl DockerSandbox {
     /// Clean up container after execution.
     async fn cleanup_container(&self, container_name: &str) {
         debug!("[DockerSandbox] Cleaning up container {}", container_name);
-        
+
         let mut kill_cmd = Command::new("docker");
         kill_cmd.args(&["kill", container_name]);
-        
+
         if let Err(e) = kill_cmd.output() {
-            warn!("[DockerSandbox] Failed to kill container {}: {}", container_name, e);
+            warn!(
+                "[DockerSandbox] Failed to kill container {}: {}",
+                container_name, e
+            );
         }
     }
 }
@@ -404,10 +415,10 @@ impl DockerResourceLimits {
             cpu_shares: resources.cpu_cores * 1024, // Docker CPU shares
             memory_limit: (resources.memory_mb as u64) * 1024 * 1024, // Convert MB to bytes
             cpu_limit: resources.cpu_cores as f64,
-            disk_read_bps: None,  // Could be derived from storage requirements
+            disk_read_bps: None, // Could be derived from storage requirements
             disk_write_bps: None,
-            network_bps: None,    // Could be derived from network requirements
-            pids_limit: 1024,     // Reasonable default
+            network_bps: None, // Could be derived from network requirements
+            pids_limit: 1024,  // Reasonable default
             timeout: Duration::from_secs(300), // 5 minute default timeout
         }
     }
@@ -415,14 +426,14 @@ impl DockerResourceLimits {
     /// Create resource limits for high-security jobs.
     pub fn high_security() -> Self {
         Self {
-            cpu_shares: 512,  // Lower CPU priority
-            memory_limit: 128 * 1024 * 1024, // 128 MB limit
-            cpu_limit: 0.5,   // Half a CPU core
-            disk_read_bps: Some(10 * 1024 * 1024),  // 10 MB/s
-            disk_write_bps: Some(5 * 1024 * 1024),  // 5 MB/s
-            network_bps: Some(1 * 1024 * 1024),     // 1 MB/s
-            pids_limit: 64,   // Very limited processes
-            timeout: Duration::from_secs(60), // 1 minute timeout
+            cpu_shares: 512,                       // Lower CPU priority
+            memory_limit: 128 * 1024 * 1024,       // 128 MB limit
+            cpu_limit: 0.5,                        // Half a CPU core
+            disk_read_bps: Some(10 * 1024 * 1024), // 10 MB/s
+            disk_write_bps: Some(5 * 1024 * 1024), // 5 MB/s
+            network_bps: Some(1 * 1024 * 1024),    // 1 MB/s
+            pids_limit: 64,                        // Very limited processes
+            timeout: Duration::from_secs(60),      // 1 minute timeout
         }
     }
 }
@@ -433,9 +444,7 @@ impl DockerSecurityConfig {
         Self {
             readonly_rootfs: true,
             no_new_privileges: true,
-            drop_capabilities: vec![
-                "ALL".to_string(),
-            ],
+            drop_capabilities: vec!["ALL".to_string()],
             add_capabilities: vec![], // No additional capabilities
             user: "nobody:nogroup".to_string(),
             security_opts: vec![
@@ -458,9 +467,7 @@ impl DockerSecurityConfig {
             ],
             add_capabilities: vec![],
             user: "icn:icn".to_string(),
-            security_opts: vec![
-                "seccomp=default".to_string(),
-            ],
+            security_opts: vec!["seccomp=default".to_string()],
             icc: false,
         }
     }
@@ -481,10 +488,7 @@ impl DockerNetworkConfig {
     pub fn limited_internet() -> Self {
         Self {
             mode: NetworkMode::Bridge,
-            dns_servers: vec![
-                "8.8.8.8".to_string(),
-                "8.8.4.4".to_string(),
-            ],
+            dns_servers: vec!["8.8.8.8".to_string(), "8.8.4.4".to_string()],
             port_mappings: HashMap::new(),
             allow_internet: true,
         }
@@ -513,10 +517,8 @@ impl DockerSandboxManager {
 
     /// Check if Docker is available on the system.
     pub async fn check_docker_availability() -> bool {
-        let output = Command::new("docker")
-            .args(&["--version"])
-            .output();
-        
+        let output = Command::new("docker").args(&["--version"]).output();
+
         match output {
             Ok(output) => output.status.success(),
             Err(_) => false,
@@ -543,7 +545,7 @@ impl DockerSandboxManager {
 
         // Create sandbox for this job
         let sandbox = DockerSandbox::from_job_spec(job_spec, executor_did)?;
-        
+
         // Track execution
         let container_name = format!("icn-job-{}", job_id.to_string().replace(':', "-"));
         {
@@ -579,9 +581,12 @@ impl DockerSandboxManager {
         for container_name in container_names {
             let mut kill_cmd = Command::new("docker");
             kill_cmd.args(&["kill", &container_name]);
-            
+
             if let Err(e) = kill_cmd.output() {
-                error!("[DockerSandboxManager] Failed to kill container {}: {}", container_name, e);
+                error!(
+                    "[DockerSandboxManager] Failed to kill container {}: {}",
+                    container_name, e
+                );
             }
         }
 
@@ -609,7 +614,7 @@ mod tests {
         };
 
         let limits = DockerResourceLimits::from_mesh_resources(&resources);
-        
+
         assert_eq!(limits.cpu_shares, 2048); // 2 * 1024
         assert_eq!(limits.memory_limit, 1024 * 1024 * 1024); // 1024 MB in bytes
         assert_eq!(limits.cpu_limit, 2.0);
@@ -618,7 +623,7 @@ mod tests {
     #[test]
     fn test_docker_security_config_defaults() {
         let config = DockerSecurityConfig::secure_defaults();
-        
+
         assert!(config.readonly_rootfs);
         assert!(config.no_new_privileges);
         assert!(config.drop_capabilities.contains(&"ALL".to_string()));
@@ -628,7 +633,7 @@ mod tests {
     #[test]
     fn test_docker_network_config_restricted() {
         let config = DockerNetworkConfig::restricted_defaults();
-        
+
         assert_eq!(config.mode, NetworkMode::None);
         assert!(!config.allow_internet);
         assert!(config.dns_servers.is_empty());
@@ -638,7 +643,7 @@ mod tests {
     async fn test_docker_sandbox_manager_capacity() {
         let manager = DockerSandboxManager::new(2);
         let (current, max) = manager.get_capacity();
-        
+
         assert_eq!(current, 0);
         assert_eq!(max, 2);
     }
@@ -659,7 +664,7 @@ mod tests {
 
         let executor_did = Did::from_str("did:key:test").unwrap();
         let sandbox = DockerSandbox::from_job_spec(&job_spec, &executor_did);
-        
+
         assert!(sandbox.is_ok());
         let sandbox = sandbox.unwrap();
         assert_eq!(sandbox.resource_limits.cpu_shares, 1024);

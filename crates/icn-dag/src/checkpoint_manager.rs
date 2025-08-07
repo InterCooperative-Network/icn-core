@@ -4,11 +4,15 @@
 //! checkpoint exchange as specified in the DAG Storage Protocol.
 
 use crate::StorageService;
-use icn_common::{Cid, CommonError, DagBlock, Did, SystemTimeProvider, TimeProvider};
+use icn_common::{Cid, CommonError, DagBlock, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeMap};
-use std::sync::Arc;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::Arc;
+
+// Type aliases for complex types
+type FederationDebts = HashMap<FederationId, Debt>;
+type FederationCredits = HashMap<FederationId, Credit>;
 
 /// Checkpoint identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -18,7 +22,7 @@ impl CheckpointId {
     pub fn new(federation_id: &str, epoch: u64) -> Self {
         Self(format!("{}:{}", federation_id, epoch))
     }
-    
+
     pub fn genesis() -> Self {
         Self("genesis:0".to_string())
     }
@@ -80,7 +84,7 @@ impl Default for EconomicSummary {
 }
 
 /// Governance summary for checkpoint
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct GovernanceSummary {
     pub active_proposals: Vec<String>,
     pub membership_count: u64,
@@ -88,16 +92,7 @@ pub struct GovernanceSummary {
     pub proposals_executed_since_last: u64,
 }
 
-impl Default for GovernanceSummary {
-    fn default() -> Self {
-        Self {
-            active_proposals: Vec::new(),
-            membership_count: 0,
-            votes_cast_since_last: 0,
-            proposals_executed_since_last: 0,
-        }
-    }
-}
+
 
 /// External reference to other federation or cross-chain data
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -164,31 +159,31 @@ pub struct Checkpoint {
     pub checkpoint_id: CheckpointId,
     pub federation_id: FederationId,
     pub epoch: u64,
-    
+
     // State commitment
     pub state_root: Cid,
     pub prev_checkpoint: CheckpointId,
-    
+
     // Included data
     pub dag_root: Cid,
     pub economic_summary: EconomicSummary,
     pub governance_summary: GovernanceSummary,
     pub membership_root: Cid,
-    
+
     // Cross-federation references
     pub external_references: Vec<ExternalReference>,
     pub federation_debts: HashMap<FederationId, Debt>,
     pub federation_credits: HashMap<FederationId, Credit>,
-    
+
     // Validation
     pub proposer: ValidatorId,
     pub validator_signatures: Vec<ValidatorSignature>,
-    
+
     // Metadata
     pub timestamp: u64,
     pub block_count: u64,
     pub transaction_count: u64,
-    
+
     // Proof
     pub proof: CheckpointProof,
 }
@@ -196,6 +191,7 @@ pub struct Checkpoint {
 /// Checkpoint Manager Implementation
 pub struct CheckpointManager {
     federation_id: FederationId,
+    #[allow(dead_code)]
     storage: Arc<dyn StorageService<DagBlock>>,
     validators: Vec<ValidatorId>,
     current_epoch: u64,
@@ -229,29 +225,32 @@ impl CheckpointManager {
 
         // 1. Collect all blocks since last checkpoint
         let blocks = self.collect_blocks_since_last_checkpoint()?;
-        
+
         // 2. Build merkle tree of blocks
         let dag_root = self.build_dag_merkle_tree(&blocks)?;
-        
+
         // 3. Calculate state root
         let state_root = self.calculate_state_root()?;
-        
+
         // 4. Generate economic summary
         let economic_summary = self.summarize_economics(&blocks)?;
-        
+
         // 5. Generate governance summary
         let governance_summary = self.summarize_governance(&blocks)?;
-        
+
         // 6. Calculate membership root
         let membership_root = self.calculate_membership_root()?;
-        
+
         // 7. Resolve cross-federation balances
         let (debts, credits) = self.calculate_federation_balances()?;
-        
+
         // 8. Create checkpoint
         let checkpoint_id = CheckpointId::new(&self.federation_id.id, self.current_epoch);
-        let prev_checkpoint = self.last_checkpoint.clone().unwrap_or_else(CheckpointId::genesis);
-        
+        let prev_checkpoint = self
+            .last_checkpoint
+            .clone()
+            .unwrap_or_else(CheckpointId::genesis);
+
         let mut checkpoint = Checkpoint {
             checkpoint_id: checkpoint_id.clone(),
             federation_id: self.federation_id.clone(),
@@ -298,7 +297,7 @@ impl CheckpointManager {
         // 10. Store checkpoint
         self.store_checkpoint(&checkpoint)?;
         self.last_checkpoint = Some(checkpoint_id);
-        
+
         // 11. Clear pending blocks
         self.pending_blocks.clear();
 
@@ -314,8 +313,13 @@ impl CheckpointManager {
         }
 
         // 2. Verify validator signatures (BFT requirement)
-        let valid_sigs = checkpoint.validator_signatures.iter()
-            .filter(|sig| self.verify_validator_signature(sig, checkpoint).unwrap_or(false))
+        let valid_sigs = checkpoint
+            .validator_signatures
+            .iter()
+            .filter(|sig| {
+                self.verify_validator_signature(sig, checkpoint)
+                    .unwrap_or(false)
+            })
             .count();
 
         let required_sigs = (self.validators.len() * 2 / 3) + 1;
@@ -369,7 +373,7 @@ impl CheckpointManager {
             hasher.update(block.cid.to_string().as_bytes());
         }
         let hash = hasher.finalize();
-        
+
         Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
@@ -400,12 +404,15 @@ impl CheckpointManager {
         Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
-    fn calculate_federation_balances(&self) -> Result<(HashMap<FederationId, Debt>, HashMap<FederationId, Credit>), CommonError> {
+    fn calculate_federation_balances(&self) -> Result<(FederationDebts, FederationCredits), CommonError> {
         // TODO: Calculate debts and credits with other federations
         Ok((HashMap::new(), HashMap::new()))
     }
 
-    fn collect_external_references(&self, _blocks: &[DagBlock]) -> Result<Vec<ExternalReference>, CommonError> {
+    fn collect_external_references(
+        &self,
+        _blocks: &[DagBlock],
+    ) -> Result<Vec<ExternalReference>, CommonError> {
         // TODO: Extract external references from blocks
         Ok(Vec::new())
     }
@@ -413,9 +420,11 @@ impl CheckpointManager {
     fn select_proposer(&self) -> Result<ValidatorId, CommonError> {
         // Round-robin proposer selection
         if self.validators.is_empty() {
-            return Err(CommonError::ValidationError("No validators available".to_string()));
+            return Err(CommonError::ValidationError(
+                "No validators available".to_string(),
+            ));
         }
-        
+
         let index = (self.current_epoch as usize) % self.validators.len();
         Ok(self.validators[index].clone())
     }
@@ -425,7 +434,10 @@ impl CheckpointManager {
         0
     }
 
-    fn collect_validator_signatures(&self, _checkpoint: &Checkpoint) -> Result<Vec<ValidatorSignature>, CommonError> {
+    fn collect_validator_signatures(
+        &self,
+        _checkpoint: &Checkpoint,
+    ) -> Result<Vec<ValidatorSignature>, CommonError> {
         // TODO: Collect actual signatures from validators
         // For now, return empty signatures
         Ok(Vec::new())
@@ -436,7 +448,11 @@ impl CheckpointManager {
         Ok(())
     }
 
-    fn verify_validator_signature(&self, _signature: &ValidatorSignature, _checkpoint: &Checkpoint) -> Result<bool, CommonError> {
+    fn verify_validator_signature(
+        &self,
+        _signature: &ValidatorSignature,
+        _checkpoint: &Checkpoint,
+    ) -> Result<bool, CommonError> {
         // TODO: Verify cryptographic signature
         Ok(true)
     }
@@ -446,7 +462,11 @@ impl CheckpointManager {
         Ok(true)
     }
 
-    fn verify_economic_summary(&self, _summary: &EconomicSummary, _dag_root: &Cid) -> Result<bool, CommonError> {
+    fn verify_economic_summary(
+        &self,
+        _summary: &EconomicSummary,
+        _dag_root: &Cid,
+    ) -> Result<bool, CommonError> {
         // TODO: Verify economic summary consistency
         Ok(true)
     }
@@ -462,12 +482,12 @@ mod tests {
         let federation_id = FederationId::new("test_federation".to_string());
         let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
         let validators = vec![ValidatorId("validator1".to_string())];
-        
+
         let mut manager = CheckpointManager::new(federation_id, storage, validators);
-        
+
         let result = manager.create_checkpoint();
         assert!(result.is_ok());
-        
+
         let checkpoint = result.unwrap();
         assert_eq!(checkpoint.epoch, 1);
         assert_eq!(checkpoint.federation_id.id, "test_federation");
@@ -478,9 +498,9 @@ mod tests {
         let federation_id = FederationId::new("test_federation".to_string());
         let storage = Arc::new(InMemoryDagStore::new()) as Arc<dyn StorageService>;
         let validators = vec![ValidatorId("validator1".to_string())];
-        
+
         let manager = CheckpointManager::new(federation_id.clone(), storage, validators);
-        
+
         // Create a valid checkpoint
         let checkpoint = Checkpoint {
             checkpoint_id: CheckpointId::new(&federation_id.id, 1),
@@ -519,7 +539,7 @@ mod tests {
                 zk_membership_proof: None,
             },
         };
-        
+
         let result = manager.validate_checkpoint(&checkpoint);
         assert!(result.is_ok());
         // Note: Will be false due to lack of signatures, but tests the validation flow

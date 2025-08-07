@@ -52,15 +52,24 @@ mod demurrage_tests {
         );
 
         // Create the token class
-        ledger.create_class(&&token_id("test_token").to_string(), token_class).unwrap();
+        ledger
+            .create_class(&&token_id("test_token").to_string(), token_class)
+            .unwrap();
 
         // Mint 1000 tokens to the holder
-        ledger.mint(&&token_id("test_token").to_string(), &holder, 1000).unwrap();
-        assert_eq!(ledger.get_balance(&&token_id("test_token").to_string(), &holder), 1000);
+        ledger
+            .mint(&&token_id("test_token").to_string(), &holder, 1000)
+            .unwrap();
+        assert_eq!(
+            ledger.get_balance(&&token_id("test_token").to_string(), &holder),
+            1000
+        );
 
         // Apply demurrage after 1 day (86400 seconds)
         let current_time = SystemTimeProvider.unix_seconds() + 86400;
-        let burned_amount = ledger.apply_demurrage(&&token_id("test_token").to_string(), current_time).unwrap();
+        let burned_amount = ledger
+            .apply_demurrage(&&token_id("test_token").to_string(), current_time)
+            .unwrap();
 
         // Should have burned ~10 tokens (1% of 1000)
         assert!(burned_amount >= 9 && burned_amount <= 11);
@@ -84,12 +93,16 @@ mod demurrage_tests {
             7,    // 7 day grace period
         );
 
-        ledger.create_class(&token_id("test_token"), token_class).unwrap();
+        ledger
+            .create_class(&token_id("test_token"), token_class)
+            .unwrap();
         ledger.mint(&token_id("test_token"), &holder, 1000).unwrap();
 
         // Apply demurrage after 3 days (within grace period)
         let current_time = SystemTimeProvider.unix_seconds() + (3 * 86400);
-        let burned_amount = ledger.apply_demurrage(&token_id("test_token"), current_time).unwrap();
+        let burned_amount = ledger
+            .apply_demurrage(&token_id("test_token"), current_time)
+            .unwrap();
 
         // Should not burn any tokens during grace period
         assert_eq!(burned_amount, 0);
@@ -97,7 +110,9 @@ mod demurrage_tests {
 
         // Apply demurrage after 8 days (beyond grace period)
         let current_time = SystemTimeProvider.unix_seconds() + (8 * 86400);
-        let burned_amount = ledger.apply_demurrage(&token_id("test_token"), current_time).unwrap();
+        let burned_amount = ledger
+            .apply_demurrage(&token_id("test_token"), current_time)
+            .unwrap();
 
         // Should now burn tokens
         assert!(burned_amount > 0);
@@ -119,12 +134,18 @@ mod demurrage_tests {
             issuer.clone(),
         );
 
-        ledger.create_class(&token_id("normal_token"), token_class).unwrap();
-        ledger.mint(&token_id("normal_token"), &holder, 1000).unwrap();
+        ledger
+            .create_class(&token_id("normal_token"), token_class)
+            .unwrap();
+        ledger
+            .mint(&token_id("normal_token"), &holder, 1000)
+            .unwrap();
 
         // Apply demurrage after 1 day
         let current_time = SystemTimeProvider.unix_seconds() + 86400;
-        let burned_amount = ledger.apply_demurrage(&token_id("normal_token"), current_time).unwrap();
+        let burned_amount = ledger
+            .apply_demurrage(&token_id("normal_token"), current_time)
+            .unwrap();
 
         // Should not burn any tokens
         assert_eq!(burned_amount, 0);
@@ -149,12 +170,16 @@ mod velocity_limit_tests {
             "Token with velocity limits".to_string(),
             "LIMITED".to_string(),
             issuer.clone(),
-            100, // Max 100 tokens per day
+            100,     // Max 100 tokens per day
             Some(5), // Max 5 transfers per day
         );
 
-        ledger.create_class(&token_id("limited_token"), token_class).unwrap();
-        ledger.mint(&token_id("limited_token"), &sender, 1000).unwrap();
+        ledger
+            .create_class(&token_id("limited_token"), token_class)
+            .unwrap();
+        ledger
+            .mint(&token_id("limited_token"), &sender, 1000)
+            .unwrap();
 
         let current_time = SystemTimeProvider.unix_seconds();
 
@@ -204,8 +229,12 @@ mod velocity_limit_tests {
             None,
         );
 
-        ledger.create_class(&token_id("limited_token"), token_class).unwrap();
-        ledger.mint(&token_id("limited_token"), &sender, 1000).unwrap();
+        ledger
+            .create_class(&token_id("limited_token"), token_class)
+            .unwrap();
+        ledger
+            .mint(&token_id("limited_token"), &sender, 1000)
+            .unwrap();
 
         let current_time = SystemTimeProvider.unix_seconds();
 
@@ -240,12 +269,16 @@ mod velocity_limit_tests {
             "Token with transfer count limits".to_string(),
             "LIMITED".to_string(),
             issuer.clone(),
-            1000, // High amount limit
+            1000,    // High amount limit
             Some(2), // Only 2 transfers per day
         );
 
-        ledger.create_class(&token_id("limited_token"), token_class).unwrap();
-        ledger.mint(&token_id("limited_token"), &sender, 1000).unwrap();
+        ledger
+            .create_class(&token_id("limited_token"), token_class)
+            .unwrap();
+        ledger
+            .mint(&token_id("limited_token"), &sender, 1000)
+            .unwrap();
 
         // First two transfers should succeed
         ledger
@@ -280,7 +313,9 @@ mod purpose_lock_tests {
             vec!["computation".to_string(), "storage".to_string()],
         );
 
-        ledger.create_class(&token_id("purpose_token"), token_class).unwrap();
+        ledger
+            .create_class(&token_id("purpose_token"), token_class)
+            .unwrap();
 
         // Check allowed purposes
         assert!(ledger
@@ -313,7 +348,9 @@ mod purpose_lock_tests {
             issuer.clone(),
         );
 
-        ledger.create_class(&token_id("normal_token"), token_class).unwrap();
+        ledger
+            .create_class(&token_id("normal_token"), token_class)
+            .unwrap();
 
         // All purposes should be allowed
         assert!(ledger
@@ -359,8 +396,12 @@ mod integration_tests {
         );
         token_class.anti_speculation = Some(anti_speculation);
 
-        ledger.create_class(&token_id("protected_token"), token_class).unwrap();
-        ledger.mint(&token_id("protected_token"), &holder, 1000).unwrap();
+        ledger
+            .create_class(&token_id("protected_token"), token_class)
+            .unwrap();
+        ledger
+            .mint(&token_id("protected_token"), &holder, 1000)
+            .unwrap();
 
         let current_time = SystemTimeProvider.unix_seconds();
 

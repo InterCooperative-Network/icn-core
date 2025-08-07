@@ -1,5 +1,5 @@
 //! # ICN CCL Runtime
-//! 
+//!
 //! Enhanced Cooperative Contract Language runtime with security, federation support,
 //! and economic metering for the InterCooperative Network.
 //!
@@ -11,53 +11,53 @@
 //! - Democratic governance and economic standard library
 //! - Formal verification and invariant checking
 
-use icn_common::{CommonError, Did, Cid, SystemTimeProvider, TimeProvider};
+use icn_common::{Cid, CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeSet, HashSet};
-use thiserror::Error;
 use sha2::Digest;
+use std::collections::{BTreeSet, HashMap, HashSet};
+use thiserror::Error;
 
 pub mod execution;
-pub mod security;
 pub mod federation;
 pub mod metering;
+pub mod security;
 pub mod stdlib;
 pub mod verification;
 
 pub use execution::{ContractExecutor, ExecutionContext, ExecutionResult};
-pub use security::{Capability, SecurityConfig, ResourceLimits};
-pub use federation::{ContractScope, FederationId, CrossFederationProtocol};
-pub use metering::{ManaMetering, EconomicEnforcement};
-pub use stdlib::{DemocraticGovernanceContract, MutualCreditContract, JobMarketplaceContract};
-pub use verification::{PropertyTester, InvariantChecker, FormalVerifier};
+pub use federation::{ContractScope, CrossFederationProtocol, FederationId};
+pub use metering::{EconomicEnforcement, ManaMetering};
+pub use security::{Capability, ResourceLimits, SecurityConfig};
+pub use stdlib::{DemocraticGovernanceContract, JobMarketplaceContract, MutualCreditContract};
+pub use verification::{FormalVerifier, InvariantChecker, PropertyTester};
 
 /// CCL Runtime errors
 #[derive(Error, Debug)]
 pub enum CclRuntimeError {
     #[error("Execution error: {0}")]
     ExecutionError(String),
-    
+
     #[error("Security violation: {0}")]
     SecurityViolation(String),
-    
+
     #[error("Resource limit exceeded: {0}")]
     ResourceLimitExceeded(String),
-    
+
     #[error("Insufficient mana: required {required}, available {available}")]
     InsufficientMana { required: u64, available: u64 },
-    
+
     #[error("Permission denied: missing capability {0:?}")]
     PermissionDenied(Capability),
-    
+
     #[error("Federation error: {0}")]
     FederationError(String),
-    
+
     #[error("Contract not found: {0}")]
     ContractNotFound(String),
-    
+
     #[error("Invalid contract state")]
     InvalidContractState,
-    
+
     #[error("Common error: {0}")]
     CommonError(#[from] CommonError),
 }
@@ -148,7 +148,7 @@ impl CclRuntime {
             contracts: HashMap::new(),
         })
     }
-    
+
     /// Deploy a new contract
     pub async fn deploy_contract(
         &mut self,
@@ -159,19 +159,19 @@ impl CclRuntime {
     ) -> Result<ContractAddress, CclRuntimeError> {
         // Validate deployment permissions
         self.security.check_deploy_permission(&deployer)?;
-        
+
         // Calculate deployment cost
         let deploy_cost = self.metering.calculate_deploy_cost(&code);
-        
+
         // Check mana balance
         self.metering.check_mana_balance(&deployer, deploy_cost)?;
-        
+
         // Generate contract address
         let address = self.generate_contract_address(&code, &deployer);
-        
+
         // Validate WASM code
         self.security.validate_wasm_code(&code)?;
-        
+
         // Create execution context
         let context = ExecutionContext::new(
             deployer.clone(),
@@ -179,18 +179,15 @@ impl CclRuntime {
             self.security.default_resource_limits.clone(),
             scope.clone(),
         );
-        
+
         // Deploy contract
-        self.executor.deploy_contract(
-            address.clone(),
-            code.clone(),
-            context,
-            init_args,
-        ).await?;
-        
+        self.executor
+            .deploy_contract(address.clone(), code.clone(), context, init_args)
+            .await?;
+
         // Charge deployment cost
         self.metering.charge_mana(&deployer, deploy_cost)?;
-        
+
         // Store contract metadata
         let deployment = ContractDeployment {
             address: address.clone(),
@@ -202,32 +199,36 @@ impl CclRuntime {
             resource_limits: self.security.default_resource_limits.clone(),
             capabilities: self.security.default_capabilities.clone(),
         };
-        
+
         self.contracts.insert(address.clone(), deployment);
-        
+
         Ok(address)
     }
-    
+
     /// Call a contract function
     pub async fn call_contract(
         &mut self,
         call: ContractCall,
     ) -> Result<ContractCallResult, CclRuntimeError> {
         // Check if contract exists
-        let contract = self.contracts.get(&call.contract)
+        let contract = self
+            .contracts
+            .get(&call.contract)
             .ok_or_else(|| CclRuntimeError::ContractNotFound(call.contract.clone()))?;
-        
+
         // Check contract state
         if contract.state != ContractState::Active {
             return Err(CclRuntimeError::InvalidContractState);
         }
-        
+
         // Check permissions
-        self.security.check_call_permission(&call.caller, &contract.scope)?;
-        
+        self.security
+            .check_call_permission(&call.caller, &contract.scope)?;
+
         // Check mana limit
-        self.metering.check_mana_balance(&call.caller, call.mana_limit)?;
-        
+        self.metering
+            .check_mana_balance(&call.caller, call.mana_limit)?;
+
         // Create execution context
         let context = ExecutionContext::new(
             call.caller.clone(),
@@ -235,23 +236,23 @@ impl CclRuntime {
             contract.resource_limits.clone(),
             contract.scope.clone(),
         );
-        
+
         // Execute contract function
-        let result = self.executor.call_function(
-            call.contract.clone(),
-            call.function,
-            call.args,
-            context,
-        ).await?;
-        
+        let result = self
+            .executor
+            .call_function(call.contract.clone(), call.function, call.args, context)
+            .await?;
+
         // Charge for execution
-        self.metering.charge_mana(&call.caller, result.mana_consumed)?;
-        
+        self.metering
+            .charge_mana(&call.caller, result.mana_consumed)?;
+
         // Refund unused mana
         if call.mana_limit > result.mana_consumed {
-            self.metering.refund_mana(&call.caller, call.mana_limit - result.mana_consumed)?;
+            self.metering
+                .refund_mana(&call.caller, call.mana_limit - result.mana_consumed)?;
         }
-        
+
         Ok(ContractCallResult {
             success: result.success,
             return_value: result.return_value,
@@ -260,17 +261,17 @@ impl CclRuntime {
             error: result.error,
         })
     }
-    
+
     /// Get contract metadata
     pub fn get_contract(&self, address: &ContractAddress) -> Option<&ContractDeployment> {
         self.contracts.get(address)
     }
-    
+
     /// List all contracts
     pub fn list_contracts(&self) -> Vec<&ContractDeployment> {
         self.contracts.values().collect()
     }
-    
+
     /// Pause a contract (governance action)
     pub fn pause_contract(
         &mut self,
@@ -279,7 +280,7 @@ impl CclRuntime {
     ) -> Result<(), CclRuntimeError> {
         // Check governance permission
         self.security.check_governance_permission(caller)?;
-        
+
         if let Some(contract) = self.contracts.get_mut(address) {
             contract.state = ContractState::Paused;
             Ok(())
@@ -287,7 +288,7 @@ impl CclRuntime {
             Err(CclRuntimeError::ContractNotFound(address.clone()))
         }
     }
-    
+
     /// Resume a paused contract
     pub fn resume_contract(
         &mut self,
@@ -296,7 +297,7 @@ impl CclRuntime {
     ) -> Result<(), CclRuntimeError> {
         // Check governance permission
         self.security.check_governance_permission(caller)?;
-        
+
         if let Some(contract) = self.contracts.get_mut(address) {
             if contract.state == ContractState::Paused {
                 contract.state = ContractState::Active;
@@ -308,14 +309,17 @@ impl CclRuntime {
             Err(CclRuntimeError::ContractNotFound(address.clone()))
         }
     }
-    
+
     /// Generate deterministic contract address
     fn generate_contract_address(&self, code: &WasmCode, deployer: &Did) -> ContractAddress {
         let mut hasher = sha2::Sha256::new();
         hasher.update(code);
         hasher.update(deployer.to_string().as_bytes());
         hasher.update(&crate::current_timestamp().to_be_bytes());
-        format!("contract_{}", hex::encode(hasher.finalize())[..16].to_string())
+        format!(
+            "contract_{}",
+            hex::encode(hasher.finalize())[..16].to_string()
+        )
     }
 }
 
@@ -323,29 +327,29 @@ impl CclRuntime {
 mod tests {
     use super::*;
     use icn_common::Did;
-    
+
     #[tokio::test]
     async fn test_runtime_creation() {
         let security_config = SecurityConfig::default();
         let federation_id = FederationId::new("test_fed".to_string());
-        
+
         let runtime = CclRuntime::new(security_config, federation_id);
         assert!(runtime.is_ok());
     }
-    
+
     #[tokio::test]
     async fn test_contract_deployment() {
         let security_config = SecurityConfig::default();
         let federation_id = FederationId::new("test_fed".to_string());
         let mut runtime = CclRuntime::new(security_config, federation_id).unwrap();
-        
+
         let deployer = Did::new("key", "test_deployer");
         let code = vec![0x00, 0x61, 0x73, 0x6d]; // Basic WASM header
         let scope = ContractScope::Local("test_org".to_string());
-        
+
         // This will fail due to mana checks, but tests the flow
         let result = runtime.deploy_contract(code, deployer, scope, vec![]).await;
-        
+
         // Should fail due to mana balance check
         assert!(result.is_err());
     }

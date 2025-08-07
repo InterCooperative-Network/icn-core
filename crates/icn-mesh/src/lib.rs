@@ -14,10 +14,10 @@ use icn_identity::{
 };
 use serde::{Deserialize, Serialize};
 pub mod aid;
-pub mod metrics;
 pub mod docker_sandbox;
-pub mod sharded_execution;
 pub mod federated_learning;
+pub mod metrics;
+pub mod sharded_execution;
 
 /// Unique identifier for a mesh job.
 ///
@@ -1211,21 +1211,20 @@ impl JobLifecycle {
 
 // Re-export enhanced mesh protocol components
 pub use docker_sandbox::{
-    DockerSandbox, DockerSandboxManager, DockerExecutionResult, DockerResourceLimits,
-    DockerSecurityConfig, DockerNetworkConfig, DockerExecutionConfig, NetworkMode,
-    DockerResourceUsage,
+    DockerExecutionConfig, DockerExecutionResult, DockerNetworkConfig, DockerResourceLimits,
+    DockerResourceUsage, DockerSandbox, DockerSandboxManager, DockerSecurityConfig, NetworkMode,
 };
 
 pub use sharded_execution::{
-    JobShard, ShardInput, ShardResult, ShardedJobResult, JobShardingEngine,
-    ShardCoordinator, ShardingStrategy, MapReduceShardingStrategy, 
-    DataProcessingShardingStrategy, AggregationStrategy, OutputFormat,
+    AggregationStrategy, DataProcessingShardingStrategy, JobShard, JobShardingEngine,
+    MapReduceShardingStrategy, OutputFormat, ShardCoordinator, ShardInput, ShardResult,
+    ShardedJobResult, ShardingStrategy,
 };
 
 pub use federated_learning::{
-    ModelSpec, ModelArchitecture, FederatedTrainingRound, FederatedParticipant,
-    ModelUpdate, AggregationResult, FederatedLearningCoordinator, PrivacyConfig,
-    TrainingHyperparameters, DifferentialPrivacyConfig,
+    AggregationResult, DifferentialPrivacyConfig, FederatedLearningCoordinator,
+    FederatedParticipant, FederatedTrainingRound, ModelArchitecture, ModelSpec, ModelUpdate,
+    PrivacyConfig, TrainingHyperparameters,
 };
 
 #[cfg(test)]

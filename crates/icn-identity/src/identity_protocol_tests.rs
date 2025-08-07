@@ -8,9 +8,9 @@
 //! - Privacy-preserving features
 
 use crate::did_document::*;
-use crate::verifiable_credential::*;
 use crate::identity_lifecycle::*;
-use icn_common::{Did, CommonError};
+use crate::verifiable_credential::*;
+use icn_common::{CommonError, Did};
 use std::collections::HashMap;
 use std::str::FromStr;
 
@@ -39,7 +39,9 @@ impl ManaLedger for TestManaLedger {
     fn spend_mana(&mut self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let current = self.get_balance(did)?;
         if current < amount {
-            return Err(CommonError::InsufficientFunds("Not enough mana".to_string()));
+            return Err(CommonError::InsufficientFunds(
+                "Not enough mana".to_string(),
+            ));
         }
         self.balances.insert(did.clone(), current - amount);
         Ok(())
@@ -119,7 +121,10 @@ mod did_document_tests {
         assert!(doc.check_rate_limit().is_ok());
 
         // Max out the rate limit
-        doc.icn_metadata.sybil_resistance.rate_limit_status.operations_this_epoch = 100;
+        doc.icn_metadata
+            .sybil_resistance
+            .rate_limit_status
+            .operations_this_epoch = 100;
 
         // Should now fail
         assert!(doc.check_rate_limit().is_err());
@@ -131,11 +136,18 @@ mod did_document_tests {
         let controller = test_person_did("alice");
         let mut doc = DidDocument::new(did, controller);
 
-        let initial_count = doc.icn_metadata.sybil_resistance.rate_limit_status.operations_this_epoch;
+        let initial_count = doc
+            .icn_metadata
+            .sybil_resistance
+            .rate_limit_status
+            .operations_this_epoch;
         doc.increment_operation_count();
-        
+
         assert_eq!(
-            doc.icn_metadata.sybil_resistance.rate_limit_status.operations_this_epoch,
+            doc.icn_metadata
+                .sybil_resistance
+                .rate_limit_status
+                .operations_this_epoch,
             initial_count + 1
         );
     }
@@ -199,15 +211,20 @@ mod verifiable_credential_tests {
             subject.clone(),
             org_id.clone(),
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(credential.issuer.id, issuer);
         assert_eq!(credential.credential_subject.id, subject);
         assert!(!credential.icn_metadata.transferable);
         assert!(credential.icn_metadata.grants_voting_rights);
 
-        if let CredentialCategory::Membership { organization_id, role, .. } = 
-            &credential.icn_metadata.category {
+        if let CredentialCategory::Membership {
+            organization_id,
+            role,
+            ..
+        } = &credential.icn_metadata.category
+        {
             assert_eq!(*organization_id, org_id);
             assert_eq!(*role, "member");
         } else {
@@ -229,15 +246,19 @@ mod verifiable_credential_tests {
             subject.clone(),
             resource_types.clone(),
             capacity.clone(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(credential.issuer.id, issuer);
         assert_eq!(credential.credential_subject.id, subject);
         assert!(!credential.icn_metadata.transferable);
         assert!(!credential.icn_metadata.grants_voting_rights);
 
-        if let CredentialCategory::ResourceProvider { resource_types: rt, capacity: cap } = 
-            &credential.icn_metadata.category {
+        if let CredentialCategory::ResourceProvider {
+            resource_types: rt,
+            capacity: cap,
+        } = &credential.icn_metadata.category
+        {
             assert_eq!(*rt, resource_types);
             assert_eq!(*cap, capacity);
         } else {
@@ -256,7 +277,8 @@ mod verifiable_credential_tests {
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(credential.validate().is_ok());
     }
@@ -272,7 +294,8 @@ mod verifiable_credential_tests {
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Try to make it transferable (should fail validation)
         credential.icn_metadata.transferable = true;
@@ -290,7 +313,8 @@ mod verifiable_credential_tests {
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert!(credential.grants_voting_rights());
         assert!(!credential.is_transferable());
@@ -309,7 +333,8 @@ mod verifiable_credential_tests {
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Should not be expired without expiration date
         assert!(!credential.is_expired());
@@ -326,10 +351,13 @@ mod verifiable_credential_tests {
             subject,
             org_id,
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         let disclosed_fields = vec!["role".to_string()];
-        let disclosure = credential.create_selective_disclosure(disclosed_fields.clone()).unwrap();
+        let disclosure = credential
+            .create_selective_disclosure(disclosed_fields.clone())
+            .unwrap();
 
         assert_eq!(disclosure.disclosed_fields, disclosed_fields);
         assert!(!disclosure.salts.is_empty());
@@ -343,10 +371,7 @@ mod identity_lifecycle_tests {
 
     async fn setup_test_manager() -> IdentityLifecycleManager {
         let mana_ledger = TestManaLedger::new();
-        IdentityLifecycleManager::new(
-            Box::new(mana_ledger),
-            IdentityConfig::default(),
-        )
+        IdentityLifecycleManager::new(Box::new(mana_ledger), IdentityConfig::default())
     }
 
     #[tokio::test]
@@ -372,7 +397,7 @@ mod identity_lifecycle_tests {
 
         // Request creation
         let operation_id = manager.request_did_creation(request).await.unwrap();
-        
+
         // Execute creation
         let created_did = manager.execute_did_creation(&operation_id).await.unwrap();
 
@@ -443,7 +468,10 @@ mod identity_lifecycle_tests {
         };
 
         let mut additional_claims = HashMap::new();
-        additional_claims.insert("role".to_string(), serde_json::Value::String("member".to_string()));
+        additional_claims.insert(
+            "role".to_string(),
+            serde_json::Value::String("member".to_string()),
+        );
 
         let request = CredentialIssuanceRequest {
             issuer: issuer.clone(),
@@ -455,9 +483,12 @@ mod identity_lifecycle_tests {
 
         // Request issuance
         let operation_id = manager.request_credential_issuance(request).await.unwrap();
-        
+
         // Execute issuance
-        let credential_id = manager.execute_credential_issuance(&operation_id).await.unwrap();
+        let credential_id = manager
+            .execute_credential_issuance(&operation_id)
+            .await
+            .unwrap();
 
         let credential = manager.get_credential(&credential_id).unwrap();
         assert_eq!(credential.subject(), &subject);
@@ -488,7 +519,8 @@ mod identity_lifecycle_tests {
             subject.clone(),
             issuer.clone(),
             "member".to_string(),
-        ).unwrap();
+        )
+        .unwrap();
 
         // Verify credential
         let verification_result = manager.verify_credential(&credential);
@@ -529,8 +561,14 @@ mod identity_lifecycle_tests {
 
         // Verify key was rotated
         let updated_doc = manager.get_did_document(&did).unwrap();
-        assert!(!updated_doc.verification_method.iter().any(|vm| vm.id == old_method.id));
-        assert!(updated_doc.verification_method.iter().any(|vm| vm.id == new_method.id));
+        assert!(!updated_doc
+            .verification_method
+            .iter()
+            .any(|vm| vm.id == old_method.id));
+        assert!(updated_doc
+            .verification_method
+            .iter()
+            .any(|vm| vm.id == new_method.id));
     }
 }
 
@@ -541,7 +579,7 @@ mod integration_tests {
     #[tokio::test]
     async fn test_complete_identity_workflow() {
         let mut manager = setup_test_manager().await;
-        
+
         // Step 1: Create organization DID
         let org_did = test_org_did("techcoop");
         let mana_ledger = manager.mana_ledger_mut();
@@ -594,7 +632,10 @@ mod integration_tests {
         };
 
         let mut additional_claims = HashMap::new();
-        additional_claims.insert("role".to_string(), serde_json::Value::String("developer".to_string()));
+        additional_claims.insert(
+            "role".to_string(),
+            serde_json::Value::String("developer".to_string()),
+        );
 
         let cred_request = CredentialIssuanceRequest {
             issuer: org_did.clone(),
@@ -604,16 +645,29 @@ mod integration_tests {
             issuer_signature: "cred_signature".to_string(),
         };
 
-        let cred_op_id = manager.request_credential_issuance(cred_request).await.unwrap();
-        let credential_id = manager.execute_credential_issuance(&cred_op_id).await.unwrap();
+        let cred_op_id = manager
+            .request_credential_issuance(cred_request)
+            .await
+            .unwrap();
+        let credential_id = manager
+            .execute_credential_issuance(&cred_op_id)
+            .await
+            .unwrap();
 
         // Step 4: Verify the entire workflow
         let org_doc = manager.get_did_document(&org_did).unwrap();
-        assert_eq!(org_doc.icn_metadata.identity_type, IdentityType::Organization);
+        assert_eq!(
+            org_doc.icn_metadata.identity_type,
+            IdentityType::Organization
+        );
 
         let person_doc = manager.get_did_document(&person_did).unwrap();
         assert_eq!(person_doc.icn_metadata.identity_type, IdentityType::Person);
-        assert!(person_doc.icn_metadata.sybil_resistance.proof_of_personhood.is_some());
+        assert!(person_doc
+            .icn_metadata
+            .sybil_resistance
+            .proof_of_personhood
+            .is_some());
 
         let credential = manager.get_credential(&credential_id).unwrap();
         assert_eq!(credential.subject(), &person_did);
@@ -633,9 +687,6 @@ mod integration_tests {
 
     async fn setup_test_manager() -> IdentityLifecycleManager {
         let mana_ledger = TestManaLedger::new();
-        IdentityLifecycleManager::new(
-            Box::new(mana_ledger),
-            IdentityConfig::default(),
-        )
+        IdentityLifecycleManager::new(Box::new(mana_ledger), IdentityConfig::default())
     }
 }

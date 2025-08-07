@@ -3,14 +3,14 @@
 //! This module provides job sharding logic, coordinator management, and result aggregation
 //! for scalable distributed computation in the ICN mesh network.
 
-use crate::{ActualMeshJob, JobId, JobSpec, JobKind, MeshJobBid, Resources};
+use crate::{ActualMeshJob, JobId, JobKind, JobSpec, MeshJobBid, Resources};
 use icn_common::{Cid, CommonError, Did};
 use icn_identity::{ExecutionReceipt, SignatureBytes, SigningKey};
+use log::{debug, error, info, warn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use log::{debug, error, info, warn};
 
 /// A single shard of a larger job that can be executed independently.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -197,13 +197,13 @@ pub struct JobShardingEngine {
 pub trait ShardingStrategy: Send + Sync {
     /// Determine if a job can be sharded
     fn can_shard(&self, job: &ActualMeshJob) -> bool;
-    
+
     /// Calculate optimal number of shards for a job
     fn calculate_optimal_shards(&self, job: &ActualMeshJob) -> u32;
-    
+
     /// Split a job into shards
     fn create_shards(&self, job: &ActualMeshJob) -> Result<Vec<JobShard>, CommonError>;
-    
+
     /// Validate that shards are correctly formed
     fn validate_shards(&self, shards: &[JobShard]) -> Result<(), CommonError>;
 }
@@ -258,7 +258,7 @@ impl JobShardingEngine {
     /// Create a new job sharding engine.
     pub fn new(max_shards_per_job: u32, min_shard_size: u64) -> Self {
         let mut strategies: HashMap<JobKind, Box<dyn ShardingStrategy>> = HashMap::new();
-        
+
         // Register default sharding strategies
         strategies.insert(
             JobKind::GenericPlaceholder,
@@ -289,36 +289,54 @@ impl JobShardingEngine {
 
     /// Shard a job into executable pieces.
     pub fn shard_job(&self, job: &ActualMeshJob) -> Result<Vec<JobShard>, CommonError> {
-        let strategy = self.strategies.get(&job.spec.kind)
-            .ok_or_else(|| CommonError::InvalidParameters(
-                format!("No sharding strategy for job kind: {:?}", job.spec.kind)
-            ))?;
+        let strategy = self.strategies.get(&job.spec.kind).ok_or_else(|| {
+            CommonError::InvalidParameters(format!(
+                "No sharding strategy for job kind: {:?}",
+                job.spec.kind
+            ))
+        })?;
 
         if !strategy.can_shard(job) {
             return Err(CommonError::InvalidParameters(
-                "Job cannot be sharded with current strategy".to_string()
+                "Job cannot be sharded with current strategy".to_string(),
             ));
         }
 
         let optimal_shards = strategy.calculate_optimal_shards(job);
-        
+
         if optimal_shards > self.max_shards_per_job {
-            warn!("[JobSharding] Optimal shards ({}) exceeds maximum ({}), capping", 
-                  optimal_shards, self.max_shards_per_job);
+            warn!(
+                "[JobSharding] Optimal shards ({}) exceeds maximum ({}), capping",
+                optimal_shards, self.max_shards_per_job
+            );
         }
 
         let shards = strategy.create_shards(job)?;
         strategy.validate_shards(&shards)?;
 
-        info!("[JobSharding] Created {} shards for job {}", shards.len(), job.id);
+        info!(
+            "[JobSharding] Created {} shards for job {}",
+            shards.len(),
+            job.id
+        );
         Ok(shards)
     }
 
     /// Estimate resource requirements for sharded execution.
     pub fn estimate_shard_resources(&self, shards: &[JobShard]) -> Resources {
-        let total_cpu = shards.iter().map(|s| s.job_spec.required_resources.cpu_cores).sum();
-        let max_memory = shards.iter().map(|s| s.job_spec.required_resources.memory_mb).max().unwrap_or(0);
-        let total_storage = shards.iter().map(|s| s.job_spec.required_resources.storage_mb).sum();
+        let total_cpu = shards
+            .iter()
+            .map(|s| s.job_spec.required_resources.cpu_cores)
+            .sum();
+        let max_memory = shards
+            .iter()
+            .map(|s| s.job_spec.required_resources.memory_mb)
+            .max()
+            .unwrap_or(0);
+        let total_storage = shards
+            .iter()
+            .map(|s| s.job_spec.required_resources.storage_mb)
+            .sum();
 
         Resources {
             cpu_cores: total_cpu,
@@ -340,8 +358,7 @@ impl MapReduceShardingStrategy {
 impl ShardingStrategy for MapReduceShardingStrategy {
     fn can_shard(&self, job: &ActualMeshJob) -> bool {
         // Map-reduce jobs are inherently shardable
-        matches!(job.spec.kind, JobKind::GenericPlaceholder) && 
-        !job.spec.inputs.is_empty()
+        matches!(job.spec.kind, JobKind::GenericPlaceholder) && !job.spec.inputs.is_empty()
     }
 
     fn calculate_optimal_shards(&self, _job: &ActualMeshJob) -> u32 {
@@ -355,7 +372,7 @@ impl ShardingStrategy for MapReduceShardingStrategy {
 
         for i in 0..num_shards {
             let shard_id = format!("{}:shard:{}", job.id, i);
-            
+
             // Create input range for this shard
             let data_range = DataRange {
                 start: (i as u64) * (u64::MAX / num_shards as u64),
@@ -380,7 +397,9 @@ impl ShardingStrategy for MapReduceShardingStrategy {
                 expected_output: ShardOutputSpec {
                     format: OutputFormat::Binary,
                     max_size_bytes: Some(self.max_shard_data_mb * 1024 * 1024),
-                    validation_rules: vec![ValidationRule::MaxSize(self.max_shard_data_mb * 1024 * 1024)],
+                    validation_rules: vec![ValidationRule::MaxSize(
+                        self.max_shard_data_mb * 1024 * 1024,
+                    )],
                 },
                 dependencies: vec![],
                 priority: 100, // Normal priority
@@ -394,15 +413,18 @@ impl ShardingStrategy for MapReduceShardingStrategy {
 
     fn validate_shards(&self, shards: &[JobShard]) -> Result<(), CommonError> {
         if shards.is_empty() {
-            return Err(CommonError::InvalidParameters("No shards created".to_string()));
+            return Err(CommonError::InvalidParameters(
+                "No shards created".to_string(),
+            ));
         }
 
         // Validate shard indices are sequential
         for (i, shard) in shards.iter().enumerate() {
             if shard.shard_index != i as u32 {
-                return Err(CommonError::InvalidParameters(
-                    format!("Shard index mismatch: expected {}, got {}", i, shard.shard_index)
-                ));
+                return Err(CommonError::InvalidParameters(format!(
+                    "Shard index mismatch: expected {}, got {}",
+                    i, shard.shard_index
+                )));
             }
         }
 
@@ -422,8 +444,8 @@ impl DataProcessingShardingStrategy {
 impl ShardingStrategy for DataProcessingShardingStrategy {
     fn can_shard(&self, job: &ActualMeshJob) -> bool {
         // Most data processing jobs can be sharded
-        !job.spec.inputs.is_empty() && 
-        job.spec.required_resources.storage_mb > 100 // Only shard if significant data
+        !job.spec.inputs.is_empty() && job.spec.required_resources.storage_mb > 100
+        // Only shard if significant data
     }
 
     fn calculate_optimal_shards(&self, job: &ActualMeshJob) -> u32 {
@@ -442,8 +464,12 @@ impl ShardingStrategy for DataProcessingShardingStrategy {
 
         for i in 0..num_shards {
             let shard_id = format!("{}:data_shard:{}", job.id, i);
-            
-            let start = if i == 0 { 0 } else { i as u64 * shard_size - overlap_size };
+
+            let start = if i == 0 {
+                0
+            } else {
+                i as u64 * shard_size - overlap_size
+            };
             let end = ((i + 1) as u64 * shard_size).min(u64::MAX);
 
             let data_range = DataRange {
@@ -490,19 +516,23 @@ impl ShardingStrategy for DataProcessingShardingStrategy {
 
     fn validate_shards(&self, shards: &[JobShard]) -> Result<(), CommonError> {
         if shards.is_empty() {
-            return Err(CommonError::InvalidParameters("No shards created".to_string()));
+            return Err(CommonError::InvalidParameters(
+                "No shards created".to_string(),
+            ));
         }
 
         // Validate data ranges don't have gaps (except for overlaps)
         for window in shards.windows(2) {
             let current = &window[0];
             let next = &window[1];
-            
-            if let (Some(current_range), Some(next_range)) = 
-                (&current.shard_input.data_range, &next.shard_input.data_range) {
+
+            if let (Some(current_range), Some(next_range)) = (
+                &current.shard_input.data_range,
+                &next.shard_input.data_range,
+            ) {
                 if next_range.start > current_range.end {
                     return Err(CommonError::InvalidParameters(
-                        "Gap detected between shard data ranges".to_string()
+                        "Gap detected between shard data ranges".to_string(),
                     ));
                 }
             }
@@ -529,8 +559,11 @@ impl ShardCoordinator {
         shards: Vec<JobShard>,
         executor_bids: HashMap<String, Vec<MeshJobBid>>, // shard_id -> bids
     ) -> Result<ShardedJobResult, CommonError> {
-        info!("[ShardCoordinator] Starting coordination of {} shards", shards.len());
-        
+        info!(
+            "[ShardCoordinator] Starting coordination of {} shards",
+            shards.len()
+        );
+
         let start_time = SystemTime::now();
         let mut shard_results = Vec::new();
         let mut successful_shards = 0;
@@ -541,7 +574,7 @@ impl ShardCoordinator {
 
         for group in execution_groups {
             let group_results = self.execute_shard_group(group, &executor_bids).await?;
-            
+
             for result in group_results {
                 if result.success {
                     successful_shards += 1;
@@ -552,13 +585,15 @@ impl ShardCoordinator {
             }
         }
 
-        let total_execution_time = start_time.elapsed()
+        let total_execution_time = start_time
+            .elapsed()
             .unwrap_or(Duration::from_secs(0))
             .as_millis() as u64;
 
         // Aggregate results if all shards succeeded
         let aggregated_output = if failed_shards == 0 {
-            self.aggregate_shard_results(&shard_results, &shards[0].parent_job_id).await?
+            self.aggregate_shard_results(&shard_results, &shards[0].parent_job_id)
+                .await?
         } else {
             None
         };
@@ -578,14 +613,20 @@ impl ShardCoordinator {
             },
         };
 
-        info!("[ShardCoordinator] Coordination completed: {}/{} shards successful", 
-              successful_shards, successful_shards + failed_shards);
+        info!(
+            "[ShardCoordinator] Coordination completed: {}/{} shards successful",
+            successful_shards,
+            successful_shards + failed_shards
+        );
 
         Ok(result)
     }
 
     /// Group shards by their dependencies for ordered execution.
-    fn group_shards_by_dependencies(&self, shards: &[JobShard]) -> Result<Vec<Vec<JobShard>>, CommonError> {
+    fn group_shards_by_dependencies(
+        &self,
+        shards: &[JobShard],
+    ) -> Result<Vec<Vec<JobShard>>, CommonError> {
         let mut groups = Vec::new();
         let mut remaining_shards: Vec<JobShard> = shards.to_vec();
 
@@ -595,8 +636,9 @@ impl ShardCoordinator {
             let mut indices_to_remove = Vec::new();
 
             for (i, shard) in remaining_shards.iter().enumerate() {
-                if shard.dependencies.is_empty() || 
-                   self.are_dependencies_satisfied(&shard.dependencies, &groups) {
+                if shard.dependencies.is_empty()
+                    || self.are_dependencies_satisfied(&shard.dependencies, &groups)
+                {
                     current_group.push(shard.clone());
                     indices_to_remove.push(i);
                 }
@@ -604,7 +646,7 @@ impl ShardCoordinator {
 
             if current_group.is_empty() {
                 return Err(CommonError::InternalError(
-                    "Circular dependency detected in shards".to_string()
+                    "Circular dependency detected in shards".to_string(),
                 ));
             }
 
@@ -620,14 +662,20 @@ impl ShardCoordinator {
     }
 
     /// Check if shard dependencies are satisfied.
-    fn are_dependencies_satisfied(&self, dependencies: &[String], completed_groups: &[Vec<JobShard>]) -> bool {
+    fn are_dependencies_satisfied(
+        &self,
+        dependencies: &[String],
+        completed_groups: &[Vec<JobShard>],
+    ) -> bool {
         let completed_shard_ids: std::collections::HashSet<String> = completed_groups
             .iter()
             .flatten()
             .map(|s| s.shard_id.clone())
             .collect();
 
-        dependencies.iter().all(|dep| completed_shard_ids.contains(dep))
+        dependencies
+            .iter()
+            .all(|dep| completed_shard_ids.contains(dep))
     }
 
     /// Execute a group of independent shards in parallel.
@@ -639,28 +687,31 @@ impl ShardCoordinator {
         let mut tasks = Vec::new();
 
         for shard in shards {
-            let bids = executor_bids.get(&shard.shard_id)
-                .ok_or_else(|| CommonError::InvalidParameters(
-                    format!("No bids found for shard {}", shard.shard_id)
-                ))?;
+            let bids = executor_bids.get(&shard.shard_id).ok_or_else(|| {
+                CommonError::InvalidParameters(format!(
+                    "No bids found for shard {}",
+                    shard.shard_id
+                ))
+            })?;
 
             if bids.is_empty() {
-                return Err(CommonError::InvalidParameters(
-                    format!("No executors available for shard {}", shard.shard_id)
-                ));
+                return Err(CommonError::InvalidParameters(format!(
+                    "No executors available for shard {}",
+                    shard.shard_id
+                )));
             }
 
             // Select best executor (simplified - use first bid for now)
             let selected_executor = &bids[0].executor_did;
-            
+
             let shard_clone = shard.clone();
             let executor_clone = selected_executor.clone();
-            
+
             // In a real implementation, this would delegate to the mesh job executor
             let task = tokio::spawn(async move {
                 Self::execute_single_shard(shard_clone, executor_clone).await
             });
-            
+
             tasks.push(task);
         }
 
@@ -669,9 +720,12 @@ impl ShardCoordinator {
         for task in tasks {
             match task.await {
                 Ok(result) => results.push(result?),
-                Err(e) => return Err(CommonError::InternalError(
-                    format!("Shard execution task failed: {}", e)
-                )),
+                Err(e) => {
+                    return Err(CommonError::InternalError(format!(
+                        "Shard execution task failed: {}",
+                        e
+                    )))
+                }
             }
         }
 
@@ -679,9 +733,15 @@ impl ShardCoordinator {
     }
 
     /// Execute a single shard (placeholder implementation).
-    async fn execute_single_shard(shard: JobShard, executor_did: Did) -> Result<ShardResult, CommonError> {
-        debug!("[ShardCoordinator] Executing shard {} on executor {}", shard.shard_id, executor_did);
-        
+    async fn execute_single_shard(
+        shard: JobShard,
+        executor_did: Did,
+    ) -> Result<ShardResult, CommonError> {
+        debug!(
+            "[ShardCoordinator] Executing shard {} on executor {}",
+            shard.shard_id, executor_did
+        );
+
         let start_time = SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -729,19 +789,25 @@ impl ShardCoordinator {
         shard_results: &[ShardResult],
         job_id: &JobId,
     ) -> Result<Option<Cid>, CommonError> {
-        debug!("[ShardCoordinator] Aggregating {} shard results", shard_results.len());
-        
+        debug!(
+            "[ShardCoordinator] Aggregating {} shard results",
+            shard_results.len()
+        );
+
         // For now, just create a mock aggregated result CID
         // In a real implementation, this would:
         // 1. Download shard outputs from DAG
         // 2. Apply appropriate aggregation strategy
         // 3. Store aggregated result in DAG
         // 4. Return the CID of the aggregated result
-        
+
         let aggregation_data = format!("aggregated_result_for_{}", job_id);
         let aggregated_cid = icn_common::Cid::new_v1_sha256(0x55, aggregation_data.as_bytes());
-        
-        info!("[ShardCoordinator] Created aggregated result with CID: {}", aggregated_cid);
+
+        info!(
+            "[ShardCoordinator] Created aggregated result with CID: {}",
+            aggregated_cid
+        );
         Ok(Some(aggregated_cid))
     }
 
@@ -754,7 +820,10 @@ impl ShardCoordinator {
     /// Cancel all active shard executions.
     pub async fn cancel_all_executions(&self) {
         let mut active = self.active_executions.write().unwrap();
-        info!("[ShardCoordinator] Cancelling {} active shard executions", active.len());
+        info!(
+            "[ShardCoordinator] Cancelling {} active shard executions",
+            active.len()
+        );
         active.clear();
     }
 }
@@ -762,14 +831,14 @@ impl ShardCoordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{JobSpec, JobKind};
-    use icn_common::{Did, Cid};
+    use crate::{JobKind, JobSpec};
+    use icn_common::{Cid, Did};
     use std::str::FromStr;
 
     #[test]
     fn test_map_reduce_sharding_strategy() {
         let strategy = MapReduceShardingStrategy::new(4, 100);
-        
+
         let job = ActualMeshJob {
             id: JobId(Cid::new_v1_sha256(0x55, b"test_job")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
@@ -807,7 +876,7 @@ mod tests {
     #[test]
     fn test_data_processing_sharding_strategy() {
         let strategy = DataProcessingShardingStrategy::new(10 * 1024 * 1024, 0.1); // 10MB, 10% overlap
-        
+
         let job = ActualMeshJob {
             id: JobId(Cid::new_v1_sha256(0x55, b"data_job")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
@@ -828,7 +897,7 @@ mod tests {
         };
 
         assert!(strategy.can_shard(&job));
-        
+
         let optimal_shards = strategy.calculate_optimal_shards(&job);
         assert!(optimal_shards > 1); // Should suggest multiple shards for large data
 
@@ -840,7 +909,7 @@ mod tests {
     #[test]
     fn test_job_sharding_engine() {
         let mut engine = JobShardingEngine::new(16, 1024 * 1024); // Max 16 shards, min 1MB
-        
+
         let job = ActualMeshJob {
             id: JobId(Cid::new_v1_sha256(0x55, b"engine_test")),
             manifest_cid: Cid::new_v1_sha256(0x55, b"manifest"),
@@ -861,7 +930,7 @@ mod tests {
         };
 
         assert!(engine.should_shard(&job));
-        
+
         let shards = engine.shard_job(&job).unwrap();
         assert!(!shards.is_empty());
 
@@ -912,7 +981,10 @@ mod tests {
         let mut executor_bids = HashMap::new();
         executor_bids.insert("test_shard_1".to_string(), vec![bid]);
 
-        let result = coordinator.coordinate_shards(vec![shard], executor_bids).await.unwrap();
+        let result = coordinator
+            .coordinate_shards(vec![shard], executor_bids)
+            .await
+            .unwrap();
         assert!(result.success);
         assert_eq!(result.shard_results.len(), 1);
         assert!(result.aggregated_output.is_some());

@@ -6,7 +6,9 @@
 //! - Key rotation and recovery mechanisms
 //! - Sybil resistance and proof-of-personhood
 
-use crate::did_document::{DidDocument, VerificationMethod, VerificationMethodType, PublicKeyMaterial};
+use crate::did_document::{
+    DidDocument, PublicKeyMaterial, VerificationMethod, VerificationMethodType,
+};
 use crate::verifiable_credential::VerifiableCredential;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
@@ -16,16 +18,16 @@ use std::collections::HashMap;
 pub struct IdentityLifecycleManager {
     /// Active DID documents
     did_registry: HashMap<Did, DidDocument>,
-    
+
     /// Issued credentials  
     credential_registry: HashMap<String, VerifiableCredential>,
-    
+
     /// Pending identity operations
     pending_operations: HashMap<String, PendingOperation>,
-    
+
     /// Mana ledger for rate limiting
     mana_ledger: Box<dyn ManaLedger>,
-    
+
     /// Configuration
     config: IdentityConfig,
 }
@@ -35,19 +37,19 @@ pub struct IdentityLifecycleManager {
 pub struct IdentityConfig {
     /// Mana cost for DID creation
     pub did_creation_cost: u64,
-    
+
     /// Mana cost for credential issuance
     pub credential_issuance_cost: u64,
-    
+
     /// Mana cost for key rotation
     pub key_rotation_cost: u64,
-    
+
     /// Rate limiting: max operations per hour
     pub max_operations_per_hour: u32,
-    
+
     /// Recovery delay in seconds
     pub recovery_delay_seconds: u64,
-    
+
     /// Minimum guardians for social recovery
     pub min_recovery_guardians: u32,
 }
@@ -57,28 +59,28 @@ pub struct IdentityConfig {
 pub struct PendingOperation {
     /// Operation ID
     pub id: String,
-    
+
     /// Type of operation
     pub operation_type: OperationType,
-    
+
     /// DID affected
     pub target_did: Did,
-    
+
     /// Who initiated the operation
     pub initiated_by: Did,
-    
+
     /// When operation was initiated
     pub initiated_at: u64,
-    
+
     /// When operation can be completed
     pub executable_at: u64,
-    
+
     /// Operation-specific data
     pub operation_data: serde_json::Value,
-    
+
     /// Required approvals
     pub required_approvals: Vec<Did>,
-    
+
     /// Received approvals
     pub received_approvals: Vec<Approval>,
 }
@@ -99,10 +101,10 @@ pub enum OperationType {
 pub struct Approval {
     /// Who provided the approval
     pub approver: Did,
-    
+
     /// When approval was given
     pub approved_at: u64,
-    
+
     /// Cryptographic signature
     pub signature: String,
 }
@@ -112,16 +114,16 @@ pub struct Approval {
 pub struct DidCreationRequest {
     /// Requested DID
     pub did: Did,
-    
+
     /// Initial verification method
     pub initial_verification_method: VerificationMethod,
-    
+
     /// Identity type
     pub identity_type: crate::did_document::IdentityType,
-    
+
     /// Proof of personhood if required
     pub proof_of_personhood: Option<crate::did_document::ProofOfPersonhood>,
-    
+
     /// Mana payment proof
     pub mana_payment_proof: String,
 }
@@ -131,16 +133,16 @@ pub struct DidCreationRequest {
 pub struct CredentialIssuanceRequest {
     /// Issuer DID
     pub issuer: Did,
-    
+
     /// Subject DID
     pub subject: Did,
-    
+
     /// Credential template
     pub credential_template: CredentialTemplate,
-    
+
     /// Additional claims
     pub additional_claims: HashMap<String, serde_json::Value>,
-    
+
     /// Issuer signature
     pub issuer_signature: String,
 }
@@ -150,19 +152,19 @@ pub struct CredentialIssuanceRequest {
 pub struct CredentialTemplate {
     /// Credential type
     pub credential_type: String,
-    
+
     /// Required claims
     pub required_claims: Vec<String>,
-    
+
     /// Optional claims
     pub optional_claims: Vec<String>,
-    
+
     /// Transferability
     pub transferable: bool,
-    
+
     /// Voting rights
     pub grants_voting_rights: bool,
-    
+
     /// Expiration period in seconds
     pub expiration_period: Option<u64>,
 }
@@ -172,16 +174,16 @@ pub struct CredentialTemplate {
 pub struct KeyRotationRequest {
     /// DID being rotated
     pub did: Did,
-    
+
     /// Old verification method ID
     pub old_verification_method: String,
-    
+
     /// New verification method
     pub new_verification_method: VerificationMethod,
-    
+
     /// Reason for rotation
     pub rotation_reason: KeyRotationReason,
-    
+
     /// Signature with old key
     pub old_key_signature: String,
 }
@@ -200,13 +202,13 @@ pub enum KeyRotationReason {
 pub struct RecoveryRequest {
     /// DID to recover
     pub did: Did,
-    
+
     /// Recovery method
     pub recovery_method: RecoveryMethod,
-    
+
     /// Guardian approvals
     pub guardian_approvals: Vec<GuardianApproval>,
-    
+
     /// New verification method
     pub new_verification_method: VerificationMethod,
 }
@@ -224,13 +226,13 @@ pub enum RecoveryMethod {
 pub struct GuardianApproval {
     /// Guardian DID
     pub guardian: Did,
-    
+
     /// Approval timestamp
     pub approved_at: u64,
-    
+
     /// Cryptographic signature
     pub signature: String,
-    
+
     /// Optional challenge response
     pub challenge_response: Option<String>,
 }
@@ -239,10 +241,10 @@ pub struct GuardianApproval {
 pub trait ManaLedger: Send + Sync {
     /// Get mana balance for a DID
     fn get_balance(&self, did: &Did) -> Result<u64, CommonError>;
-    
+
     /// Spend mana for an operation
     fn spend_mana(&mut self, did: &Did, amount: u64) -> Result<(), CommonError>;
-    
+
     /// Check if DID can afford operation
     fn can_afford(&self, did: &Did, amount: u64) -> Result<bool, CommonError>;
 
@@ -281,21 +283,24 @@ impl IdentityLifecycleManager {
     ) -> Result<String, CommonError> {
         // Validate request
         self.validate_did_creation_request(&request)?;
-        
+
         // Check mana balance
-        if !self.mana_ledger.can_afford(&request.did, self.config.did_creation_cost)? {
+        if !self
+            .mana_ledger
+            .can_afford(&request.did, self.config.did_creation_cost)?
+        {
             return Err(CommonError::InsufficientFunds(
-                "Insufficient mana for DID creation".to_string()
+                "Insufficient mana for DID creation".to_string(),
             ));
         }
-        
+
         // Check rate limiting
         self.check_rate_limit(&request.did)?;
-        
+
         // Create pending operation
         let operation_id = format!("did_create_{}", uuid::Uuid::new_v4());
         let now = current_timestamp();
-        
+
         let operation = PendingOperation {
             id: operation_id.clone(),
             operation_type: OperationType::CreateDid,
@@ -308,37 +313,41 @@ impl IdentityLifecycleManager {
             required_approvals: Vec::new(), // No approvals needed for self-sovereign DIDs
             received_approvals: Vec::new(),
         };
-        
-        self.pending_operations.insert(operation_id.clone(), operation);
-        
+
+        self.pending_operations
+            .insert(operation_id.clone(), operation);
+
         Ok(operation_id)
     }
 
     /// Execute DID creation
     pub async fn execute_did_creation(&mut self, operation_id: &str) -> Result<Did, CommonError> {
-        let operation = self.pending_operations.get(operation_id)
+        let operation = self
+            .pending_operations
+            .get(operation_id)
             .ok_or_else(|| CommonError::NotFound("Operation not found".to_string()))?
             .clone();
-        
+
         // Parse request data
         let request: DidCreationRequest = serde_json::from_value(operation.operation_data)
             .map_err(|e| CommonError::DeserError(e.to_string()))?;
-        
+
         // Spend mana
-        self.mana_ledger.spend_mana(&request.did, self.config.did_creation_cost)?;
-        
+        self.mana_ledger
+            .spend_mana(&request.did, self.config.did_creation_cost)?;
+
         // Create DID document
         let mut did_doc = DidDocument::new(request.did.clone(), request.did.clone());
         did_doc.icn_metadata.identity_type = request.identity_type;
         did_doc.icn_metadata.sybil_resistance.proof_of_personhood = request.proof_of_personhood;
         did_doc.add_verification_method(request.initial_verification_method);
-        
+
         // Store in registry
         self.did_registry.insert(request.did.clone(), did_doc);
-        
+
         // Remove pending operation
         self.pending_operations.remove(operation_id);
-        
+
         Ok(request.did)
     }
 
@@ -348,27 +357,34 @@ impl IdentityLifecycleManager {
         request: CredentialIssuanceRequest,
     ) -> Result<String, CommonError> {
         // Validate issuer exists
-        let _issuer_doc = self.did_registry.get(&request.issuer)
+        let _issuer_doc = self
+            .did_registry
+            .get(&request.issuer)
             .ok_or_else(|| CommonError::NotFound("Issuer DID not found".to_string()))?;
-        
+
         // Validate subject exists
-        let _subject_doc = self.did_registry.get(&request.subject)
+        let _subject_doc = self
+            .did_registry
+            .get(&request.subject)
             .ok_or_else(|| CommonError::NotFound("Subject DID not found".to_string()))?;
-        
+
         // Check issuer has authority to issue this credential type
         self.validate_issuer_authority(&request.issuer, &request.credential_template)?;
-        
+
         // Check mana balance
-        if !self.mana_ledger.can_afford(&request.issuer, self.config.credential_issuance_cost)? {
+        if !self
+            .mana_ledger
+            .can_afford(&request.issuer, self.config.credential_issuance_cost)?
+        {
             return Err(CommonError::InsufficientFunds(
-                "Insufficient mana for credential issuance".to_string()
+                "Insufficient mana for credential issuance".to_string(),
             ));
         }
-        
+
         // Create pending operation
         let operation_id = format!("cred_issue_{}", uuid::Uuid::new_v4());
         let now = current_timestamp();
-        
+
         let operation = PendingOperation {
             id: operation_id.clone(),
             operation_type: OperationType::IssueCredential,
@@ -381,9 +397,10 @@ impl IdentityLifecycleManager {
             required_approvals: Vec::new(),
             received_approvals: Vec::new(),
         };
-        
-        self.pending_operations.insert(operation_id.clone(), operation);
-        
+
+        self.pending_operations
+            .insert(operation_id.clone(), operation);
+
         Ok(operation_id)
     }
 
@@ -392,17 +409,21 @@ impl IdentityLifecycleManager {
         &mut self,
         operation_id: &str,
     ) -> Result<String, CommonError> {
-        let operation = self.pending_operations.get(operation_id)
+        let operation = self
+            .pending_operations
+            .get(operation_id)
             .ok_or_else(|| CommonError::NotFound("Operation not found".to_string()))?
             .clone();
-        
+
         // Parse request data
-        let request: CredentialIssuanceRequest = serde_json::from_value(operation.operation_data)
-            .map_err(|e| CommonError::DeserError(e.to_string()))?;
-        
+        let request: CredentialIssuanceRequest =
+            serde_json::from_value(operation.operation_data)
+                .map_err(|e| CommonError::DeserError(e.to_string()))?;
+
         // Spend mana
-        self.mana_ledger.spend_mana(&request.issuer, self.config.credential_issuance_cost)?;
-        
+        self.mana_ledger
+            .spend_mana(&request.issuer, self.config.credential_issuance_cost)?;
+
         // Create credential based on template
         let credential = self.create_credential_from_template(
             &request.issuer,
@@ -410,13 +431,14 @@ impl IdentityLifecycleManager {
             &request.credential_template,
             &request.additional_claims,
         )?;
-        
+
         // Store credential
-        self.credential_registry.insert(credential.id.clone(), credential.clone());
-        
+        self.credential_registry
+            .insert(credential.id.clone(), credential.clone());
+
         // Remove pending operation
         self.pending_operations.remove(operation_id);
-        
+
         Ok(credential.id)
     }
 
@@ -426,30 +448,35 @@ impl IdentityLifecycleManager {
         request: KeyRotationRequest,
     ) -> Result<String, CommonError> {
         // Validate DID exists
-        let did_doc = self.did_registry.get(&request.did)
+        let did_doc = self
+            .did_registry
+            .get(&request.did)
             .ok_or_else(|| CommonError::NotFound("DID not found".to_string()))?;
-        
+
         // Verify old key signature
         self.verify_key_rotation_signature(&request, did_doc)?;
-        
+
         // Check mana balance
-        if !self.mana_ledger.can_afford(&request.did, self.config.key_rotation_cost)? {
+        if !self
+            .mana_ledger
+            .can_afford(&request.did, self.config.key_rotation_cost)?
+        {
             return Err(CommonError::InsufficientFunds(
-                "Insufficient mana for key rotation".to_string()
+                "Insufficient mana for key rotation".to_string(),
             ));
         }
-        
+
         // Create pending operation
         let operation_id = format!("key_rotate_{}", uuid::Uuid::new_v4());
         let now = current_timestamp();
-        
+
         // Add delay for security-sensitive rotations
         let delay = match request.rotation_reason {
             KeyRotationReason::Compromised => 0, // Immediate for compromised keys
             KeyRotationReason::Lost => self.config.recovery_delay_seconds,
             _ => 3600, // 1 hour for scheduled rotations
         };
-        
+
         let operation = PendingOperation {
             id: operation_id.clone(),
             operation_type: OperationType::RotateKey,
@@ -462,44 +489,52 @@ impl IdentityLifecycleManager {
             required_approvals: Vec::new(),
             received_approvals: Vec::new(),
         };
-        
-        self.pending_operations.insert(operation_id.clone(), operation);
-        
+
+        self.pending_operations
+            .insert(operation_id.clone(), operation);
+
         Ok(operation_id)
     }
 
     /// Execute key rotation
     pub async fn execute_key_rotation(&mut self, operation_id: &str) -> Result<(), CommonError> {
-        let operation = self.pending_operations.get(operation_id)
+        let operation = self
+            .pending_operations
+            .get(operation_id)
             .ok_or_else(|| CommonError::NotFound("Operation not found".to_string()))?
             .clone();
-        
+
         // Check if executable
         let now = current_timestamp();
         if now < operation.executable_at {
             return Err(CommonError::ValidationError(
-                "Operation not yet executable".to_string()
+                "Operation not yet executable".to_string(),
             ));
         }
-        
+
         // Parse request data
         let request: KeyRotationRequest = serde_json::from_value(operation.operation_data)
             .map_err(|e| CommonError::DeserError(e.to_string()))?;
-        
+
         // Spend mana
-        self.mana_ledger.spend_mana(&request.did, self.config.key_rotation_cost)?;
-        
+        self.mana_ledger
+            .spend_mana(&request.did, self.config.key_rotation_cost)?;
+
         // Update DID document
-        let did_doc = self.did_registry.get_mut(&request.did)
+        let did_doc = self
+            .did_registry
+            .get_mut(&request.did)
             .ok_or_else(|| CommonError::NotFound("DID not found".to_string()))?;
-        
+
         // Remove old verification method and add new one
-        did_doc.verification_method.retain(|vm| vm.id != request.old_verification_method);
+        did_doc
+            .verification_method
+            .retain(|vm| vm.id != request.old_verification_method);
         did_doc.add_verification_method(request.new_verification_method);
-        
+
         // Remove pending operation
         self.pending_operations.remove(operation_id);
-        
+
         Ok(())
     }
 
@@ -522,41 +557,52 @@ impl IdentityLifecycleManager {
     }
 
     /// Verify a credential
-    pub fn verify_credential(&self, credential: &VerifiableCredential) -> Result<bool, CommonError> {
+    pub fn verify_credential(
+        &self,
+        credential: &VerifiableCredential,
+    ) -> Result<bool, CommonError> {
         // Basic validation
         credential.validate()?;
-        
+
         // Check issuer exists
-        let _issuer_doc = self.did_registry.get(credential.issuer())
+        let _issuer_doc = self
+            .did_registry
+            .get(credential.issuer())
             .ok_or_else(|| CommonError::NotFound("Issuer DID not found".to_string()))?;
-        
+
         // Verify issuer has authority to issue this credential
-        self.validate_issuer_authority(credential.issuer(), &self.credential_template_from_credential(credential)?)?;
-        
+        self.validate_issuer_authority(
+            credential.issuer(),
+            &self.credential_template_from_credential(credential)?,
+        )?;
+
         // Check not expired
         if credential.is_expired() {
             return Ok(false);
         }
-        
+
         // TODO: Verify cryptographic signature
-        
+
         Ok(true)
     }
 
     // Private helper methods
 
-    fn validate_did_creation_request(&self, request: &DidCreationRequest) -> Result<(), CommonError> {
+    fn validate_did_creation_request(
+        &self,
+        request: &DidCreationRequest,
+    ) -> Result<(), CommonError> {
         // Check DID doesn't already exist
         if self.did_registry.contains_key(&request.did) {
             return Err(CommonError::ValidationError(
-                "DID already exists".to_string()
+                "DID already exists".to_string(),
             ));
         }
 
         // Validate verification method
         if request.initial_verification_method.id.is_empty() {
             return Err(CommonError::ValidationError(
-                "Verification method ID cannot be empty".to_string()
+                "Verification method ID cannot be empty".to_string(),
             ));
         }
 
@@ -570,12 +616,16 @@ impl IdentityLifecycleManager {
     ) -> Result<(), CommonError> {
         // For membership credentials, only organizations can issue
         if template.credential_type == "MembershipCredential" {
-            let issuer_doc = self.did_registry.get(issuer)
+            let issuer_doc = self
+                .did_registry
+                .get(issuer)
                 .ok_or_else(|| CommonError::NotFound("Issuer not found".to_string()))?;
-            
-            if issuer_doc.icn_metadata.identity_type != crate::did_document::IdentityType::Organization {
+
+            if issuer_doc.icn_metadata.identity_type
+                != crate::did_document::IdentityType::Organization
+            {
                 return Err(CommonError::ValidationError(
-                    "Only organizations can issue membership credentials".to_string()
+                    "Only organizations can issue membership credentials".to_string(),
                 ));
             }
         }
@@ -596,14 +646,17 @@ impl IdentityLifecycleManager {
         did_doc: &DidDocument,
     ) -> Result<(), CommonError> {
         // Find the old verification method
-        let _old_method = did_doc.verification_method
+        let _old_method = did_doc
+            .verification_method
             .iter()
             .find(|vm| vm.id == request.old_verification_method)
-            .ok_or_else(|| CommonError::NotFound("Old verification method not found".to_string()))?;
-        
+            .ok_or_else(|| {
+                CommonError::NotFound("Old verification method not found".to_string())
+            })?;
+
         // TODO: Verify signature with old key
         // This would involve verifying request.old_key_signature against request data
-        
+
         Ok(())
     }
 
@@ -617,11 +670,12 @@ impl IdentityLifecycleManager {
         match template.credential_type.as_str() {
             "MembershipCredential" => {
                 let org_id = issuer.clone(); // Issuer is the organization
-                let role = additional_claims.get("role")
+                let role = additional_claims
+                    .get("role")
                     .and_then(|v| v.as_str())
                     .unwrap_or("member")
                     .to_string();
-                
+
                 VerifiableCredential::new_membership_credential(
                     issuer.clone(),
                     subject.clone(),
@@ -630,17 +684,21 @@ impl IdentityLifecycleManager {
                 )
             }
             "ResourceProviderCredential" => {
-                let resource_types = additional_claims.get("resourceTypes")
+                let resource_types = additional_claims
+                    .get("resourceTypes")
                     .and_then(|v| v.as_array())
-                    .ok_or_else(|| CommonError::ValidationError("Missing resourceTypes".to_string()))?
+                    .ok_or_else(|| {
+                        CommonError::ValidationError("Missing resourceTypes".to_string())
+                    })?
                     .iter()
                     .filter_map(|v| v.as_str().map(|s| s.to_string()))
                     .collect();
-                
-                let capacity = additional_claims.get("capacity")
+
+                let capacity = additional_claims
+                    .get("capacity")
                     .and_then(|v| serde_json::from_value(v.clone()).ok())
                     .unwrap_or_else(HashMap::new);
-                
+
                 VerifiableCredential::new_resource_credential(
                     issuer.clone(),
                     subject.clone(),
@@ -648,9 +706,10 @@ impl IdentityLifecycleManager {
                     capacity,
                 )
             }
-            _ => Err(CommonError::NotImplemented(
-                format!("Credential type {} not yet implemented", template.credential_type)
-            ))
+            _ => Err(CommonError::NotImplemented(format!(
+                "Credential type {} not yet implemented",
+                template.credential_type
+            ))),
         }
     }
 
@@ -658,10 +717,13 @@ impl IdentityLifecycleManager {
         &self,
         credential: &VerifiableCredential,
     ) -> Result<CredentialTemplate, CommonError> {
-        let credential_type = credential.credential_type
+        let credential_type = credential
+            .credential_type
             .iter()
             .find(|t| *t != "VerifiableCredential")
-            .ok_or_else(|| CommonError::ValidationError("No specific credential type found".to_string()))?
+            .ok_or_else(|| {
+                CommonError::ValidationError("No specific credential type found".to_string())
+            })?
             .clone();
 
         Ok(CredentialTemplate {
@@ -725,7 +787,9 @@ mod tests {
         fn spend_mana(&mut self, did: &Did, amount: u64) -> Result<(), CommonError> {
             let current = self.get_balance(did)?;
             if current < amount {
-                return Err(CommonError::InsufficientFunds("Not enough mana".to_string()));
+                return Err(CommonError::InsufficientFunds(
+                    "Not enough mana".to_string(),
+                ));
             }
             self.balances.insert(did.clone(), current - amount);
             Ok(())
@@ -750,10 +814,8 @@ mod tests {
         let did = test_did("alice");
         mana_ledger.set_balance(did.clone(), 100);
 
-        let mut manager = IdentityLifecycleManager::new(
-            Box::new(mana_ledger),
-            IdentityConfig::default(),
-        );
+        let mut manager =
+            IdentityLifecycleManager::new(Box::new(mana_ledger), IdentityConfig::default());
 
         // Create verification method
         let verification_method = VerificationMethod {
@@ -791,10 +853,8 @@ mod tests {
         let subject = test_did("alice");
         mana_ledger.set_balance(issuer.clone(), 100);
 
-        let mut manager = IdentityLifecycleManager::new(
-            Box::new(mana_ledger),
-            IdentityConfig::default(),
-        );
+        let mut manager =
+            IdentityLifecycleManager::new(Box::new(mana_ledger), IdentityConfig::default());
 
         // Create issuer DID (organization)
         let mut issuer_doc = DidDocument::new(issuer.clone(), issuer.clone());
@@ -816,7 +876,10 @@ mod tests {
         };
 
         let mut additional_claims = HashMap::new();
-        additional_claims.insert("role".to_string(), serde_json::Value::String("member".to_string()));
+        additional_claims.insert(
+            "role".to_string(),
+            serde_json::Value::String("member".to_string()),
+        );
 
         let request = CredentialIssuanceRequest {
             issuer: issuer.clone(),
@@ -827,7 +890,10 @@ mod tests {
         };
 
         let operation_id = manager.request_credential_issuance(request).await.unwrap();
-        let credential_id = manager.execute_credential_issuance(&operation_id).await.unwrap();
+        let credential_id = manager
+            .execute_credential_issuance(&operation_id)
+            .await
+            .unwrap();
 
         let credential = manager.get_credential(&credential_id).unwrap();
         assert_eq!(credential.subject(), &subject);

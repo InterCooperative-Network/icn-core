@@ -131,7 +131,11 @@ mod scoped_token_tests {
         }
 
         /// Apply demurrage to all accounts in a token class with demurrage rules
-        fn apply_demurrage(&self, _class_id: &String, _current_time: u64) -> Result<u64, CommonError> {
+        fn apply_demurrage(
+            &self,
+            _class_id: &String,
+            _current_time: u64,
+        ) -> Result<u64, CommonError> {
             Ok(0)
         }
 
@@ -156,7 +160,11 @@ mod scoped_token_tests {
         }
 
         /// Get transfer tracker for velocity limit enforcement
-        fn get_transfer_tracker(&self, _class_id: &String, _did: &Did) -> Option<crate::TransferTracker> {
+        fn get_transfer_tracker(
+            &self,
+            _class_id: &String,
+            _did: &Did,
+        ) -> Option<crate::TransferTracker> {
             None
         }
 

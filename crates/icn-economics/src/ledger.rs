@@ -177,11 +177,15 @@ pub trait ResourceLedger: Send + Sync {
     ) -> Result<bool, CommonError>;
     /// Get transfer history for an account in a specific token class.
     fn get_transfer_history(&self, class_id: &TokenClassId, did: &Did) -> Vec<TransferRecord>;
-    
+
     /// Anti-speculation mechanism methods
-    
+
     /// Apply demurrage to all accounts in a token class with demurrage rules
-    fn apply_demurrage(&self, class_id: &TokenClassId, current_time: u64) -> Result<u64, CommonError>;
+    fn apply_demurrage(
+        &self,
+        class_id: &TokenClassId,
+        current_time: u64,
+    ) -> Result<u64, CommonError>;
     /// Check if a transfer violates velocity limits
     fn check_velocity_limits(
         &self,
@@ -572,7 +576,7 @@ impl ResourceLedger for FileResourceLedger {
         amount: u64,
     ) -> Result<(), CommonError> {
         let current_time = icn_common::SystemTimeProvider.unix_seconds();
-        
+
         // Check if transfer is allowed by basic token rules
         if !self.can_transfer(class_id, from, to, amount)? {
             return Err(CommonError::PolicyDenied(
@@ -581,7 +585,7 @@ impl ResourceLedger for FileResourceLedger {
         }
 
         // Check anti-speculation rules
-        
+
         // 1. Check velocity limits
         if !self.check_velocity_limits(class_id, from, amount, current_time)? {
             return Err(CommonError::PolicyDenied(
@@ -597,12 +601,7 @@ impl ResourceLedger for FileResourceLedger {
 
         // Record the transfer
         let transfer_record = TransferRecord {
-            transfer_id: format!(
-                "{}:{}:{}",
-                class_id,
-                from,
-                current_time
-            ),
+            transfer_id: format!("{}:{}:{}", class_id, from, current_time),
             class_id: class_id.clone(),
             from: from.clone(),
             to: to.clone(),
@@ -633,7 +632,7 @@ impl ResourceLedger for FileResourceLedger {
 
         // Update transfer tracker for velocity limits
         self.update_transfer_tracker(class_id, from, amount, current_time)?;
-        
+
         Ok(())
     }
 
@@ -680,80 +679,90 @@ impl ResourceLedger for FileResourceLedger {
     }
 
     /// Apply demurrage to all accounts in a token class with demurrage rules
-    fn apply_demurrage(&self, class_id: &TokenClassId, current_time: u64) -> Result<u64, CommonError> {
+    fn apply_demurrage(
+        &self,
+        class_id: &TokenClassId,
+        current_time: u64,
+    ) -> Result<u64, CommonError> {
         let mut data = self.data.lock().unwrap();
-        
+
         // Get token class to check for demurrage rules
-        let token_class = data.classes.get(class_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Token class not found: {}", class_id)))?;
-        
+        let token_class = data.classes.get(class_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Token class not found: {}", class_id))
+        })?;
+
         let anti_speculation = match &token_class.anti_speculation {
             Some(rules) => rules,
             None => return Ok(0), // No demurrage rules
         };
-        
+
         let demurrage_rate = match anti_speculation.demurrage_rate {
             Some(rate) => rate,
             None => return Ok(0), // No demurrage rate specified
         };
-        
+
         // Check grace period
         if let Some(grace_period) = anti_speculation.demurrage_grace_period {
             if current_time < token_class.created_at + grace_period {
                 return Ok(0); // Still in grace period
             }
         }
-        
+
         // Get last demurrage application time
-        let last_applied = data.last_demurrage_applied
+        let last_applied = data
+            .last_demurrage_applied
             .get(class_id)
             .copied()
             .unwrap_or(token_class.created_at);
-        
+
         // Calculate time elapsed since last demurrage application
         let time_elapsed = current_time.saturating_sub(last_applied);
-        
+
         // Apply demurrage if enough time has passed (e.g., once per day)
         const DEMURRAGE_EPOCH: u64 = 86400; // 1 day in seconds
         if time_elapsed < DEMURRAGE_EPOCH {
             return Ok(0); // Not enough time elapsed
         }
-        
+
         let epochs_passed = time_elapsed / DEMURRAGE_EPOCH;
         let total_demurrage_applied = if epochs_passed > 0 {
-            let balances_map = data.balances.entry(class_id.clone()).or_insert_with(HashMap::new);
+            let balances_map = data
+                .balances
+                .entry(class_id.clone())
+                .or_insert_with(HashMap::new);
             let mut total_burned = 0u64;
-            
+
             // Apply demurrage to each account
             for (_did_str, balance) in balances_map.iter_mut() {
                 let original_balance = *balance;
-                
+
                 // Apply compound demurrage for each epoch
                 let mut new_balance = original_balance as f64;
                 for _ in 0..epochs_passed {
                     new_balance *= 1.0 - demurrage_rate;
                 }
-                
+
                 let new_balance_u64 = new_balance.round() as u64;
                 let burned = original_balance.saturating_sub(new_balance_u64);
-                
+
                 *balance = new_balance_u64;
                 total_burned = total_burned.saturating_add(burned);
             }
-            
+
             // Update last demurrage application time
-            data.last_demurrage_applied.insert(class_id.clone(), current_time);
-            
+            data.last_demurrage_applied
+                .insert(class_id.clone(), current_time);
+
             // Persist changes
             drop(data);
             let data_clone = self.data.lock().unwrap().clone();
             self.persist_locked(&data_clone)?;
-            
+
             total_burned
         } else {
             0
         };
-        
+
         Ok(total_demurrage_applied)
     }
 
@@ -766,23 +775,25 @@ impl ResourceLedger for FileResourceLedger {
         current_time: u64,
     ) -> Result<bool, CommonError> {
         let data = self.data.lock().unwrap();
-        
+
         // Get token class to check for velocity limits
-        let token_class = data.classes.get(class_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Token class not found: {}", class_id)))?;
-        
+        let token_class = data.classes.get(class_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Token class not found: {}", class_id))
+        })?;
+
         let anti_speculation = match &token_class.anti_speculation {
             Some(rules) => rules,
             None => return Ok(true), // No velocity limits
         };
-        
+
         let velocity_limits = match &anti_speculation.velocity_limits {
             Some(limits) => limits,
             None => return Ok(true), // No velocity limits specified
         };
-        
+
         // Get current transfer tracker for this account
-        let tracker = data.transfer_trackers
+        let tracker = data
+            .transfer_trackers
             .get(class_id)
             .and_then(|class_trackers| class_trackers.get(&from.to_string()))
             .cloned()
@@ -791,28 +802,28 @@ impl ResourceLedger for FileResourceLedger {
                 amount_transferred: 0,
                 transfer_count: 0,
             });
-        
+
         let current_epoch = current_time / velocity_limits.epoch_duration;
-        
+
         // If we're in a new epoch, reset counters
         let (epoch_amount, epoch_transfers) = if tracker.current_epoch < current_epoch {
             (0, 0)
         } else {
             (tracker.amount_transferred, tracker.transfer_count)
         };
-        
+
         // Check amount limit
         if epoch_amount + amount > velocity_limits.max_transfer_per_epoch {
             return Ok(false);
         }
-        
+
         // Check transfer count limit if specified
         if let Some(max_transfers) = velocity_limits.max_transfers_per_epoch {
             if epoch_transfers >= max_transfers {
                 return Ok(false);
             }
         }
-        
+
         Ok(true)
     }
 
@@ -823,23 +834,26 @@ impl ResourceLedger for FileResourceLedger {
         purpose: &str,
     ) -> Result<bool, CommonError> {
         let data = self.data.lock().unwrap();
-        
+
         // Get token class to check for purpose locks
-        let token_class = data.classes.get(class_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Token class not found: {}", class_id)))?;
-        
+        let token_class = data.classes.get(class_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Token class not found: {}", class_id))
+        })?;
+
         let anti_speculation = match &token_class.anti_speculation {
             Some(rules) => rules,
             None => return Ok(true), // No purpose locks
         };
-        
+
         let purpose_locks = match &anti_speculation.purpose_locks {
             Some(locks) => locks,
             None => return Ok(true), // No purpose locks specified
         };
-        
+
         // Check if the specified purpose is in the allowed list
-        Ok(purpose_locks.iter().any(|allowed_purpose| allowed_purpose == purpose))
+        Ok(purpose_locks
+            .iter()
+            .any(|allowed_purpose| allowed_purpose == purpose))
     }
 
     /// Get transfer tracker for velocity limit enforcement
@@ -860,11 +874,12 @@ impl ResourceLedger for FileResourceLedger {
         current_time: u64,
     ) -> Result<(), CommonError> {
         let mut data = self.data.lock().unwrap();
-        
+
         // Get token class to check for velocity limits
-        let token_class = data.classes.get(class_id)
-            .ok_or_else(|| CommonError::ResourceNotFound(format!("Token class not found: {}", class_id)))?;
-        
+        let token_class = data.classes.get(class_id).ok_or_else(|| {
+            CommonError::ResourceNotFound(format!("Token class not found: {}", class_id))
+        })?;
+
         let velocity_limits = match &token_class.anti_speculation {
             Some(rules) => match &rules.velocity_limits {
                 Some(limits) => limits,
@@ -872,33 +887,38 @@ impl ResourceLedger for FileResourceLedger {
             },
             None => return Ok(()), // No anti-speculation rules
         };
-        
+
         let current_epoch = current_time / velocity_limits.epoch_duration;
-        
+
         // Get or create tracker
-        let class_trackers = data.transfer_trackers.entry(class_id.clone()).or_insert_with(HashMap::new);
-        let tracker = class_trackers.entry(did.to_string()).or_insert_with(|| TransferTracker {
-            current_epoch,
-            amount_transferred: 0,
-            transfer_count: 0,
-        });
-        
+        let class_trackers = data
+            .transfer_trackers
+            .entry(class_id.clone())
+            .or_insert_with(HashMap::new);
+        let tracker = class_trackers
+            .entry(did.to_string())
+            .or_insert_with(|| TransferTracker {
+                current_epoch,
+                amount_transferred: 0,
+                transfer_count: 0,
+            });
+
         // Reset if new epoch
         if tracker.current_epoch < current_epoch {
             tracker.current_epoch = current_epoch;
             tracker.amount_transferred = 0;
             tracker.transfer_count = 0;
         }
-        
+
         // Update tracker
         tracker.amount_transferred = tracker.amount_transferred.saturating_add(amount);
         tracker.transfer_count = tracker.transfer_count.saturating_add(1);
-        
+
         // Persist changes
         let data_clone = data.clone();
         drop(data);
         self.persist_locked(&data_clone)?;
-        
+
         Ok(())
     }
 }
@@ -1233,7 +1253,11 @@ impl ResourceLedger for SledResourceLedger {
     }
 
     /// Apply demurrage to all accounts in a token class with demurrage rules
-    fn apply_demurrage(&self, _class_id: &TokenClassId, _current_time: u64) -> Result<u64, CommonError> {
+    fn apply_demurrage(
+        &self,
+        _class_id: &TokenClassId,
+        _current_time: u64,
+    ) -> Result<u64, CommonError> {
         // TODO: Implement demurrage for Sled backend
         Ok(0)
     }
@@ -1261,7 +1285,11 @@ impl ResourceLedger for SledResourceLedger {
     }
 
     /// Get transfer tracker for velocity limit enforcement
-    fn get_transfer_tracker(&self, _class_id: &TokenClassId, _did: &Did) -> Option<TransferTracker> {
+    fn get_transfer_tracker(
+        &self,
+        _class_id: &TokenClassId,
+        _did: &Did,
+    ) -> Option<TransferTracker> {
         // TODO: Implement transfer tracking for Sled backend
         None
     }

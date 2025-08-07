@@ -591,15 +591,20 @@ impl GovernanceModule {
                         proposal_id.0, proposal.status
                     )));
                 }
-                
+
                 // Check sponsorship requirements
-                if !proposal.sponsorship.has_sufficient_sponsors(self.config.min_sponsors) {
+                if !proposal
+                    .sponsorship
+                    .has_sufficient_sponsors(self.config.min_sponsors)
+                {
                     return Err(CommonError::InvalidInputError(format!(
                         "Proposal {} does not have sufficient sponsors ({} required, {} found)",
-                        proposal_id.0, self.config.min_sponsors, proposal.sponsorship.sponsors.len()
+                        proposal_id.0,
+                        self.config.min_sponsors,
+                        proposal.sponsorship.sponsors.len()
                     )));
                 }
-                
+
                 proposal.status = ProposalStatus::VotingOpen;
             }
             #[cfg(feature = "persist-sled")]
@@ -970,10 +975,15 @@ impl GovernanceModule {
                     )));
                 }
 
-                proposal.sponsorship.add_sponsor(sponsor, now, self.config.min_sponsors);
+                proposal
+                    .sponsorship
+                    .add_sponsor(sponsor, now, self.config.min_sponsors);
 
                 // If sponsorship requirement is met, advance to Deliberation
-                if proposal.sponsorship.has_sufficient_sponsors(self.config.min_sponsors) {
+                if proposal
+                    .sponsorship
+                    .has_sufficient_sponsors(self.config.min_sponsors)
+                {
                     proposal.status = ProposalStatus::Deliberation;
                     if let Some(store) = &self.event_store {
                         store
@@ -1087,24 +1097,26 @@ impl GovernanceModule {
                 for (id, proposal) in proposals.iter_mut() {
                     if proposal.status == ProposalStatus::AcceptedTimelock {
                         if let Some(accepted_at) = proposal.accepted_at {
-                            let timelock_delay = proposal.timelock_delay.unwrap_or(self.config.timelock_delay_secs);
-                            
+                            let timelock_delay = proposal
+                                .timelock_delay
+                                .unwrap_or(self.config.timelock_delay_secs);
+
                             // Check if time-lock period has elapsed and grace period for vetos has passed
                             let timelock_complete = now >= accepted_at + timelock_delay;
-                            let grace_complete = now >= accepted_at + self.config.veto_grace_period_secs;
-                            
+                            let grace_complete =
+                                now >= accepted_at + self.config.veto_grace_period_secs;
+
                             if timelock_complete && grace_complete {
                                 proposal.status = ProposalStatus::Accepted;
                                 ready_proposals.push(id.clone());
 
                                 if let Some(store) = &self.event_store {
-                                    let _ = store
-                                        .lock()
-                                        .unwrap()
-                                        .append(&GovernanceEvent::StatusUpdated(
+                                    let _ = store.lock().unwrap().append(
+                                        &GovernanceEvent::StatusUpdated(
                                             id.clone(),
                                             ProposalStatus::Accepted,
-                                        ));
+                                        ),
+                                    );
                                 }
                             }
                         }
@@ -1535,7 +1547,9 @@ impl GovernanceModule {
                     proposal.status = ProposalStatus::Rejected;
                 } else if (yes as f32) >= (total as f32 * threshold) {
                     // Handle time-lock logic
-                    let timelock_delay = proposal.timelock_delay.unwrap_or(self.config.timelock_delay_secs);
+                    let timelock_delay = proposal
+                        .timelock_delay
+                        .unwrap_or(self.config.timelock_delay_secs);
                     if timelock_delay > 0 || self.config.veto_grace_period_secs > 0 {
                         proposal.status = ProposalStatus::AcceptedTimelock;
                         proposal.accepted_at = Some(now);
@@ -1604,7 +1618,9 @@ impl GovernanceModule {
                     proposal.status = ProposalStatus::Rejected;
                 } else if (yes as f32) >= (total as f32 * threshold) {
                     // Handle time-lock logic
-                    let timelock_delay = proposal.timelock_delay.unwrap_or(self.config.timelock_delay_secs);
+                    let timelock_delay = proposal
+                        .timelock_delay
+                        .unwrap_or(self.config.timelock_delay_secs);
                     if timelock_delay > 0 || self.config.veto_grace_period_secs > 0 {
                         proposal.status = ProposalStatus::AcceptedTimelock;
                         proposal.accepted_at = Some(now);

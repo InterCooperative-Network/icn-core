@@ -1,6 +1,6 @@
 //! W3C-Compliant DID Document Implementation for ICN Identity Protocol
 //!
-//! This module implements the full DID Document specification according to the 
+//! This module implements the full DID Document specification according to the
 //! ICN Identity Protocol and W3C DID Core 1.0 specification.
 
 use icn_common::{CommonError, Did, Signable};
@@ -12,43 +12,43 @@ use std::collections::HashMap;
 pub struct DidDocument {
     /// The identifier this document describes
     pub id: Did,
-    
+
     /// Controllers who can update this DID document
     pub controller: Vec<Did>,
-    
+
     /// Cryptographic material for verification
     pub verification_method: Vec<VerificationMethod>,
-    
-    /// Authentication capabilities 
+
+    /// Authentication capabilities
     pub authentication: Vec<String>,
-    
+
     /// Assertion method references
     pub assertion_method: Vec<String>,
-    
+
     /// Key agreement references for encryption
     pub key_agreement: Vec<String>,
-    
+
     /// Capability invocation references
     pub capability_invocation: Vec<String>,
-    
+
     /// Capability delegation references  
     pub capability_delegation: Vec<String>,
-    
+
     /// Service endpoints
     pub service: Vec<ServiceEndpoint>,
-    
+
     /// ICN-specific metadata
     pub icn_metadata: IcnMetadata,
-    
+
     /// Document versioning
     pub version: u64,
-    
+
     /// Creation timestamp
     pub created: u64,
-    
+
     /// Last updated timestamp
     pub updated: u64,
-    
+
     /// Cryptographic proof
     pub proof: Option<DocumentProof>,
 }
@@ -58,22 +58,22 @@ pub struct DidDocument {
 pub struct VerificationMethod {
     /// Unique identifier for this verification method
     pub id: String,
-    
+
     /// Type of verification method
     pub method_type: VerificationMethodType,
-    
+
     /// Controller of this verification method
     pub controller: Did,
-    
+
     /// Public key material
     pub public_key: PublicKeyMaterial,
-    
+
     /// Creation timestamp
     pub created: u64,
-    
+
     /// Optional expiration timestamp
     pub expires: Option<u64>,
-    
+
     /// Revocation information if revoked
     pub revoked: Option<RevocationInfo>,
 }
@@ -117,13 +117,13 @@ pub enum PublicKeyMaterial {
 pub struct ServiceEndpoint {
     /// Unique identifier for the service
     pub id: String,
-    
+
     /// Type of service
     pub service_type: String,
-    
+
     /// Service endpoint URL
     pub service_endpoint: String,
-    
+
     /// Additional service properties
     pub properties: Option<HashMap<String, serde_json::Value>>,
 }
@@ -133,19 +133,19 @@ pub struct ServiceEndpoint {
 pub struct IcnMetadata {
     /// Type of entity (person, organization, device, etc.)
     pub identity_type: IdentityType,
-    
+
     /// Federation memberships
     pub federation_memberships: Vec<FederationMembership>,
-    
+
     /// Organization memberships
     pub organization_memberships: Vec<OrganizationMembership>,
-    
+
     /// Trust score if applicable  
     pub trust_score: Option<i32>, // Changed from f64 to i32 for Eq
-    
+
     /// Sybil resistance data
     pub sybil_resistance: SybildResistanceData,
-    
+
     /// Recovery configuration
     pub recovery_config: Option<RecoveryConfig>,
 }
@@ -165,16 +165,16 @@ pub enum IdentityType {
 pub struct FederationMembership {
     /// Federation DID
     pub federation_id: Did,
-    
+
     /// Role within the federation
     pub role: FederationRole,
-    
+
     /// Membership status
     pub status: MembershipStatus,
-    
+
     /// When membership was granted
     pub granted_at: u64,
-    
+
     /// Optional expiration
     pub expires_at: Option<u64>,
 }
@@ -184,16 +184,16 @@ pub struct FederationMembership {
 pub struct OrganizationMembership {
     /// Organization DID
     pub organization_id: Did,
-    
+
     /// Role within organization
     pub role: String,
-    
+
     /// Voting rights granted by this membership
     pub voting_rights: bool,
-    
+
     /// When membership was granted
     pub granted_at: u64,
-    
+
     /// Optional expiration
     pub expires_at: Option<u64>,
 }
@@ -221,13 +221,13 @@ pub enum MembershipStatus {
 pub struct SybildResistanceData {
     /// Mana spent to create this DID
     pub creation_mana_cost: u64,
-    
+
     /// Proof of personhood type if applicable
     pub proof_of_personhood: Option<ProofOfPersonhood>,
-    
+
     /// Rate limiting status
     pub rate_limit_status: RateLimitStatus,
-    
+
     /// Creation timestamp for rate limiting
     pub created_at: u64,
 }
@@ -236,10 +236,7 @@ pub struct SybildResistanceData {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ProofOfPersonhood {
     /// Social vouching by existing members
-    SocialVouching {
-        vouchers: Vec<Did>,
-        threshold: u32,
-    },
+    SocialVouching { vouchers: Vec<Did>, threshold: u32 },
     /// Biometric verification (privacy-preserving)
     BiometricHash {
         hash: String,
@@ -257,13 +254,13 @@ pub enum ProofOfPersonhood {
 pub struct RateLimitStatus {
     /// Operations performed in current epoch
     pub operations_this_epoch: u32,
-    
+
     /// Maximum operations allowed per epoch
     pub max_operations_per_epoch: u32,
-    
+
     /// Current epoch start time
     pub epoch_start: u64,
-    
+
     /// Epoch duration in seconds
     pub epoch_duration: u64,
 }
@@ -273,13 +270,13 @@ pub struct RateLimitStatus {
 pub struct RecoveryConfig {
     /// Social recovery guardians
     pub social_guardians: Vec<Did>,
-    
+
     /// Threshold of guardians needed for recovery
     pub guardian_threshold: u32,
-    
+
     /// Backup key for recovery
     pub backup_key: Option<String>,
-    
+
     /// Recovery delay period in seconds
     pub recovery_delay: u64,
 }
@@ -289,10 +286,10 @@ pub struct RecoveryConfig {
 pub struct RevocationInfo {
     /// When the key was revoked
     pub revoked_at: u64,
-    
+
     /// Reason for revocation
     pub reason: String,
-    
+
     /// Who revoked it
     pub revoked_by: Did,
 }
@@ -302,16 +299,16 @@ pub struct RevocationInfo {
 pub struct DocumentProof {
     /// Proof type
     pub proof_type: String,
-    
+
     /// Creation method/algorithm
     pub proof_purpose: String,
-    
+
     /// Verification method used
     pub verification_method: String,
-    
+
     /// Timestamp of proof creation
     pub created: u64,
-    
+
     /// Signature bytes
     #[serde(with = "serde_bytes")]
     pub signature: Vec<u8>,
@@ -398,7 +395,7 @@ impl DidDocument {
             .as_secs();
 
         let rate_limit = &self.icn_metadata.sybil_resistance.rate_limit_status;
-        
+
         // Check if we're in a new epoch
         if current_time >= rate_limit.epoch_start + rate_limit.epoch_duration {
             return Ok(()); // New epoch, rate limit reset
@@ -407,7 +404,7 @@ impl DidDocument {
         // Check if under rate limit
         if rate_limit.operations_this_epoch >= rate_limit.max_operations_per_epoch {
             return Err(CommonError::RateLimitError(
-                "DID operation rate limit exceeded".to_string()
+                "DID operation rate limit exceeded".to_string(),
             ));
         }
 
@@ -422,7 +419,7 @@ impl DidDocument {
             .as_secs();
 
         let rate_limit = &mut self.icn_metadata.sybil_resistance.rate_limit_status;
-        
+
         // Reset if in new epoch
         if current_time >= rate_limit.epoch_start + rate_limit.epoch_duration {
             rate_limit.operations_this_epoch = 0;
@@ -437,21 +434,23 @@ impl DidDocument {
         // Basic validation
         if self.verification_method.is_empty() {
             return Err(CommonError::ValidationError(
-                "DID document must have at least one verification method".to_string()
+                "DID document must have at least one verification method".to_string(),
             ));
         }
 
         // Validate verification method references
-        let method_ids: std::collections::HashSet<String> = self.verification_method
+        let method_ids: std::collections::HashSet<String> = self
+            .verification_method
             .iter()
             .map(|m| m.id.clone())
             .collect();
 
         for auth_ref in &self.authentication {
             if !method_ids.contains(auth_ref) {
-                return Err(CommonError::ValidationError(
-                    format!("Authentication reference '{}' not found in verification methods", auth_ref)
-                ));
+                return Err(CommonError::ValidationError(format!(
+                    "Authentication reference '{}' not found in verification methods",
+                    auth_ref
+                )));
             }
         }
 
@@ -466,26 +465,24 @@ impl Signable for DidDocument {
     fn to_signable_bytes(&self) -> Result<Vec<u8>, CommonError> {
         // Create canonical representation for signing
         let mut bytes = Vec::new();
-        
+
         // Core fields
         bytes.extend_from_slice(self.id.to_string().as_bytes());
         bytes.extend_from_slice(&self.version.to_le_bytes());
         bytes.extend_from_slice(&self.created.to_le_bytes());
         bytes.extend_from_slice(&self.updated.to_le_bytes());
-        
+
         // Controllers
-        let mut controllers: Vec<String> = self.controller.iter()
-            .map(|c| c.to_string())
-            .collect();
+        let mut controllers: Vec<String> = self.controller.iter().map(|c| c.to_string()).collect();
         controllers.sort();
         for controller in controllers {
             bytes.extend_from_slice(controller.as_bytes());
         }
-        
+
         // Verification methods (sorted by ID for determinism)
         let mut methods = self.verification_method.clone();
         methods.sort_by(|a, b| a.id.cmp(&b.id));
-        
+
         for method in methods {
             bytes.extend_from_slice(method.id.as_bytes());
             match method.public_key {
@@ -509,7 +506,7 @@ impl Signable for DidDocument {
                 }
             }
         }
-        
+
         Ok(bytes)
     }
 }
@@ -529,7 +526,7 @@ mod tests {
         let did = test_did();
         let controller = test_did();
         let doc = DidDocument::new(did.clone(), controller);
-        
+
         assert_eq!(doc.id, did);
         assert_eq!(doc.version, 1);
         assert!(doc.verification_method.is_empty());
@@ -540,7 +537,7 @@ mod tests {
         let did = test_did();
         let controller = test_did();
         let mut doc = DidDocument::new(did.clone(), controller);
-        
+
         let method = VerificationMethod {
             id: format!("{}#key1", did),
             method_type: VerificationMethodType::Ed25519VerificationKey2020,
@@ -552,7 +549,7 @@ mod tests {
             expires: None,
             revoked: None,
         };
-        
+
         doc.add_verification_method(method);
         assert_eq!(doc.verification_method.len(), 1);
         assert_eq!(doc.version, 2);
@@ -563,13 +560,16 @@ mod tests {
         let did = test_did();
         let controller = test_did();
         let mut doc = DidDocument::new(did, controller);
-        
+
         // Should be OK initially
         assert!(doc.check_rate_limit().is_ok());
-        
+
         // Max out the rate limit
-        doc.icn_metadata.sybil_resistance.rate_limit_status.operations_this_epoch = 100;
-        
+        doc.icn_metadata
+            .sybil_resistance
+            .rate_limit_status
+            .operations_this_epoch = 100;
+
         // Should now fail
         assert!(doc.check_rate_limit().is_err());
     }
@@ -579,7 +579,7 @@ mod tests {
         let did = test_did();
         let controller = test_did();
         let doc = DidDocument::new(did, controller);
-        
+
         // Should fail validation - no verification methods
         assert!(doc.validate().is_err());
     }
@@ -589,7 +589,7 @@ mod tests {
         let did = test_did();
         let controller = test_did();
         let doc = DidDocument::new(did, controller);
-        
+
         let bytes = doc.to_signable_bytes().unwrap();
         assert!(!bytes.is_empty());
     }

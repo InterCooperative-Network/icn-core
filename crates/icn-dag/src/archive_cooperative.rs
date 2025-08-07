@@ -6,9 +6,9 @@
 use crate::StorageService;
 use icn_common::{Cid, CommonError, DagBlock, Did};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, BTreeMap};
-use std::sync::Arc;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Archive cooperative identifier
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -57,29 +57,29 @@ impl StorageTokens {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArchiveCooperative {
     pub coop_id: CooperativeId,
-    
+
     // Election proof
     pub election: ElectionProof,
     pub quorum: Vec<FederationVote>,
-    
+
     // Storage commitment
-    pub capacity_commitment: u64,  // bytes
-    pub availability_sla: f64,     // 99.9% uptime
+    pub capacity_commitment: u64, // bytes
+    pub availability_sla: f64,    // 99.9% uptime
     pub geographic_distribution: Vec<Region>,
-    
+
     // Economic stake
-    pub stake: u64,                       // mana staked
-    pub insurance_pool: StorageTokens,    // slashable on failure
+    pub stake: u64,                    // mana staked
+    pub insurance_pool: StorageTokens, // slashable on failure
 }
 
 /// Erasure coding configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErasureCoding {
-    pub data_shards: u32,     // 10 data shards
-    pub parity_shards: u32,   // 7 parity shards
-    pub min_shards: u32,      // 10 minimum to reconstruct
-    pub min_regions: u32,     // 3 continents
-    pub min_nodes: u32,       // 5 independent nodes
+    pub data_shards: u32,   // 10 data shards
+    pub parity_shards: u32, // 7 parity shards
+    pub min_shards: u32,    // 10 minimum to reconstruct
+    pub min_regions: u32,   // 3 continents
+    pub min_nodes: u32,     // 5 independent nodes
 }
 
 impl Default for ErasureCoding {
@@ -147,6 +147,7 @@ pub struct ArchiveCooperativeManager {
     cooperatives: HashMap<CooperativeId, ArchiveCooperative>,
     shard_locations: HashMap<ShardId, Vec<CooperativeId>>,
     erasure_config: ErasureCoding,
+    #[allow(dead_code)]
     storage: Arc<dyn StorageService<DagBlock>>,
     active_challenges: HashMap<ShardId, Challenge>,
 }
@@ -164,49 +165,65 @@ impl ArchiveCooperativeManager {
     }
 
     /// Register a new archive cooperative
-    pub fn register_cooperative(&mut self, cooperative: ArchiveCooperative) -> Result<(), CommonError> {
+    pub fn register_cooperative(
+        &mut self,
+        cooperative: ArchiveCooperative,
+    ) -> Result<(), CommonError> {
         // Validate election proof
         self.validate_election_proof(&cooperative.election)?;
-        
+
         // Validate minimum requirements
-        if cooperative.capacity_commitment < 10_000_000_000_000 {  // 10TB minimum
-            return Err(CommonError::ValidationError("Insufficient capacity commitment".to_string()));
-        }
-        
-        if cooperative.availability_sla < 0.999 {  // 99.9% minimum SLA
-            return Err(CommonError::ValidationError("Insufficient availability SLA".to_string()));
-        }
-        
-        if cooperative.geographic_distribution.len() < self.erasure_config.min_regions as usize {
-            return Err(CommonError::ValidationError("Insufficient geographic distribution".to_string()));
+        if cooperative.capacity_commitment < 10_000_000_000_000 {
+            // 10TB minimum
+            return Err(CommonError::ValidationError(
+                "Insufficient capacity commitment".to_string(),
+            ));
         }
 
-        self.cooperatives.insert(cooperative.coop_id.clone(), cooperative);
+        if cooperative.availability_sla < 0.999 {
+            // 99.9% minimum SLA
+            return Err(CommonError::ValidationError(
+                "Insufficient availability SLA".to_string(),
+            ));
+        }
+
+        if cooperative.geographic_distribution.len() < self.erasure_config.min_regions as usize {
+            return Err(CommonError::ValidationError(
+                "Insufficient geographic distribution".to_string(),
+            ));
+        }
+
+        self.cooperatives
+            .insert(cooperative.coop_id.clone(), cooperative);
         Ok(())
     }
 
     /// Store data with erasure coding across multiple cooperatives
-    pub fn store_with_erasure_coding(&mut self, data: Vec<u8>, original_cid: Cid) -> Result<Vec<ShardId>, CommonError> {
+    pub fn store_with_erasure_coding(
+        &mut self,
+        data: Vec<u8>,
+        original_cid: Cid,
+    ) -> Result<Vec<ShardId>, CommonError> {
         // 1. Encode data into shards
         let shards = self.encode_data(data, original_cid.clone())?;
-        
+
         // 2. Select cooperatives for distribution
         let selected_coops = self.select_cooperatives_for_storage(&shards)?;
-        
+
         // 3. Distribute shards to cooperatives
         let mut shard_ids = Vec::new();
         for (shard, coop_id) in shards.iter().zip(selected_coops.iter()) {
             self.store_shard_at_cooperative(shard, coop_id)?;
-            
+
             // Record shard location
             self.shard_locations
                 .entry(shard.shard_id.clone())
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(coop_id.clone());
-            
+
             shard_ids.push(shard.shard_id.clone());
         }
-        
+
         Ok(shard_ids)
     }
 
@@ -214,7 +231,7 @@ impl ArchiveCooperativeManager {
     pub fn retrieve_from_shards(&self, original_cid: &Cid) -> Result<Vec<u8>, CommonError> {
         // 1. Find all shards for this CID
         let shard_ids = self.find_shards_for_cid(original_cid)?;
-        
+
         // 2. Retrieve available shards
         let mut available_shards = Vec::new();
         for shard_id in &shard_ids {
@@ -222,18 +239,24 @@ impl ArchiveCooperativeManager {
                 available_shards.push(shard);
             }
         }
-        
+
         // 3. Check if we have enough shards to reconstruct
         if available_shards.len() < self.erasure_config.min_shards as usize {
-            return Err(CommonError::ValidationError("Insufficient shards for reconstruction".to_string()));
+            return Err(CommonError::ValidationError(
+                "Insufficient shards for reconstruction".to_string(),
+            ));
         }
-        
+
         // 4. Decode data from shards
         self.decode_shards(available_shards)
     }
 
     /// Generate a storage challenge for a cooperative
-    pub fn generate_challenge(&mut self, shard_id: &ShardId, challenger: Did) -> Result<Challenge, CommonError> {
+    pub fn generate_challenge(
+        &mut self,
+        shard_id: &ShardId,
+        challenger: Did,
+    ) -> Result<Challenge, CommonError> {
         let challenge = Challenge {
             shard_id: shard_id.clone(),
             index: self.generate_random_index()?,
@@ -241,8 +264,9 @@ impl ArchiveCooperativeManager {
             deadline: self.current_timestamp() + 60, // 60 second deadline
             challenger,
         };
-        
-        self.active_challenges.insert(shard_id.clone(), challenge.clone());
+
+        self.active_challenges
+            .insert(shard_id.clone(), challenge.clone());
         Ok(challenge)
     }
 
@@ -252,7 +276,7 @@ impl ArchiveCooperativeManager {
         if proof.timestamp > challenge.deadline {
             return Ok(false);
         }
-        
+
         // 2. Verify merkle proof
         self.verify_merkle_proof(&proof.merkle_proof, &challenge.root)
     }
@@ -260,25 +284,26 @@ impl ArchiveCooperativeManager {
     /// Process failed storage challenge (slash cooperative)
     pub fn process_failed_challenge(&mut self, shard_id: &ShardId) -> Result<(), CommonError> {
         // Find the cooperative responsible for this shard
-        let cooperative_ids: Vec<CooperativeId> = if let Some(ids) = self.shard_locations.get(shard_id) {
-            ids.clone()
-        } else {
-            Vec::new()
-        };
+        let cooperative_ids: Vec<CooperativeId> =
+            if let Some(ids) = self.shard_locations.get(shard_id) {
+                ids.clone()
+            } else {
+                Vec::new()
+            };
 
         for coop_id in cooperative_ids {
             if let Some(cooperative) = self.cooperatives.get_mut(&coop_id) {
                 // Slash insurance pool
                 let slashing_amount = cooperative.insurance_pool.amount * 0.1; // 10% slash
                 cooperative.insurance_pool.amount -= slashing_amount;
-                
+
                 // If insurance pool depleted, remove cooperative
                 if cooperative.insurance_pool.amount < 1.0 {
                     self.remove_cooperative(&coop_id)?;
                 }
             }
         }
-        
+
         // Initiate recovery protocol
         self.initiate_recovery(shard_id)
     }
@@ -300,7 +325,7 @@ impl ArchiveCooperativeManager {
         // Simple simulation of Reed-Solomon encoding
         let chunk_size = data.len() / self.erasure_config.data_shards as usize;
         let mut shards = Vec::new();
-        
+
         // Create data shards
         for i in 0..self.erasure_config.data_shards {
             let start = (i as usize) * chunk_size;
@@ -309,10 +334,10 @@ impl ArchiveCooperativeManager {
             } else {
                 start + chunk_size
             };
-            
+
             let shard_data = data[start..end].to_vec();
             let checksum = self.calculate_checksum(&shard_data);
-            
+
             shards.push(Shard {
                 shard_id: ShardId::new(&original_cid, i),
                 data: shard_data,
@@ -322,12 +347,12 @@ impl ArchiveCooperativeManager {
                 checksum,
             });
         }
-        
+
         // Create parity shards (simplified - in real implementation would use Reed-Solomon)
         for i in 0..self.erasure_config.parity_shards {
             let parity_data = self.generate_parity_data(&data, i)?;
             let checksum = self.calculate_checksum(&parity_data);
-            
+
             shards.push(Shard {
                 shard_id: ShardId::new(&original_cid, self.erasure_config.data_shards + i),
                 data: parity_data,
@@ -337,7 +362,7 @@ impl ArchiveCooperativeManager {
                 checksum,
             });
         }
-        
+
         Ok(shards)
     }
 
@@ -345,59 +370,75 @@ impl ArchiveCooperativeManager {
         // Sort shards by index
         let mut sorted_shards = shards;
         sorted_shards.sort_by_key(|s| s.shard_index);
-        
+
         // Reconstruct data (simplified - real implementation would use Reed-Solomon)
         let mut reconstructed_data = Vec::new();
-        for shard in sorted_shards.iter().take(self.erasure_config.data_shards as usize) {
+        for shard in sorted_shards
+            .iter()
+            .take(self.erasure_config.data_shards as usize)
+        {
             // Verify checksum
             let calculated_checksum = self.calculate_checksum(&shard.data);
             if calculated_checksum != shard.checksum {
-                return Err(CommonError::ValidationError("Shard checksum mismatch".to_string()));
+                return Err(CommonError::ValidationError(
+                    "Shard checksum mismatch".to_string(),
+                ));
             }
-            
+
             reconstructed_data.extend_from_slice(&shard.data);
         }
-        
+
         Ok(reconstructed_data)
     }
 
-    fn select_cooperatives_for_storage(&self, shards: &[Shard]) -> Result<Vec<CooperativeId>, CommonError> {
+    fn select_cooperatives_for_storage(
+        &self,
+        shards: &[Shard],
+    ) -> Result<Vec<CooperativeId>, CommonError> {
         let mut selected = Vec::new();
         let available_coops: Vec<_> = self.cooperatives.keys().cloned().collect();
-        
+
         if available_coops.len() < shards.len() {
-            return Err(CommonError::ValidationError("Insufficient cooperatives for storage".to_string()));
+            return Err(CommonError::ValidationError(
+                "Insufficient cooperatives for storage".to_string(),
+            ));
         }
-        
+
         // Simple round-robin selection (in production would consider geographic distribution, load, etc.)
         for i in 0..shards.len() {
             selected.push(available_coops[i % available_coops.len()].clone());
         }
-        
+
         Ok(selected)
     }
 
-    fn store_shard_at_cooperative(&self, _shard: &Shard, _coop_id: &CooperativeId) -> Result<(), CommonError> {
+    fn store_shard_at_cooperative(
+        &self,
+        _shard: &Shard,
+        _coop_id: &CooperativeId,
+    ) -> Result<(), CommonError> {
         // TODO: Implement actual shard storage
         Ok(())
     }
 
     fn find_shards_for_cid(&self, original_cid: &Cid) -> Result<Vec<ShardId>, CommonError> {
         let mut shard_ids = Vec::new();
-        
+
         // Find all shards for this CID
         for shard_id in self.shard_locations.keys() {
             if shard_id.0.starts_with(&original_cid.to_string()) {
                 shard_ids.push(shard_id.clone());
             }
         }
-        
+
         Ok(shard_ids)
     }
 
     fn retrieve_shard(&self, _shard_id: &ShardId) -> Result<Shard, CommonError> {
         // TODO: Implement actual shard retrieval
-        Err(CommonError::ValidationError("Shard retrieval not implemented".to_string()))
+        Err(CommonError::ValidationError(
+            "Shard retrieval not implemented".to_string(),
+        ))
     }
 
     fn generate_random_index(&self) -> Result<u64, CommonError> {
@@ -425,13 +466,13 @@ impl ArchiveCooperativeManager {
 
     fn remove_cooperative(&mut self, coop_id: &CooperativeId) -> Result<(), CommonError> {
         self.cooperatives.remove(coop_id);
-        
+
         // Remove all shard location references
         self.shard_locations.retain(|_, locations| {
             locations.retain(|id| id != coop_id);
             !locations.is_empty()
         });
-        
+
         Ok(())
     }
 
@@ -446,7 +487,11 @@ impl ArchiveCooperativeManager {
         hasher.finalize().to_vec()
     }
 
-    fn generate_parity_data(&self, _data: &[u8], _parity_index: u32) -> Result<Vec<u8>, CommonError> {
+    fn generate_parity_data(
+        &self,
+        _data: &[u8],
+        _parity_index: u32,
+    ) -> Result<Vec<u8>, CommonError> {
         // TODO: Implement Reed-Solomon parity generation
         // For now, return a simple XOR-based parity
         Ok(vec![0u8; 1024]) // Placeholder
@@ -459,10 +504,10 @@ pub struct StorageEconomics;
 impl StorageEconomics {
     /// Base costs for storage operations
     pub const BLOCK_PUT_COST: [(u64, f64); 4] = [
-        (1_024, 0.01),      // <1KB
-        (10_240, 0.1),      // 1-10KB
-        (102_400, 1.0),     // 10-100KB
-        (u64::MAX, 10.0),   // >100KB
+        (1_024, 0.01),    // <1KB
+        (10_240, 0.1),    // 1-10KB
+        (102_400, 1.0),   // 10-100KB
+        (u64::MAX, 10.0), // >100KB
     ];
 
     /// Calculate mana cost for storing a block

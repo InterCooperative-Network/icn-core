@@ -1786,7 +1786,7 @@ pub enum AutomationVotingResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Proposal, ProposalId, ProposalStatus, ProposalType, ProposalSponsorship};
+    use crate::{Proposal, ProposalId, ProposalSponsorship, ProposalStatus, ProposalType};
 
     use std::collections::HashMap;
 

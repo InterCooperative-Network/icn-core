@@ -18,7 +18,7 @@ fn open_voting_transitions_from_deliberation() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -46,7 +46,7 @@ fn vote_rejected_before_opening() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )

@@ -26,7 +26,7 @@ fn vote_tally_and_execute() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -84,7 +84,7 @@ fn reject_due_to_quorum() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -125,7 +125,7 @@ fn reject_due_to_threshold() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -170,7 +170,7 @@ fn auto_close_after_deadline() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -207,7 +207,7 @@ fn vote_fails_after_expiration() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -242,7 +242,7 @@ fn close_before_deadline_errors() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
@@ -279,7 +279,7 @@ fn member_removal_affects_outcome() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
-            timelock_delay: None,
+                timelock_delay: None,
             },
             &time_provider,
         )
