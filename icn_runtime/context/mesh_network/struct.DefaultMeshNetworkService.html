@@ -7,7 +7,7 @@
     signer: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn <a class="trait" href="../signers/trait.Signer.html" title="trait icn_runtime::context::signers::Signer">Signer</a>&gt;,
     federation_service: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn FederationMembershipService&gt;,
     did_resolver: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn DidResolver&gt;,
-    reputation_store: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn ReputationStore&gt;,
+    reputation_store: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/sync/struct.Arc.html" title="struct alloc::sync::Arc">Arc</a>&lt;dyn <a class="trait" href="../../../icn_reputation/trait.ReputationStore.html" title="trait icn_reputation::ReputationStore">ReputationStore</a>&gt;,
 ) -&gt; Self</h4></section></summary><div class="docblock"><p>Create an enhanced mesh network service with real federation and reputation services</p>
 </div></details><section id="method.get_underlying_broadcast_service" class="method"><a class="src rightside" href="../../../src/icn_runtime/context/mesh_network.rs.html#350-359">Source</a><h4 class="code-header">pub fn <a href="#method.get_underlying_broadcast_service" class="fn">get_underlying_broadcast_service</a>(
     &amp;self,
