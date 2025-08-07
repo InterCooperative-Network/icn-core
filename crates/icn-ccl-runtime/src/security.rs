@@ -5,7 +5,6 @@ use crate::federation::ContractScope;
 use icn_common::Did;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
-use sha2::Digest;
 
 /// Security capabilities that contracts can request
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -394,7 +393,11 @@ impl DeterminismEnforcer {
         
         let mut hasher = Sha256::new();
         hasher.update(seed);
-        hasher.update(&icn_common::current_timestamp().to_be_bytes());
+        hasher.update(&std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs()
+            .to_be_bytes());
         
         let hash = hasher.finalize();
         u64::from_be_bytes([

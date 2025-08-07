@@ -1,7 +1,8 @@
 //! Standard library contracts for democratic governance and economic coordination
 
 use icn_common::{Did, Cid, SystemTimeProvider, TimeProvider};
-use icn_governance::{ProposalType, Vote, ProposalStatus as ProposalState};
+use crate::current_timestamp;
+use icn_governance::{ProposalType, Vote, VoteOption, ProposalStatus as ProposalState};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, BTreeMap, HashSet};
 use std::time::SystemTime;
@@ -48,8 +49,8 @@ pub type Epoch = u64;
 pub struct DemocraticGovernanceContract {
     /// Active proposals
     proposals: HashMap<ProposalId, Proposal>,
-    /// Vote records: (proposal_id, voter_did) -> vote
-    votes: HashMap<(ProposalId, Did), Vote>,
+    /// Vote records: (proposal_id, voter_did) -> vote_option
+    votes: HashMap<(ProposalId, Did), VoteOption>,
     /// Member registry
     members: HashSet<Did>,
     /// Governance configuration
@@ -138,7 +139,7 @@ impl DemocraticGovernanceContract {
         // Check membership
         if !self.members.contains(&proposer) {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::CreateProposal
+                "Not a member of the governance system".to_string()
             ));
         }
         
@@ -161,7 +162,7 @@ impl DemocraticGovernanceContract {
             description,
             actions,
             voting_ends: self.current_epoch() + self.config.voting_period,
-            state: ProposalState::Active,
+            state: ProposalState::VotingOpen,
             votes_for: 0,
             votes_against: 0,
             votes_abstain: 0,
@@ -186,7 +187,7 @@ impl DemocraticGovernanceContract {
         // Check membership
         if !self.members.contains(&voter) {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::CreateProposal
+                "Not a member of the governance system".to_string()
             ));
         }
         
@@ -258,7 +259,7 @@ impl DemocraticGovernanceContract {
         
         // Check if proposal passed (simple majority of votes cast)
         if proposal.votes_for > (total_votes / 2) {
-            proposal.state = ProposalState::Passed;
+            proposal.state = ProposalState::Accepted;
             self.emit_event("ProposalPassed", &proposal_id);
             
             // Auto-execute safe actions
@@ -286,7 +287,7 @@ impl DemocraticGovernanceContract {
         let proposal = self.proposals.get_mut(&proposal_id)
             .ok_or_else(|| CclRuntimeError::ExecutionError("Proposal not found".to_string()))?;
         
-        if proposal.state != ProposalState::Passed {
+        if proposal.state != ProposalState::Accepted {
             return Err(CclRuntimeError::ExecutionError("Proposal not passed".to_string()));
         }
         
@@ -374,7 +375,7 @@ impl DemocraticGovernanceContract {
     /// List all active proposals
     pub fn list_active_proposals(&self) -> Vec<&Proposal> {
         self.proposals.values()
-            .filter(|p| p.state == ProposalState::Active)
+            .filter(|p| p.state == icn_governance::ProposalStatus::VotingOpen)
             .collect()
     }
     
@@ -462,7 +463,7 @@ impl MutualCreditContract {
         // Check membership
         if !self.members.contains(&creditor) || !self.members.contains(&debtor) {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::ModifyState
+                "Not a member of the mutual credit system".to_string()
             ));
         }
         
@@ -574,7 +575,7 @@ impl MutualCreditContract {
     }
     
     fn current_epoch(&self) -> Epoch {
-        icn_common::current_timestamp() / 86400
+        current_timestamp() / 86400
     }
     
     fn emit_event(&self, event_type: &str, data: &str) {
@@ -684,7 +685,7 @@ impl JobMarketplaceContract {
         // Check membership
         if !self.members.contains(&poster) {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::ModifyState
+                "Not a member of the job marketplace".to_string()
             ));
         }
         
@@ -728,7 +729,7 @@ impl JobMarketplaceContract {
         // Check membership
         if !self.members.contains(&bidder) {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::ModifyState
+                "Not a member of the job marketplace".to_string()
             ));
         }
         
@@ -774,7 +775,7 @@ impl JobMarketplaceContract {
         // Check if accepter is the job poster
         if job.poster != accepter {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::ModifyState
+                "Only job poster can accept bids".to_string()
             ));
         }
         
@@ -823,7 +824,7 @@ impl JobMarketplaceContract {
         // Check if executor matches
         if execution.executor != executor {
             return Err(CclRuntimeError::PermissionDenied(
-                crate::security::Capability::ModifyState
+                "Only assigned executor can complete jobs".to_string()
             ));
         }
         
@@ -861,7 +862,7 @@ impl JobMarketplaceContract {
     }
     
     fn current_epoch(&self) -> Epoch {
-        icn_common::current_timestamp() / 86400
+        current_timestamp() / 86400
     }
     
     fn emit_event(&self, event_type: &str, data: &str) {

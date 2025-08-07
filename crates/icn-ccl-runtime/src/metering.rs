@@ -1,6 +1,6 @@
 //! Economic metering and mana consumption for CCL contracts
 
-use crate::{CclRuntimeError, WasmCode};
+use crate::{CclRuntimeError, WasmCode, current_timestamp};
 use icn_common::Did;
 use icn_economics::{ResourceLedger, TokenClass, FileResourceLedger};
 use serde::{Deserialize, Serialize};
@@ -222,7 +222,7 @@ impl ManaMetering {
         
         user_stats.total_mana_consumed += consumed;
         user_stats.total_mana_refunded += refunded;
-        user_stats.last_activity = icn_common::current_timestamp();
+        user_stats.last_activity = current_timestamp();
         
         // Update average execution cost
         if user_stats.total_function_calls > 0 {

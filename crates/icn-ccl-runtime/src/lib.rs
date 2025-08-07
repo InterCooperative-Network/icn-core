@@ -197,7 +197,7 @@ impl CclRuntime {
             code_hash: hex::encode(sha2::Sha256::digest(&code)),
             deployer,
             scope,
-            timestamp: icn_common::current_timestamp(),
+            timestamp: crate::current_timestamp(),
             state: ContractState::Active,
             resource_limits: self.security.default_resource_limits.clone(),
             capabilities: self.security.default_capabilities.clone(),
@@ -314,7 +314,7 @@ impl CclRuntime {
         let mut hasher = sha2::Sha256::new();
         hasher.update(code);
         hasher.update(deployer.to_string().as_bytes());
-        hasher.update(&icn_common::current_timestamp().to_be_bytes());
+        hasher.update(&crate::current_timestamp().to_be_bytes());
         format!("contract_{}", hex::encode(hasher.finalize())[..16].to_string())
     }
 }
@@ -349,4 +349,9 @@ mod tests {
         // Should fail due to mana balance check
         assert!(result.is_err());
     }
+}
+
+/// Helper function to get current timestamp
+pub fn current_timestamp() -> u64 {
+    SystemTimeProvider.unix_seconds()
 }

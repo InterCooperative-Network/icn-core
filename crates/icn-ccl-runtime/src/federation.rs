@@ -34,9 +34,9 @@ pub enum ContractScope {
 
 impl ContractScope {
     /// Check if a DID can access a contract with this scope
-    pub fn can_access(&self, caller: &Did, caller_federation: Option<&FederationId>) -> bool {
+    pub fn can_access(&self, _caller: &Did, caller_federation: Option<&FederationId>) -> bool {
         match self {
-            ContractScope::Local(org_id) => {
+            ContractScope::Local(_org_id) => {
                 // TODO: Check organization membership
                 true // Placeholder
             }
@@ -51,7 +51,7 @@ impl ContractScope {
     /// Check if reading contract state is allowed
     pub fn can_read(&self, reader: &Did, reader_federation: Option<&FederationId>) -> bool {
         match self {
-            ContractScope::Local(org_id) => {
+            ContractScope::Local(_org_id) => {
                 // More permissive for reading - allow federation members
                 reader_federation.is_some() || self.can_access(reader, reader_federation)
             }
@@ -241,7 +241,7 @@ impl CrossFederationProtocol {
     }
     
     /// Check if a DID can make cross-federation calls
-    fn can_make_cross_fed_call(&self, caller: &Did, target_federation: &FederationId) -> bool {
+    fn can_make_cross_fed_call(&self, _caller: &Did, _target_federation: &FederationId) -> bool {
         // TODO: Implement proper permission checking
         // Check:
         // - Caller has CrossFederationCall capability
@@ -330,7 +330,7 @@ impl CrossFederationProtocol {
     /// Verify signatures on incoming request
     fn verify_request_signatures(
         &self,
-        request: &CrossFedRequest,
+        _request: &CrossFedRequest,
         signatures: &[ValidatorSignature],
     ) -> Result<(), CclRuntimeError> {
         // TODO: Implement signature verification

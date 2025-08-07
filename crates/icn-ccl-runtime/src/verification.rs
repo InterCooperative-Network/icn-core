@@ -1,6 +1,6 @@
 //! Formal verification and property testing for CCL contracts
 
-use crate::{CclRuntimeError, ContractAddress};
+use crate::{CclRuntimeError, ContractAddress, current_timestamp};
 use icn_common::Did;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, BTreeSet};
@@ -433,7 +433,7 @@ impl InvariantChecker {
                     invariant_name: invariant.name.clone(),
                     passed: true,
                     violation_details: None,
-                    check_timestamp: icn_common::current_timestamp(),
+                    check_timestamp: current_timestamp(),
                 },
             };
             
@@ -466,7 +466,7 @@ impl InvariantChecker {
                     invariant_name: invariant.name.clone(),
                     passed: true,
                     violation_details: None,
-                    check_timestamp: icn_common::current_timestamp(),
+                    check_timestamp: current_timestamp(),
                 },
             };
             
@@ -489,7 +489,7 @@ impl InvariantChecker {
             invariant_name: invariant.name.clone(),
             passed: true,
             violation_details: None,
-            check_timestamp: icn_common::current_timestamp(),
+            check_timestamp: current_timestamp(),
         }
     }
     
@@ -506,7 +506,7 @@ impl InvariantChecker {
             invariant_name: invariant.name.clone(),
             passed: true,
             violation_details: None,
-            check_timestamp: icn_common::current_timestamp(),
+            check_timestamp: current_timestamp(),
         }
     }
     
@@ -523,7 +523,7 @@ impl InvariantChecker {
             invariant_name: invariant.name.clone(),
             passed: true,
             violation_details: None,
-            check_timestamp: icn_common::current_timestamp(),
+            check_timestamp: current_timestamp(),
         }
     }
 }
@@ -550,7 +550,7 @@ impl FormalVerifier {
         contract_address: ContractAddress,
         contract_type: ContractType,
     ) -> Result<VerificationReport, CclRuntimeError> {
-        let timestamp = icn_common::current_timestamp();
+        let timestamp = current_timestamp();
         
         // Perform static analysis
         let static_analysis = self.static_analyzer.analyze_contract(&contract_address)?;

@@ -1,6 +1,6 @@
 //! Contract execution engine with WASM sandboxing and resource limits
 
-use crate::{CclRuntimeError, ContractAddress, ContractEvent, WasmCode};
+use crate::{CclRuntimeError, ContractAddress, ContractEvent, WasmCode, current_timestamp};
 use crate::security::{ResourceLimits, SecurityConfig};
 use crate::federation::ContractScope;
 use icn_common::Did;
