@@ -342,7 +342,7 @@ impl FederationSyncManager {
 
             return Ok(Some(NetworkPartition {
                 detected_at: self.current_time(),
-                our_partition,
+                our_partition: our_partition.clone(),
                 other_partitions,
                 estimated_size_ratio: our_partition.size as f64 / total_peers as f64,
             }));

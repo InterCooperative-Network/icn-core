@@ -147,13 +147,13 @@ pub struct ArchiveCooperativeManager {
     cooperatives: HashMap<CooperativeId, ArchiveCooperative>,
     shard_locations: HashMap<ShardId, Vec<CooperativeId>>,
     erasure_config: ErasureCoding,
-    storage: Arc<dyn StorageService>,
+    storage: Arc<dyn StorageService<DagBlock>>,
     active_challenges: HashMap<ShardId, Challenge>,
 }
 
 impl ArchiveCooperativeManager {
     /// Create a new archive cooperative manager
-    pub fn new(storage: Arc<dyn StorageService>) -> Self {
+    pub fn new(storage: Arc<dyn StorageService<DagBlock>>) -> Self {
         Self {
             cooperatives: HashMap::new(),
             shard_locations: HashMap::new(),
@@ -260,17 +260,21 @@ impl ArchiveCooperativeManager {
     /// Process failed storage challenge (slash cooperative)
     pub fn process_failed_challenge(&mut self, shard_id: &ShardId) -> Result<(), CommonError> {
         // Find the cooperative responsible for this shard
-        if let Some(cooperative_ids) = self.shard_locations.get(shard_id) {
-            for coop_id in cooperative_ids {
-                if let Some(cooperative) = self.cooperatives.get_mut(coop_id) {
-                    // Slash insurance pool
-                    let slashing_amount = cooperative.insurance_pool.amount * 0.1; // 10% slash
-                    cooperative.insurance_pool.amount -= slashing_amount;
-                    
-                    // If insurance pool depleted, remove cooperative
-                    if cooperative.insurance_pool.amount < 1.0 {
-                        self.remove_cooperative(coop_id)?;
-                    }
+        let cooperative_ids: Vec<CooperativeId> = if let Some(ids) = self.shard_locations.get(shard_id) {
+            ids.clone()
+        } else {
+            Vec::new()
+        };
+
+        for coop_id in cooperative_ids {
+            if let Some(cooperative) = self.cooperatives.get_mut(&coop_id) {
+                // Slash insurance pool
+                let slashing_amount = cooperative.insurance_pool.amount * 0.1; // 10% slash
+                cooperative.insurance_pool.amount -= slashing_amount;
+                
+                // If insurance pool depleted, remove cooperative
+                if cooperative.insurance_pool.amount < 1.0 {
+                    self.remove_cooperative(&coop_id)?;
                 }
             }
         }
@@ -403,7 +407,7 @@ impl ArchiveCooperativeManager {
 
     fn calculate_shard_merkle_root(&self, _shard_id: &ShardId) -> Result<Cid, CommonError> {
         // TODO: Calculate actual merkle root for shard
-        Ok(Cid::default())
+        Ok(Cid::new_v1_sha256(0x55, b"shard_placeholder")) // 0x55 is Raw codec
     }
 
     fn current_timestamp(&self) -> u64 {

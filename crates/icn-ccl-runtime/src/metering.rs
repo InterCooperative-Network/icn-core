@@ -2,9 +2,10 @@
 
 use crate::{CclRuntimeError, WasmCode, current_timestamp};
 use icn_common::Did;
-use icn_economics::{ResourceLedger, TokenClass, FileResourceLedger};
+use icn_economics::{ResourceLedger, TokenClass, TokenClassId, TokenType, TransferabilityRule, ScopingRules, FileResourceLedger};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 use parking_lot::RwLock;
 
@@ -48,7 +49,7 @@ impl Default for MeteringConfig {
 pub struct ManaMetering {
     config: MeteringConfig,
     resource_ledger: Arc<RwLock<dyn ResourceLedger + Send + Sync>>,
-    mana_token_class: TokenClass,
+    mana_token_class_id: TokenClassId,
     usage_stats: Arc<RwLock<HashMap<Did, UsageStats>>>,
 }
 
@@ -71,24 +72,40 @@ impl ManaMetering {
     
     /// Create with custom configuration
     pub fn with_config(config: MeteringConfig) -> Self {
+        let mana_token_class_id = "mana".to_string();
+        
         // Create mana token class with anti-speculation rules
         let mana_token_class = TokenClass {
-            id: "mana".to_string(),
             name: "Computational Mana".to_string(),
             description: "Resource tokens for contract execution".to_string(),
-            total_supply: 0, // Unlimited supply, minted as needed
-            anti_speculation_rules: Some(icn_economics::AntiSpeculationRules {
-                demurrage_rate: 0.0, // No demurrage for mana
-                velocity_limit: None, // No velocity limits
-                purpose_locks: vec!["computation".to_string()], // Only for computation
-                grace_period_epochs: 0,
+            symbol: "MANA".to_string(),
+            decimals: 0,
+            token_type: TokenType::Fungible,
+            transferability: TransferabilityRule::NonTransferable,
+            scoping_rules: ScopingRules {
+                geographic_scope: None,
+                community_scope: None,
+                validity_period: None,
+                max_supply: None,
+                min_balance: None,
+            },
+            anti_speculation: Some(icn_economics::AntiSpeculationRules {
+                demurrage_rate: None, // No demurrage for mana
+                velocity_limits: None, // No velocity limits
+                purpose_locks: Some(vec!["computation".to_string()]), // Only for computation
+                demurrage_grace_period: None,
             }),
+            issuer: icn_common::Did::new("key", "system"),
+            created_at: current_timestamp(),
+            metadata: std::collections::HashMap::new(),
         };
+        
+        // TODO: Register token class with the ledger
         
         Self {
             config,
-            resource_ledger: Arc::new(RwLock::new(FileResourceLedger::new())),
-            mana_token_class,
+            resource_ledger: Arc::new(RwLock::new(FileResourceLedger::new(PathBuf::from("mana_ledger.json")).unwrap())),
+            mana_token_class_id,
             usage_stats: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -128,7 +145,7 @@ impl ManaMetering {
     /// Check if a DID has sufficient mana balance
     pub fn check_mana_balance(&self, did: &Did, required: Mana) -> Result<(), CclRuntimeError> {
         let ledger = self.resource_ledger.read();
-        let balance = ledger.get_token_balance(did, &self.mana_token_class.id).unwrap_or(0);
+        let balance = ledger.get_balance(&self.mana_token_class_id, did);
         
         if balance < required {
             Err(CclRuntimeError::InsufficientMana {
@@ -145,7 +162,7 @@ impl ManaMetering {
         let mut ledger = self.resource_ledger.write();
         
         // Check balance first
-        let current_balance = ledger.get_token_balance(did, &self.mana_token_class.id).unwrap_or(0);
+        let current_balance = ledger.get_balance(&self.mana_token_class_id, did);
         if current_balance < amount {
             return Err(CclRuntimeError::InsufficientMana {
                 required: amount,
@@ -154,7 +171,7 @@ impl ManaMetering {
         }
         
         // Burn mana tokens (consumption)
-        ledger.burn_tokens(did, &self.mana_token_class.id, amount)
+        ledger.burn(&self.mana_token_class_id, did, amount)
             .map_err(|e| CclRuntimeError::ExecutionError(format!("Failed to charge mana: {}", e)))?;
         
         // Update usage statistics
@@ -175,7 +192,7 @@ impl ManaMetering {
             let mut ledger = self.resource_ledger.write();
             
             // Mint refund tokens
-            ledger.mint_tokens(did, &self.mana_token_class.id, refund_amount)
+            ledger.mint(&self.mana_token_class_id, did, refund_amount)
                 .map_err(|e| CclRuntimeError::ExecutionError(format!("Failed to refund mana: {}", e)))?;
             
             // Update usage statistics
@@ -188,14 +205,14 @@ impl ManaMetering {
     /// Get mana balance for a DID
     pub fn get_mana_balance(&self, did: &Did) -> Result<Mana, CclRuntimeError> {
         let ledger = self.resource_ledger.read();
-        Ok(ledger.get_token_balance(did, &self.mana_token_class.id).unwrap_or(0))
+        Ok(ledger.get_balance(&self.mana_token_class_id, did))
     }
     
     /// Mint initial mana for a new member
     pub fn mint_initial_mana(&self, did: &Did, amount: Mana) -> Result<(), CclRuntimeError> {
         let mut ledger = self.resource_ledger.write();
         
-        ledger.mint_tokens(did, &self.mana_token_class.id, amount)
+        ledger.mint(&self.mana_token_class_id, did, amount)
             .map_err(|e| CclRuntimeError::ExecutionError(format!("Failed to mint initial mana: {}", e)))?;
         
         Ok(())

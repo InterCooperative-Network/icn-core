@@ -2,7 +2,7 @@
 
 use icn_common::{Did, Cid, SystemTimeProvider, TimeProvider};
 use crate::current_timestamp;
-use icn_governance::{ProposalType, Vote, VoteOption, ProposalStatus as ProposalState};
+use icn_governance::{ProposalType, Vote, VoteOption, ProposalStatus};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, BTreeMap, HashSet};
 use std::time::SystemTime;
@@ -67,7 +67,7 @@ pub struct Proposal {
     pub description: String,
     pub actions: Vec<ProposalAction>,
     pub voting_ends: Epoch,
-    pub state: ProposalState,
+    pub state: ProposalStatus,
     pub votes_for: u32,
     pub votes_against: u32,
     pub votes_abstain: u32,
@@ -162,7 +162,7 @@ impl DemocraticGovernanceContract {
             description,
             actions,
             voting_ends: self.current_epoch() + self.config.voting_period,
-            state: ProposalState::VotingOpen,
+            state: ProposalStatus::VotingOpen,
             votes_for: 0,
             votes_against: 0,
             votes_abstain: 0,
@@ -196,7 +196,7 @@ impl DemocraticGovernanceContract {
             .ok_or_else(|| CclRuntimeError::ExecutionError("Proposal not found".to_string()))?;
         
         // Check if proposal is still active
-        if proposal.state != ProposalState::Active {
+        if proposal.state != ProposalStatus::VotingOpen {
             return Err(CclRuntimeError::ExecutionError("Proposal not active".to_string()));
         }
         
@@ -211,18 +211,18 @@ impl DemocraticGovernanceContract {
         // Remove previous vote if exists
         if let Some(old_vote) = self.votes.get(&vote_key) {
             match old_vote {
-                Vote::Yes => proposal.votes_for -= 1,
-                Vote::No => proposal.votes_against -= 1,
-                Vote::Abstain => proposal.votes_abstain -= 1,
+                VoteOption::Yes => proposal.votes_for -= 1,
+                VoteOption::No => proposal.votes_against -= 1,
+                VoteOption::Abstain => proposal.votes_abstain -= 1,
             }
         }
         
         // Add new vote
-        self.votes.insert(vote_key, vote.clone());
-        match vote {
-            Vote::Yes => proposal.votes_for += 1,
-            Vote::No => proposal.votes_against += 1,
-            Vote::Abstain => proposal.votes_abstain += 1,
+        self.votes.insert(vote_key, vote.option);
+        match vote.option {
+            VoteOption::Yes => proposal.votes_for += 1,
+            VoteOption::No => proposal.votes_against += 1,
+            VoteOption::Abstain => proposal.votes_abstain += 1,
         }
         
         // Emit event
@@ -233,16 +233,19 @@ impl DemocraticGovernanceContract {
     
     /// Finalize a proposal after voting period
     pub fn finalize_proposal(&mut self, proposal_id: ProposalId) -> Result<(), CclRuntimeError> {
+        // Get current epoch first to avoid borrow conflicts
+        let current_epoch = self.current_epoch();
+        
         let proposal = self.proposals.get_mut(&proposal_id)
             .ok_or_else(|| CclRuntimeError::ExecutionError("Proposal not found".to_string()))?;
         
         // Check if voting period has ended
-        if self.current_epoch() <= proposal.voting_ends {
+        if current_epoch <= proposal.voting_ends {
             return Err(CclRuntimeError::ExecutionError("Voting period not ended".to_string()));
         }
         
         // Check if proposal is still active
-        if proposal.state != ProposalState::Active {
+        if proposal.state != ProposalStatus::VotingOpen {
             return Err(CclRuntimeError::ExecutionError("Proposal already finalized".to_string()));
         }
         
@@ -252,24 +255,31 @@ impl DemocraticGovernanceContract {
         
         // Check quorum
         if total_votes < required_quorum {
-            proposal.state = ProposalState::Failed;
+            proposal.state = ProposalStatus::Failed;
             self.emit_event("ProposalFailed", &format!("{}:quorum_not_met", proposal_id));
             return Ok(());
         }
         
         // Check if proposal passed (simple majority of votes cast)
         if proposal.votes_for > (total_votes / 2) {
-            proposal.state = ProposalState::Accepted;
-            self.emit_event("ProposalPassed", &proposal_id);
+            proposal.state = ProposalStatus::Accepted;
+            
+            // Clone actions to avoid borrow conflicts
+            let actions = proposal.actions.clone();
             
             // Auto-execute safe actions
-            if proposal.actions.iter().all(|a| self.is_safe_action(a)) {
-                self.execute_proposal_actions(&proposal.actions)?;
-                proposal.state = ProposalState::Executed;
+            if actions.iter().all(|a| self.is_safe_action(a)) {
+                self.emit_event("ProposalPassed", &proposal_id);
+                self.execute_proposal_actions(&actions)?;
+                // Get the proposal again since we've released the borrow
+                let proposal = self.proposals.get_mut(&proposal_id).unwrap();
+                proposal.state = ProposalStatus::Executed;
                 self.emit_event("ProposalExecuted", &proposal_id);
+            } else {
+                self.emit_event("ProposalPassed", &proposal_id);
             }
         } else {
-            proposal.state = ProposalState::Failed;
+            proposal.state = ProposalStatus::Failed;
             self.emit_event("ProposalFailed", &format!("{}:rejected", proposal_id));
         }
         
@@ -284,21 +294,29 @@ impl DemocraticGovernanceContract {
     ) -> Result<(), CclRuntimeError> {
         // TODO: Check execution permissions
         
+        // Get current epoch first to avoid borrow conflicts
+        let current_epoch = self.current_epoch();
+        
         let proposal = self.proposals.get_mut(&proposal_id)
             .ok_or_else(|| CclRuntimeError::ExecutionError("Proposal not found".to_string()))?;
         
-        if proposal.state != ProposalState::Accepted {
+        if proposal.state != ProposalStatus::Accepted {
             return Err(CclRuntimeError::ExecutionError("Proposal not passed".to_string()));
         }
         
         // Check execution delay
         let execution_time = proposal.voting_ends + self.config.execution_delay;
-        if self.current_epoch() < execution_time {
+        if current_epoch < execution_time {
             return Err(CclRuntimeError::ExecutionError("Execution delay not met".to_string()));
         }
         
-        self.execute_proposal_actions(&proposal.actions)?;
-        proposal.state = ProposalState::Executed;
+        // Clone actions to avoid borrow conflicts
+        let actions = proposal.actions.clone();
+        self.execute_proposal_actions(&actions)?;
+        
+        // Get the proposal again since we've released the borrow
+        let proposal = self.proposals.get_mut(&proposal_id).unwrap();
+        proposal.state = ProposalStatus::Executed;
         
         self.emit_event("ProposalExecuted", &proposal_id);
         
@@ -817,6 +835,9 @@ impl JobMarketplaceContract {
         executor: Did,
         deliverables: Vec<Cid>,
     ) -> Result<(), CclRuntimeError> {
+        // Get current time first to avoid borrow conflicts
+        let current_time = self.current_epoch();
+        
         // Get execution record
         let execution = self.executions.get_mut(&job_id)
             .ok_or_else(|| CclRuntimeError::ExecutionError("Job execution not found".to_string()))?;
@@ -829,7 +850,6 @@ impl JobMarketplaceContract {
         }
         
         // Update execution
-        let current_time = self.current_epoch();
         execution.completed_at = Some(current_time);
         execution.deliverables = deliverables;
         execution.status = ExecutionStatus::Completed;
@@ -906,7 +926,7 @@ mod tests {
         
         let proposal = governance.get_proposal(&proposal_id).unwrap();
         assert_eq!(proposal.title, "Test Proposal");
-        assert_eq!(proposal.state, ProposalState::Active);
+        assert_eq!(proposal.state, ProposalStatus::VotingOpen);
     }
     
     #[test]

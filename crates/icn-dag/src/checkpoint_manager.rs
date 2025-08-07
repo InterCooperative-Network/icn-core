@@ -196,7 +196,7 @@ pub struct Checkpoint {
 /// Checkpoint Manager Implementation
 pub struct CheckpointManager {
     federation_id: FederationId,
-    storage: Arc<dyn StorageService>,
+    storage: Arc<dyn StorageService<DagBlock>>,
     validators: Vec<ValidatorId>,
     current_epoch: u64,
     last_checkpoint: Option<CheckpointId>,
@@ -208,7 +208,7 @@ impl CheckpointManager {
     /// Create a new checkpoint manager
     pub fn new(
         federation_id: FederationId,
-        storage: Arc<dyn StorageService>,
+        storage: Arc<dyn StorageService<DagBlock>>,
         validators: Vec<ValidatorId>,
     ) -> Self {
         Self {
@@ -256,9 +256,9 @@ impl CheckpointManager {
             checkpoint_id: checkpoint_id.clone(),
             federation_id: self.federation_id.clone(),
             epoch: self.current_epoch,
-            state_root,
+            state_root: state_root.clone(),
             prev_checkpoint,
-            dag_root,
+            dag_root: dag_root.clone(),
             economic_summary,
             governance_summary,
             membership_root,
@@ -360,7 +360,8 @@ impl CheckpointManager {
 
     fn build_dag_merkle_tree(&self, blocks: &[DagBlock]) -> Result<Cid, CommonError> {
         if blocks.is_empty() {
-            return Ok(Cid::default());
+            // Create an empty placeholder CID for empty blocks
+            return Ok(Cid::new_v1_sha256(0x55, b"empty")); // 0x55 is Raw codec
         }
 
         let mut hasher = Sha256::new();
@@ -369,7 +370,7 @@ impl CheckpointManager {
         }
         let hash = hasher.finalize();
         
-        Ok(Cid::from_hash(hash.to_vec()))
+        Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
     fn calculate_state_root(&self) -> Result<Cid, CommonError> {
@@ -378,7 +379,7 @@ impl CheckpointManager {
         let mut hasher = Sha256::new();
         hasher.update(format!("state:{}", self.current_epoch).as_bytes());
         let hash = hasher.finalize();
-        Ok(Cid::from_hash(hash.to_vec()))
+        Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
     fn summarize_economics(&self, _blocks: &[DagBlock]) -> Result<EconomicSummary, CommonError> {
@@ -396,7 +397,7 @@ impl CheckpointManager {
         let mut hasher = Sha256::new();
         hasher.update(format!("members:{}", self.current_epoch).as_bytes());
         let hash = hasher.finalize();
-        Ok(Cid::from_hash(hash.to_vec()))
+        Ok(Cid::new_v1_sha256(0x55, &hash)) // 0x55 is Raw codec
     }
 
     fn calculate_federation_balances(&self) -> Result<(HashMap<FederationId, Debt>, HashMap<FederationId, Credit>), CommonError> {
