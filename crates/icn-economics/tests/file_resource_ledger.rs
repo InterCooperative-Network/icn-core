@@ -27,6 +27,7 @@ fn file_resource_ledger_persists() {
                     max_supply: None,
                     min_balance: None,
                 },
+                anti_speculation: None,
                 issuer: Did::from_str("did:example:issuer").unwrap(),
                 created_at: 0,
                 metadata: std::collections::HashMap::new(),

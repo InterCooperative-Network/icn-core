@@ -113,6 +113,47 @@ impl ResourceLedger for InMemoryResourceLedger {
     ) -> Vec<icn_economics::TransferRecord> {
         Vec::new()
     }
+
+    /// Apply demurrage to all accounts in a token class with demurrage rules
+    fn apply_demurrage(&self, _class_id: &String, _current_time: u64) -> Result<u64, icn_common::CommonError> {
+        Ok(0)
+    }
+
+    /// Check if a transfer violates velocity limits
+    fn check_velocity_limits(
+        &self,
+        _class_id: &String,
+        _from: &Did,
+        _amount: u64,
+        _current_time: u64,
+    ) -> Result<bool, icn_common::CommonError> {
+        Ok(true)
+    }
+
+    /// Verify if token redemption is allowed for specified purpose
+    fn check_purpose_lock(
+        &self,
+        _class_id: &String,
+        _purpose: &str,
+    ) -> Result<bool, icn_common::CommonError> {
+        Ok(true)
+    }
+
+    /// Get transfer tracker for velocity limit enforcement
+    fn get_transfer_tracker(&self, _class_id: &String, _did: &Did) -> Option<icn_economics::TransferTracker> {
+        None
+    }
+
+    /// Update transfer tracker after a successful transfer
+    fn update_transfer_tracker(
+        &self,
+        _class_id: &String,
+        _did: &Did,
+        _amount: u64,
+        _current_time: u64,
+    ) -> Result<(), icn_common::CommonError> {
+        Ok(())
+    }
 }
 
 #[test]

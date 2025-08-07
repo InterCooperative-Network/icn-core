@@ -129,6 +129,47 @@ mod scoped_token_tests {
                 .cloned()
                 .unwrap_or_default()
         }
+
+        /// Apply demurrage to all accounts in a token class with demurrage rules
+        fn apply_demurrage(&self, _class_id: &String, _current_time: u64) -> Result<u64, CommonError> {
+            Ok(0)
+        }
+
+        /// Check if a transfer violates velocity limits
+        fn check_velocity_limits(
+            &self,
+            _class_id: &String,
+            _from: &Did,
+            _amount: u64,
+            _current_time: u64,
+        ) -> Result<bool, CommonError> {
+            Ok(true)
+        }
+
+        /// Verify if token redemption is allowed for specified purpose
+        fn check_purpose_lock(
+            &self,
+            _class_id: &String,
+            _purpose: &str,
+        ) -> Result<bool, CommonError> {
+            Ok(true)
+        }
+
+        /// Get transfer tracker for velocity limit enforcement
+        fn get_transfer_tracker(&self, _class_id: &String, _did: &Did) -> Option<crate::TransferTracker> {
+            None
+        }
+
+        /// Update transfer tracker after a successful transfer
+        fn update_transfer_tracker(
+            &self,
+            _class_id: &String,
+            _did: &Did,
+            _amount: u64,
+            _current_time: u64,
+        ) -> Result<(), CommonError> {
+            Ok(())
+        }
     }
 
     // Helper struct for in-memory mana ledger for testing
