@@ -13,6 +13,23 @@ This protocol assumes that **every actor is potentially adversarial until crypto
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Implemented
+- DID-signed HTTP auth and message signatures
+- Sandboxed execution, capability checks in runtime
+- Basic rate limiting via mana; minimal network hardening (libp2p)
+
+### 0.2 Pending Extensions
+- End-to-end encryption defaults at protocol level beyond libp2p
+- Zero-knowledge flows as defaults for sensitive ops
+- Formal incident response and emergency governance hooks
+
+### 0.3 Mappings
+- Crates: `icn-runtime`, `icn-network`, `icn-identity`, `icn-governance`
+
+---
+
 ## 1. Core Security Principles
 
 ### 1.1 Adversarial by Default, Cooperative by Design

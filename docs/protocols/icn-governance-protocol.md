@@ -11,6 +11,30 @@ Every governance action creates an immutable DAG record, ensuring transparency a
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Scopes & Models
+- Local org proposals and voting; federation-level proposals in basic form
+- Voting models implemented: simple majority; ranked choice is experimental
+
+### 0.2 Operations
+- Create proposal, open/close voting, cast vote, tally, expire
+- Quorum/thresholds configurable per proposal type
+
+### 0.3 Persistence & Audit
+- Proposals and votes recorded to DAG; basic indexing available
+
+### 0.4 Pending Extensions
+- Liquid democracy/delegation at scale
+- Working groups with scoped permissions and nested scopes
+- Privacy-preserving voting as default (ZK tally)
+- Cross-federation proposal routing with conflict resolution
+
+### 0.5 Mappings
+- Crates: `icn-governance`, `icn-api::governance_trait`, DAG write via `icn-dag`
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Democratic Equality

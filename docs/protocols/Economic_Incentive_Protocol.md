@@ -9,7 +9,23 @@ The InterCooperative Network (ICN) implements a novel economic protocol that rec
 
 The protocol introduces **mana** as a regenerative computational credit that reflects actual resource contribution to the network, preventing speculation while enabling fair resource allocation. Organizations are differentiated by function—**Cooperatives** as economic engines, **Communities** as governance infrastructure, and **Federations** as coordination bridges—each with tailored incentive structures that align with their social purpose.
 
-**Critically, voting rights in the ICN are based on membership, not economic assets.** While membership may be represented by non-transferable credentials, the network ensures that democratic participation is never contingent upon wealth accumulation. This fundamental principle prevents plutocratic capture while maintaining robust anti-spam mechanisms through nominal mana fees.
+**Critically, voting rights in the ICN are based on membership, not economic assets.** While membership may be represented by non-transferable credentials, the network ensures that democratic participation is never contingent upon wealth accumulation. This fundamental principle prevents plutocratic capture while maintaining robust anti-spam mechanisms through nominal mana fees. In the mesh compute lifecycle, mana serves strictly as a metering and anti-spam mechanism for submitters; executors are incentivized through reputation/trust increases and access privileges, not direct mana payouts.
+
+---
+
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Implemented
+- Mana: balances, regeneration, charging/refunds; policy hooks
+- Basic token primitives for resource accounting; ledgers (file/sled/sqlite/rocks)
+
+### 0.2 Pending Extensions
+- Full demurrage/token policy contracts via CCL
+- Insurance pools, slashing frameworks, and dispute resolution
+- Federation treasury mechanics and budgeting at scale
+
+### 0.3 Mappings
+- Crates: `icn-economics` (mana, ledgers), governance coupling in `icn-governance`
 
 ---
 
@@ -23,7 +39,7 @@ The protocol introduces **mana** as a regenerative computational credit that ref
 ### 1.2 Resource-Anchored Economics
 - All economic value derives from verifiable computational contribution
 - No speculative tokens or arbitrary value creation
-- Resource credits (mana) regenerate based on actual capacity and participation
+- Resource credits (mana) are non-transferable: they regenerate based on capacity and are minted as earned credits for verified contributions
 
 ### 1.3 Democratic Autonomy
 - Organizations self-govern through transparent, auditable contracts
@@ -76,6 +92,23 @@ pub trait MembershipGovernance {
 - Validate governance participation without vote disclosure
 
 ### 2.3 Trust Score Computation
+## 3. Mana Accounting and Issuance
+
+### 3.1 Mana Characteristics
+- Non-transferable, per-account capacity credit
+- Two sources: regeneration (policy-driven) and earned credits (via contribution)
+- Spent by submitters for metered operations (jobs, storage writes, governance ops as configured)
+
+### 3.2 Earned Mana Credits (Executors)
+- On verified job completion, executors receive minted mana credits proportional to measured contribution
+- Disputed completions may receive reduced or zero credits based on consensus
+- Credits affect available capacity and can increase regeneration multipliers via policy
+
+### 3.3 Policy Hooks
+- Regen multiplier: function of reputation and recent contribution
+- Temporary capacity bonus: function of recent earned mana
+- Governance may set sector-specific weights (e.g., GPU heavy tasks)
+
 
 ```
 Trust Multiplier β = f(credential_weight, execution_history, governance_participation, federation_endorsements)

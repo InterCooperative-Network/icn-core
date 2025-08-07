@@ -11,6 +11,35 @@ Every identity operation—from DID creation to credential issuance to revocatio
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Entities
+- DID and DIDDocument (W3C-aligned with ICN extensions)
+- VerifiableCredential (basic issue/verify)
+- Delegated/Capability credentials (experimental)
+
+### 0.2 Operations
+- Register DID, resolve DID
+- Issue credential, verify credential
+- Optional: basic revocation via credential status field (global registries deferred)
+
+### 0.3 Security
+- DID-signed HTTP requests (node APIs)
+- Message signatures for P2P
+- ZK verification: experimental; non-normative in v1
+
+### 0.4 Pending Extensions
+- Soul-bound membership credential schema finalization
+- ZK selective disclosure flows as defaults
+- Social recovery workflows and DID key custody policies
+- Network-wide revocation registries and proofs of non-revocation
+
+### 0.5 Mappings
+- Crates: `icn-identity`, `icn-api::identity_trait`, `icn-protocol`
+- Auth: See ICN Core API Contracts Guide for DID auth header format
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Self-Sovereignty

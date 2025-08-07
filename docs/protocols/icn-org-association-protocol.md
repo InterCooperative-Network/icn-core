@@ -13,6 +13,48 @@ Unlike traditional platforms that extract value through centralized control, ICN
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+This section defines the minimal, implementation-aligned v1 of the Organizational Role & Association Protocol as it exists in the codebase today. More expansive (aspirational) material remains below and is treated as planned v2 extensions.
+
+### 0.1 Entities
+- **Federation**: Organizational aggregation unit with membership policy and basic metadata. Backed by `icn-identity`.
+- **CooperativeProfile**: Public profile for cooperative organizations (searchable metadata), stored via identity/DAG services.
+- **DID**: All entities identified by DIDs.
+
+### 0.2 Membership Policies
+- Normative (implemented): `Open` membership.
+- Reserved (spec only, not yet implemented): `InviteOnly`, `AdminApproval`, `Consensus`, `Custom{...}`.
+
+### 0.3 Member Status
+- Defined enums exist for `Active`, `Pending`, `Suspended`, `Left`, `Removed`. Flows beyond `Active` for open membership are non-normative in v1.
+
+### 0.4 HTTP API Surface
+- Federation Management:
+  - `POST /api/v1/federation/join` with `{ peer: string }` → join an open federation via a known peer.
+  - `POST /api/v1/federation/leave` with `{ peer: string }` → leave the federation.
+- Cooperative Registry:
+  - Register/search/get profile endpoints are provided for cooperative discovery and capability lookup.
+
+These map to the `icn-api` traits and TypeScript SDK. Nodes MUST require DID-based authentication as defined in the global API guide.
+
+### 0.5 Minimal Flows
+- Federation creation by admin DID with metadata and `membership_policy: Open`.
+- Open join: DID resolves → policy check passes → member is added with default role `member` and default reputation, capabilities recorded.
+- Leave federation: DID removed from member set.
+
+### 0.6 Pending Extensions
+- Invitation workflows (issue/accept/revoke invites).
+- Admin or consensus approval for membership.
+- Role elevation, committee structures, and complex voting-gated admission.
+- P2P association/announcement message types beyond HTTP join/leave.
+- Capability-based access contracts for resources beyond basic recording.
+
+### 0.7 Backward/Forward Compatibility
+- v1 defines only Open membership as normative. Future versions must extend via versioned DTOs and additive endpoints to preserve compatibility.
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Organizational Sovereignty with Mutual Aid
@@ -278,88 +320,94 @@ pub struct FederationCharter {
 
 ## 3. Membership & Association Lifecycle
 
+### 3.0 Simplified State Model (Aligned with Implementation)
+
+To reduce complexity while matching existing code paths, membership progresses through a minimal, implementation-aligned state machine:
+
+```rust
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MembershipState {
+    Pending,    // Application received; awaiting automatic or governed activation
+    Active,     // Full rights within org scope per policy
+    Suspended,  // Temporarily disabled; no rights until reinstated
+    Departed,   // Voluntary leave or removal (Left/Removed)
+}
+
+// Mapping to icn-identity::MembershipStatus
+// Pending  -> Pending
+// Active   -> Active
+// Suspended-> Suspended
+// Departed -> Left | Removed
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MemberRole {
+    Member,
+    Coordinator,
+    Committee(String),
+    Elder,            // Honorary role; not a lifecycle state
+}
+```
+
+Notes:
+- “Curious/Provisional/Probationary/Full/Elder” are consolidated. “Elder” is a role, not a state.
+- Admission gating (automatic, invite, admin, consensus) is expressed via policy that transitions `Pending → Active`.
+- Additional nuances (probation windows, participation checks) are policy rules that do not require distinct lifecycle states.
+
 ### 3.1 Human-Centered Onboarding
 
 ```rust
-pub struct MembershipLifecycle {
-    // Initial Contact (Human-Friendly)
-    pub fn first_contact(
+pub struct MembershipLifecycle;
+
+impl MembershipLifecycle {
+    // Initial contact → start onboarding session
+    pub fn start_onboarding(
         person: &Person,
         organization: &Organization,
-        method: ContactMethod
+        method: ContactMethod,
     ) -> Result<OnboardingSession> {
         match method {
-            ContactMethod::InPerson(event) => {
-                // Physical gathering, workshop, or meeting
-                let sponsor = find_volunteer_sponsor(&event)?;
-                create_warm_onboarding(person, sponsor, organization)
-            },
-            
-            ContactMethod::QRCode(invitation) => {
-                // Scan QR at physical location or from friend
-                validate_invitation(&invitation)?;
-                create_sponsored_onboarding(person, invitation.sponsor, organization)
-            },
-            
-            ContactMethod::WebPortal => {
-                // Online discovery
-                create_provisional_onboarding(person, organization)
-            },
-            
-            ContactMethod::Referral(referrer) => {
-                // Friend or family recommendation
-                verify_referrer_membership(&referrer, &organization)?;
-                create_referred_onboarding(person, referrer, organization)
-            },
+            ContactMethod::InPerson(event) => create_warm_onboarding(person, find_volunteer_sponsor(&event)?, organization),
+            ContactMethod::QRCode(invitation) => { validate_invitation(&invitation)?; create_sponsored_onboarding(person, invitation.sponsor, organization) }
+            ContactMethod::WebPortal => create_provisional_onboarding(person, organization),
+            ContactMethod::Referral(referrer) => { verify_referrer_membership(&referrer, organization)?; create_referred_onboarding(person, referrer, organization) }
         }
     }
-    
-    // Progressive Membership Journey
-    pub fn advance_membership(
+
+    // State transitions governed by policy
+    pub fn transition(
         member: &Member,
-        org: &Organization
-    ) -> Result<MembershipProgression> {
-        
-        let current_stage = member.membership_stage;
-        
-        match current_stage {
-            Stage::Curious => {
-                // Learn about the organization
-                provide_education_resources(member, org)?;
-                track_engagement(member, org)
-            },
-            
-            Stage::Provisional => {
-                // Participate without voting rights
-                let participation = measure_participation(member, org)?;
-                if participation.meets_threshold() {
-                    propose_for_membership(member, org)?
-                }
-            },
-            
-            Stage::Probationary => {
-                // Working toward full membership
-                let contributions = assess_contributions(member, org)?;
-                let time_served = calculate_time_in_stage(member);
-                
-                if contributions.sufficient() && time_served > MINIMUM_PROBATION {
-                    schedule_membership_vote(member, org)?
-                }
-            },
-            
-            Stage::Full => {
-                // Equal member with all rights
-                grant_full_rights(member, org)?;
-                issue_membership_credential(member, org)?
-            },
-            
-            Stage::Elder => {
-                // Honored long-term member
-                recognize_wisdom(member, org)?;
-                offer_mentorship_opportunities(member, org)?
-            },
+        org: &Organization,
+        event: MembershipEvent,
+    ) -> Result<MembershipState> {
+        match (member.state, event) {
+            // Admission
+            (MembershipState::Pending, MembershipEvent::AutoApprove) => Ok(MembershipState::Active),
+            (MembershipState::Pending, MembershipEvent::InviteApproved) => Ok(MembershipState::Active),
+            (MembershipState::Pending, MembershipEvent::ConsensusApproved) => Ok(MembershipState::Active),
+
+            // Governance enforcement
+            (MembershipState::Active, MembershipEvent::Suspend) => Ok(MembershipState::Suspended),
+            (MembershipState::Suspended, MembershipEvent::Reinstate) => Ok(MembershipState::Active),
+
+            // Exit
+            (MembershipState::Active, MembershipEvent::Leave)
+            | (MembershipState::Pending, MembershipEvent::Withdraw)
+            | (_, MembershipEvent::Expel) => Ok(MembershipState::Departed),
+
+            // No-op for unsupported transitions
+            (state, _) => Ok(state),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MembershipEvent {
+    // Admission paths
+    AutoApprove, InviteApproved, ConsensusApproved,
+    // Governance actions
+    Suspend, Reinstate,
+    // Exit actions
+    Leave, Withdraw, Expel,
 }
 ```
 

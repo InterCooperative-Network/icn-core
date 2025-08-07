@@ -13,6 +13,26 @@ The storage protocol is **adversarial-resistant at the data layer** while remain
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 DAG Operations
+- Block write/read, link traversal, content-addressing via CID
+- Backends: in-memory, sled, sqlite, rocks, postgres (experimental)
+
+### 0.2 Features
+- Checkpointing and basic federation sync integration
+- Pruning and snapshotting primitives
+
+### 0.3 Pending Extensions
+- Archive cooperative incentives and token flows
+- Full analytical indices and query layers
+- ZK inclusion proofs and privacy-preserving DAG traversal
+
+### 0.4 Mappings
+- Crates: `icn-dag`, `icn-dag::*_store`, federation sync in `icn-dag::federation_sync`
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Content-Addressed Truth

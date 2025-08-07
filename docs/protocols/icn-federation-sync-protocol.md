@@ -11,6 +11,24 @@ Federations operate as semi-autonomous clusters of cooperatives and communities,
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Sync Primitives
+- Peer discovery within federation; basic cross-federation discovery
+- Periodic checkpoints and state root exchange
+
+### 0.2 Conflict Handling
+- Simple last-good-checkpoint fallback; manual operator resolution
+
+### 0.3 Pending Extensions
+- Automated BFT dispute resolution across federations
+- Multi-path verification and optimistic replay
+
+### 0.4 Mappings
+- Crates: `icn-network` (libp2p), `icn-dag::federation_sync`, runtime integration in `icn-runtime`
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Local Autonomy, Global Coherence

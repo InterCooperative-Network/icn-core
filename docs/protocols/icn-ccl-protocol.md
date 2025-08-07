@@ -11,6 +11,24 @@ CCL contracts execute in a WASM-based runtime with strict resource metering (via
 
 ---
 
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Language & Runtime
+- Contracts compile to WASM; deterministic execution; metered by mana
+- Standard library support for governance and economics primitives
+
+### 0.2 Tooling
+- Basic compiler/runtime; package registry WIP; examples included
+
+### 0.3 Pending Extensions
+- Formal verification pipeline; richer capability model
+- Cross-federation contract calls with verified bridges
+
+### 0.4 Mappings
+- Crates: `icn-ccl-runtime`, `icn-ccl` examples and stdlib
+
+---
+
 ## 1. Core Design Principles
 
 ### 1.1 Cooperative-First Semantics

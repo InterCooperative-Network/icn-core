@@ -5,9 +5,34 @@
 
 ## Executive Summary
 
-The Mesh Job Execution Protocol defines how computational work is distributed, executed, and verified across the InterCooperative Network. Unlike traditional cloud computing that centralizes control and profit, ICN's mesh computing enables **democratic resource sharing** where any node—from mobile phones to server farms—can contribute compute power and earn mana.
+The Mesh Job Execution Protocol defines how computational work is distributed, executed, and verified across the InterCooperative Network. Unlike traditional cloud computing that centralizes control and profit, ICN's mesh computing enables **democratic resource sharing** where any node—from mobile phones to server farms—can contribute compute power and earn trust and network privileges.
 
-Jobs are posted with specifications and budgets, executors bid based on their capabilities, work is sandboxed and verified, and payment is automatic upon successful completion. Every step creates immutable DAG records, ensuring accountability while maintaining privacy through zero-knowledge proofs where needed.
+Jobs are posted with specifications and resource budgets, executors bid based on their capabilities, work is sandboxed and verified, and incentives are applied automatically upon successful completion via reputation/trust adjustments and policy-governed privileges. Every step creates immutable DAG records, ensuring accountability while maintaining privacy through zero-knowledge proofs where needed.
+
+---
+
+## 0 · Scope and Implementation Alignment (Normative)
+
+### 0.1 Job Lifecycle
+- Submit job (spec + budget), collect bids, select executor, execute in sandbox, receipt to DAG
+- Redundancy is optional; multi-validator sampling experimental
+
+### 0.2 Execution Environments
+- WASM primary; Docker sandbox supported in limited form
+
+### 0.3 Economics (behavioral)
+- Submitter mana: metering and anti-spam only (burned up to `resource_budget.max_mana_burn`)
+- Executor incentives: minted "earned mana" credits based on verified contribution; no transfers from submitters
+- Additional incentives: reputation/trust adjustments and policy-governed privileges
+
+### 0.4 Pending Extensions
+- Full private execution (encrypted inputs) and ZK execution proofs
+- Advanced sharding and dynamic rescheduling
+- Rich slashing and insurance mechanisms
+
+### 0.5 Mappings
+- Crates: `icn-mesh`, `icn-runtime` (JobManager), `icn-dag` (receipts)
+- APIs: `icn-api::mesh_trait` (where present), executor introspection in `executor_trait`
 
 ---
 
@@ -24,9 +49,9 @@ Jobs are posted with specifications and budgets, executors bid based on their ca
 - Cryptographic proofs of completion
 
 ### 1.3 Economic Fairness
-- Transparent bidding process
-- Automatic payment on completion
-- Slashing for failures protects submitters
+- Transparent bidding process (capability- and reputation-based)
+- Automatic trust/reputation adjustment on completion
+- Policy-governed penalties for failures protect submitters
 
 ### 1.4 Privacy-Preserving
 - Encrypted job data when needed
@@ -55,9 +80,8 @@ pub struct JobSpec {
     storage: StorageRequirements,      // Disk space needs
     network: NetworkRequirements,      // Bandwidth needs
     
-    // Economic parameters
-    budget: Budget,                    // Max payment
-    payment_type: PaymentType,         // Mana, tokens, or both
+    // Resource metering parameters
+    resource_budget: ResourceBudget,   // Max metered cost charged to submitter
     
     // Execution parameters
     deadline: Epoch,                   // Must complete by
@@ -104,20 +128,15 @@ pub enum Runtime {
     },
 }
 
-pub struct Budget {
-    max_total: Mana,                   // Maximum total payment
-    per_unit: Option<PricingModel>,    // Per-unit pricing
-    
-    // Incentive structure
-    early_completion_bonus: Option<Mana>,
-    quality_bonus: Option<QualityBonus>,
+pub struct ResourceBudget {
+    max_mana_burn: Mana,               // Upper bound on submitter's metered cost (burn)
+    per_unit: Option<MeteringModel>,   // Optional metering guidance
 }
 
-pub enum PricingModel {
-    PerHour(Mana),                     // Per CPU/GPU hour
-    PerOperation(Mana),                // Per operation completed
-    PerByte(Mana),                     // Per byte processed
-    Fixed(Mana),                       // Fixed price
+pub enum MeteringModel {
+    PerHour(Mana),                     // Expected CPU/GPU hour burn
+    PerOperation(Mana),                // Expected per-op burn
+    PerByte(Mana),                     // Expected per-byte burn
 }
 ```
 
@@ -605,129 +624,102 @@ pub struct DisputeProtocol {
 
 ---
 
-## 6. Payment & Settlement
+## 6. Incentives, Earned Mana & Trust
 
-### 6.1 Payment Flow
+### 6.1 Incentive Flow
 
 ```rust
-pub struct PaymentProtocol {
-    pub fn process_payment(
+pub struct IncentiveProtocol;
+
+impl IncentiveProtocol {
+    pub fn apply(
         job: &JobSpec,
         result: &ExecutionResult,
-        validation: &ValidationOutcome
-    ) -> Result<PaymentReceipt> {
-        
+        validation: &ValidationOutcome,
+        reputation: &mut impl ReputationStore,
+        economics: &mut impl EconomicsApi,
+    ) -> Result<IncentiveReceipt> {
         match validation {
             ValidationOutcome::Accepted => {
-                // Calculate payment
-                let base_payment = calculate_base_payment(job, result)?;
-                let bonuses = calculate_bonuses(job, result)?;
-                let total = base_payment + bonuses;
-                
-                // Transfer payment
-                transfer_mana(&job.submitter, &result.executor, total)?;
-                
-                // Update reputation
-                increase_reputation(&result.executor, 0.01)?;
-                
-                // Create receipt
-                let receipt = PaymentReceipt {
-                    job_id: job.id,
-                    executor: result.executor.clone(),
-                    amount: total,
-                    timestamp: now(),
-                    status: PaymentStatus::Completed,
-                };
-                
-                emit PaymentCompleted(job.id, result.executor, total);
-                Ok(receipt)
-            },
-            
+                // Positive reinforcement: increase trust/reputation
+                reputation.record_execution(&result.executor, true, result.metrics.cpu_ms);
+                // Mint earned mana credit based on verified contribution (not a transfer)
+                let earned = Self::calculate_earned_mana(job, result);
+                economics.credit_earned_mana(&result.executor, earned)?;
+                emit IncentivesApplied(job.id, result.executor);
+                Ok(IncentiveReceipt { job_id: job.id, executor: result.executor.clone(), status: IncentiveStatus::Applied })
+            }
             ValidationOutcome::Rejected => {
-                // Slash executor
-                let stake = get_executor_stake(&job.id)?;
-                slash_mana(&result.executor, stake)?;
-                
-                // Refund submitter
-                refund_mana(&job.submitter, job.budget.max_total)?;
-                
-                // Decrease reputation
-                decrease_reputation(&result.executor, 0.05)?;
-                
-                let receipt = PaymentReceipt {
-                    job_id: job.id,
-                    executor: result.executor.clone(),
-                    amount: 0,
-                    timestamp: now(),
-                    status: PaymentStatus::Failed,
-                };
-                
-                emit PaymentFailed(job.id, result.executor);
-                Ok(receipt)
-            },
-            
+                // Negative reinforcement: decrease trust/reputation
+                reputation.record_execution(&result.executor, false, result.metrics.cpu_ms);
+                emit IncentivesPenalized(job.id, result.executor);
+                Ok(IncentiveReceipt { job_id: job.id, executor: result.executor.clone(), status: IncentiveStatus::Penalized })
+            }
             ValidationOutcome::AcceptedWithDispute(consensus) => {
-                // Partial payment based on consensus
-                let payment = calculate_disputed_payment(job, consensus)?;
-                transfer_mana(&job.submitter, &result.executor, payment)?;
-                
-                // Small reputation penalty for dispute
-                decrease_reputation(&result.executor, 0.01)?;
-                
-                let receipt = PaymentReceipt {
-                    job_id: job.id,
-                    executor: result.executor.clone(),
-                    amount: payment,
-                    timestamp: now(),
-                    status: PaymentStatus::Disputed,
-                };
-                
-                emit PaymentDisputed(job.id, result.executor, payment);
-                Ok(receipt)
-            },
+                let success = consensus.approval_rate >= 0.5;
+                reputation.record_execution(&result.executor, success, result.metrics.cpu_ms);
+                if success {
+                    let earned = Self::calculate_earned_mana(job, result) / 2; // conservative credit under dispute
+                    economics.credit_earned_mana(&result.executor, earned)?;
+                }
+                emit IncentivesDisputed(job.id, result.executor, success);
+                Ok(IncentiveReceipt { job_id: job.id, executor: result.executor.clone(), status: if success { IncentiveStatus::Applied } else { IncentiveStatus::Penalized } })
+            }
         }
+    }
+
+    fn calculate_earned_mana(job: &JobSpec, result: &ExecutionResult) -> Mana {
+        // Example policy: function of measured CPU/GPU time, determinism, and accuracy
+        let cpu = result.metrics.cpu_ms as f64 / 1000.0 / 3600.0; // CPU hours
+        let gpu = result.metrics.gpu_ms.unwrap_or(0) as f64 / 1000.0 / 3600.0; // GPU hours
+        let quality = result.metrics.accuracy.unwrap_or(1.0).clamp(0.0, 1.5);
+        let base = cpu * 1.0 + gpu * 4.0; // GPU weighted higher
+        (base * quality * 100.0) as Mana
     }
 }
+
+pub struct IncentiveReceipt { pub job_id: JobId, pub executor: DID, pub status: IncentiveStatus }
+pub enum IncentiveStatus { Applied, Penalized }
 ```
 
-### 6.2 Incentive Mechanisms
+### 6.2 Trust/Privilege & Mana Capacity Mechanisms
 
 ```rust
-pub struct IncentiveMechanisms {
-    // Early completion bonus
-    pub fn calculate_early_bonus(job: &JobSpec, result: &ExecutionResult) -> Mana {
-        if let Some(bonus) = job.budget.early_completion_bonus {
-            let time_saved = job.deadline - result.end_time;
-            let time_window = job.deadline - job.created_at;
-            let bonus_rate = time_saved as f64 / time_window as f64;
-            (bonus as f64 * bonus_rate) as Mana
-        } else {
-            0
+pub struct TrustPrivileges;
+
+impl TrustPrivileges {
+    // Example: adjust scheduling priority based on trust
+    pub fn scheduling_priority(reputation_score: u64) -> u8 {
+        match reputation_score {
+            0..=199 => 1,
+            200..=499 => 2,
+            500..=799 => 3,
+            _ => 4,
         }
     }
-    
-    // Quality bonus for ML/statistical jobs
-    pub fn calculate_quality_bonus(job: &JobSpec, result: &ExecutionResult) -> Mana {
-        if let Some(accuracy_spec) = &job.accuracy {
-            if let Some(achieved) = result.metrics.get("accuracy") {
-                if achieved > &accuracy_spec.target {
-                    let excess = achieved - accuracy_spec.target;
-                    (accuracy_spec.bonus_per_percent * excess * 100.0) as Mana
-                } else {
-                    0
-                }
-            } else {
-                0
-            }
-        } else {
-            0
+
+    // Example: unlock capabilities with trust
+    pub fn unlocked_capabilities(reputation_score: u64) -> Vec<&'static str> {
+        let mut caps = vec!["public_jobs"];
+        if reputation_score >= 200 { caps.push("private_inputs"); }
+        if reputation_score >= 500 { caps.push("validator_role"); }
+        if reputation_score >= 800 { caps.push("priority_jobs"); }
+        caps
+    }
+
+    // Example: contribution-driven mana parameters (non-transfer rewards)
+    pub fn regen_multiplier(reputation_score: u64) -> f64 {
+        match reputation_score {
+            0..=199 => 1.0,
+            200..=499 => 1.05,
+            500..=799 => 1.10,
+            _ => 1.20,
         }
     }
-    
-    // Reputation multiplier
-    pub fn apply_reputation_multiplier(base: Mana, reputation: f64) -> Mana {
-        let multiplier = 1.0 + (reputation - 0.5).max(0.0) * 0.2;  // Up to 20% bonus
-        (base as f64 * multiplier) as Mana
+
+    pub fn capacity_bonus(recent_earned_mana: Mana) -> Mana {
+        // Grant small temporary capacity increase tied to recent contribution
+        (recent_earned_mana as f64 * 0.1) as Mana
     }
 }
 ```
