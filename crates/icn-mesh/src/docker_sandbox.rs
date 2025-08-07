@@ -373,6 +373,10 @@ impl DockerSandbox {
     }
 
     /// Collect resource usage statistics from container.
+    ///
+    /// **Placeholder implementation:** This method is not yet implemented and always returns default values.
+    /// In a real implementation, this would use `docker stats` or the Docker API to collect
+    /// actual resource usage statistics (CPU, memory, I/O, etc.) for the specified container.
     async fn collect_resource_usage(&self, container_name: &str) -> DockerResourceUsage {
         // In a real implementation, we would use `docker stats` or the Docker API
         // to collect actual resource usage. For now, return defaults.
