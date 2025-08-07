@@ -689,6 +689,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal2 = ProposalSubmission {
@@ -702,6 +703,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let id1 = governance
@@ -754,6 +756,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let id = governance
@@ -791,6 +794,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let id = governance

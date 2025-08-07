@@ -22,6 +22,7 @@ fn custom_quorum_and_threshold() {
                 quorum: Some(2),
                 threshold: Some(0.75),
                 content_cid: None,
+            timelock_delay: None,
             },
             &time_provider,
         )

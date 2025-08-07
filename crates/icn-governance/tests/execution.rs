@@ -24,6 +24,7 @@ fn execute_new_member_invitation_proposal() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
+            timelock_delay: None,
             },
             &time_provider,
         )
@@ -73,6 +74,7 @@ fn execute_remove_member_proposal() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
+            timelock_delay: None,
             },
             &time_provider,
         )
@@ -137,6 +139,7 @@ fn execute_runs_all_callbacks() {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
+            timelock_delay: None,
             },
             &time_provider,
         )

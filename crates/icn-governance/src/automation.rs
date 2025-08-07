@@ -1786,7 +1786,7 @@ pub enum AutomationVotingResult {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{Proposal, ProposalId, ProposalStatus, ProposalType};
+    use crate::{Proposal, ProposalId, ProposalStatus, ProposalType, ProposalSponsorship};
 
     use std::collections::HashMap;
 
@@ -1825,7 +1825,11 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
             votes: HashMap::new(),
+            sponsorship: ProposalSponsorship::new(),
+            accepted_at: None,
+            veto: None,
         };
 
         let state = ProposalAutomationState {
