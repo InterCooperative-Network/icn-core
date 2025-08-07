@@ -75,9 +75,10 @@ pub use time_banking::{
 
 // Export mana system types and traits
 pub use mana::{
-    EmergencyDetector, HardwareMetrics, HardwareMetricsProvider, ManaAccount, NetworkHealthProvider,
-    OrganizationProvider, OrganizationType, RegenerativeManaLedger, TrustProvider, BASE_MANA_CAP,
-    EMERGENCY_MODULATION_FACTOR, MIN_MANA_BALANCE, REGEN_EPOCH_SECONDS,
+    EmergencyDetector, HardwareMetrics, HardwareMetricsProvider, ManaAccount,
+    NetworkHealthProvider, OrganizationProvider, OrganizationType, RegenerativeManaLedger,
+    TrustProvider, BASE_MANA_CAP, EMERGENCY_MODULATION_FACTOR, MIN_MANA_BALANCE,
+    REGEN_EPOCH_SECONDS,
 };
 pub use mana_providers::{
     ComprehensiveManaProvider, DefaultHardwareMetricsProvider, InMemoryOrganizationProvider,
@@ -114,7 +115,10 @@ impl ManaLedger for InMemoryLedger {
             .get_mut(did)
             .ok_or_else(|| CommonError::DatabaseError("account".into()))?;
         if *bal < amount {
-            return Err(CommonError::InsufficientFunds(format!("Insufficient balance: {} < {}", *bal, amount)));
+            return Err(CommonError::InsufficientFunds(format!(
+                "Insufficient balance: {} < {}",
+                *bal, amount
+            )));
         }
         *bal -= amount;
         Ok(())

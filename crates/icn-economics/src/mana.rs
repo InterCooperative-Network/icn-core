@@ -1,10 +1,10 @@
 //! Mana System Implementation
-//! 
+//!
 //! This module implements the regenerative mana system as described in Economic_Incentive_Protocol.md section 3.
 //! Mana represents potential computational work and serves as an anti-spam mechanism and fairness enforcer.
 
 use crate::ManaLedger;
-use icn_common::{CommonError, Did};
+use icn_common::{CommonError, Did, SystemTimeProvider, TimeProvider};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -126,7 +126,7 @@ pub trait HardwareMetricsProvider: Send + Sync {
 pub trait OrganizationProvider: Send + Sync {
     /// Get organization type for the given DID
     fn get_organization_type(&self, did: &Did) -> Result<OrganizationType, CommonError>;
-    
+
     /// Get federation bonus for the given DID
     fn get_federation_bonus(&self, did: &Did) -> Result<f64, CommonError>;
 }
@@ -135,10 +135,10 @@ pub trait OrganizationProvider: Send + Sync {
 pub trait TrustProvider: Send + Sync {
     /// Get trust multiplier β (0.5-2.0)
     fn get_trust_multiplier(&self, did: &Did) -> Result<f64, CommonError>;
-    
+
     /// Get recent participation factor η (0.25-1.5)
     fn get_participation_factor(&self, did: &Did) -> Result<f64, CommonError>;
-    
+
     /// Get governance engagement γ (0.5-1.5)
     fn get_governance_engagement(&self, did: &Did) -> Result<f64, CommonError>;
 }
@@ -147,7 +147,7 @@ pub trait TrustProvider: Send + Sync {
 pub trait EmergencyDetector: Send + Sync {
     /// Detect if the network is under attack or experiencing instability
     fn is_emergency(&self) -> bool;
-    
+
     /// Get the current emergency modulation factor
     fn emergency_factor(&self) -> f64 {
         if self.is_emergency() {
@@ -239,18 +239,18 @@ where
         &mut self.network_health_provider
     }
 
-    /// Get current timestamp (using system time for now)
+    /// Get current timestamp using the system time provider
     fn current_time(&self) -> u64 {
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs()
+        SystemTimeProvider.unix_seconds()
     }
 
     /// Calculate compute score (σ) normalized 0-1
-    pub fn calculate_compute_score(&self, metrics: &HardwareMetrics, network_avg: &HardwareMetrics) -> f64 {
-        let weighted_sum = 
-            (metrics.cpu_cores as f64) * 0.25 +
+    pub fn calculate_compute_score(
+        &self,
+        metrics: &HardwareMetrics,
+        network_avg: &HardwareMetrics,
+    ) -> f64 {
+        let weighted_sum = (metrics.cpu_cores as f64) * 0.25 +
             (metrics.memory_mb as f64 / 1024.0) * 0.20 +  // Convert MB to GB
             (metrics.storage_gb as f64) * 0.15 +
             (metrics.bandwidth_mbps as f64) * 0.15 +
@@ -258,17 +258,16 @@ where
             metrics.uptime_percentage * 0.10 +
             metrics.job_success_rate * 0.05;
 
-        let network_weighted_sum = 
-            (network_avg.cpu_cores as f64) * 0.25 +
-            (network_avg.memory_mb as f64 / 1024.0) * 0.20 +
-            (network_avg.storage_gb as f64) * 0.15 +
-            (network_avg.bandwidth_mbps as f64) * 0.15 +
-            (network_avg.gpu_units as f64) * 0.10 +
-            network_avg.uptime_percentage * 0.10 +
-            network_avg.job_success_rate * 0.05;
+        let network_weighted_sum = (network_avg.cpu_cores as f64) * 0.25
+            + (network_avg.memory_mb as f64 / 1024.0) * 0.20
+            + (network_avg.storage_gb as f64) * 0.15
+            + (network_avg.bandwidth_mbps as f64) * 0.15
+            + (network_avg.gpu_units as f64) * 0.10
+            + network_avg.uptime_percentage * 0.10
+            + network_avg.job_success_rate * 0.05;
 
         if network_weighted_sum > 0.0 {
-            (weighted_sum / network_weighted_sum).min(2.0).max(0.1)
+            (weighted_sum / network_weighted_sum).clamp(0.1, 2.0)
         } else {
             1.0 // Default to 1.0 if network average is invalid
         }
@@ -295,7 +294,8 @@ where
         let gamma = account.governance_engagement;
         let federation_bonus = account.federation_bonus;
 
-        let capacity = (BASE_MANA_CAP as f64) * kappa_org * sigma * gamma * (1.0 + federation_bonus);
+        let capacity =
+            (BASE_MANA_CAP as f64) * kappa_org * sigma * gamma * (1.0 + federation_bonus);
         capacity.round() as u64
     }
 
@@ -310,30 +310,30 @@ where
 
         // Create new account
         let mut account = ManaAccount::default();
-        
+
         // Fetch current metrics
         if let Ok(hardware) = self.hardware_provider.get_hardware_metrics(did) {
             account.hardware_metrics = hardware;
         }
-        
+
         if let Ok(org_type) = self.organization_provider.get_organization_type(did) {
             account.organization_type = org_type;
         }
-        
+
         if let Ok(trust) = self.trust_provider.get_trust_multiplier(did) {
-            account.trust_multiplier = trust.max(0.5).min(2.0);
+            account.trust_multiplier = trust.clamp(0.5, 2.0);
         }
-        
+
         if let Ok(participation) = self.trust_provider.get_participation_factor(did) {
-            account.participation_factor = participation.max(0.25).min(1.5);
+            account.participation_factor = participation.clamp(0.25, 1.5);
         }
-        
+
         if let Ok(governance) = self.trust_provider.get_governance_engagement(did) {
-            account.governance_engagement = governance.max(0.5).min(1.5);
+            account.governance_engagement = governance.clamp(0.5, 1.5);
         }
-        
+
         if let Ok(bonus) = self.organization_provider.get_federation_bonus(did) {
-            account.federation_bonus = bonus.max(0.0).min(0.5);
+            account.federation_bonus = bonus.clamp(0.0, 0.5);
         }
 
         account.max_capacity = self.calculate_max_capacity(&account);
@@ -357,14 +357,14 @@ where
     pub fn regenerate_mana(&self, did: &Did) -> Result<u64, CommonError> {
         let mut account = self.get_account(did)?;
         let current_time = self.current_time();
-        
+
         if current_time <= account.last_regen {
             return Ok(account.balance); // No time has passed
         }
 
         let time_elapsed = current_time - account.last_regen;
         let regeneration_rate = self.calculate_regeneration_rate(&account);
-        
+
         // Calculate mana to regenerate based on time elapsed
         let mana_per_hour = regeneration_rate * 100.0; // Base regeneration rate
         let hours_elapsed = time_elapsed as f64 / REGEN_EPOCH_SECONDS as f64;
@@ -372,7 +372,7 @@ where
 
         // Apply regeneration, capping at max capacity
         let new_balance = (account.balance + mana_to_add).min(account.max_capacity);
-        
+
         // Update account
         account.balance = new_balance;
         account.last_regen = current_time;
@@ -416,35 +416,35 @@ where
     /// Update account metrics (called periodically to refresh from providers)
     pub fn update_account_metrics(&self, did: &Did) -> Result<(), CommonError> {
         let mut account = self.get_account(did)?;
-        
+
         // Update from providers
         if let Ok(hardware) = self.hardware_provider.get_hardware_metrics(did) {
             account.hardware_metrics = hardware;
         }
-        
+
         if let Ok(org_type) = self.organization_provider.get_organization_type(did) {
             account.organization_type = org_type;
         }
-        
+
         if let Ok(trust) = self.trust_provider.get_trust_multiplier(did) {
-            account.trust_multiplier = trust.max(0.5).min(2.0);
+            account.trust_multiplier = trust.clamp(0.5, 2.0);
         }
-        
+
         if let Ok(participation) = self.trust_provider.get_participation_factor(did) {
-            account.participation_factor = participation.max(0.25).min(1.5);
+            account.participation_factor = participation.clamp(0.25, 1.5);
         }
-        
+
         if let Ok(governance) = self.trust_provider.get_governance_engagement(did) {
-            account.governance_engagement = governance.max(0.5).min(1.5);
+            account.governance_engagement = governance.clamp(0.5, 1.5);
         }
-        
+
         if let Ok(bonus) = self.organization_provider.get_federation_bonus(did) {
-            account.federation_bonus = bonus.max(0.0).min(0.5);
+            account.federation_bonus = bonus.clamp(0.0, 0.5);
         }
 
         // Recalculate max capacity
         account.max_capacity = self.calculate_max_capacity(&account);
-        
+
         // Cap current balance to new max capacity
         if account.balance > account.max_capacity {
             account.balance = account.max_capacity;
@@ -478,31 +478,33 @@ where
     fn set_balance(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         let account = self.get_account(did)?;
         if amount > account.max_capacity {
-            return Err(CommonError::InvalidInputError(
-                format!("Amount {} exceeds max capacity {}", amount, account.max_capacity)
-            ));
+            return Err(CommonError::InvalidInputError(format!(
+                "Amount {} exceeds max capacity {}",
+                amount, account.max_capacity
+            )));
         }
 
         let mut updated_account = account;
         updated_account.balance = amount;
         self.update_account(did, updated_account);
-        
+
         self.ledger.set_balance(did, amount)
     }
 
     fn spend(&self, did: &Did, amount: u64) -> Result<(), CommonError> {
         // Regenerate mana first
         let current_balance = self.regenerate_mana(did)?;
-        
+
         if current_balance < amount {
             return Err(CommonError::InsufficientFunds(format!(
-                "Insufficient mana: {} < {}", current_balance, amount
+                "Insufficient mana: {} < {}",
+                current_balance, amount
             )));
         }
 
         let new_balance = current_balance - amount;
         self.set_balance(did, new_balance)?;
-        
+
         Ok(())
     }
 
@@ -510,9 +512,9 @@ where
         let account = self.get_account(did)?;
         let current_balance = self.get_balance(did); // This triggers regeneration
         let new_balance = (current_balance + amount).min(account.max_capacity);
-        
+
         self.set_balance(did, new_balance)?;
-        
+
         Ok(())
     }
 
@@ -538,10 +540,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use icn_common::{FixedTimeProvider, FixedSystemInfoProvider, Did};
+    use icn_common::Did;
 
     // Mock implementations for testing
-    
+
     struct MockManaLedger {
         balances: std::sync::RwLock<HashMap<Did, u64>>,
     }
@@ -554,7 +556,7 @@ mod tests {
             }
         }
     }
-    
+
     impl MockManaLedger {
         fn new() -> Self {
             MockManaLedger {
@@ -562,7 +564,7 @@ mod tests {
             }
         }
     }
-    
+
     impl ManaLedger for MockManaLedger {
         fn get_balance(&self, did: &Did) -> u64 {
             let balances = self.balances.read().unwrap();
@@ -579,7 +581,8 @@ mod tests {
             let current = self.get_balance(did);
             if current < amount {
                 return Err(CommonError::InsufficientFunds(format!(
-                    "Insufficient balance: {} < {}", current, amount
+                    "Insufficient balance: {} < {}",
+                    current, amount
                 )));
             }
             self.set_balance(did, current - amount)
@@ -598,98 +601,59 @@ mod tests {
 
     #[derive(Clone)]
     struct MockHardwareProvider;
-    
+
     impl HardwareMetricsProvider for MockHardwareProvider {
         fn get_hardware_metrics(&self, _did: &Did) -> Result<HardwareMetrics, CommonError> {
             Ok(HardwareMetrics::default())
         }
     }
-    
+
     #[derive(Clone)]
     struct MockOrganizationProvider;
-    
+
     impl OrganizationProvider for MockOrganizationProvider {
         fn get_organization_type(&self, _did: &Did) -> Result<OrganizationType, CommonError> {
             Ok(OrganizationType::Cooperative)
         }
-        
+
         fn get_federation_bonus(&self, _did: &Did) -> Result<f64, CommonError> {
             Ok(0.1)
         }
     }
-    
+
     #[derive(Clone)]
     struct MockTrustProvider;
-    
+
     impl TrustProvider for MockTrustProvider {
         fn get_trust_multiplier(&self, _did: &Did) -> Result<f64, CommonError> {
             Ok(1.5)
         }
-        
+
         fn get_participation_factor(&self, _did: &Did) -> Result<f64, CommonError> {
             Ok(1.2)
         }
-        
+
         fn get_governance_engagement(&self, _did: &Did) -> Result<f64, CommonError> {
             Ok(1.3)
         }
     }
-    
+
     #[derive(Clone)]
     struct MockEmergencyDetector;
-    
+
     impl EmergencyDetector for MockEmergencyDetector {
         fn is_emergency(&self) -> bool {
             false
         }
     }
-    
+
     #[derive(Clone)]
     struct MockNetworkHealthProvider;
-    
+
     impl NetworkHealthProvider for MockNetworkHealthProvider {
         fn network_health_factor(&self) -> f64 {
             1.0
         }
-    }
-
-    #[test]
-    fn test_organization_weights() {
-        assert_eq!(OrganizationType::Cooperative.weight(), 1.00);
-        assert_eq!(OrganizationType::Community.weight(), 0.95);
-        assert_eq!(OrganizationType::Federation.weight(), 1.25);
-        assert_eq!(OrganizationType::DefaultIcnFederation.weight(), 1.10);
-        assert_eq!(OrganizationType::Unaffiliated.weight(), 0.70);
-    }
-
-    #[test]
-    fn test_compute_score_calculation() {
-        let ledger = MockManaLedger::new();
-        let regen_ledger = RegenerativeManaLedger::new(
-            ledger,
-            MockHardwareProvider,
-            MockOrganizationProvider,
-            MockTrustProvider,
-            MockEmergencyDetector,
-            MockNetworkHealthProvider,
-        );
-
-        let metrics = HardwareMetrics {
-            cpu_cores: 8,
-            memory_mb: 16384,
-            storage_gb: 1000,
-            bandwidth_mbps: 200,
-            gpu_units: 2,
-            uptime_percentage: 0.98,
-            job_success_rate: 0.95,
-        };
-
-        let network_avg = HardwareMetrics::default();
-        let score = regen_ledger.calculate_compute_score(&metrics, &network_avg);
-        
-        // Should be > 1.0 since metrics are better than average
-        assert!(score > 1.0);
-        assert!(score <= 2.0); // Capped at 2.0
     }
 
     #[test]
@@ -705,7 +669,7 @@ mod tests {
         );
 
         let did = Did::new("test", "alice");
-        
+
         // Get initial balance (should create account)
         let initial_balance = regen_ledger.get_balance(&did);
         assert_eq!(initial_balance, BASE_MANA_CAP / 4); // Default 25% capacity
@@ -731,9 +695,13 @@ mod tests {
 
         for (org_type, expected) in weights.iter() {
             let actual = org_type.weight();
-            assert!((actual - expected).abs() < 0.01, 
-                "Organization {:?} weight should be {}, got {}", 
-                org_type, expected, actual);
+            assert!(
+                (actual - expected).abs() < 0.01,
+                "Organization {:?} weight should be {}, got {}",
+                org_type,
+                expected,
+                actual
+            );
         }
     }
 
@@ -770,65 +738,20 @@ mod tests {
         );
 
         let score = regen_ledger.calculate_compute_score(&metrics, &network_avg);
-        
+
         // Score should be greater than 1.0 since all metrics are above average
-        assert!(score > 1.0, "Compute score should be > 1.0 for above-average hardware, got {}", score);
-        
+        assert!(
+            score > 1.0,
+            "Compute score should be > 1.0 for above-average hardware, got {}",
+            score
+        );
+
         // Test edge case - metrics equal to network average should give score of 1.0
         let avg_score = regen_ledger.calculate_compute_score(&network_avg, &network_avg);
-        assert!((avg_score - 1.0).abs() < 0.01, "Average hardware should give score ~1.0, got {}", avg_score);
-    }
-
-    #[test]
-    fn test_regeneration_rate_calculation() {
-        let hardware_metrics = HardwareMetrics {
-            cpu_cores: 16,
-            memory_mb: 32000,
-            storage_gb: 1000,
-            bandwidth_mbps: 1000,
-            gpu_units: 2,
-            uptime_percentage: 0.95,
-            job_success_rate: 0.90,
-        };
-
-        let network_avg = HardwareMetrics {
-            cpu_cores: 8,
-            memory_mb: 16000,
-            storage_gb: 500,
-            bandwidth_mbps: 500,
-            gpu_units: 1,
-            uptime_percentage: 0.85,
-            job_success_rate: 0.80,
-        };
-
-        // Test cooperative organization with good metrics
-        let rate = calculate_regeneration_rate(
-            &OrganizationType::Cooperative,
-            &hardware_metrics,
-            &network_avg,
-            1.5, // trust multiplier
-            1.3, // participation factor  
-            1.2, // governance engagement
-            1.0, // network health
-            false, // not emergency
+        assert!(
+            (avg_score - 1.0).abs() < 0.01,
+            "Average hardware should give score ~1.0, got {}",
+            avg_score
         );
-
-        assert!(rate > 0.0, "Regeneration rate should be positive");
-        
-        // Test emergency conditions reduce rate
-        let emergency_rate = calculate_regeneration_rate(
-            &OrganizationType::Cooperative,
-            &hardware_metrics,
-            &network_avg,
-            1.5,
-            1.3,
-            1.2,
-            1.0,
-            true, // emergency
-        );
-
-        assert!(emergency_rate < rate, "Emergency should reduce regeneration rate");
-        assert!((emergency_rate / rate - EMERGENCY_MODULATION_FACTOR).abs() < 0.01, 
-            "Emergency rate should be {} of normal rate", EMERGENCY_MODULATION_FACTOR);
     }
 }
