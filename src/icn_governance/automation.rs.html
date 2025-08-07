@@ -1786,7 +1786,7 @@
 <a href=#1786 id=1786 data-nosnippet>1786</a><span class="attr">#[cfg(test)]
 <a href=#1787 id=1787 data-nosnippet>1787</a></span><span class="kw">mod </span>tests {
 <a href=#1788 id=1788 data-nosnippet>1788</a>    <span class="kw">use super</span>::<span class="kw-2">*</span>;
-<a href=#1789 id=1789 data-nosnippet>1789</a>    <span class="kw">use crate</span>::{Proposal, ProposalId, ProposalStatus, ProposalType};
+<a href=#1789 id=1789 data-nosnippet>1789</a>    <span class="kw">use crate</span>::{Proposal, ProposalId, ProposalSponsorship, ProposalStatus, ProposalType};
 <a href=#1790 id=1790 data-nosnippet>1790</a>
 <a href=#1791 id=1791 data-nosnippet>1791</a>    <span class="kw">use </span>std::collections::HashMap;
 <a href=#1792 id=1792 data-nosnippet>1792</a>
@@ -1825,27 +1825,31 @@
 <a href=#1825 id=1825 data-nosnippet>1825</a>            quorum: <span class="prelude-val">None</span>,
 <a href=#1826 id=1826 data-nosnippet>1826</a>            threshold: <span class="prelude-val">None</span>,
 <a href=#1827 id=1827 data-nosnippet>1827</a>            content_cid: <span class="prelude-val">None</span>,
-<a href=#1828 id=1828 data-nosnippet>1828</a>            votes: HashMap::new(),
-<a href=#1829 id=1829 data-nosnippet>1829</a>        };
-<a href=#1830 id=1830 data-nosnippet>1830</a>
-<a href=#1831 id=1831 data-nosnippet>1831</a>        <span class="kw">let </span>state = ProposalAutomationState {
-<a href=#1832 id=1832 data-nosnippet>1832</a>            proposal,
-<a href=#1833 id=1833 data-nosnippet>1833</a>            submitted_at: Instant::now(),
-<a href=#1834 id=1834 data-nosnippet>1834</a>            voting_status: VotingStatus {
-<a href=#1835 id=1835 data-nosnippet>1835</a>                eligible_voters: <span class="number">10</span>,
-<a href=#1836 id=1836 data-nosnippet>1836</a>                votes_cast: <span class="number">3</span>,
-<a href=#1837 id=1837 data-nosnippet>1837</a>                participation_rate: <span class="number">0.3</span>,
-<a href=#1838 id=1838 data-nosnippet>1838</a>                support_percentage: <span class="number">0.67</span>,
-<a href=#1839 id=1839 data-nosnippet>1839</a>                quorum_reached: <span class="bool-val">true</span>,
-<a href=#1840 id=1840 data-nosnippet>1840</a>                predicted_outcome: <span class="prelude-val">None</span>,
-<a href=#1841 id=1841 data-nosnippet>1841</a>            },
-<a href=#1842 id=1842 data-nosnippet>1842</a>            reminders_sent: <span class="macro">vec!</span>[],
-<a href=#1843 id=1843 data-nosnippet>1843</a>            execution_attempted: <span class="bool-val">false</span>,
-<a href=#1844 id=1844 data-nosnippet>1844</a>            eligible_voters: <span class="macro">vec!</span>[],
-<a href=#1845 id=1845 data-nosnippet>1845</a>            votes_received: HashMap::new(),
-<a href=#1846 id=1846 data-nosnippet>1846</a>        };
-<a href=#1847 id=1847 data-nosnippet>1847</a>
-<a href=#1848 id=1848 data-nosnippet>1848</a>        <span class="macro">assert_eq!</span>(state.voting_status.participation_rate, <span class="number">0.3</span>);
-<a href=#1849 id=1849 data-nosnippet>1849</a>        <span class="macro">assert!</span>(state.voting_status.quorum_reached);
-<a href=#1850 id=1850 data-nosnippet>1850</a>    }
-<a href=#1851 id=1851 data-nosnippet>1851</a>}</code></pre></div></section></main></body></html>
+<a href=#1828 id=1828 data-nosnippet>1828</a>            timelock_delay: <span class="prelude-val">None</span>,
+<a href=#1829 id=1829 data-nosnippet>1829</a>            votes: HashMap::new(),
+<a href=#1830 id=1830 data-nosnippet>1830</a>            sponsorship: ProposalSponsorship::new(),
+<a href=#1831 id=1831 data-nosnippet>1831</a>            accepted_at: <span class="prelude-val">None</span>,
+<a href=#1832 id=1832 data-nosnippet>1832</a>            veto: <span class="prelude-val">None</span>,
+<a href=#1833 id=1833 data-nosnippet>1833</a>        };
+<a href=#1834 id=1834 data-nosnippet>1834</a>
+<a href=#1835 id=1835 data-nosnippet>1835</a>        <span class="kw">let </span>state = ProposalAutomationState {
+<a href=#1836 id=1836 data-nosnippet>1836</a>            proposal,
+<a href=#1837 id=1837 data-nosnippet>1837</a>            submitted_at: Instant::now(),
+<a href=#1838 id=1838 data-nosnippet>1838</a>            voting_status: VotingStatus {
+<a href=#1839 id=1839 data-nosnippet>1839</a>                eligible_voters: <span class="number">10</span>,
+<a href=#1840 id=1840 data-nosnippet>1840</a>                votes_cast: <span class="number">3</span>,
+<a href=#1841 id=1841 data-nosnippet>1841</a>                participation_rate: <span class="number">0.3</span>,
+<a href=#1842 id=1842 data-nosnippet>1842</a>                support_percentage: <span class="number">0.67</span>,
+<a href=#1843 id=1843 data-nosnippet>1843</a>                quorum_reached: <span class="bool-val">true</span>,
+<a href=#1844 id=1844 data-nosnippet>1844</a>                predicted_outcome: <span class="prelude-val">None</span>,
+<a href=#1845 id=1845 data-nosnippet>1845</a>            },
+<a href=#1846 id=1846 data-nosnippet>1846</a>            reminders_sent: <span class="macro">vec!</span>[],
+<a href=#1847 id=1847 data-nosnippet>1847</a>            execution_attempted: <span class="bool-val">false</span>,
+<a href=#1848 id=1848 data-nosnippet>1848</a>            eligible_voters: <span class="macro">vec!</span>[],
+<a href=#1849 id=1849 data-nosnippet>1849</a>            votes_received: HashMap::new(),
+<a href=#1850 id=1850 data-nosnippet>1850</a>        };
+<a href=#1851 id=1851 data-nosnippet>1851</a>
+<a href=#1852 id=1852 data-nosnippet>1852</a>        <span class="macro">assert_eq!</span>(state.voting_status.participation_rate, <span class="number">0.3</span>);
+<a href=#1853 id=1853 data-nosnippet>1853</a>        <span class="macro">assert!</span>(state.voting_status.quorum_reached);
+<a href=#1854 id=1854 data-nosnippet>1854</a>    }
+<a href=#1855 id=1855 data-nosnippet>1855</a>}</code></pre></div></section></main></body></html>

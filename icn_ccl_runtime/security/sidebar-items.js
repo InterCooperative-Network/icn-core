@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Capability"],"struct":["CapabilityEnforcer","DeterminismEnforcer","ResourceEnforcer","ResourceLimits","SecurityConfig"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CclRuntimeError","ContractState"],"fn":["current_timestamp"],"mod":["execution","federation","metering","security","stdlib","verification"],"struct":["CclRuntime","ContractCall","ContractCallResult","ContractDeployment","ContractEvent"],"type":["ContractAddress","Epoch","WasmCode"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["CredentialCategory","IssuerType","PrivacyLevel","TokenType"],"struct":["CredentialDependency","CredentialIssuer","CredentialMetadata","CredentialProof","CredentialRevocation","CredentialSubject","EconomicValue","SelectiveDisclosureProof","VerifiableCredential","VerifiablePresentation"]};

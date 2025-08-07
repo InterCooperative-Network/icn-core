@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Region"],"struct":["ArchiveCooperative","ArchiveCooperativeManager","Challenge","CooperativeId","ElectionProof","ErasureCoding","FederationVote","MerkleProof","Proof","Shard","ShardId","StorageEconomics","StorageTokens"]};

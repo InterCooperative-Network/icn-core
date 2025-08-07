@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["FederationRole","IdentityType","MembershipStatus","ProofOfPersonhood","PublicKeyMaterial","VerificationMethodType"],"struct":["DidDocument","DocumentProof","FederationMembership","IcnMetadata","OrganizationMembership","RateLimitStatus","RecoveryConfig","RevocationInfo","ServiceEndpoint","SybildResistanceData","VerificationMethod"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["Interaction","PartitionWinner","SyncResult","SyncStrategy"],"struct":["CheckpointHeader","FederationSyncConfig","FederationSyncManager","NetworkPartition","NodeAddress","PartitionCheckpoint","PartitionInfo","PeerInfo","TrustScore"]};

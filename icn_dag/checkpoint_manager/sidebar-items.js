@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ExternalReferenceType","ProofType"],"struct":["Checkpoint","CheckpointId","CheckpointManager","CheckpointProof","Credit","Debt","EconomicSummary","ExternalReference","FederationId","GovernanceSummary","MerkleProof","ValidatorId","ValidatorSignature"]};

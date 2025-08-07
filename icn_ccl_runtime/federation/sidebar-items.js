@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["ContractScope"],"struct":["CrossFedRequest","CrossFedResponse","CrossFederationProtocol","FederationId","FederationInfo","FederationRegistry","FederationValidator","ValidatorSignature"],"type":["OrganizationId"]};

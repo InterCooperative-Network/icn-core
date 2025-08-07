@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"enum":["TokenType","TransferabilityRule"],"struct":["FileManaLedger","FileResourceLedger","ScopingRules","SledManaLedger","SledResourceLedger","TokenClass","TransferRecord"],"trait":["ResourceLedger"],"type":["TokenClassId"]};
+window.SIDEBAR_ITEMS = {"enum":["TokenType","TransferabilityRule"],"struct":["AntiSpeculationRules","FileManaLedger","FileResourceLedger","ScopingRules","SledManaLedger","SledResourceLedger","TokenClass","TransferRecord","TransferTracker","VelocityLimits"],"trait":["ResourceLedger"],"type":["TokenClassId"]};

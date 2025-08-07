@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":["KeyRotationReason","OperationType","RecoveryMethod"],"struct":["Approval","CredentialIssuanceRequest","CredentialTemplate","DidCreationRequest","GuardianApproval","IdentityConfig","IdentityLifecycleManager","KeyRotationRequest","PendingOperation","RecoveryRequest"],"trait":["ManaLedger"]};
