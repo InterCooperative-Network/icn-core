@@ -23,6 +23,7 @@ members = [
     "crates/icn-zk",
     "crates/job-audit",
     "crates/icn-action",
+    "crates/icn-ccl-runtime",
 ]
 resolver = "2"
 
