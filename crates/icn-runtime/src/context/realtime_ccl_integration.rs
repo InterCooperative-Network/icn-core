@@ -827,6 +827,7 @@ impl CclIntegrationCoordinator {
             quorum: None,
             threshold: None,
             content_cid: proposal.content_cid,
+            timelock_delay: None,
         };
 
         // Submit to governance module

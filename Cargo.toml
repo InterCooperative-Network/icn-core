@@ -4,6 +4,7 @@ members = [
     "crates/icn-core-traits",
     "crates/icn-identity",
     "crates/icn-dag",
+    "crates/icn-federation-sync",
     "crates/icn-mesh",
     "crates/icn-runtime",
     "crates/icn-protocol",
@@ -23,6 +24,7 @@ members = [
     "crates/icn-zk",
     "crates/job-audit",
     "crates/icn-action",
+    "crates/icn-ccl-runtime",
 ]
 resolver = "2"
 

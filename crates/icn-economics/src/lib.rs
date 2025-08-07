@@ -32,6 +32,10 @@ pub mod time_banking;
 pub mod mana;
 pub mod mana_providers;
 
+/// Anti-speculation mechanism tests
+#[cfg(test)]
+mod anti_speculation_tests;
+
 /// Comprehensive economic automation and policy enforcement
 pub mod automation;
 pub use automation::{
@@ -48,8 +52,8 @@ pub use economic_dispute_resolver::{
 pub use explorer::{FlowStats, LedgerExplorer};
 pub use ledger::FileResourceLedger;
 pub use ledger::{
-    FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId, TokenType,
-    TransferRecord, TransferabilityRule,
+    AntiSpeculationRules, FileManaLedger, ResourceLedger, ScopingRules, TokenClass, TokenClassId,
+    TokenType, TransferRecord, TransferTracker, TransferabilityRule, VelocityLimits,
 };
 #[cfg(feature = "persist-rocksdb")]
 pub use ledger::{RocksdbManaLedger, RocksdbResourceLedger};

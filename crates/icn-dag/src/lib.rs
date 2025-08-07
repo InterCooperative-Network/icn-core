@@ -39,6 +39,10 @@ pub mod snapshot;
 pub mod sqlite_store;
 pub mod sync_monitor;
 
+// New DAG Storage Protocol modules
+pub mod archive_cooperative;
+pub mod checkpoint_manager;
+
 /// Metadata associated with a stored DAG block.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BlockMetadata {
@@ -1213,6 +1217,16 @@ where
 // pub fn add(left: u64, right: u64) -> u64 {
 //     left + right
 // }
+
+// Public re-exports for DAG Storage Protocol
+pub use archive_cooperative::{
+    ArchiveCooperative, ArchiveCooperativeManager, Challenge, CooperativeId, ErasureCoding, Proof,
+    Shard, ShardId, StorageEconomics, StorageTokens,
+};
+pub use checkpoint_manager::{
+    Checkpoint, CheckpointId, CheckpointManager, CheckpointProof, EconomicSummary, FederationId,
+    GovernanceSummary, ValidatorId,
+};
 
 #[cfg(test)]
 mod tests {

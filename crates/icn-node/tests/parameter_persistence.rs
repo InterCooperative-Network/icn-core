@@ -46,6 +46,7 @@ async fn parameter_persists_between_restarts() {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
+                    timelock_delay: None,
                 },
                 &*time_provider,
             )

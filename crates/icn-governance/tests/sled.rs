@@ -2,7 +2,8 @@
 mod tests {
     use icn_common::{Did, FixedTimeProvider};
     use icn_governance::{
-        GovernanceModule, ProposalStatus, ProposalSubmission, ProposalType, VoteOption,
+        GovernanceModule, Proposal, ProposalSponsorship, ProposalStatus, ProposalSubmission,
+        ProposalType, VoteOption,
     };
     use std::str::FromStr;
     use tempfile::tempdir;
@@ -25,6 +26,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )
@@ -71,6 +73,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )
@@ -120,6 +123,10 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
+            sponsorship: ProposalSponsorship::new(),
+            accepted_at: None,
+            veto: None,
         };
 
         gov.insert_external_proposal(proposal.clone()).unwrap();
@@ -147,6 +154,7 @@ mod tests {
                     quorum: None,
                     threshold: None,
                     content_cid: None,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )

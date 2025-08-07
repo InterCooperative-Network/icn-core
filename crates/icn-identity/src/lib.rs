@@ -24,13 +24,31 @@ pub use security::{
     secure_verify_signature, SecureBytes, SecurityAuditResult, SecurityConfig, SecurityIssue,
     SecurityIssueSeverity,
 };
+pub mod did_document;
 pub mod zk;
+pub use did_document::{
+    DidDocument, FederationMembership, IcnMetadata, IdentityType, OrganizationMembership,
+    ProofOfPersonhood, PublicKeyMaterial, RecoveryConfig, SybildResistanceData, VerificationMethod,
+    VerificationMethodType,
+};
+pub mod verifiable_credential;
+pub use verifiable_credential::{
+    CredentialCategory, CredentialMetadata, CredentialProof, CredentialSubject, EconomicValue,
+    PrivacyLevel, TokenType, VerifiableCredential, VerifiablePresentation,
+};
+pub mod identity_lifecycle;
+pub use identity_lifecycle::{
+    CredentialIssuanceRequest, CredentialTemplate, DidCreationRequest, IdentityConfig,
+    IdentityLifecycleManager, KeyRotationRequest, ManaLedger, RecoveryRequest,
+};
 pub use zk::{
     BulletproofsProver, BulletproofsVerifier, DummyProver, DummyVerifier, Groth16KeyManager,
     Groth16Prover, Groth16Verifier, ZkError, ZkProver, ZkVerifier,
 };
 pub mod credential;
-pub use credential::{Credential, CredentialIssuer, DisclosedCredential};
+pub use credential::{
+    Credential, CredentialIssuer as OriginalCredentialIssuer, DisclosedCredential,
+};
 pub mod credential_store;
 pub use credential_store::InMemoryCredentialStore;
 pub mod revocation_registry;
@@ -59,7 +77,7 @@ pub use federation_trust::{
     KeyPurpose, MemberStatus, MembershipCriteria, QuorumPolicy, ScopedTrustRelationship,
     SizeLimits, TrustContext, TrustInheritance, TrustPolicyEngine, TrustPolicyRule,
     TrustValidationResult, TrustVerificationRequirements, VerificationChallenge,
-    VerificationMaterial, VerificationMethod, WeightAssignment,
+    VerificationMaterial, WeightAssignment,
 };
 pub mod trust_attestation;
 pub use trust_attestation::{
@@ -95,6 +113,9 @@ pub use crdt_group_membership::{
 
 #[cfg(test)]
 mod security_tests;
+
+#[cfg(test)]
+pub mod identity_protocol_tests;
 
 // --- Core Cryptographic Operations & DID:key generation ---
 

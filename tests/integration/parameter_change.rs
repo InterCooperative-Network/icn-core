@@ -45,6 +45,7 @@ async fn system_parameter_change_updates_rate_limit() {
                     ),
                     description: "increase limit".into(),
                     duration_secs: 60,
+                    timelock_delay: None,
                     quorum: None,
                     threshold: None,
                     content_cid: None,

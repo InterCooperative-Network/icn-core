@@ -51,6 +51,9 @@ pub use security::{
 #[cfg(test)]
 mod integration_tests;
 
+#[cfg(test)]
+mod governance_extensions_tests;
+
 pub use automation::{
     AutomationVoteWeight, AutomationVotingResult, EnforcementAction, ExecutionResult,
     GovernanceAutomationConfig, GovernanceAutomationEngine, GovernanceAutomationStats,
@@ -159,14 +162,96 @@ pub struct ResolutionProposal {
 pub enum ProposalStatus {
     /// Newly created and under discussion before voting opens
     Deliberation,
+    /// Waiting for sufficient sponsors before voting can open
+    PendingSponsorship,
     /// Actively collecting votes
     VotingOpen,
-    Accepted, // Voting period ended, quorum and threshold met
-    Rejected, // Voting period ended, quorum or threshold not met
-    Executed, // For proposals that have an on-chain/system effect
-    Failed,   // Execution failed
+    /// Voting period ended, quorum and threshold met, waiting for time-lock
+    AcceptedTimelock,
+    /// Accepted and time-lock period completed, ready for execution
+    Accepted,
+    /// Voting period ended, quorum or threshold not met
+    Rejected,
+    /// Vetoed during grace period
+    Vetoed,
+    /// For proposals that have an on-chain/system effect
+    Executed,
+    /// Execution failed
+    Failed,
 }
 
+/// Governance configuration for time-locks, vetoes, and sponsorship requirements
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct GovernanceConfig {
+    /// Minimum number of sponsors required for a proposal to proceed to voting
+    pub min_sponsors: usize,
+    /// Time-lock delay in seconds between acceptance and execution
+    pub timelock_delay_secs: u64,
+    /// Grace period in seconds during which vetoes can be applied
+    pub veto_grace_period_secs: u64,
+    /// Members who have veto powers (empty means no veto powers)
+    pub veto_members: HashSet<Did>,
+    /// Whether to require anti-spam fees for proposal submission
+    pub require_anti_spam_fees: bool,
+    /// Mana cost for submitting a proposal (if anti-spam fees enabled)
+    pub proposal_fee: u64,
+}
+
+impl Default for GovernanceConfig {
+    fn default() -> Self {
+        Self {
+            min_sponsors: 1,
+            timelock_delay_secs: 0,
+            veto_grace_period_secs: 0,
+            veto_members: HashSet::new(),
+            require_anti_spam_fees: false,
+            proposal_fee: 0,
+        }
+    }
+}
+
+/// Sponsorship information for a proposal
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ProposalSponsorship {
+    /// Members who have sponsored this proposal
+    pub sponsors: HashSet<Did>,
+    /// Timestamp when sponsorship requirement was met
+    pub sponsorship_complete_at: Option<u64>,
+}
+
+impl ProposalSponsorship {
+    pub fn new() -> Self {
+        Self {
+            sponsors: HashSet::new(),
+            sponsorship_complete_at: None,
+        }
+    }
+
+    pub fn add_sponsor(&mut self, sponsor: Did, timestamp: u64, min_sponsors: usize) {
+        self.sponsors.insert(sponsor);
+        if self.sponsors.len() >= min_sponsors && self.sponsorship_complete_at.is_none() {
+            self.sponsorship_complete_at = Some(timestamp);
+        }
+    }
+
+    pub fn has_sufficient_sponsors(&self, min_sponsors: usize) -> bool {
+        self.sponsors.len() >= min_sponsors
+    }
+}
+
+/// Veto information for a proposal
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct ProposalVeto {
+    /// Member who applied the veto
+    pub vetoed_by: Did,
+    /// Timestamp when veto was applied
+    pub vetoed_at: u64,
+    /// Reason for the veto
+    pub reason: String,
+}
 /// Full proposal record stored in the governance module.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -185,7 +270,14 @@ pub struct Proposal {
     pub threshold: Option<f32>,
     /// CID of proposal body stored in the DAG
     pub content_cid: Option<Cid>,
-    // Potentially, threshold and quorum requirements could be part of the proposal type or global config
+    /// Sponsorship information
+    pub sponsorship: ProposalSponsorship,
+    /// Time when proposal was accepted (for time-lock calculations)
+    pub accepted_at: Option<u64>,
+    /// Time-lock delay in seconds (overrides global config if set)
+    pub timelock_delay: Option<u64>,
+    /// Veto information if proposal was vetoed
+    pub veto: Option<ProposalVeto>,
 }
 
 pub fn canonical_proposal(proposals: &[Proposal]) -> Option<&Proposal> {
@@ -248,6 +340,7 @@ pub struct GovernanceModule {
     delegations: HashMap<Did, Did>,
     quorum: usize,
     threshold: f32,
+    config: GovernanceConfig,
     #[allow(clippy::type_complexity)]
     proposal_callbacks: Vec<Box<dyn ProposalCallback>>,
     #[allow(clippy::type_complexity)]
@@ -264,6 +357,7 @@ pub struct ProposalSubmission {
     pub quorum: Option<usize>,
     pub threshold: Option<f32>,
     pub content_cid: Option<Cid>,
+    pub timelock_delay: Option<u64>,
 }
 
 impl GovernanceModule {
@@ -277,6 +371,23 @@ impl GovernanceModule {
             delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
+            config: GovernanceConfig::default(),
+            proposal_callbacks: Vec::new(),
+            event_store: None,
+        }
+    }
+
+    /// Creates a new GovernanceModule with specific configuration.
+    pub fn with_config(config: GovernanceConfig) -> Self {
+        GovernanceModule {
+            backend: Backend::InMemory {
+                proposals: HashMap::new(),
+            },
+            members: HashSet::new(),
+            delegations: HashMap::new(),
+            quorum: 1,
+            threshold: 0.5,
+            config,
             proposal_callbacks: Vec::new(),
             event_store: None,
         }
@@ -348,6 +459,7 @@ impl GovernanceModule {
             delegations: HashMap::new(),
             quorum: 1,
             threshold: 0.5,
+            config: GovernanceConfig::default(),
             proposal_callbacks: Vec::new(),
             event_store: None,
         })
@@ -370,6 +482,18 @@ impl GovernanceModule {
         );
         let proposal_id = ProposalId(proposal_id_str);
 
+        let initial_status = if self.config.min_sponsors > 1 {
+            ProposalStatus::PendingSponsorship
+        } else {
+            ProposalStatus::Deliberation
+        };
+
+        let mut sponsorship = ProposalSponsorship::new();
+        // If min_sponsors is 1, the proposer automatically satisfies sponsorship
+        if self.config.min_sponsors <= 1 {
+            sponsorship.add_sponsor(submission.proposer.clone(), now, self.config.min_sponsors);
+        }
+
         let proposal = Proposal {
             id: proposal_id.clone(),
             proposer: submission.proposer,
@@ -377,11 +501,15 @@ impl GovernanceModule {
             description: submission.description,
             created_at: now,
             voting_deadline: now + submission.duration_secs,
-            status: ProposalStatus::Deliberation,
+            status: initial_status,
             votes: HashMap::new(),
             quorum: submission.quorum,
             threshold: submission.threshold,
             content_cid: submission.content_cid,
+            sponsorship,
+            accepted_at: None,
+            timelock_delay: submission.timelock_delay,
+            veto: None,
         };
 
         match &mut self.backend {
@@ -463,6 +591,20 @@ impl GovernanceModule {
                         proposal_id.0, proposal.status
                     )));
                 }
+
+                // Check sponsorship requirements
+                if !proposal
+                    .sponsorship
+                    .has_sufficient_sponsors(self.config.min_sponsors)
+                {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} does not have sufficient sponsors ({} required, {} found)",
+                        proposal_id.0,
+                        self.config.min_sponsors,
+                        proposal.sponsorship.sponsors.len()
+                    )));
+                }
+
                 proposal.status = ProposalStatus::VotingOpen;
             }
             #[cfg(feature = "persist-sled")]
@@ -789,6 +931,207 @@ impl GovernanceModule {
         F: ProposalCallback + 'static,
     {
         self.proposal_callbacks.push(Box::new(cb));
+    }
+
+    /// Update governance configuration
+    pub fn set_config(&mut self, config: GovernanceConfig) {
+        self.config = config;
+    }
+
+    /// Get current governance configuration
+    pub fn config(&self) -> &GovernanceConfig {
+        &self.config
+    }
+
+    /// Sponsor a proposal (add sponsor support for advancement to voting)
+    pub fn sponsor_proposal(
+        &mut self,
+        proposal_id: &ProposalId,
+        sponsor: Did,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), CommonError> {
+        let now = time_provider.unix_seconds();
+
+        // Check if sponsor is a member
+        if !self.members.contains(&sponsor) {
+            return Err(CommonError::InvalidInputError(
+                "Sponsor must be a member".to_string(),
+            ));
+        }
+
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found",
+                        proposal_id.0
+                    ))
+                })?;
+
+                if proposal.status != ProposalStatus::PendingSponsorship {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} is not pending sponsorship",
+                        proposal_id.0
+                    )));
+                }
+
+                proposal
+                    .sponsorship
+                    .add_sponsor(sponsor, now, self.config.min_sponsors);
+
+                // If sponsorship requirement is met, advance to Deliberation
+                if proposal
+                    .sponsorship
+                    .has_sufficient_sponsors(self.config.min_sponsors)
+                {
+                    proposal.status = ProposalStatus::Deliberation;
+                    if let Some(store) = &self.event_store {
+                        store
+                            .lock()
+                            .unwrap()
+                            .append(&GovernanceEvent::StatusUpdated(
+                                proposal_id.clone(),
+                                ProposalStatus::Deliberation,
+                            ))?;
+                    }
+                }
+
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { .. } => {
+                // TODO: Implement sled version
+                Err(CommonError::NotImplemented(
+                    "Sled backend not implemented for sponsor_proposal".to_string(),
+                ))
+            }
+        }
+    }
+
+    /// Apply a veto to an accepted proposal during grace period
+    pub fn veto_proposal(
+        &mut self,
+        proposal_id: &ProposalId,
+        vetoed_by: Did,
+        reason: String,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<(), CommonError> {
+        let now = time_provider.unix_seconds();
+
+        // Check if vetoed_by has veto powers
+        if !self.config.veto_members.contains(&vetoed_by) {
+            return Err(CommonError::InvalidInputError(
+                "Member does not have veto powers".to_string(),
+            ));
+        }
+
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                let proposal = proposals.get_mut(proposal_id).ok_or_else(|| {
+                    CommonError::ResourceNotFound(format!(
+                        "Proposal with ID {} not found",
+                        proposal_id.0
+                    ))
+                })?;
+
+                // Can only veto accepted proposals during grace period
+                if proposal.status != ProposalStatus::AcceptedTimelock {
+                    return Err(CommonError::InvalidInputError(format!(
+                        "Proposal {} cannot be vetoed in current status: {:?}",
+                        proposal_id.0, proposal.status
+                    )));
+                }
+
+                // Check if still within grace period
+                if let Some(accepted_at) = proposal.accepted_at {
+                    if now > accepted_at + self.config.veto_grace_period_secs {
+                        return Err(CommonError::InvalidInputError(
+                            "Veto grace period has expired".to_string(),
+                        ));
+                    }
+                } else {
+                    return Err(CommonError::InvalidInputError(
+                        "Proposal accepted time not recorded".to_string(),
+                    ));
+                }
+
+                proposal.veto = Some(ProposalVeto {
+                    vetoed_by,
+                    vetoed_at: now,
+                    reason,
+                });
+                proposal.status = ProposalStatus::Vetoed;
+
+                if let Some(store) = &self.event_store {
+                    store
+                        .lock()
+                        .unwrap()
+                        .append(&GovernanceEvent::StatusUpdated(
+                            proposal_id.clone(),
+                            ProposalStatus::Vetoed,
+                        ))?;
+                }
+
+                Ok(())
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { .. } => {
+                // TODO: Implement sled version
+                Err(CommonError::NotImplemented(
+                    "Sled backend not implemented for veto_proposal".to_string(),
+                ))
+            }
+        }
+    }
+
+    /// Process time-locked proposals that are ready for execution
+    pub fn process_timelocked_proposals(
+        &mut self,
+        time_provider: &dyn TimeProvider,
+    ) -> Result<Vec<ProposalId>, CommonError> {
+        let now = time_provider.unix_seconds();
+        let mut ready_proposals = Vec::new();
+
+        match &mut self.backend {
+            Backend::InMemory { proposals } => {
+                for (id, proposal) in proposals.iter_mut() {
+                    if proposal.status == ProposalStatus::AcceptedTimelock {
+                        if let Some(accepted_at) = proposal.accepted_at {
+                            let timelock_delay = proposal
+                                .timelock_delay
+                                .unwrap_or(self.config.timelock_delay_secs);
+
+                            // Check if time-lock period has elapsed and grace period for vetos has passed
+                            let timelock_complete = now >= accepted_at + timelock_delay;
+                            let grace_complete =
+                                now >= accepted_at + self.config.veto_grace_period_secs;
+
+                            if timelock_complete && grace_complete {
+                                proposal.status = ProposalStatus::Accepted;
+                                ready_proposals.push(id.clone());
+
+                                if let Some(store) = &self.event_store {
+                                    let _ = store.lock().unwrap().append(
+                                        &GovernanceEvent::StatusUpdated(
+                                            id.clone(),
+                                            ProposalStatus::Accepted,
+                                        ),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+                Ok(ready_proposals)
+            }
+            #[cfg(feature = "persist-sled")]
+            Backend::Sled { .. } => {
+                // TODO: Implement sled version
+                Err(CommonError::NotImplemented(
+                    "Sled backend not implemented for process_timelocked_proposals".to_string(),
+                ))
+            }
+        }
     }
 
     /// Inserts a proposal that originated from another node into the governance module.
@@ -1203,7 +1546,16 @@ impl GovernanceModule {
                 if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
                 } else if (yes as f32) >= (total as f32 * threshold) {
-                    proposal.status = ProposalStatus::Accepted;
+                    // Handle time-lock logic
+                    let timelock_delay = proposal
+                        .timelock_delay
+                        .unwrap_or(self.config.timelock_delay_secs);
+                    if timelock_delay > 0 || self.config.veto_grace_period_secs > 0 {
+                        proposal.status = ProposalStatus::AcceptedTimelock;
+                        proposal.accepted_at = Some(now);
+                    } else {
+                        proposal.status = ProposalStatus::Accepted;
+                    }
                 } else {
                     proposal.status = ProposalStatus::Rejected;
                 }
@@ -1265,7 +1617,16 @@ impl GovernanceModule {
                 if total < quorum {
                     proposal.status = ProposalStatus::Rejected;
                 } else if (yes as f32) >= (total as f32 * threshold) {
-                    proposal.status = ProposalStatus::Accepted;
+                    // Handle time-lock logic
+                    let timelock_delay = proposal
+                        .timelock_delay
+                        .unwrap_or(self.config.timelock_delay_secs);
+                    if timelock_delay > 0 || self.config.veto_grace_period_secs > 0 {
+                        proposal.status = ProposalStatus::AcceptedTimelock;
+                        proposal.accepted_at = Some(now);
+                    } else {
+                        proposal.status = ProposalStatus::Accepted;
+                    }
                 } else {
                     proposal.status = ProposalStatus::Rejected;
                 }
@@ -1569,6 +1930,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = gov.submit_proposal(submission, &time_provider).unwrap();
@@ -1605,6 +1967,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = gov.submit_proposal(submission, &time_provider).unwrap();

@@ -34,6 +34,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance
@@ -103,6 +104,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance
@@ -147,6 +149,7 @@ mod tests {
             quorum: Some(1),
             threshold: Some(0.5),
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance
@@ -195,6 +198,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance
@@ -240,6 +244,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance
@@ -299,6 +304,7 @@ mod tests {
             quorum: Some(1),
             threshold: Some(0.5),
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = governance

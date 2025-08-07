@@ -212,6 +212,7 @@ impl FederationSyncCoordinator {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         let proposal_id = {
@@ -428,6 +429,7 @@ impl FederationSyncCoordinator {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
+            timelock_delay: None,
             };
 
             // Insert as external proposal
@@ -677,6 +679,7 @@ mod tests {
             quorum: None,
             threshold: None,
             content_cid: None,
+            timelock_delay: None,
         };
 
         {
@@ -694,6 +697,7 @@ mod tests {
                 quorum: None,
                 threshold: None,
                 content_cid: None,
+            timelock_delay: None,
             };
             engine.insert_external_proposal(proposal).unwrap();
         }
