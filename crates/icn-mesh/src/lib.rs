@@ -15,6 +15,9 @@ use icn_identity::{
 use serde::{Deserialize, Serialize};
 pub mod aid;
 pub mod metrics;
+pub mod docker_sandbox;
+pub mod sharded_execution;
+pub mod federated_learning;
 
 /// Unique identifier for a mesh job.
 ///
@@ -119,7 +122,7 @@ impl ActualMeshJob {
 }
 
 /// Kinds of mesh jobs that can be executed.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default, Hash)]
 pub enum JobKind {
     /// Simple echo job used for basic integration tests.
     Echo { payload: String },
@@ -1206,9 +1209,27 @@ impl JobLifecycle {
     }
 }
 
+// Re-export enhanced mesh protocol components
+pub use docker_sandbox::{
+    DockerSandbox, DockerSandboxManager, DockerExecutionResult, DockerResourceLimits,
+    DockerSecurityConfig, DockerNetworkConfig, DockerExecutionConfig, NetworkMode,
+    DockerResourceUsage,
+};
+
+pub use sharded_execution::{
+    JobShard, ShardInput, ShardResult, ShardedJobResult, JobShardingEngine,
+    ShardCoordinator, ShardingStrategy, MapReduceShardingStrategy, 
+    DataProcessingShardingStrategy, AggregationStrategy, OutputFormat,
+};
+
+pub use federated_learning::{
+    ModelSpec, ModelArchitecture, FederatedTrainingRound, FederatedParticipant,
+    ModelUpdate, AggregationResult, FederatedLearningCoordinator, PrivacyConfig,
+    TrainingHyperparameters, DifferentialPrivacyConfig,
+};
+
 #[cfg(test)]
 mod tests {
-    use super::*;
     use icn_common::{Cid, Did, NodeInfo, ICN_CORE_VERSION}; // Kept ICN_CORE_VERSION as it's often for tests
     use icn_economics::ManaLedger;
     use std::collections::HashMap;
