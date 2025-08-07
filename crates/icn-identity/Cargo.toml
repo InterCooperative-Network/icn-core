@@ -19,7 +19,7 @@ tokio = { workspace = true, features = ["sync"] }
 # --- crypto ---
 ed25519-dalek = { version = "2.0.0-pre.3", features = ["rand_core"] }
 rand_core      = { version = "0.6", features = ["getrandom"] } # used by dalek's OsRng
-rand           = "0.8" # For OsRng compatibility with ark circuits
+rand           = "0.9" # For OsRng compatibility with ark circuits
 # --- DID:key helpers ---
 multibase      = "0.9"          # base-58btc ("z...") encoder/decoder
 # tiny crate that just exposes the unsigned-varint impl used by multicodec
@@ -57,7 +57,7 @@ uuid = { version = "1.0", features = ["v4", "serde"] }
 
 [dev-dependencies]
 # rand is still useful for general tests if needed, but OsRng from rand_core is for dalek
-rand = "0.8"
+rand = "0.9"
 serde_json = "1.0"
 curve25519-dalek = "4"
 merlin = "3"
