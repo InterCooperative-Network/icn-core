@@ -541,6 +541,7 @@ impl GovernanceApi for GovernanceApiImpl {
                 quorum: request.quorum,
                 threshold: request.threshold,
                 content_cid: None,
+                timelock_delay: None,
             },
             &time_provider,
         )

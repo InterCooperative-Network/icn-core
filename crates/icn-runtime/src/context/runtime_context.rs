@@ -3053,6 +3053,7 @@ impl RuntimeContext {
                     quorum: payload.quorum,
                     threshold: payload.threshold,
                     content_cid,
+                    timelock_delay: None,
                 },
                 &time_provider,
             )
