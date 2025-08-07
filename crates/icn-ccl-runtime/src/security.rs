@@ -215,7 +215,7 @@ impl SecurityConfig {
         }
 
         // Check WASM version
-        if &code[4..8] != &[0x01, 0x00, 0x00, 0x00] {
+        if code[4..8] != [0x01, 0x00, 0x00, 0x00] {
             return Err(CclRuntimeError::SecurityViolation(
                 "Unsupported WASM version".to_string(),
             ));

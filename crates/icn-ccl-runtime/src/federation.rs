@@ -42,7 +42,7 @@ impl ContractScope {
             }
             ContractScope::Federation(fed_id) => {
                 // Check federation membership
-                caller_federation.map_or(false, |f| f.id == *fed_id)
+                caller_federation.is_some_and(|f| f.id == *fed_id)
             }
             ContractScope::Global => true,
         }
@@ -271,7 +271,7 @@ impl CrossFederationProtocol {
         hasher.update(&request.target_federation.id);
         hasher.update(&request.contract);
         hasher.update(&request.function);
-        hasher.update(&request.nonce.to_be_bytes());
+        hasher.update(request.nonce.to_be_bytes());
 
         format!("req_{}", hex::encode(&hasher.finalize()[..8]))
     }

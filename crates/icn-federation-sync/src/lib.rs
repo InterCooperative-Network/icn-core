@@ -293,7 +293,7 @@ impl FederationSyncManager {
 
         // Weighted combination
         let trust = direct_trust * 0.6 + transitive_trust * 0.2 + interaction_score * 0.2;
-        Ok(trust.min(1.0).max(0.0))
+        Ok(trust.clamp(0.0, 1.0))
     }
 
     /// Update trust score based on interaction outcome

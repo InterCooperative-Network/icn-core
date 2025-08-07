@@ -6,7 +6,9 @@
 //! - Key rotation and recovery mechanisms
 //! - Sybil resistance and proof-of-personhood
 
-use crate::did_document::{DidDocument, VerificationMethod, VerificationMethodType, PublicKeyMaterial};
+use crate::did_document::{
+    DidDocument, PublicKeyMaterial, VerificationMethod, VerificationMethodType,
+};
 use crate::verifiable_credential::VerifiableCredential;
 use icn_common::{CommonError, Did};
 use serde::{Deserialize, Serialize};
