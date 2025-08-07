@@ -569,7 +569,7 @@ fn generate_salt() -> String {
     use rand::Rng;
     let salt: [u8; 32] = rand::thread_rng().gen();
     // Use base64 encoding 
-    base64::Engine::encode(&base64::engine::general_purpose::STANDARD, salt)
+    base64::encode(salt)
 }
 
 #[cfg(test)]
