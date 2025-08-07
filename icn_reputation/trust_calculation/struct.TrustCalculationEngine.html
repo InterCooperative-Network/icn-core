@@ -4,24 +4,24 @@
 </div></details><details class="toggle method-toggle" open><summary><section id="method.calculate_pagerank_scores" class="method"><a class="src rightside" href="../../src/icn_reputation/trust_calculation.rs.html#62-118">Source</a><h4 class="code-header">pub fn <a href="#method.calculate_pagerank_scores" class="fn">calculate_pagerank_scores</a>(
     &amp;self,
     graph: &amp;<a class="struct" href="../trust_graph/struct.TrustGraph.html" title="struct icn_reputation::trust_graph::TrustGraph">TrustGraph</a>,
-    time_provider: &amp;dyn TimeProvider,
-) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;Did, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>&gt;</h4></section></summary><div class="docblock"><p>Calculate PageRank-style trust scores for all nodes in the graph</p>
+    time_provider: &amp;dyn <a class="trait" href="../../icn_common/trait.TimeProvider.html" title="trait icn_common::TimeProvider">TimeProvider</a>,
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>&gt;</h4></section></summary><div class="docblock"><p>Calculate PageRank-style trust scores for all nodes in the graph</p>
 <p>This algorithm treats trust relationships as directed edges and calculates
 a stationary distribution representing the long-term trust flow in the network.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.calculate_weighted_trust_scores" class="method"><a class="src rightside" href="../../src/icn_reputation/trust_calculation.rs.html#124-181">Source</a><h4 class="code-header">pub fn <a href="#method.calculate_weighted_trust_scores" class="fn">calculate_weighted_trust_scores</a>(
     &amp;self,
     graph: &amp;<a class="struct" href="../trust_graph/struct.TrustGraph.html" title="struct icn_reputation::trust_graph::TrustGraph">TrustGraph</a>,
-    time_provider: &amp;dyn TimeProvider,
+    time_provider: &amp;dyn <a class="trait" href="../../icn_common/trait.TimeProvider.html" title="trait icn_common::TimeProvider">TimeProvider</a>,
     max_path_length: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
-) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;Did, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>&gt;</h4></section></summary><div class="docblock"><p>Calculate weighted trust scores that combine direct and indirect trust</p>
+) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/std/collections/hash/map/struct.HashMap.html" title="struct std::collections::hash::map::HashMap">HashMap</a>&lt;<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a>&gt;</h4></section></summary><div class="docblock"><p>Calculate weighted trust scores that combine direct and indirect trust</p>
 <p>This algorithm considers both direct trust relationships and trust propagated
 through intermediate nodes with distance-based decay.</p>
 </div></details><details class="toggle method-toggle" open><summary><section id="method.calculate_pairwise_trust" class="method"><a class="src rightside" href="../../src/icn_reputation/trust_calculation.rs.html#187-218">Source</a><h4 class="code-header">pub fn <a href="#method.calculate_pairwise_trust" class="fn">calculate_pairwise_trust</a>(
     &amp;self,
     graph: &amp;<a class="struct" href="../trust_graph/struct.TrustGraph.html" title="struct icn_reputation::trust_graph::TrustGraph">TrustGraph</a>,
-    source: &amp;Did,
-    target: &amp;Did,
-    time_provider: &amp;dyn TimeProvider,
+    source: &amp;<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    target: &amp;<a class="struct" href="../../icn_common/struct.Did.html" title="struct icn_common::Did">Did</a>,
+    time_provider: &amp;dyn <a class="trait" href="../../icn_common/trait.TimeProvider.html" title="trait icn_common::TimeProvider">TimeProvider</a>,
     max_path_length: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
 ) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.f64.html">f64</a></h4></section></summary><div class="docblock"><p>Calculate trust score for a specific target node from a source perspective</p>
 <p>This method finds the best trust path from source to target and calculates
