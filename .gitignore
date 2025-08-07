@@ -12,6 +12,15 @@ Cargo.lock
 .project
 .DS_Store
 
+# Python virtual environments and cache
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
 # Logs and temporary
 *.log
 *.events.jsonl
