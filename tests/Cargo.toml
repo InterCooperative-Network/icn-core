@@ -109,7 +109,7 @@ icn-zk = { path = "../crates/icn-zk" }
 icn-ccl = { path = "../icn-ccl" }
 ark-groth16 = "0.5"
 ark-bn254 = "0.4"
-ark-serialize = "0.4"
+ark-serialize = "0.5"
 rand_core = "0.6"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
